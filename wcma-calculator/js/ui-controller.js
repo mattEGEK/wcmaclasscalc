@@ -911,33 +911,57 @@ function getAllFormDataForSave() {
  * Save current configuration to localStorage
  */
 function saveConfiguration() {
-    const configData = getAllFormDataForSave();
-    
-    // Get existing saved configurations
-    const savedConfigs = getSavedConfigurations();
-    
-    // Generate a name for this configuration
-    const configName = `${configData.year} ${configData.make} ${configData.model}`.trim() || 
-                       `Configuration ${savedConfigs.length + 1}`;
-    
-    const configEntry = {
-        id: Date.now().toString(),
-        name: configName,
-        data: configData,
-        timestamp: new Date().toISOString()
-    };
-    
-    // Add to list
-    savedConfigs.push(configEntry);
-    
-    // Save to localStorage (limit to 10 most recent)
-    const configsToSave = savedConfigs.slice(-10);
-    localStorage.setItem('wcma-saved-configs', JSON.stringify(configsToSave));
-    
-    // Show success message
-    showMessage('Configuration saved successfully!', 'success');
-    
-    return configEntry;
+    try {
+        // Check if localStorage is available
+        if (typeof(Storage) === "undefined") {
+            alert('LocalStorage is not available in your browser. Cannot save configuration.');
+            console.error('LocalStorage not available');
+            return null;
+        }
+
+        const configData = getAllFormDataForSave();
+        
+        // Get existing saved configurations
+        const savedConfigs = getSavedConfigurations();
+        
+        // Generate a name for this configuration
+        const configName = `${configData.year} ${configData.make} ${configData.model}`.trim() || 
+                           `Configuration ${savedConfigs.length + 1}`;
+        
+        const configEntry = {
+            id: Date.now().toString(),
+            name: configName,
+            data: configData,
+            timestamp: new Date().toISOString()
+        };
+        
+        // Add to list
+        savedConfigs.push(configEntry);
+        
+        // Save to localStorage (limit to 10 most recent)
+        const configsToSave = savedConfigs.slice(-10);
+        
+        try {
+            localStorage.setItem('wcma-saved-configs', JSON.stringify(configsToSave));
+            console.log('Configuration saved:', configEntry.name);
+        } catch (e) {
+            if (e.name === 'QuotaExceededError') {
+                alert('Storage quota exceeded. Please delete some saved configurations first.');
+                console.error('LocalStorage quota exceeded');
+                return null;
+            }
+            throw e;
+        }
+        
+        // Show success message
+        showMessage('Configuration saved successfully!', 'success');
+        
+        return configEntry;
+    } catch (error) {
+        console.error('Error saving configuration:', error);
+        alert('An error occurred while saving the configuration: ' + error.message);
+        return null;
+    }
 }
 
 /**
@@ -1138,15 +1162,28 @@ function escapeHtml(text) {
  * Show message to user
  */
 function showMessage(message, type = 'info') {
-    const messageEl = document.getElementById('form-messages');
-    if (messageEl) {
-        messageEl.textContent = message;
-        messageEl.className = `form-messages ${type}`;
-        messageEl.style.display = 'block';
-        
-        setTimeout(() => {
-            messageEl.style.display = 'none';
-        }, 3000);
+    try {
+        const messageEl = document.getElementById('form-messages');
+        if (messageEl) {
+            messageEl.textContent = message;
+            messageEl.className = `form-messages ${type}`;
+            messageEl.style.display = 'block';
+            messageEl.setAttribute('role', 'alert');
+            
+            // Scroll to message if needed
+            messageEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            
+            setTimeout(() => {
+                messageEl.style.display = 'none';
+            }, 3000);
+        } else {
+            // Fallback to console and alert if element not found
+            console.warn('form-messages element not found, displaying alert instead:', message);
+            alert(message);
+        }
+    } catch (error) {
+        console.error('Error showing message:', error);
+        alert(message); // Fallback to alert
     }
 }
 
@@ -1265,8 +1302,17 @@ function initializeEventListeners() {
     if (saveButton) {
         saveButton.addEventListener('click', (e) => {
             e.preventDefault();
-            saveConfiguration();
+            e.stopPropagation();
+            console.log('Save configuration button clicked');
+            try {
+                saveConfiguration();
+            } catch (error) {
+                console.error('Error in save button handler:', error);
+                alert('An error occurred: ' + error.message);
+            }
         });
+    } else {
+        console.error('Save configuration button not found!');
     }
 
     // Load configuration button handler
