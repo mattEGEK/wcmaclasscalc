@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WCMA - Classing Calculator 2026</title>
+    <link rel="stylesheet" href="css/calculator.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <img src="https://www.wcma.ca/wp-content/uploads/WCMA-Logo.png" alt="WCMA Logo" class="wcma-logo">
+                <div class="header-text">
+                    <h1>WCMA Classing Calculator - 2026</h1>
+                    <p class="version">Version 1.0</p>
+                </div>
+            </div>
+        </header>
+        
+        <div class="instructions-box">
+            <h2>How to Use</h2>
+            <p>Enter your vehicle's competition weight and declared horsepower to calculate your base ratio. Select any applicable modification factors from the dropdowns, and the calculator will automatically update your modified ratio and calculated class in real-time. Review the results in the calculation box on the right before submitting.</p>
+        </div>
+
+        <div class="main-layout">
+            <div class="form-column">
+            <form id="classing-form" action="car-classing.php" method="POST" enctype="multipart/form-data">
+            <!-- Contact Information & Supporting Documents Section -->
+            <section class="form-section compact-section" aria-labelledby="contact-heading">
+                <h2 id="contact-heading">Contact Information & Supporting Documents</h2>
+                <p class="file-note">Please attach supporting documents (e.g., dyno sheet, <strong>maximum file size 2 MB</strong>) (<em>PDF, DOC, JPG, JPEG, or PNG</em>)</p>
+                <div class="form-grid compact-grid">
+                    <div class="form-group">
+                        <label for="name">Name <span class="required">*</span></label>
+                        <input type="text" id="name" name="name" required aria-required="true">
+                        <span class="error-message" id="name-error"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email <span class="required">*</span></label>
+                        <input type="email" id="email" name="email" required aria-required="true">
+                        <span class="error-message" id="email-error"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="year">Year <span class="required">*</span></label>
+                        <input type="text" id="year" name="year" required aria-required="true" pattern="[0-9]{4}">
+                        <span class="error-message" id="year-error"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="make">Make <span class="required">*</span></label>
+                        <input type="text" id="make" name="make" required aria-required="true">
+                        <span class="error-message" id="make-error"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="model">Model <span class="required">*</span></label>
+                        <input type="text" id="model" name="model" required aria-required="true">
+                        <span class="error-message" id="model-error"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="comments">Comments</label>
+                        <textarea id="comments" name="comments" rows="2"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dyno-chart">Dyno Chart</label>
+                        <input type="file" id="dyno-chart" name="dyno_chart" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                        <span class="file-info" id="dyno-chart-info"></span>
+                        <span class="error-message" id="dyno-chart-error"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dyno-table">Exported Dyno Table</label>
+                        <input type="file" id="dyno-table" name="dyno_table" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                        <span class="file-info" id="dyno-table-info"></span>
+                        <span class="error-message" id="dyno-table-error"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="car-image">Car Image</label>
+                        <input type="file" id="car-image" name="car_image" accept=".jpg,.jpeg,.png">
+                        <span class="file-info" id="car-image-info"></span>
+                        <span class="error-message" id="car-image-error"></span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Vehicle Factors Section -->
+            <section class="form-section compact-section" aria-labelledby="vehicle-factors-heading">
+                <h2 id="vehicle-factors-heading">Vehicle Factors</h2>
+                <div class="form-grid compact-grid">
+                    <div class="form-group">
+                        <label for="competition-weight">Competition Wgt (lbs) <span class="required">*</span></label>
+                        <div class="input-with-result">
+                            <input type="number" id="competition-weight" name="competition_weight" required aria-required="true" min="0" step="0.01" placeholder="Enter weight">
+                            <span class="inline-result" id="weight-result">--</span>
+                        </div>
+                        <span class="error-message" id="competition-weight-error"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="declared-hp">Declared HP <span class="required">*</span></label>
+                        <div class="input-with-result">
+                            <input type="number" id="declared-hp" name="declared_hp" required aria-required="true" min="0" step="0.01" placeholder="Enter HP">
+                            <span class="inline-result" id="hp-result">--</span>
+                        </div>
+                        <span class="error-message" id="declared-hp-error"></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="dyno-hp">Dyno HP (optional)</label>
+                        <input type="number" id="dyno-hp" name="dyno_hp" min="0" step="0.01" placeholder="Enter dyno HP">
+                        <span class="error-message" id="dyno-hp-error"></span>
+                    </div>
+                    <div class="form-group">
+                        <label for="chassis">Chassis</label>
+                        <div class="select-with-modifier">
+                            <select id="chassis" name="chassis" disabled data-modifier-type="chassis">
+                                <option value="">-- Select --</option>
+                            </select>
+                            <span class="modifier-value" id="chassis-modifier">+0.00</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="body-mods">Body Mods</label>
+                        <div class="select-with-modifier">
+                            <select id="body-mods" name="body_mods" disabled data-modifier-type="body">
+                                <option value="">-- Select --</option>
+                            </select>
+                            <span class="modifier-value" id="body-mods-modifier">+0.00</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="transmission">Transmission</label>
+                        <div class="select-with-modifier">
+                            <select id="transmission" name="transmission" disabled data-modifier-type="trans">
+                                <option value="">-- Select --</option>
+                            </select>
+                            <span class="modifier-value" id="transmission-modifier">+0.00</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="drivetrain">Drivetrain</label>
+                        <div class="select-with-modifier">
+                            <select id="drivetrain" name="drivetrain" disabled data-modifier-type="dt">
+                                <option value="">-- Select --</option>
+                            </select>
+                            <span class="modifier-value" id="drivetrain-modifier">+0.00</span>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tires">Tires</label>
+                        <div class="select-with-modifier">
+                            <select id="tires" name="tires" disabled data-modifier-type="tire">
+                                <option value="">-- Select --</option>
+                            </select>
+                            <span class="modifier-value" id="tires-modifier">+0.00</span>
+                        </div>
+                        <span class="field-note">IT1/IT2: Tire width based on vehicle weight</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Brake & Suspension (IT1/IT2)</label>
+                        <div class="checkbox-group">
+                            <div id="brake-suspension-options" class="checkbox-options">
+                                <span class="field-note">IT1/IT2 only</span>
+                            </div>
+                            <div class="modifier-value-container">
+                                <span class="modifier-value" id="brake-suspension-modifier">+0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Form Actions -->
+            <div class="form-actions">
+                <button type="button" id="print-button" class="btn btn-secondary">Print this page</button>
+                <button type="submit" id="submit-button" class="btn btn-primary">Submit</button>
+            </div>
+
+            <p class="submit-note">Note: Print out a copy for yourself before hitting submit.</p>
+            </form>
+            </div>
+
+            <!-- Calculation Results Column -->
+            <div class="results-column">
+                <div class="sticky-results-container">
+                    <div class="calculation-results-box">
+                        <h2>Calculation Results</h2>
+                        <div class="inline-calculation-summary">
+                            <div class="summary-item">
+                                <span class="summary-label">Weight Factor:</span>
+                                <span class="summary-value" id="weight-factor-display">--</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Base Ratio:</span>
+                                <span class="summary-value" id="inline-base-ratio">--</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Additional Mod Factors:</span>
+                                <span class="summary-value" id="additional-mods-display">--</span>
+                            </div>
+                            <div class="summary-item">
+                                <span class="summary-label">Modified Ratio:</span>
+                                <span class="summary-value" id="inline-modified-ratio">--</span>
+                            </div>
+                            <div class="summary-item highlight">
+                                <span class="summary-label">Calculated Class:</span>
+                                <span class="summary-value" id="inline-calculated-class">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Class Ranges Box -->
+                    <div class="class-ranges-box">
+                        <h3>Class Ranges</h3>
+                        <div class="class-ranges-list">
+                            <div class="class-range-item">
+                                <span class="class-name">GTU</span>
+                                <span class="class-range">&lt; 6.00</span>
+                            </div>
+                            <div class="class-range-item">
+                                <span class="class-name">GT1</span>
+                                <span class="class-range">6.00 - 7.99</span>
+                            </div>
+                            <div class="class-range-item">
+                                <span class="class-name">GT2</span>
+                                <span class="class-range">8.00 - 9.99</span>
+                            </div>
+                            <div class="class-range-item">
+                                <span class="class-name">GT3</span>
+                                <span class="class-range">10.00 - 11.99</span>
+                            </div>
+                            <div class="class-range-item">
+                                <span class="class-name">GT4</span>
+                                <span class="class-range">12.00 - 13.99</span>
+                            </div>
+                            <div class="class-range-item">
+                                <span class="class-name">IT1</span>
+                                <span class="class-range">14.00 - 17.99</span>
+                            </div>
+                            <div class="class-range-item">
+                                <span class="class-name">IT2</span>
+                                <span class="class-range">&gt;= 18.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success/Error Messages -->
+        <div id="form-messages" class="form-messages" role="alert" aria-live="polite"></div>
+    </div>
+
+    <script type="module" src="js/calculator.js"></script>
+    <script type="module" src="js/form-handler.js"></script>
+    <script type="module" src="js/ui-controller.js"></script>
+</body>
+</html>
+
