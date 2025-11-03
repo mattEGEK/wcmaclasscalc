@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Background circle with WCMA blue -->
+  <circle cx="50" cy="50" r="48" fill="#1a5490"/>
+  
+  <!-- Checkered flag pattern (racing theme - simplified for small size) -->
+  <rect x="32" y="38" width="10" height="10" fill="#ffffff"/>
+  <rect x="42" y="48" width="10" height="10" fill="#ffffff"/>
+  <rect x="48" y="38" width="10" height="10" fill="#ffffff"/>
+  <rect x="58" y="48" width="10" height="10" fill="#ffffff"/>
+  
+  <!-- Racing chevron lines at top -->
+  <path d="M 30 28 L 50 42 L 70 28" stroke="#ffd700" stroke-width="3" stroke-linecap="round" fill="none"/>
+  
+  <!-- Simple "W" letter for recognition at small sizes -->
+  <path d="M 35 65 L 40 55 L 45 62 L 50 55 L 55 62 L 60 55 L 65 65" 
+        stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>
