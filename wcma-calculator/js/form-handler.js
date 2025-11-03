@@ -321,17 +321,36 @@ export async function handleFormSubmit(form, onSubmitCallback = null) {
             body: formData
         });
 
+        // Parse JSON response
+        let result;
+        try {
+            result = await response.json();
+        } catch (e) {
+            // If response is not JSON, treat as text
+            const text = await response.text();
+            throw new Error(text || 'Server error: ' + response.status);
+        }
+
         // Check if submission was successful
-        if (response.ok) {
-            showFormMessage('Form submitted successfully! Thank you for your submission.', 'success');
-            // Optionally reset form after successful submission
+        if (response.ok && result.success) {
+            showFormMessage(result.message || 'Form submitted successfully! Thank you for your submission.', 'success');
+            // Optionally reset form after successful submission (commented out for testing)
             // form.reset();
         } else {
-            throw new Error('Server error during submission');
+            // Handle server-side validation errors
+            if (result.errors && Array.isArray(result.errors)) {
+                const errorMsg = result.errors.join(', ');
+                showFormMessage('Please correct the following errors: ' + errorMsg, 'error');
+            } else {
+                showFormMessage(result.message || 'Server error during submission', 'error');
+            }
+            throw new Error(result.message || 'Submission failed');
         }
     } catch (error) {
         console.error('Form submission error:', error);
-        showFormMessage('An error occurred while submitting the form. Please try again or contact support.', 'error');
+        if (!error.message.includes('correct the following errors')) {
+            showFormMessage('An error occurred while submitting the form. Please try again or contact support.', 'error');
+        }
         throw error;
     } finally {
         // Restore button state
