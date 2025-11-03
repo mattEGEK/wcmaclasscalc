@@ -423,6 +423,24 @@ export async function handleFormSubmit(form, onSubmitCallback = null) {
         // Check if submission was successful
         if (response.ok && result.success) {
             console.log('Submission successful!');
+            
+            // Log debug info if available
+            if (result.debug) {
+                console.log('=== Email Debug Info ===');
+                console.log('Mail function exists:', result.debug.mail_function_exists);
+                console.log('Mail returned:', result.debug.mail_returned);
+                console.log('Last error:', result.debug.last_error);
+                console.log('Mail config:', result.debug.server_environment);
+                console.log('Message size:', result.debug.message_size, 'bytes');
+                console.log('Attachments:', result.debug.attachment_count);
+                
+                // Additional warning if mail config is missing
+                if (!result.debug.last_error && result.debug.mail_returned) {
+                    console.warn('NOTE: mail() returned true, but email may not actually be delivered.');
+                    console.warn('Check your spam folder and server PHP mail configuration.');
+                }
+            }
+            
             const successMsg = result.message || 'Form submitted successfully! Thank you for your submission.';
             showFormMessage(successMsg, 'success');
             // Optionally reset form after successful submission (commented out for testing)
@@ -431,6 +449,15 @@ export async function handleFormSubmit(form, onSubmitCallback = null) {
         } else {
             // Handle server-side validation errors
             console.error('Submission failed. Response:', result);
+            
+            // Log debug info if available
+            if (result.debug) {
+                console.error('=== Email Debug Info ===');
+                console.error('Mail function exists:', result.debug.mail_function_exists);
+                console.error('Mail returned:', result.debug.mail_returned);
+                console.error('Last error:', result.debug.last_error);
+                console.error('Mail config:', result.debug.server_environment);
+            }
             
             let errorMsg = '';
             if (result.errors && Array.isArray(result.errors)) {

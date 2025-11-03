@@ -218,27 +218,108 @@ foreach ($file_fields as $field_name => $display_name) {
 // Close message
 $message .= "--$boundary--\r\n";
 
-// Send email
-$mail_sent = false;
-try {
-    $mail_sent = @mail($to_email, $subject, $message, $headers);
-} catch (Exception $e) {
-    error_log('Email sending error: ' . $e->getMessage());
+// Enable error reporting for debugging (remove in production)
+error_reporting(E_ALL);
+ini_set('display_errors', 0); // Don't display errors in JSON output, but log them
+ini_set('log_errors', 1);
+
+// Check if mail() function is available
+if (!function_exists('mail')) {
+    http_response_code(500);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Mail function is not available on this server. Please contact support.'
+    ]);
+    exit;
 }
 
+// Check mail configuration
+$mail_config = [
+    'sendmail_path' => ini_get('sendmail_path'),
+    'smtp' => ini_get('SMTP'),
+    'smtp_port' => ini_get('smtp_port'),
+    'sendmail_from' => ini_get('sendmail_from')
+];
+
+// Log configuration for debugging (remove in production)
+error_log('Mail configuration: ' . json_encode($mail_config));
+
+// Send email with better error handling
+$mail_sent = false;
+$last_error = '';
+
+// Capture any PHP errors
+$error_handler = set_error_handler(function($errno, $errstr, $errfile, $errline) use (&$last_error) {
+    $last_error = "PHP Error [$errno]: $errstr in $errfile on line $errline";
+    error_log($last_error);
+    return false;
+});
+
+try {
+    // Try to send email
+    $mail_sent = mail($to_email, $subject, $message, $headers);
+    
+    // Capture last error even if mail() returns true
+    $last_php_error = error_get_last();
+    if ($last_php_error && $last_php_error['type'] === E_WARNING) {
+        $last_error = $last_php_error['message'];
+        error_log('Mail warning: ' . $last_error);
+    }
+    
+} catch (Exception $e) {
+    $last_error = 'Exception: ' . $e->getMessage();
+    error_log('Email sending exception: ' . $last_error);
+} catch (Error $e) {
+    $last_error = 'Fatal error: ' . $e->getMessage();
+    error_log('Email sending fatal error: ' . $last_error);
+}
+
+// Restore error handler
+restore_error_handler();
+
+// Verify mail was actually attempted
+// Note: mail() can return true even if email isn't delivered
+// Check for common issues
+$debug_info = [
+    'mail_function_exists' => function_exists('mail'),
+    'mail_returned' => $mail_sent,
+    'last_error' => $last_error ?: 'None',
+    'to_email' => $to_email,
+    'headers' => $headers,
+    'message_size' => strlen($message),
+    'attachment_count' => count($attachments),
+    'server_environment' => [
+        'php_version' => phpversion(),
+        'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
+        'document_root' => $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown'
+    ]
+];
+
+// Log debug info
+error_log('Email send attempt: ' . json_encode($debug_info));
+
 if ($mail_sent) {
-    // Log attachment info in response
+    // Even if mail() returns true, email might not be delivered
+    // Add a note about checking spam folder and server logs
     $attachment_info = !empty($attachments) ? ' Attachments: ' . implode(', ', $attachments) : ' No attachments.';
+    
+    // Warning message for debugging (can be removed in production)
+    $debug_note = '';
+    if (empty($mail_config['sendmail_path']) && empty($mail_config['smtp'])) {
+        $debug_note = ' WARNING: Mail server configuration may be missing. Check server logs.';
+    }
     
     echo json_encode([
         'success' => true,
-        'message' => 'Form submitted successfully. Email sent with all form data.' . $attachment_info
+        'message' => 'Form submitted successfully. Email sent with all form data.' . $attachment_info . $debug_note,
+        'debug' => $debug_info // Remove this in production
     ]);
 } else {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'message' => 'Failed to send email. Please try again or contact support.'
+        'message' => 'Failed to send email. ' . ($last_error ? 'Error: ' . $last_error : 'Please check server mail configuration.'),
+        'debug' => $debug_info // Remove this in production
     ]);
 }
 
