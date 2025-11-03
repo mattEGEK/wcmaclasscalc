@@ -884,6 +884,273 @@ function getBrakeSuspensionSelections() {
 }
 
 /**
+ * Get all form data for saving (excluding file inputs)
+ */
+function getAllFormDataForSave() {
+    return {
+        name: document.getElementById('name')?.value || '',
+        email: document.getElementById('email')?.value || '',
+        year: document.getElementById('year')?.value || '',
+        make: document.getElementById('make')?.value || '',
+        model: document.getElementById('model')?.value || '',
+        comments: document.getElementById('comments')?.value || '',
+        competitionWeight: document.getElementById('competition-weight')?.value || '',
+        declaredHp: document.getElementById('declared-hp')?.value || '',
+        dynoHp: document.getElementById('dyno-hp')?.value || '',
+        chassis: document.getElementById('chassis')?.value || '',
+        bodyMods: document.getElementById('body-mods')?.value || '',
+        transmission: document.getElementById('transmission')?.value || '',
+        drivetrain: document.getElementById('drivetrain')?.value || '',
+        tires: document.getElementById('tires')?.value || '',
+        brakeSuspension: getBrakeSuspensionValues(),
+        savedAt: new Date().toISOString()
+    };
+}
+
+/**
+ * Save current configuration to localStorage
+ */
+function saveConfiguration() {
+    const configData = getAllFormDataForSave();
+    
+    // Get existing saved configurations
+    const savedConfigs = getSavedConfigurations();
+    
+    // Generate a name for this configuration
+    const configName = `${configData.year} ${configData.make} ${configData.model}`.trim() || 
+                       `Configuration ${savedConfigs.length + 1}`;
+    
+    const configEntry = {
+        id: Date.now().toString(),
+        name: configName,
+        data: configData,
+        timestamp: new Date().toISOString()
+    };
+    
+    // Add to list
+    savedConfigs.push(configEntry);
+    
+    // Save to localStorage (limit to 10 most recent)
+    const configsToSave = savedConfigs.slice(-10);
+    localStorage.setItem('wcma-saved-configs', JSON.stringify(configsToSave));
+    
+    // Show success message
+    showMessage('Configuration saved successfully!', 'success');
+    
+    return configEntry;
+}
+
+/**
+ * Get all saved configurations from localStorage
+ */
+function getSavedConfigurations() {
+    try {
+        const saved = localStorage.getItem('wcma-saved-configs');
+        return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+        console.error('Error loading saved configurations:', e);
+        return [];
+    }
+}
+
+/**
+ * Load a saved configuration into the form
+ */
+function loadConfiguration(configId) {
+    const configs = getSavedConfigurations();
+    const config = configs.find(c => c.id === configId);
+    
+    if (!config) {
+        showMessage('Configuration not found', 'error');
+        return;
+    }
+    
+    const data = config.data;
+    
+    // Populate all form fields (basic fields first)
+    if (document.getElementById('name')) document.getElementById('name').value = data.name || '';
+    if (document.getElementById('email')) document.getElementById('email').value = data.email || '';
+    if (document.getElementById('year')) document.getElementById('year').value = data.year || '';
+    if (document.getElementById('make')) document.getElementById('make').value = data.make || '';
+    if (document.getElementById('model')) document.getElementById('model').value = data.model || '';
+    if (document.getElementById('comments')) document.getElementById('comments').value = data.comments || '';
+    if (document.getElementById('competition-weight')) document.getElementById('competition-weight').value = data.competitionWeight || '';
+    if (document.getElementById('declared-hp')) document.getElementById('declared-hp').value = data.declaredHp || '';
+    if (document.getElementById('dyno-hp')) document.getElementById('dyno-hp').value = data.dynoHp || '';
+    
+    // Update form data first to populate modifier options
+    updateFormData();
+    updateModificationFieldsState();
+    
+    // Wait a moment for modifier options to populate, then set values
+    setTimeout(() => {
+        if (document.getElementById('chassis')) document.getElementById('chassis').value = data.chassis || '';
+        if (document.getElementById('body-mods')) document.getElementById('body-mods').value = data.bodyMods || '';
+        if (document.getElementById('transmission')) document.getElementById('transmission').value = data.transmission || '';
+        if (document.getElementById('drivetrain')) document.getElementById('drivetrain').value = data.drivetrain || '';
+        if (document.getElementById('tires')) document.getElementById('tires').value = data.tires || '';
+        
+        // Handle brake/suspension checkboxes - clear all first, then check saved ones
+        const brakeContainer = document.getElementById('brake-suspension-options');
+        if (brakeContainer) {
+            // Clear all checkboxes first
+            const allCheckboxes = brakeContainer.querySelectorAll('input[type="checkbox"]');
+            allCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            // Check the saved ones
+            if (data.brakeSuspension && Array.isArray(data.brakeSuspension)) {
+                data.brakeSuspension.forEach(optionId => {
+                    const checkbox = document.getElementById(`brake-${optionId}`);
+                    if (checkbox) {
+                        checkbox.checked = true;
+                    }
+                });
+            }
+        }
+        
+        // Update form data and recalculate
+        updateFormData();
+        handleCalculationUpdate();
+        
+        // Close modal if open
+        closeLoadModal();
+        
+        showMessage('Configuration loaded successfully!', 'success');
+    }, 100);
+}
+
+/**
+ * Delete a saved configuration
+ */
+function deleteConfiguration(configId) {
+    const configs = getSavedConfigurations();
+    const filtered = configs.filter(c => c.id !== configId);
+    localStorage.setItem('wcma-saved-configs', JSON.stringify(filtered));
+    showLoadModal(); // Refresh the modal
+    showMessage('Configuration deleted', 'success');
+}
+
+/**
+ * Show load configuration modal
+ */
+function showLoadModal() {
+    let modal = document.getElementById('load-config-modal');
+    
+    if (!modal) {
+        // Create modal if it doesn't exist
+        modal = document.createElement('div');
+        modal.id = 'load-config-modal';
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Saved Configurations</h2>
+                    <button class="modal-close" aria-label="Close">&times;</button>
+                </div>
+                <div class="modal-body" id="saved-configs-list">
+                    <!-- Populated by JavaScript -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="close-load-modal">Close</button>
+                </div>
+            </div>
+        `;
+        // Append to body to ensure it's on top
+        document.body.appendChild(modal);
+        
+        // Close handlers
+        modal.querySelector('.modal-close').addEventListener('click', closeLoadModal);
+        modal.querySelector('#close-load-modal').addEventListener('click', closeLoadModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeLoadModal();
+        });
+    }
+    
+    // Populate with saved configurations
+    const configs = getSavedConfigurations();
+    const listContainer = modal.querySelector('#saved-configs-list');
+    
+    if (configs.length === 0) {
+        listContainer.innerHTML = '<p style="text-align: center; color: #666; padding: 2rem;">No saved configurations found.</p>';
+    } else {
+        listContainer.innerHTML = configs.reverse().map(config => {
+            const date = new Date(config.timestamp);
+            const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            return `
+                <div class="saved-config-item">
+                    <div class="saved-config-info">
+                        <div class="saved-config-name">${escapeHtml(config.name)}</div>
+                        <div class="saved-config-date">Saved: ${dateStr}</div>
+                    </div>
+                    <div class="saved-config-actions">
+                        <button type="button" class="btn btn-small btn-primary" data-load-id="${config.id}">Load</button>
+                        <button type="button" class="btn btn-small btn-danger" data-delete-id="${config.id}">Delete</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        // Add event listeners for load/delete buttons
+        listContainer.querySelectorAll('[data-load-id]').forEach(btn => {
+            btn.addEventListener('click', () => loadConfiguration(btn.getAttribute('data-load-id')));
+        });
+        
+        listContainer.querySelectorAll('[data-delete-id]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                if (confirm('Are you sure you want to delete this configuration?')) {
+                    deleteConfiguration(btn.getAttribute('data-delete-id'));
+                }
+            });
+        });
+    }
+    
+    // Show modal with proper display - use flexbox for centering
+    document.body.style.overflow = 'hidden';
+    modal.style.display = 'flex';
+    modal.style.flexDirection = 'column';
+    modal.style.justifyContent = 'center';
+    modal.style.alignItems = 'center';
+}
+
+/**
+ * Close load configuration modal
+ */
+function closeLoadModal() {
+    const modal = document.getElementById('load-config-modal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+/**
+ * Show message to user
+ */
+function showMessage(message, type = 'info') {
+    const messageEl = document.getElementById('form-messages');
+    if (messageEl) {
+        messageEl.textContent = message;
+        messageEl.className = `form-messages ${type}`;
+        messageEl.style.display = 'block';
+        
+        setTimeout(() => {
+            messageEl.style.display = 'none';
+        }, 3000);
+    }
+}
+
+/**
  * Initialize event listeners
  */
 function initializeEventListeners() {
@@ -990,6 +1257,24 @@ function initializeEventListeners() {
         printButton.addEventListener('click', (e) => {
             e.preventDefault();
             handlePrint();
+        });
+    }
+
+    // Save configuration button handler
+    const saveButton = document.getElementById('save-config-button');
+    if (saveButton) {
+        saveButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            saveConfiguration();
+        });
+    }
+
+    // Load configuration button handler
+    const loadButton = document.getElementById('load-config-button');
+    if (loadButton) {
+        loadButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            showLoadModal();
         });
     }
 
