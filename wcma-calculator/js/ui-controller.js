@@ -1234,9 +1234,17 @@ function initializeEventListeners() {
         form.appendChild(hiddenResults);
 
         try {
+            console.log('Calling handleFormSubmit...');
             await handleFormSubmit(form);
+            console.log('Form submission completed successfully');
         } catch (error) {
-            console.error('Submission error:', error);
+            console.error('=== UI Controller: Submission error ===');
+            console.error('Error:', error);
+            // Error messages are already handled in handleFormSubmit,
+            // but we'll log here for debugging
+            if (!document.getElementById('form-messages')?.textContent.trim()) {
+                showMessage('An unexpected error occurred. Please check the console for details.', 'error');
+            }
         }
     });
 

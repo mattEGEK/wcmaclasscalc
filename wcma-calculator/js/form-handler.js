@@ -263,16 +263,24 @@ export function showFormMessage(message, type = 'success') {
         messageElement.textContent = message;
         messageElement.className = `form-messages show ${type}`;
         messageElement.setAttribute('role', 'alert');
+        messageElement.style.display = 'block'; // Force display
+        
+        console.log('Showing form message:', type, message);
         
         // Scroll to message
         messageElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
-        // Auto-hide after 5 seconds for success messages
+        // Auto-hide after 5 seconds for success messages only
         if (type === 'success') {
             setTimeout(() => {
+                messageElement.style.display = 'none';
                 messageElement.classList.remove('show');
             }, 5000);
         }
+    } else {
+        console.error('form-messages element not found in DOM!');
+        // Fallback to alert if element doesn't exist
+        alert(message);
     }
 }
 
@@ -294,11 +302,19 @@ export function clearFormMessage() {
  * @returns {Promise} Promise that resolves when submission is complete
  */
 export async function handleFormSubmit(form, onSubmitCallback = null) {
+    console.log('=== Form Submission Started ===');
+    console.log('Form action:', form.action);
+    console.log('Form method:', form.method);
+
     // Validate form
     if (!validateForm(form)) {
-        showFormMessage('Please correct the errors in the form before submitting.', 'error');
+        console.error('Form validation failed');
+        const errorMsg = 'Please correct the errors in the form before submitting.';
+        showFormMessage(errorMsg, 'error');
         return Promise.reject(new Error('Form validation failed'));
     }
+
+    console.log('Form validation passed');
 
     // Call callback if provided (e.g., to collect calculation results)
     if (onSubmitCallback) {
@@ -307,55 +323,159 @@ export async function handleFormSubmit(form, onSubmitCallback = null) {
 
     // Create FormData object
     const formData = new FormData(form);
+    
+    // Log form data (without file contents)
+    console.log('Form data entries:');
+    for (let pair of formData.entries()) {
+        if (pair[1] instanceof File) {
+            console.log(`  ${pair[0]}: [File] ${pair[1].name} (${pair[1].size} bytes)`);
+        } else {
+            console.log(`  ${pair[0]}: ${pair[1]}`);
+        }
+    }
 
     // Show loading state
     const submitButton = form.querySelector('#submit-button');
+    if (!submitButton) {
+        console.error('Submit button not found!');
+        showFormMessage('Error: Submit button not found.', 'error');
+        return Promise.reject(new Error('Submit button not found'));
+    }
+
     const originalText = submitButton.textContent;
     submitButton.disabled = true;
     submitButton.textContent = 'Submitting...';
 
+    // Clear any previous messages
+    clearFormMessage();
+
     try {
-        // Submit form
-        const response = await fetch(form.action, {
-            method: form.method,
-            body: formData
-        });
+        console.log('Sending fetch request to:', form.action);
+
+        // Submit form with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+        let response;
+        try {
+            response = await fetch(form.action, {
+                method: form.method,
+                body: formData,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            
+            if (fetchError.name === 'AbortError') {
+                console.error('Request timeout');
+                showFormMessage('Request timed out. The server may be slow or unreachable. Please try again.', 'error');
+                throw new Error('Request timeout');
+            } else if (fetchError.message.includes('Failed to fetch')) {
+                console.error('Network error:', fetchError);
+                showFormMessage('Network error: Unable to reach the server. Please check your internet connection and try again.', 'error');
+                throw new Error('Network error: ' + fetchError.message);
+            } else {
+                console.error('Fetch error:', fetchError);
+                showFormMessage('Error connecting to server: ' + fetchError.message, 'error');
+                throw fetchError;
+            }
+        }
+
+        console.log('Response received. Status:', response.status, response.statusText);
+        console.log('Response headers:', Object.fromEntries(response.headers));
 
         // Parse JSON response
         let result;
+        let responseText = '';
+        
         try {
-            result = await response.json();
-        } catch (e) {
-            // If response is not JSON, treat as text
-            const text = await response.text();
-            throw new Error(text || 'Server error: ' + response.status);
+            responseText = await response.text();
+            console.log('Response text:', responseText.substring(0, 500)); // Log first 500 chars
+            
+            if (!responseText.trim()) {
+                throw new Error('Empty response from server');
+            }
+            
+            result = JSON.parse(responseText);
+            console.log('Parsed JSON result:', result);
+        } catch (parseError) {
+            console.error('Failed to parse JSON response:', parseError);
+            console.error('Response text was:', responseText);
+            
+            // Check if it's a PHP error
+            if (responseText.includes('Fatal error') || responseText.includes('Parse error') || responseText.includes('Warning') || responseText.includes('Notice')) {
+                const phpError = responseText.match(/(Fatal error|Parse error|Warning|Notice)[^\n]*/i)?.[0] || 'PHP error detected';
+                showFormMessage('Server error: ' + phpError + '. Please check server logs or contact support.', 'error');
+                throw new Error('PHP error: ' + phpError);
+            }
+            
+            // If response is HTML (like a PHP error page), show helpful message
+            if (responseText.trim().startsWith('<')) {
+                showFormMessage('Server returned HTML instead of JSON. The PHP script may have an error. Status: ' + response.status, 'error');
+                throw new Error('Invalid response format from server');
+            }
+            
+            showFormMessage('Server error: Invalid response format. Status: ' + response.status + '. Response: ' + responseText.substring(0, 200), 'error');
+            throw new Error('Failed to parse response: ' + parseError.message);
         }
 
         // Check if submission was successful
         if (response.ok && result.success) {
-            showFormMessage(result.message || 'Form submitted successfully! Thank you for your submission.', 'success');
+            console.log('Submission successful!');
+            const successMsg = result.message || 'Form submitted successfully! Thank you for your submission.';
+            showFormMessage(successMsg, 'success');
             // Optionally reset form after successful submission (commented out for testing)
             // form.reset();
+            return result;
         } else {
             // Handle server-side validation errors
+            console.error('Submission failed. Response:', result);
+            
+            let errorMsg = '';
             if (result.errors && Array.isArray(result.errors)) {
-                const errorMsg = result.errors.join(', ');
-                showFormMessage('Please correct the following errors: ' + errorMsg, 'error');
+                errorMsg = 'Please correct the following errors: ' + result.errors.join(', ');
+            } else if (result.message) {
+                errorMsg = result.message;
             } else {
-                showFormMessage(result.message || 'Server error during submission', 'error');
+                errorMsg = 'Server error during submission. Status: ' + response.status;
             }
-            throw new Error(result.message || 'Submission failed');
+            
+            showFormMessage(errorMsg, 'error');
+            throw new Error(errorMsg);
         }
     } catch (error) {
-        console.error('Form submission error:', error);
-        if (!error.message.includes('correct the following errors')) {
-            showFormMessage('An error occurred while submitting the form. Please try again or contact support.', 'error');
+        console.error('=== Form Submission Error ===');
+        console.error('Error type:', error.name);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        
+        // Only show generic error if we haven't already shown a specific error
+        const messageElement = document.getElementById('form-messages');
+        const hasMessage = messageElement && messageElement.textContent.trim();
+        
+        if (!hasMessage) {
+            let userErrorMsg = 'An error occurred while submitting the form.';
+            
+            if (error.message.includes('timeout')) {
+                userErrorMsg = 'Request timed out. Please try again.';
+            } else if (error.message.includes('Network')) {
+                userErrorMsg = 'Network error. Please check your connection and try again.';
+            } else if (error.message.includes('Failed to fetch')) {
+                userErrorMsg = 'Unable to connect to server. Please check that the PHP file exists and the server is running.';
+            } else if (error.message) {
+                userErrorMsg = error.message;
+            }
+            
+            showFormMessage(userErrorMsg + ' (Check console for details)', 'error');
         }
+        
         throw error;
     } finally {
         // Restore button state
         submitButton.disabled = false;
         submitButton.textContent = originalText;
+        console.log('=== Form Submission Complete ===');
     }
 }
 

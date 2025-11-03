@@ -668,8 +668,11 @@ textarea.error {
     display: none;
 }
 
-.form-messages.show {
-    display: block;
+.form-messages.show,
+.form-messages.success,
+.form-messages.error,
+.form-messages.info {
+    display: block !important;
 }
 
 .form-messages.success {
