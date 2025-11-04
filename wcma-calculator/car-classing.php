@@ -155,29 +155,62 @@ if (!empty($modification_factor)) $email_body_text .= "Additional Mod Factors: $
 if (!empty($modified_ratio)) $email_body_text .= "Modified Ratio: $modified_ratio\n";
 if (!empty($calculated_class)) $email_body_text .= "Calculated Class: $calculated_class\n";
 
-// Email headers
+// Email headers - keep simple like working mailtest.php
 $boundary = md5(time());
+$alt_boundary = md5(time() . 'alt');
+
+// Check if we have attachments
+$has_attachments = false;
+foreach (['dyno_chart', 'dyno_table', 'car_image'] as $field_name) {
+    if (isset($_FILES[$field_name]) && $_FILES[$field_name]['error'] === UPLOAD_ERR_OK) {
+        $has_attachments = true;
+        break;
+    }
+}
+
+// Build headers - simpler format that works
 $headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n";
-$headers .= "Reply-To: WCMA Calculator <noreply@nascc.ab.ca>\r\n";
+$headers .= "Reply-To: noreply@nascc.ab.ca\r\n";
 $headers .= "MIME-Version: 1.0\r\n";
-$headers .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
+$headers .= "X-Mailer: PHP/" . phpversion() . "\r\n";
+
+if ($has_attachments) {
+    $headers .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
+} else {
+    $headers .= "Content-Type: multipart/alternative; boundary=\"$alt_boundary\"\r\n";
+}
 
 // Initialize message body
-$message = "--$boundary\r\n";
-$message .= "Content-Type: multipart/alternative; boundary=\"alt-$boundary\"\r\n\r\n";
-
-// Plain text part
-$message .= "--alt-$boundary\r\n";
-$message .= "Content-Type: text/plain; charset=UTF-8\r\n";
-$message .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
-$message .= $email_body_text . "\r\n\r\n";
-
-// HTML part
-$message .= "--alt-$boundary\r\n";
-$message .= "Content-Type: text/html; charset=UTF-8\r\n";
-$message .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
-$message .= $email_body . "\r\n\r\n";
-$message .= "--alt-$boundary--\r\n";
+if ($has_attachments) {
+    // Multipart/mixed structure (with attachments)
+    $message = "--$boundary\r\n";
+    $message .= "Content-Type: multipart/alternative; boundary=\"$alt_boundary\"\r\n\r\n";
+    
+    // Plain text part
+    $message .= "--$alt_boundary\r\n";
+    $message .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    $message .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+    $message .= $email_body_text . "\r\n\r\n";
+    
+    // HTML part
+    $message .= "--$alt_boundary\r\n";
+    $message .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $message .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+    $message .= $email_body . "\r\n\r\n";
+    $message .= "--$alt_boundary--\r\n\r\n";
+} else {
+    // Simple multipart/alternative structure (no attachments)
+    $message = "--$alt_boundary\r\n";
+    $message .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    $message .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+    $message .= $email_body_text . "\r\n\r\n";
+    
+    $message .= "--$alt_boundary\r\n";
+    $message .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $message .= "Content-Transfer-Encoding: 7bit\r\n\r\n";
+    $message .= $email_body . "\r\n\r\n";
+    $message .= "--$alt_boundary--\r\n";
+}
 
 // Handle file attachments
 $attachments = [];
@@ -187,36 +220,39 @@ $file_fields = [
     'car_image' => 'Car Image'
 ];
 
-foreach ($file_fields as $field_name => $display_name) {
-    if (isset($_FILES[$field_name]) && $_FILES[$field_name]['error'] === UPLOAD_ERR_OK) {
-        $file = $_FILES[$field_name];
-        $file_path = $file['tmp_name'];
-        $file_name = $file['name'];
-        $file_type = $file['type'];
-        $file_size = $file['size'];
-        
-        // Validate file size (2MB max)
-        if ($file_size > 2 * 1024 * 1024) {
-            continue; // Skip files that are too large
+// Handle file attachments (only if we have attachments)
+if ($has_attachments) {
+    foreach ($file_fields as $field_name => $display_name) {
+        if (isset($_FILES[$field_name]) && $_FILES[$field_name]['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES[$field_name];
+            $file_path = $file['tmp_name'];
+            $file_name = $file['name'];
+            $file_type = $file['type'];
+            $file_size = $file['size'];
+            
+            // Validate file size (2MB max)
+            if ($file_size > 2 * 1024 * 1024) {
+                continue; // Skip files that are too large
+            }
+            
+            // Read file content
+            $file_content = file_get_contents($file_path);
+            $file_content_encoded = chunk_split(base64_encode($file_content));
+            
+            // Add attachment to message
+            $message .= "--$boundary\r\n";
+            $message .= "Content-Type: $file_type; name=\"$file_name\"\r\n";
+            $message .= "Content-Disposition: attachment; filename=\"$file_name\"\r\n";
+            $message .= "Content-Transfer-Encoding: base64\r\n\r\n";
+            $message .= $file_content_encoded . "\r\n";
+            
+            $attachments[] = $display_name . ': ' . $file_name . ' (' . formatBytes($file_size) . ')';
         }
-        
-        // Read file content
-        $file_content = file_get_contents($file_path);
-        $file_content_encoded = chunk_split(base64_encode($file_content));
-        
-        // Add attachment to message
-        $message .= "--$boundary\r\n";
-        $message .= "Content-Type: $file_type; name=\"$file_name\"\r\n";
-        $message .= "Content-Disposition: attachment; filename=\"$file_name\"\r\n";
-        $message .= "Content-Transfer-Encoding: base64\r\n\r\n";
-        $message .= $file_content_encoded . "\r\n";
-        
-        $attachments[] = $display_name . ': ' . $file_name . ' (' . formatBytes($file_size) . ')';
     }
+    
+    // Close multipart/mixed message
+    $message .= "--$boundary--\r\n";
 }
-
-// Close message
-$message .= "--$boundary--\r\n";
 
 // Enable error reporting for debugging (remove in production)
 error_reporting(E_ALL);
