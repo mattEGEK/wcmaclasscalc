@@ -10,6 +10,9 @@ header('Content-Type: application/json');
 $to_email = 'matt.sinfield@gmail.com';
 $to_name = 'Matt Sinfield';
 
+// Set timezone to Mountain Standard Time
+date_default_timezone_set('America/Denver');
+
 // Subject
 $subject = 'WCMA Classing Calculator Submission - ' . date('Y-m-d H:i:s');
 
@@ -155,13 +158,14 @@ if (!empty($modification_factor)) $email_body_text .= "Additional Mod Factors: $
 if (!empty($modified_ratio)) $email_body_text .= "Modified Ratio: $modified_ratio\n";
 if (!empty($calculated_class)) $email_body_text .= "Calculated Class: $calculated_class\n";
 
-// Simple plain text email - keep it simple like mailtest.php
-// Build simple headers - need line breaks between headers
+// Build headers for HTML email
 $headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n";
 $headers .= "Reply-To: noreply@nascc.ab.ca\r\n";
+$headers .= "MIME-Version: 1.0\r\n";
+$headers .= "Content-Type: text/html; charset=UTF-8\r\n";
 
-// Use plain text message only (no HTML, no multipart)
-$message = $email_body_text;
+// Use HTML formatted message
+$message = $email_body;
 
 // Enable error reporting for debugging (remove in production)
 error_reporting(E_ALL);
