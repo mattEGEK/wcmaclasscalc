@@ -157,7 +157,7 @@ if (!empty($calculated_class)) $email_body_text .= "Calculated Class: $calculate
 
 // Email headers
 $boundary = md5(time());
-$headers = "From: WCMA Calculator <noreply@wcma.ca>\r\n";
+$headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n";
 $headers .= "Reply-To: $email\r\n";
 $headers .= "MIME-Version: 1.0\r\n";
 $headers .= "Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n";
