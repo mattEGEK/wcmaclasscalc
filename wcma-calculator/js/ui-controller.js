@@ -1226,6 +1226,23 @@ function initializeEventListeners() {
             form.appendChild(hiddenField);
         });
         
+        // Add display text for modifier selections (not just option IDs)
+        const modifierDisplayFields = {
+            'chassis_display': getSelectedOptionText('chassis'),
+            'body_mods_display': getSelectedOptionText('body-mods'),
+            'transmission_display': getSelectedOptionText('transmission'),
+            'drivetrain_display': getSelectedOptionText('drivetrain'),
+            'tires_display': getSelectedOptionText('tires')
+        };
+        
+        Object.keys(modifierDisplayFields).forEach(name => {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = name;
+            hiddenField.value = modifierDisplayFields[name];
+            form.appendChild(hiddenField);
+        });
+        
         // Also add as JSON for convenience
         const hiddenResults = document.createElement('input');
         hiddenResults.type = 'hidden';

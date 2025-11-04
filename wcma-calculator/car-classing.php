@@ -13,9 +13,6 @@ $to_name = 'Matt Sinfield';
 // Set timezone to Mountain Standard Time
 date_default_timezone_set('America/Denver');
 
-// Subject
-$subject = 'WCMA Classing Calculator Submission - ' . date('Y-m-d H:i:s');
-
 // Collect form data
 $name = isset($_POST['name']) ? trim($_POST['name']) : '';
 $email = isset($_POST['email']) ? trim($_POST['email']) : '';
@@ -31,7 +28,17 @@ $body_mods = isset($_POST['body_mods']) ? trim($_POST['body_mods']) : '';
 $transmission = isset($_POST['transmission']) ? trim($_POST['transmission']) : '';
 $drivetrain = isset($_POST['drivetrain']) ? trim($_POST['drivetrain']) : '';
 $tires = isset($_POST['tires']) ? trim($_POST['tires']) : '';
+
+// Get display text for modifiers (preferred over option IDs)
+$chassis_display = isset($_POST['chassis_display']) ? trim($_POST['chassis_display']) : $chassis;
+$body_mods_display = isset($_POST['body_mods_display']) ? trim($_POST['body_mods_display']) : $body_mods;
+$transmission_display = isset($_POST['transmission_display']) ? trim($_POST['transmission_display']) : $transmission;
+$drivetrain_display = isset($_POST['drivetrain_display']) ? trim($_POST['drivetrain_display']) : $drivetrain;
+$tires_display = isset($_POST['tires_display']) ? trim($_POST['tires_display']) : $tires;
 $brake_suspension = isset($_POST['brake_suspension']) ? $_POST['brake_suspension'] : [];
+
+// Subject with submitter name and date
+$subject = 'WCMA Classing Calculator Submission - ' . htmlspecialchars($name) . ' - ' . date('M j, Y');
 
 // Calculation results (from hidden fields)
 $calculated_class = isset($_POST['calculated_class']) ? trim($_POST['calculated_class']) : '';
@@ -86,20 +93,20 @@ $email_body .= '<tr><td><strong>Declared HP:</strong></td><td>' . htmlspecialcha
 if (!empty($dyno_hp)) {
     $email_body .= '<tr><td><strong>Dyno HP:</strong></td><td>' . htmlspecialchars($dyno_hp) . '</td></tr>';
 }
-if (!empty($chassis)) {
-    $email_body .= '<tr><td><strong>Chassis:</strong></td><td>' . htmlspecialchars($chassis) . '</td></tr>';
+if (!empty($chassis_display)) {
+    $email_body .= '<tr><td><strong>Chassis:</strong></td><td>' . htmlspecialchars($chassis_display) . '</td></tr>';
 }
-if (!empty($body_mods)) {
-    $email_body .= '<tr><td><strong>Body Mods:</strong></td><td>' . htmlspecialchars($body_mods) . '</td></tr>';
+if (!empty($body_mods_display)) {
+    $email_body .= '<tr><td><strong>Body Mods:</strong></td><td>' . htmlspecialchars($body_mods_display) . '</td></tr>';
 }
-if (!empty($transmission)) {
-    $email_body .= '<tr><td><strong>Transmission:</strong></td><td>' . htmlspecialchars($transmission) . '</td></tr>';
+if (!empty($transmission_display)) {
+    $email_body .= '<tr><td><strong>Transmission:</strong></td><td>' . htmlspecialchars($transmission_display) . '</td></tr>';
 }
-if (!empty($drivetrain)) {
-    $email_body .= '<tr><td><strong>Drivetrain:</strong></td><td>' . htmlspecialchars($drivetrain) . '</td></tr>';
+if (!empty($drivetrain_display)) {
+    $email_body .= '<tr><td><strong>Drivetrain:</strong></td><td>' . htmlspecialchars($drivetrain_display) . '</td></tr>';
 }
-if (!empty($tires)) {
-    $email_body .= '<tr><td><strong>Tires:</strong></td><td>' . htmlspecialchars($tires) . '</td></tr>';
+if (!empty($tires_display)) {
+    $email_body .= '<tr><td><strong>Tires:</strong></td><td>' . htmlspecialchars($tires_display) . '</td></tr>';
 }
 if (!empty($brake_suspension)) {
     $brake_list = is_array($brake_suspension) ? implode(', ', array_map('htmlspecialchars', $brake_suspension)) : htmlspecialchars($brake_suspension);
@@ -142,11 +149,11 @@ $email_body_text .= "\nVEHICLE FACTORS\n";
 $email_body_text .= "Competition Weight (lbs): $competition_weight\n";
 $email_body_text .= "Declared HP: $declared_hp\n";
 if (!empty($dyno_hp)) $email_body_text .= "Dyno HP: $dyno_hp\n";
-if (!empty($chassis)) $email_body_text .= "Chassis: $chassis\n";
-if (!empty($body_mods)) $email_body_text .= "Body Mods: $body_mods\n";
-if (!empty($transmission)) $email_body_text .= "Transmission: $transmission\n";
-if (!empty($drivetrain)) $email_body_text .= "Drivetrain: $drivetrain\n";
-if (!empty($tires)) $email_body_text .= "Tires: $tires\n";
+if (!empty($chassis_display)) $email_body_text .= "Chassis: $chassis_display\n";
+if (!empty($body_mods_display)) $email_body_text .= "Body Mods: $body_mods_display\n";
+if (!empty($transmission_display)) $email_body_text .= "Transmission: $transmission_display\n";
+if (!empty($drivetrain_display)) $email_body_text .= "Drivetrain: $drivetrain_display\n";
+if (!empty($tires_display)) $email_body_text .= "Tires: $tires_display\n";
 if (!empty($brake_suspension)) {
     $brake_list = is_array($brake_suspension) ? implode(', ', $brake_suspension) : $brake_suspension;
     $email_body_text .= "Brake & Suspension: $brake_list\n";
@@ -158,14 +165,13 @@ if (!empty($modification_factor)) $email_body_text .= "Additional Mod Factors: $
 if (!empty($modified_ratio)) $email_body_text .= "Modified Ratio: $modified_ratio\n";
 if (!empty($calculated_class)) $email_body_text .= "Calculated Class: $calculated_class\n";
 
-// Build headers for HTML email
+// Simple plain text email - HTML was causing issues
+// Build simple headers
 $headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n";
 $headers .= "Reply-To: noreply@nascc.ab.ca\r\n";
-$headers .= "MIME-Version: 1.0\r\n";
-$headers .= "Content-Type: text/html; charset=UTF-8\r\n";
 
-// Use HTML formatted message
-$message = $email_body;
+// Use plain text message only
+$message = $email_body_text;
 
 // Enable error reporting for debugging (remove in production)
 error_reporting(E_ALL);
