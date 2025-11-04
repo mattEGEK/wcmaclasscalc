@@ -156,9 +156,9 @@ if (!empty($modified_ratio)) $email_body_text .= "Modified Ratio: $modified_rati
 if (!empty($calculated_class)) $email_body_text .= "Calculated Class: $calculated_class\n";
 
 // Simple plain text email - keep it simple like mailtest.php
-// Build simple headers
-$headers = "From: WCMA Calculator <noreply@nascc.ab.ca>";
-$headers .= "Reply-To: noreply@nascc.ab.ca";
+// Build simple headers - need line breaks between headers
+$headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n";
+$headers .= "Reply-To: noreply@nascc.ab.ca\r\n";
 
 // Use plain text message only (no HTML, no multipart)
 $message = $email_body_text;
