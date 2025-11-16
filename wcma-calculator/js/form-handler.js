@@ -6,7 +6,7 @@
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2 MB in bytes
 const ALLOWED_FILE_TYPES = {
     'dyno_chart': ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'],
-    'dyno_table': ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png'],
+    'dyno_table': ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.txt'],
     'car_image': ['.jpg', '.jpeg', '.png']
 };
 
