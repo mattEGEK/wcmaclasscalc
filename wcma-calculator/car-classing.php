@@ -78,10 +78,10 @@ $allowed_mimes = [
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'image/jpeg',
-    'image/png',
+    'image/png'
     'text/plain'
 ];
-$allowed_extensions = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png', 'txt'];
+$allowed_extensions = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'];
 $max_file_size = 2 * 1024 * 1024; // 2 MB
 
 $file_inputs = ['dyno_chart', 'dyno_table', 'car_image'];
