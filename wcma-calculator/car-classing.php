@@ -62,7 +62,72 @@ if (empty($model)) $errors[] = 'Model is required';
 if (empty($competition_weight)) $errors[] = 'Competition weight is required';
 if (empty($declared_hp)) $errors[] = 'Declared HP is required';
 
+// Handle file uploads
+$attachments = [];
+$upload_dir = __DIR__ . '/uploads/';
+
+// Create uploads directory if it doesn't exist
+if (!is_dir($upload_dir)) {
+    if (!mkdir($upload_dir, 0755, true)) {
+        $errors[] = 'Failed to create uploads directory.';
+    }
+}
+
+$allowed_mimes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'image/jpeg',
+    'image/png'
+];
+$allowed_extensions = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'];
+$max_file_size = 2 * 1024 * 1024; // 2 MB
+
+$file_inputs = ['dyno_chart', 'dyno_table', 'car_image'];
+
+foreach ($file_inputs as $input_name) {
+    if (isset($_FILES[$input_name]) && $_FILES[$input_name]['error'] == UPLOAD_ERR_OK) {
+        // Check file size
+        if ($_FILES[$input_name]['size'] > $max_file_size) {
+            $errors[] = "File '{$_FILES[$input_name]['name']}' is too large. Maximum size is 2 MB.";
+            continue;
+        }
+
+        // Check file type and extension
+        $file_info = pathinfo($_FILES[$input_name]['name']);
+        $extension = isset($file_info['extension']) ? strtolower($file_info['extension']) : '';
+        $file_type = mime_content_type($_FILES[$input_name]['tmp_name']);
+
+        if (!in_array($file_type, $allowed_mimes) || !in_array($extension, $allowed_extensions)) {
+            $errors[] = "Invalid file type for '{$_FILES[$input_name]['name']}'. Allowed types: PDF, DOC, DOCX, JPG, PNG.";
+            continue;
+        }
+
+        // Sanitize filename and create a unique path
+        $file_name = preg_replace("/[^a-zA-Z0-9\._-]/", "", basename($_FILES[$input_name]['name']));
+        $destination = $upload_dir . uniqid() . '-' . $file_name;
+
+        if (move_uploaded_file($_FILES[$input_name]['tmp_name'], $destination)) {
+            $attachments[] = [
+                'path' => $destination,
+                'name' => $file_name
+            ];
+        } else {
+            $errors[] = "Failed to move uploaded file: '{$file_name}'.";
+        }
+    } elseif (isset($_FILES[$input_name]) && $_FILES[$input_name]['error'] != UPLOAD_ERR_NO_FILE) {
+        $errors[] = "Error uploading file '{$_FILES[$input_name]['name']}'. Error code: {$_FILES[$input_name]['error']}";
+    }
+}
+
+
 if (!empty($errors)) {
+    // Clean up any files that were successfully uploaded before the error
+    foreach ($attachments as $attachment) {
+        if (file_exists($attachment['path'])) {
+            unlink($attachment['path']);
+        }
+    }
     http_response_code(400);
     echo json_encode([
         'success' => false,
@@ -165,13 +230,43 @@ if (!empty($modification_factor)) $email_body_text .= "Additional Mod Factors: $
 if (!empty($modified_ratio)) $email_body_text .= "Modified Ratio: $modified_ratio\n";
 if (!empty($calculated_class)) $email_body_text .= "Calculated Class: $calculated_class\n";
 
-// Simple plain text email - HTML was causing issues
-// Build simple headers
-$headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n";
-$headers .= "Reply-To: noreply@nascc.ab.ca\r\n";
+// If there are attachments, build a multipart email
+if (!empty($attachments)) {
+    $boundary = md5(time());
 
-// Use plain text message only
-$message = $email_body_text;
+    // Headers
+    $headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n";
+    $headers .= "Reply-To: " . htmlspecialchars($email) . "\r\n";
+    $headers .= "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: multipart/mixed; boundary=\"{$boundary}\"\r\n";
+
+    // Message body
+    $message = "--{$boundary}\r\n";
+    $message .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    $message .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
+    $message .= $email_body_text . "\r\n\r\n";
+
+    // Add attachments
+    foreach ($attachments as $attachment) {
+        $file_content = file_get_contents($attachment['path']);
+        $file_content = chunk_split(base64_encode($file_content));
+
+        $message .= "--{$boundary}\r\n";
+        $message .= "Content-Type: application/octet-stream; name=\"{$attachment['name']}\"\r\n";
+        $message .= "Content-Transfer-Encoding: base64\r\n";
+        $message .= "Content-Disposition: attachment; filename=\"{$attachment['name']}\"\r\n\r\n";
+        $message .= $file_content . "\r\n";
+    }
+
+    // End of message
+    $message .= "--{$boundary}--";
+} else {
+    // Simple plain text email if no attachments
+    $headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n";
+    $headers .= "Reply-To: " . htmlspecialchars($email) . "\r\n";
+    $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+    $message = $email_body_text;
+}
 
 // Enable error reporting for debugging (remove in production)
 error_reporting(E_ALL);
@@ -211,8 +306,25 @@ $error_handler = set_error_handler(function($errno, $errstr, $errfile, $errline)
 });
 
 try {
-    // Try to send email
-    $mail_sent = mail($to_email, $subject, $message, $headers);
+    // Send email to admin
+    $admin_mail_sent = mail($to_email, $subject, $message, $headers);
+
+    // Send email to user
+    $user_subject = 'Your WCMA Classing Calculator Submission';
+    if(empty($attachments)) {
+        $user_headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n" .
+                        "Reply-To: noreply@nascc.ab.ca\r\n" .
+                        "Content-Type: text/plain; charset=UTF-8\r\n";
+    } else {
+        $user_headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n" .
+                        "Reply-To: noreply@nascc.ab.ca\r\n" .
+                        "MIME-Version: 1.0\r\n" .
+                        "Content-Type: multipart/mixed; boundary=\"{$boundary}\"";
+    }
+
+    $user_mail_sent = mail($email, $user_subject, $message, $user_headers);
+
+    $mail_sent = $admin_mail_sent && $user_mail_sent;
     
     // Capture last error even if mail() returns true
     $last_php_error = error_get_last();
@@ -231,6 +343,13 @@ try {
 
 // Restore error handler
 restore_error_handler();
+
+// Clean up uploaded files
+foreach ($attachments as $attachment) {
+    if (file_exists($attachment['path'])) {
+        unlink($attachment['path']);
+    }
+}
 
 // Verify mail was actually attempted
 // Note: mail() can return true even if email isn't delivered
