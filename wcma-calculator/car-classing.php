@@ -79,6 +79,7 @@ $allowed_mimes = [
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'image/jpeg',
     'image/png'
+    'text/plain'
 ];
 $allowed_extensions = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'];
 $max_file_size = 2 * 1024 * 1024; // 2 MB
@@ -99,7 +100,7 @@ foreach ($file_inputs as $input_name) {
         $file_type = mime_content_type($_FILES[$input_name]['tmp_name']);
 
         if (!in_array($file_type, $allowed_mimes) || !in_array($extension, $allowed_extensions)) {
-            $errors[] = "Invalid file type for '{$_FILES[$input_name]['name']}'. Allowed types: PDF, DOC, DOCX, JPG, PNG.";
+            $errors[] = "Invalid file type for '{$_FILES[$input_name]['name']}'. Allowed types: PDF, DOC, DOCX, JPG, PNG, TXT.";
             continue;
         }
 
