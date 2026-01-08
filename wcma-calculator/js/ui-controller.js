@@ -162,9 +162,71 @@ function populateModifierOptions() {
             select.value = '';
         }
     });
+
+    // Special handling for Chassis restrictions affecting Body Mods
+    handleChassisRestrictions();
     
     // Handle brake-suspension as checkboxes (only for IT1/IT2)
     populateBrakeSuspensionCheckboxes(calculatedClass);
+}
+
+/**
+ * Handle Chassis-based restrictions on Body Mods
+ */
+function handleChassisRestrictions() {
+    const chassisSelect = document.getElementById('chassis');
+    const bodyModsSelect = document.getElementById('body-mods');
+
+    if (!chassisSelect || !bodyModsSelect) return;
+
+    const selectedChassis = chassisSelect.value;
+
+    // Restricted chassis types:
+    // chassis1: "Sports Racer, Prototypes, Monocoque race cars (GTU,GT1,GT2)"
+    // chassis2: "Non-Production Vehicle (excluding GT4,IT1,IT2)"
+    const isRestricted = (selectedChassis === 'chassis1' || selectedChassis === 'chassis2');
+
+    if (isRestricted) {
+        // Capture previous value to check if we need to trigger an update
+        const previousValue = bodyModsSelect.value;
+
+        // Disable body mods and reset selection
+        bodyModsSelect.disabled = true;
+        bodyModsSelect.value = '';
+
+        // Show tooltip/message
+        let tooltip = document.getElementById('body-mods-tooltip');
+        if (!tooltip) {
+            tooltip = document.createElement('div');
+            tooltip.id = 'body-mods-tooltip';
+            tooltip.className = 'field-tooltip';
+            tooltip.style.color = '#e74c3c';
+            tooltip.style.fontSize = '0.85rem';
+            tooltip.style.marginTop = '4px';
+            tooltip.style.fontStyle = 'italic';
+            tooltip.textContent = 'Not applicable for this Chassis type';
+            bodyModsSelect.parentElement.parentElement.appendChild(tooltip);
+        }
+        tooltip.style.display = 'block';
+
+        // If the value changed (was cleared), trigger a change event
+        // This allows the standard event listeners to handle the update/recalculation
+        // and avoids duplicating logic or accessing variables out of scope.
+        if (previousValue !== '') {
+            bodyModsSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    } else {
+        // Enable if we have base info
+        if (hasBaseInfo()) {
+            bodyModsSelect.disabled = false;
+        }
+
+        // Hide tooltip
+        const tooltip = document.getElementById('body-mods-tooltip');
+        if (tooltip) {
+            tooltip.style.display = 'none';
+        }
+    }
 }
 
 /**
@@ -1402,6 +1464,36 @@ function initializeEventListeners() {
             }
         });
     }
+
+    // Prevent decimals in weight and HP fields
+    const integerFields = ['competition-weight', 'declared-hp', 'dyno-hp'];
+    integerFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            // Prevent decimal point and comma keypress
+            field.addEventListener('keydown', (e) => {
+                if (e.key === '.' || e.key === ',' || e.key === 'Decimal') {
+                    e.preventDefault();
+                }
+            });
+
+            // Prevent pasting content with decimals
+            field.addEventListener('paste', (e) => {
+                const pastedData = (e.clipboardData || window.clipboardData).getData('text');
+                if (pastedData.includes('.') || pastedData.includes(',')) {
+                    e.preventDefault();
+                }
+            });
+
+            // Clean up if somehow a decimal gets in (e.g. browser autofill)
+            field.addEventListener('input', () => {
+                if (field.value.includes('.') || field.value.includes(',')) {
+                    field.value = field.value.replace(/[.,]/g, '');
+                    handleCalculationUpdate(); // Recalculate if value changed
+                }
+            });
+        }
+    });
 }
 
 /**
