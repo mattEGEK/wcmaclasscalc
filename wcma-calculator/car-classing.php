@@ -62,6 +62,17 @@ if (empty($model)) $errors[] = 'Model is required';
 if (empty($competition_weight)) $errors[] = 'Competition weight is required';
 if (empty($declared_hp)) $errors[] = 'Declared HP is required';
 
+// Validate integers for weight and HP
+if (!empty($competition_weight) && (!ctype_digit((string)$competition_weight) && !is_int($competition_weight + 0))) {
+    $errors[] = 'Competition weight must be a whole number (no decimals)';
+}
+if (!empty($declared_hp) && (!ctype_digit((string)$declared_hp) && !is_int($declared_hp + 0))) {
+    $errors[] = 'Declared HP must be a whole number (no decimals)';
+}
+if (!empty($dyno_hp) && (!ctype_digit((string)$dyno_hp) && !is_int($dyno_hp + 0))) {
+    $errors[] = 'Dyno HP must be a whole number (no decimals)';
+}
+
 // Handle file uploads
 $attachments = [];
 $upload_dir = __DIR__ . '/uploads/';

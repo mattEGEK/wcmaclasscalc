@@ -111,10 +111,19 @@ export function validateNumeric(value, fieldName, required = true) {
     }
 
     const numValue = parseFloat(value);
+    // Check if it's a number, positive, and an integer (no decimals)
     if (isNaN(numValue) || numValue < 0) {
         return {
             isValid: false,
             error: `${fieldName} must be a valid positive number`
+        };
+    }
+
+    // Check for decimals
+    if (!Number.isInteger(numValue)) {
+        return {
+            isValid: false,
+            error: `${fieldName} must be a whole number (no decimals)`
         };
     }
 
