@@ -97,7 +97,7 @@ export function calculateBaseRatio(weight, hp) {
     if (!weight || weight <= 0 || !hp || hp <= 0) {
         return 0;
     }
-    return weight / hp;
+    return Math.round((weight / hp) * 100) / 100;
 }
 
 /**
