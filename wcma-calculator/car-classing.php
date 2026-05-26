@@ -1,14 +1,35 @@
 <?php
 /**
  * WCMA Classing Calculator - Form Submission Handler
- * Handles form submission and sends email with attachments
+ * Handles form submission and sends email with attachments via PHPMailer + IONOS SMTP
+ *
+ * SETUP REQUIRED:
+ *   1. In your IONOS control panel, create an email address (e.g. noreply@221racing.com)
+ *   2. Download PHPMailer: https://github.com/PHPMailer/PHPMailer/releases/latest
+ *      Extract and upload the src/ folder to your server as phpmailer/src/
+ *   3. Fill in the SMTP credentials below
  */
+
+// ── PHPMailer autoload ────────────────────────────────────────────────────────
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+require __DIR__ . '/phpmailer/src/Exception.php';
+require __DIR__ . '/phpmailer/src/PHPMailer.php';
+require __DIR__ . '/phpmailer/src/SMTP.php';
 
 header('Content-Type: application/json');
 
-// Recipient email
+// ── Configuration ─────────────────────────────────────────────────────────────
+$smtp_host     = 'smtp.ionos.com';   // IONOS SMTP server
+$smtp_port     = 587;                 // 587 = STARTTLS  |  465 = SSL
+$smtp_user     = 'noreply@yourdomain.com';   // ← your IONOS email address
+$smtp_pass     = 'YOUR_SMTP_PASSWORD';        // ← that email's password
+$from_email    = 'noreply@yourdomain.com';    // ← must match $smtp_user
+$from_name     = 'WCMA Calculator';
+
 $to_email = 'matt.sinfield@gmail.com';
-$to_name = 'Matt Sinfield';
+$to_name  = 'Matt Sinfield';
 
 // Set timezone to Mountain Standard Time
 date_default_timezone_set('America/Denver');
@@ -242,119 +263,56 @@ if (!empty($modification_factor)) $email_body_text .= "Additional Mod Factors: $
 if (!empty($modified_ratio)) $email_body_text .= "Modified Ratio: $modified_ratio\n";
 if (!empty($calculated_class)) $email_body_text .= "Calculated Class: $calculated_class\n";
 
-// If there are attachments, build a multipart email
-if (!empty($attachments)) {
-    $boundary = md5(time());
-
-    // Headers
-    $headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n";
-    $headers .= "Reply-To: " . htmlspecialchars($email) . "\r\n";
-    $headers .= "MIME-Version: 1.0\r\n";
-    $headers .= "Content-Type: multipart/mixed; boundary=\"{$boundary}\"\r\n";
-
-    // Message body
-    $message = "--{$boundary}\r\n";
-    $message .= "Content-Type: text/plain; charset=UTF-8\r\n";
-    $message .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
-    $message .= $email_body_text . "\r\n\r\n";
-
-    // Add attachments
-    foreach ($attachments as $attachment) {
-        $file_content = file_get_contents($attachment['path']);
-        $file_content = chunk_split(base64_encode($file_content));
-
-        $message .= "--{$boundary}\r\n";
-        $message .= "Content-Type: application/octet-stream; name=\"{$attachment['name']}\"\r\n";
-        $message .= "Content-Transfer-Encoding: base64\r\n";
-        $message .= "Content-Disposition: attachment; filename=\"{$attachment['name']}\"\r\n\r\n";
-        $message .= $file_content . "\r\n";
-    }
-
-    // End of message
-    $message .= "--{$boundary}--";
-} else {
-    // Simple plain text email if no attachments
-    $headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n";
-    $headers .= "Reply-To: " . htmlspecialchars($email) . "\r\n";
-    $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
-    $message = $email_body_text;
-}
-
-// Enable error reporting for debugging (remove in production)
-error_reporting(E_ALL);
-ini_set('display_errors', 0); // Don't display errors in JSON output, but log them
-ini_set('log_errors', 1);
-
-// Check if mail() function is available
-if (!function_exists('mail')) {
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Mail function is not available on this server. Please contact support.'
-    ]);
-    exit;
-}
-
-// Check mail configuration
-$mail_config = [
-    'sendmail_path' => ini_get('sendmail_path'),
-    'smtp' => ini_get('SMTP'),
-    'smtp_port' => ini_get('smtp_port'),
-    'sendmail_from' => ini_get('sendmail_from')
-];
-
-// Log configuration for debugging (remove in production)
-error_log('Mail configuration: ' . json_encode($mail_config));
-
-// Send email with better error handling
-$mail_sent = false;
+// ── Send via PHPMailer (IONOS SMTP) ──────────────────────────────────────────
 $last_error = '';
 
-// Capture any PHP errors
-$error_handler = set_error_handler(function($errno, $errstr, $errfile, $errline) use (&$last_error) {
-    $last_error = "PHP Error [$errno]: $errstr in $errfile on line $errline";
-    error_log($last_error);
-    return false;
-});
-
-try {
-    // Send email to admin
-    $admin_mail_sent = mail($to_email, $subject, $message, $headers);
-
-    // Send email to user
-    $user_subject = 'Your WCMA Classing Calculator Submission';
-    if(empty($attachments)) {
-        $user_headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n" .
-                        "Reply-To: noreply@nascc.ab.ca\r\n" .
-                        "Content-Type: text/plain; charset=UTF-8\r\n";
-    } else {
-        $user_headers = "From: WCMA Calculator <noreply@nascc.ab.ca>\r\n" .
-                        "Reply-To: noreply@nascc.ab.ca\r\n" .
-                        "MIME-Version: 1.0\r\n" .
-                        "Content-Type: multipart/mixed; boundary=\"{$boundary}\"";
-    }
-
-    $user_mail_sent = mail($email, $user_subject, $message, $user_headers);
-
-    $mail_sent = $admin_mail_sent && $user_mail_sent;
-    
-    // Capture last error even if mail() returns true
-    $last_php_error = error_get_last();
-    if ($last_php_error && $last_php_error['type'] === E_WARNING) {
-        $last_error = $last_php_error['message'];
-        error_log('Mail warning: ' . $last_error);
-    }
-    
-} catch (Exception $e) {
-    $last_error = 'Exception: ' . $e->getMessage();
-    error_log('Email sending exception: ' . $last_error);
-} catch (Error $e) {
-    $last_error = 'Fatal error: ' . $e->getMessage();
-    error_log('Email sending fatal error: ' . $last_error);
+function buildMailer($smtp_host, $smtp_port, $smtp_user, $smtp_pass, $from_email, $from_name) {
+    $mail = new PHPMailer(true);
+    $mail->isSMTP();
+    $mail->Host       = $smtp_host;
+    $mail->SMTPAuth   = true;
+    $mail->Username   = $smtp_user;
+    $mail->Password   = $smtp_pass;
+    $mail->SMTPSecure = ($smtp_port === 465) ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port       = $smtp_port;
+    $mail->CharSet    = 'UTF-8';
+    $mail->setFrom($from_email, $from_name);
+    return $mail;
 }
 
-// Restore error handler
-restore_error_handler();
+try {
+    // ── Email to admin ────────────────────────────────────────────────────────
+    $mail = buildMailer($smtp_host, $smtp_port, $smtp_user, $smtp_pass, $from_email, $from_name);
+    $mail->addAddress($to_email, $to_name);
+    $mail->addReplyTo($email, $name);
+    $mail->Subject = $subject;
+    $mail->isHTML(true);
+    $mail->Body    = $email_body;
+    $mail->AltBody = $email_body_text;
+    foreach ($attachments as $att) {
+        $mail->addAttachment($att['path'], $att['name']);
+    }
+    $mail->send();
+
+    // ── Confirmation email to submitter ───────────────────────────────────────
+    $mail2 = buildMailer($smtp_host, $smtp_port, $smtp_user, $smtp_pass, $from_email, $from_name);
+    $mail2->addAddress($email, $name);
+    $mail2->Subject = 'Your WCMA Classing Calculator Submission';
+    $mail2->isHTML(true);
+    $mail2->Body    = $email_body;
+    $mail2->AltBody = $email_body_text;
+    foreach ($attachments as $att) {
+        $mail2->addAttachment($att['path'], $att['name']);
+    }
+    $mail2->send();
+
+    $mail_sent = true;
+
+} catch (Exception $e) {
+    $last_error = $e->getMessage();
+    error_log('PHPMailer error: ' . $last_error);
+    $mail_sent = false;
+}
 
 // Clean up uploaded files
 foreach ($attachments as $attachment) {
@@ -363,56 +321,16 @@ foreach ($attachments as $attachment) {
     }
 }
 
-// Verify mail was actually attempted
-// Note: mail() can return true even if email isn't delivered
-// Check for common issues
-$debug_info = [
-    'mail_function_exists' => function_exists('mail'),
-    'mail_returned' => $mail_sent,
-    'last_error' => $last_error ?: 'None',
-    'to_email' => $to_email,
-    'headers' => $headers,
-    'message_size' => strlen($message),
-    'attachment_count' => 0,
-    'server_environment' => [
-        'php_version' => phpversion(),
-        'server_software' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
-        'document_root' => $_SERVER['DOCUMENT_ROOT'] ?? 'Unknown'
-    ]
-];
-
-// Log debug info
-error_log('Email send attempt: ' . json_encode($debug_info));
-
-// Log the actual mail() call details
-error_log('=== MAIL() CALL DETAILS ===');
-error_log('To: ' . $to_email);
-error_log('Subject: ' . $subject);
-error_log('Headers length: ' . strlen($headers));
-error_log('Message length: ' . strlen($message));
-error_log('Headers: ' . $headers);
-error_log('Message (first 500 chars): ' . substr($message, 0, 500));
-error_log('Plain text email - no multipart, no HTML');
-
 if ($mail_sent) {
-    // Even if mail() returns true, email might not be delivered
-    // Add a note about checking spam folder and server logs
-    $debug_note = '';
-    if (empty($mail_config['sendmail_path']) && empty($mail_config['smtp'])) {
-        $debug_note = ' WARNING: Mail server configuration may be missing. Check server logs.';
-    }
-    
     echo json_encode([
         'success' => true,
-        'message' => 'Form submitted successfully. Plain text email sent with all form data.' . $debug_note,
-        'debug' => $debug_info // Remove this in production
+        'message' => 'Form submitted successfully! A confirmation has been sent to ' . htmlspecialchars($email) . '.'
     ]);
 } else {
     http_response_code(500);
     echo json_encode([
         'success' => false,
-        'message' => 'Failed to send email. ' . ($last_error ? 'Error: ' . $last_error : 'Please check server mail configuration.'),
-        'debug' => $debug_info // Remove this in production
+        'message' => 'Failed to send email. Error: ' . htmlspecialchars($last_error)
     ]);
 }
 
