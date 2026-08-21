@@ -1293,7 +1293,30 @@ function initializeEventListeners() {
             hiddenField.value = fieldsToAdd[name];
             form.appendChild(hiddenField);
         });
-        
+
+        // Individual modifier values for DB persistence
+        const modifierValueFields = {
+            'chassis_value':          results.chassisValue.toFixed(2),
+            'body_mods_value':        results.bodyModsValue.toFixed(2),
+            'transmission_value':     results.transmissionValue.toFixed(2),
+            'drivetrain_value':       results.drivetrainValue.toFixed(2),
+            'tires_value':            results.tiresValue.toFixed(2),
+            'brake_suspension_value': results.brakeSuspensionValue.toFixed(2),
+        };
+
+        Object.keys(modifierValueFields).forEach(name => {
+            const existing = form.querySelector(`input[name="${name}"]`);
+            if (existing) existing.remove();
+        });
+
+        Object.keys(modifierValueFields).forEach(name => {
+            const hiddenField = document.createElement('input');
+            hiddenField.type = 'hidden';
+            hiddenField.name = name;
+            hiddenField.value = modifierValueFields[name];
+            form.appendChild(hiddenField);
+        });
+
         // Add display text for modifier selections (not just option IDs)
         const modifierDisplayFields = {
             'chassis_display': getSelectedOptionText('chassis'),

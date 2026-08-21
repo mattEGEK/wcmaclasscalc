@@ -199,7 +199,13 @@ export function updateCalculations(formData) {
         baseRatio: 0,
         modificationFactor: 0,
         modifiedRatio: 0,
-        calculatedClass: ''
+        calculatedClass: '',
+        chassisValue: 0,
+        bodyModsValue: 0,
+        transmissionValue: 0,
+        drivetrainValue: 0,
+        tiresValue: 0,
+        brakeSuspensionValue: 0,
     };
 
     // Check if we have minimum required data
@@ -220,64 +226,50 @@ export function updateCalculations(formData) {
     // Collect modification factors using modifier tables
     // Modifiers are based on the base class (before modifiers are applied)
     let modifierSum = 0;
-    
-    // Look up chassis modifier
+    let chassisVal = 0, bodyVal = 0, transVal = 0, dtVal = 0, tireVal = 0, brakeVal = 0;
+
     if (chassis && classForModifiers) {
-        const chassisValue = getModifierValue(chassisModifierTable, chassis, classForModifiers);
-        if (chassisValue !== null && !isNaN(chassisValue)) {
-            modifierSum += chassisValue;
-        }
+        const v = getModifierValue(chassisModifierTable, chassis, classForModifiers);
+        if (v !== null && !isNaN(v)) { modifierSum += v; chassisVal = v; }
     }
-    
-    // Look up body modifier
+
     if (bodyMods && classForModifiers) {
-        const bodyValue = getModifierValue(bodyModifierTable, bodyMods, classForModifiers);
-        if (bodyValue !== null && !isNaN(bodyValue)) {
-            modifierSum += bodyValue;
-        }
+        const v = getModifierValue(bodyModifierTable, bodyMods, classForModifiers);
+        if (v !== null && !isNaN(v)) { modifierSum += v; bodyVal = v; }
     }
-    
-    // Look up transmission modifier
+
     if (transmission && classForModifiers) {
-        const transValue = getModifierValue(transModifierTable, transmission, classForModifiers);
-        if (transValue !== null && !isNaN(transValue)) {
-            modifierSum += transValue;
-        }
+        const v = getModifierValue(transModifierTable, transmission, classForModifiers);
+        if (v !== null && !isNaN(v)) { modifierSum += v; transVal = v; }
     }
-    
-    // Look up drivetrain modifier
+
     if (drivetrain && classForModifiers) {
-        const dtValue = getModifierValue(dtModifierTable, drivetrain, classForModifiers);
-        if (dtValue !== null && !isNaN(dtValue)) {
-            modifierSum += dtValue;
-        }
+        const v = getModifierValue(dtModifierTable, drivetrain, classForModifiers);
+        if (v !== null && !isNaN(v)) { modifierSum += v; dtVal = v; }
     }
-    
-    // Look up tire modifier
+
     if (tires && classForModifiers) {
-        const tireValue = getModifierValue(tireModifierTable, tires, classForModifiers);
-        if (tireValue !== null && !isNaN(tireValue)) {
-            modifierSum += tireValue;
-        }
+        const v = getModifierValue(tireModifierTable, tires, classForModifiers);
+        if (v !== null && !isNaN(v)) { modifierSum += v; tireVal = v; }
     }
-    
-    // Look up brake/suspension modifiers (can be multiple selections)
+
     if (brakeSuspension && Array.isArray(brakeSuspension) && brakeSuspension.length > 0 && classForModifiers) {
         brakeSuspension.forEach(optionId => {
-            const brakeValue = getModifierValue(brakeModifierTable, optionId, classForModifiers);
-            if (brakeValue !== null && !isNaN(brakeValue)) {
-                modifierSum += brakeValue;
-            }
+            const v = getModifierValue(brakeModifierTable, optionId, classForModifiers);
+            if (v !== null && !isNaN(v)) { modifierSum += v; brakeVal += v; }
         });
     } else if (brakeSuspension && typeof brakeSuspension === 'string' && brakeSuspension && classForModifiers) {
-        // Handle single value for backward compatibility
-        const brakeValue = getModifierValue(brakeModifierTable, brakeSuspension, classForModifiers);
-        if (brakeValue !== null && !isNaN(brakeValue)) {
-            modifierSum += brakeValue;
-        }
+        const v = getModifierValue(brakeModifierTable, brakeSuspension, classForModifiers);
+        if (v !== null && !isNaN(v)) { modifierSum += v; brakeVal = v; }
     }
-    
+
     results.modificationFactor = modifierSum;
+    results.chassisValue         = chassisVal;
+    results.bodyModsValue        = bodyVal;
+    results.transmissionValue    = transVal;
+    results.drivetrainValue      = dtVal;
+    results.tiresValue           = tireVal;
+    results.brakeSuspensionValue = brakeVal;
 
     // Iteratively calculate weight factor based on the final calculated class
     // Start with class from base ratio + modifiers (without weight factor)
