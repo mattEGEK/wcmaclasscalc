@@ -69,6 +69,7 @@ switch ($action) {
         break;
 
     case 'logout':
+        $_SESSION = [];
         session_destroy();
         header('Location: admin.php?action=login');
         exit;
@@ -124,6 +125,7 @@ function handleLogin(PDO $pdo, string $ip): void {
             $pin = $_POST['pin'] ?? '';
             if (password_verify($pin, ADMIN_PIN_HASH)) {
                 db_clear_login_attempts($pdo, $ip);
+                session_regenerate_id(true);
                 $_SESSION['admin_authenticated'] = true;
                 header('Location: admin.php');
                 exit;
@@ -162,7 +164,7 @@ function renderLoginPage(string $error = ''): void {
 <div class="login-box">
   <h1>WCMA Admin</h1>
   <?php if ($error): ?><div class="error"><?= h($error) ?></div><?php endif; ?>
-  <form method="post">
+  <form method="post" action="admin.php?action=login">
     <label for="pin">PIN</label>
     <input type="password" id="pin" name="pin" autofocus autocomplete="current-password">
     <button type="submit">Sign in</button>
