@@ -17,6 +17,7 @@ use PHPMailer\PHPMailer\Exception;
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
 require __DIR__ . '/phpmailer/src/SMTP.php';
+require __DIR__ . '/db.php';
 
 header('Content-Type: application/json');
 
@@ -67,6 +68,13 @@ $base_ratio = isset($_POST['base_ratio']) ? trim($_POST['base_ratio']) : '';
 $modified_ratio = isset($_POST['modified_ratio']) ? trim($_POST['modified_ratio']) : '';
 $modification_factor = isset($_POST['modification_factor']) ? trim($_POST['modification_factor']) : '';
 $weight_factor = isset($_POST['weight_factor']) ? trim($_POST['weight_factor']) : '';
+
+$chassis_value          = isset($_POST['chassis_value'])          ? (float)$_POST['chassis_value']          : 0.0;
+$body_mods_value        = isset($_POST['body_mods_value'])        ? (float)$_POST['body_mods_value']        : 0.0;
+$transmission_value     = isset($_POST['transmission_value'])     ? (float)$_POST['transmission_value']     : 0.0;
+$drivetrain_value       = isset($_POST['drivetrain_value'])       ? (float)$_POST['drivetrain_value']       : 0.0;
+$tires_value            = isset($_POST['tires_value'])            ? (float)$_POST['tires_value']            : 0.0;
+$brake_suspension_value = isset($_POST['brake_suspension_value']) ? (float)$_POST['brake_suspension_value'] : 0.0;
 
 // Handle brake_suspension as array
 if (is_string($brake_suspension)) {
@@ -136,14 +144,16 @@ foreach ($file_inputs as $input_name) {
             continue;
         }
 
-        // Sanitize filename and create a unique path
-        $file_name = preg_replace("/[^a-zA-Z0-9\._-]/", "", basename($_FILES[$input_name]['name']));
-        $destination = $upload_dir . uniqid() . '-' . $file_name;
+        // Sanitize filename and create a unique temp path
+        $file_name   = preg_replace("/[^a-zA-Z0-9\._-]/", "", basename($_FILES[$input_name]['name']));
+        $temp_name   = uniqid() . '-' . $file_name;
+        $destination = $upload_dir . $temp_name;
 
         if (move_uploaded_file($_FILES[$input_name]['tmp_name'], $destination)) {
             $attachments[] = [
-                'path' => $destination,
-                'name' => $file_name
+                'path'  => $destination,
+                'name'  => $file_name,
+                'input' => $input_name,  // 'dyno_chart', 'dyno_table', or 'car_image'
             ];
         } else {
             $errors[] = "Failed to move uploaded file: '{$file_name}'.";
@@ -168,6 +178,61 @@ if (!empty($errors)) {
     ]);
     exit;
 }
+
+// ── Persist to database ───────────────────────────────────────────────────────
+$pdo = db_connect();
+db_init($pdo);
+
+$submission_id = db_insert_submission($pdo, [
+    ':submitted_at'           => date('Y-m-d H:i:s'),
+    ':name'                   => $name,
+    ':email'                  => $email,
+    ':year'                   => $year,
+    ':make'                   => $make,
+    ':model'                  => $model,
+    ':comments'               => $comments ?: null,
+    ':competition_weight'     => (int)$competition_weight,
+    ':declared_hp'            => (int)$declared_hp,
+    ':dyno_hp'                => $dyno_hp !== '' ? (int)$dyno_hp : null,
+    ':chassis_display'        => $chassis_display ?: null,
+    ':body_mods_display'      => $body_mods_display ?: null,
+    ':transmission_display'   => $transmission_display ?: null,
+    ':drivetrain_display'     => $drivetrain_display ?: null,
+    ':tires_display'          => $tires_display ?: null,
+    ':brake_suspension'       => json_encode($brake_suspension),
+    ':chassis_value'          => $chassis_value,
+    ':body_mods_value'        => $body_mods_value,
+    ':transmission_value'     => $transmission_value,
+    ':drivetrain_value'       => $drivetrain_value,
+    ':tires_value'            => $tires_value,
+    ':brake_suspension_value' => $brake_suspension_value,
+    ':weight_factor'          => (float)$weight_factor,
+    ':modification_factor'    => (float)$modification_factor,
+    ':base_ratio'             => (float)$base_ratio,
+    ':modified_ratio'         => (float)$modified_ratio,
+    ':calculated_class'       => $calculated_class ?: null,
+]);
+
+// Move uploaded files to uploads/{submission_id}/
+$sub_upload_dir = $upload_dir . $submission_id . '/';
+if (!is_dir($sub_upload_dir)) {
+    mkdir($sub_upload_dir, 0755, true);
+}
+
+$file_paths = ['dyno_chart' => null, 'dyno_table' => null, 'car_image' => null];
+
+foreach ($attachments as &$att) {
+    $new_path = $sub_upload_dir . $att['name'];
+    if (rename($att['path'], $new_path)) {
+        $att['path'] = $new_path;
+        $file_paths[$att['input']] = 'uploads/' . $submission_id . '/' . $att['name'];
+    } else {
+        error_log("Failed to move file to: $new_path");
+    }
+}
+unset($att);
+
+db_update_submission_files($pdo, $submission_id, $file_paths['dyno_chart'], $file_paths['dyno_table'], $file_paths['car_image']);
 
 // Email body (HTML format for better readability)
 $email_body = '<html><body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">';
@@ -307,19 +372,16 @@ try {
     $mail2->send();
 
     $mail_sent = true;
+    db_update_email_sent($pdo, $submission_id, 1);
 
 } catch (Exception $e) {
     $last_error = $e->getMessage();
     error_log('PHPMailer error: ' . $last_error);
     $mail_sent = false;
+    db_update_email_sent($pdo, $submission_id, 0);
 }
 
-// Clean up uploaded files
-foreach ($attachments as $attachment) {
-    if (file_exists($attachment['path'])) {
-        unlink($attachment['path']);
-    }
-}
+// Files now persist under uploads/{submission_id}/ — no cleanup needed.
 
 if ($mail_sent) {
     echo json_encode([
