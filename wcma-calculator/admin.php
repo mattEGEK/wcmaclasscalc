@@ -174,7 +174,6 @@ function renderLoginPage(string $error = ''): void {
 </html><?php
 }
 
-// ── Placeholder stubs (replaced in Tasks 5–7) ─────────────────────────────────
 function handleList(PDO $pdo): void {
     $sort = $_GET['sort'] ?? 'submitted_at';
     $dir  = $_GET['dir']  ?? 'desc';
