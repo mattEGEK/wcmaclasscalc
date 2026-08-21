@@ -529,6 +529,12 @@ function handleCalculationUpdate() {
     updateModifierValues();
     const results = updateCalculations(formData);
     updateResultsDisplay(results);
+
+    // Re-render brake/suspension using final class — it may differ from base class
+    // when modifiers push the score across the GT4/IT1 boundary
+    if (results.calculatedClass) {
+        populateBrakeSuspensionCheckboxes(results.calculatedClass);
+    }
 }
 
 /**
