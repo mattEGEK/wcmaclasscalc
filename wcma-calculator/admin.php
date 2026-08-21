@@ -275,8 +275,192 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
 </body>
 </html><?php
 }
-function handleView(PDO $pdo, int $id): void { echo 'View coming in Task 6.'; }
-function handleFile(PDO $pdo, int $id, string $field): void { http_response_code(404); echo 'Not yet implemented.'; }
+function handleView(PDO $pdo, int $id): void {
+    $sub = db_get_submission($pdo, $id);
+    if (!$sub) {
+        setFlash('Submission not found.', 'error');
+        header('Location: admin.php');
+        exit;
+    }
+    $csrf  = generateCsrfToken();
+    $flash = getFlash();
+    renderDetailPage($sub, $csrf, $flash);
+}
+
+function renderDetailPage(array $s, string $csrf, ?array $flash): void {
+    $brake_list = [];
+    $brake_raw = json_decode($s['brake_suspension'] ?? '[]', true);
+    if (is_array($brake_raw)) $brake_list = $brake_raw;
+
+    function modRow(string $label, ?string $display, float $value): string {
+        if (!$display && $value == 0) return '';
+        $sign = $value >= 0 ? '+' : '';
+        $disp = $display ? h($display) : '—';
+        return "<tr><td>{$label}</td><td style='text-align:right;font-family:monospace'>{$sign}" . number_format($value, 2) . "</td><td style='color:#666;font-size:.85rem'>{$disp}</td></tr>";
+    }
+    ?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Submission #<?= (int)$s['id'] ?> — WCMA Admin</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; margin: 0; background: #f0f2f5; }
+  header { background: #1a5490; color: #fff; padding: .8rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { margin: 0; font-size: 1.1rem; }
+  header a { color: #cde; font-size: .9rem; }
+  main { padding: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  @media (max-width: 700px) { main { grid-template-columns: 1fr; } }
+  .card { background: #fff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.1); padding: 1.2rem; }
+  .card h2 { margin: 0 0 1rem; font-size: 1rem; color: #1a5490; border-bottom: 2px solid #1a5490; padding-bottom: .4rem; }
+  table.data td { padding: .35rem .5rem; font-size: .9rem; vertical-align: top; }
+  table.data td:first-child { font-weight: bold; width: 160px; color: #444; }
+  .calc-table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: .95rem; }
+  .calc-table td { padding: .3rem .4rem; }
+  .calc-table tr.total td { border-top: 2px solid #333; font-weight: bold; font-size: 1.05rem; padding-top: .5rem; }
+  .class-badge { font-size: 1.4rem; font-weight: bold; color: #1a5490; }
+  .flash { padding: .7rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .9rem; }
+  .flash.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+  .flash.error   { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+  .actions { margin-bottom: 1rem; }
+  .btn { display: inline-block; padding: .5rem 1.1rem; border-radius: 4px; font-size: .9rem; cursor: pointer; border: none; text-decoration: none; }
+  .btn-primary { background: #1a5490; color: #fff; }
+  .btn-secondary { background: #6c757d; color: #fff; }
+  .btn-primary:hover { background: #154070; }
+  .file-thumb { max-width: 100%; max-height: 200px; border-radius: 4px; margin-top: .5rem; display: block; }
+  .file-link { display: inline-block; margin-top: .4rem; color: #1a5490; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Submission #<?= (int)$s['id'] ?> — <?= h($s['name']) ?></h1>
+  <a href="admin.php">← Back to list</a>
+</header>
+<main>
+  <?php if ($flash): ?>
+  <div class="flash <?= h($flash['type']) ?>" style="grid-column:1/-1"><?= h($flash['message']) ?></div>
+  <?php endif; ?>
+
+  <!-- LEFT: Calculation + details -->
+  <div>
+    <div class="card" style="margin-bottom:1.5rem">
+      <h2>Calculation Breakdown</h2>
+      <table class="calc-table">
+        <tr><td>Base Ratio</td>
+            <td style="text-align:right"><?= number_format((float)$s['base_ratio'], 2) ?></td><td></td></tr>
+        <tr><td>Weight Factor</td>
+            <td style="text-align:right"><?= ($s['weight_factor'] >= 0 ? '+' : '') . number_format((float)$s['weight_factor'], 2) ?></td><td></td></tr>
+        <?= modRow('Chassis', $s['chassis_display'], (float)$s['chassis_value']) ?>
+        <?= modRow('Body Mods', $s['body_mods_display'], (float)$s['body_mods_value']) ?>
+        <?= modRow('Transmission', $s['transmission_display'], (float)$s['transmission_value']) ?>
+        <?= modRow('Drivetrain', $s['drivetrain_display'], (float)$s['drivetrain_value']) ?>
+        <?= modRow('Tires', $s['tires_display'], (float)$s['tires_value']) ?>
+        <?php if ((float)$s['brake_suspension_value'] != 0): ?>
+        <tr><td>Brake &amp; Susp.</td>
+            <td style="text-align:right;font-family:monospace"><?= ($s['brake_suspension_value'] >= 0 ? '+' : '') . number_format((float)$s['brake_suspension_value'], 2) ?></td>
+            <td style="color:#666;font-size:.85rem"><?= h(implode(', ', $brake_list)) ?></td></tr>
+        <?php endif; ?>
+        <tr class="total">
+          <td>Modified Ratio</td>
+          <td style="text-align:right"><?= number_format((float)$s['modified_ratio'], 2) ?></td>
+          <td class="class-badge"><?= h($s['calculated_class'] ?? '—') ?></td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Contact &amp; Vehicle</h2>
+      <table class="data">
+        <tr><td>Name</td><td><?= h($s['name']) ?></td></tr>
+        <tr><td>Email</td><td><?= h($s['email']) ?></td></tr>
+        <tr><td>Vehicle</td><td><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></td></tr>
+        <?php if ($s['comments']): ?><tr><td>Comments</td><td><?= nl2br(h($s['comments'])) ?></td></tr><?php endif; ?>
+        <tr><td>Weight</td><td><?= h((string)$s['competition_weight']) ?> lbs</td></tr>
+        <tr><td>Declared HP</td><td><?= h((string)$s['declared_hp']) ?></td></tr>
+        <?php if ($s['dyno_hp']): ?><tr><td>Dyno HP</td><td><?= h((string)$s['dyno_hp']) ?></td></tr><?php endif; ?>
+        <tr><td>Submitted</td><td><?= h(date('F j, Y \a\t g:i A', strtotime($s['submitted_at']))) ?></td></tr>
+        <tr><td>Email Sent</td><td><?= $s['email_sent'] ? '✓ Yes' : '⚠ Failed' ?></td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- RIGHT: Files + actions -->
+  <div>
+    <div class="card" style="margin-bottom:1.5rem">
+      <h2>Actions</h2>
+      <div class="actions">
+        <form method="post" action="admin.php?action=resend" style="display:inline">
+          <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+          <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
+          <button type="submit" class="btn btn-primary">Re-email Tech Sheet</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Uploaded Files</h2>
+      <?php
+      $files = [
+          'car_image'   => ['label' => 'Car Image',   'field' => 'car_image',   'path' => $s['car_image_path']],
+          'dyno_chart'  => ['label' => 'Dyno Chart',  'field' => 'dyno_chart',  'path' => $s['dyno_chart_path']],
+          'dyno_table'  => ['label' => 'Dyno Table',  'field' => 'dyno_table',  'path' => $s['dyno_table_path']],
+      ];
+      $any = false;
+      foreach ($files as $f):
+          if (!$f['path']) continue;
+          $any = true;
+          $ext = strtolower(pathinfo($f['path'], PATHINFO_EXTENSION));
+          $is_image = in_array($ext, ['jpg', 'jpeg', 'png']);
+          $url = h('admin.php?action=file&id=' . (int)$s['id'] . '&field=' . $f['field']);
+      ?>
+      <p style="font-weight:bold;margin:.8rem 0 .2rem"><?= h($f['label']) ?></p>
+      <?php if ($is_image): ?>
+        <img src="<?= $url ?>" class="file-thumb" alt="<?= h($f['label']) ?>">
+      <?php else: ?>
+        <a href="<?= $url ?>" target="_blank" class="file-link">Open <?= h(basename($f['path'])) ?></a>
+      <?php endif; ?>
+      <?php endforeach; ?>
+      <?php if (!$any): ?><p style="color:#888;font-size:.9rem">No files uploaded.</p><?php endif; ?>
+    </div>
+  </div>
+</main>
+</body>
+</html><?php
+}
+
+function handleFile(PDO $pdo, int $id, string $field): void {
+    $field_map = [
+        'dyno_chart' => 'dyno_chart_path',
+        'dyno_table' => 'dyno_table_path',
+        'car_image'  => 'car_image_path',
+    ];
+
+    if (!isset($field_map[$field])) { http_response_code(404); exit; }
+
+    $sub = db_get_submission($pdo, $id);
+    $db_field = $field_map[$field];
+
+    if (!$sub || !$sub[$db_field]) { http_response_code(404); exit; }
+
+    $path = __DIR__ . '/' . $sub[$db_field];
+    if (!file_exists($path)) { http_response_code(404); exit; }
+
+    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    $types = [
+        'pdf'  => 'application/pdf',
+        'jpg'  => 'image/jpeg', 'jpeg' => 'image/jpeg',
+        'png'  => 'image/png',
+        'doc'  => 'application/msword',
+        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'txt'  => 'text/plain',
+    ];
+
+    header('Content-Type: ' . ($types[$ext] ?? 'application/octet-stream'));
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
+}
 function handleResend(PDO $pdo, int $id): void { header('Location: admin.php'); }
 function handleDelete(PDO $pdo, int $id): void {
     $sub = db_get_submission($pdo, $id);
