@@ -174,10 +174,127 @@ function renderLoginPage(string $error = ''): void {
 
 // ── Placeholder stubs (replaced in Tasks 5–7) ─────────────────────────────────
 function handleList(PDO $pdo): void {
-    echo '<p style="font-family:sans-serif;padding:2rem;">List view coming in Task 5.</p>';
-    echo '<p style="font-family:sans-serif;padding:0 2rem;"><a href="admin.php?action=logout">Logout</a></p>';
+    $sort = $_GET['sort'] ?? 'submitted_at';
+    $dir  = $_GET['dir']  ?? 'desc';
+    $submissions = db_get_submissions($pdo, $sort, $dir);
+    $csrf = generateCsrfToken();
+    $flash = getFlash();
+    renderListPage($submissions, $sort, $dir, $csrf, $flash);
+}
+
+function renderListPage(array $submissions, string $sort, string $dir, string $csrf, ?array $flash): void {
+    $flip = $dir === 'asc' ? 'desc' : 'asc';
+
+    function sortLink(string $col, string $label, string $currentSort, string $currentDir, string $flip): string {
+        $arrow = ($currentSort === $col) ? ($currentDir === 'asc' ? ' ▲' : ' ▼') : '';
+        $nextDir = ($currentSort === $col) ? $flip : 'asc';
+        $url = h('admin.php?sort=' . $col . '&dir=' . $nextDir);
+        return "<a href=\"{$url}\" style=\"color:inherit;text-decoration:none;\">" . h($label) . $arrow . "</a>";
+    }
+    ?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Submissions — WCMA Admin</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; margin: 0; background: #f0f2f5; }
+  header { background: #1a5490; color: #fff; padding: .8rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+  header h1 { margin: 0; font-size: 1.2rem; }
+  header a { color: #cde; font-size: .9rem; }
+  main { padding: 1.5rem; }
+  .flash { padding: .7rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .9rem; }
+  .flash.success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+  .flash.error   { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+  th { background: #1a5490; color: #fff; padding: .7rem 1rem; text-align: left; font-size: .85rem; white-space: nowrap; }
+  td { padding: .65rem 1rem; border-bottom: 1px solid #eee; font-size: .9rem; vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f7f9fc; }
+  .badge-ok   { color: #155724; font-weight: bold; }
+  .badge-fail { color: #721c24; font-weight: bold; }
+  .actions a  { color: #1a5490; margin-right: .6rem; font-size: .85rem; }
+  .btn-delete { background: none; border: none; color: #c00; cursor: pointer; font-size: .85rem; padding: 0; }
+  .btn-delete:hover { text-decoration: underline; }
+  .empty { text-align: center; color: #888; padding: 2rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>WCMA Submissions</h1>
+  <a href="admin.php?action=logout">Logout</a>
+</header>
+<main>
+  <?php if ($flash): ?>
+  <div class="flash <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
+  <?php endif; ?>
+  <table>
+    <thead>
+      <tr>
+        <th><?= sortLink('submitted_at', 'Submitted', $sort, $dir, $flip) ?></th>
+        <th><?= sortLink('name', 'Name', $sort, $dir, $flip) ?></th>
+        <th>Vehicle</th>
+        <th><?= sortLink('competition_weight', 'Weight', $sort, $dir, $flip) ?></th>
+        <th><?= sortLink('declared_hp', 'HP', $sort, $dir, $flip) ?></th>
+        <th><?= sortLink('calculated_class', 'Class', $sort, $dir, $flip) ?></th>
+        <th>Email</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php if (empty($submissions)): ?>
+      <tr><td colspan="8" class="empty">No submissions yet.</td></tr>
+    <?php else: foreach ($submissions as $s): ?>
+      <tr>
+        <td><?= h(date('M j, Y H:i', strtotime($s['submitted_at']))) ?></td>
+        <td><?= h($s['name']) ?></td>
+        <td><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></td>
+        <td><?= h((string)$s['competition_weight']) ?></td>
+        <td><?= h((string)$s['declared_hp']) ?></td>
+        <td><strong><?= h($s['calculated_class'] ?? '—') ?></strong></td>
+        <td class="<?= $s['email_sent'] ? 'badge-ok' : 'badge-fail' ?>">
+          <?= $s['email_sent'] ? '✓' : '⚠ Failed' ?>
+        </td>
+        <td class="actions">
+          <a href="admin.php?action=view&id=<?= (int)$s['id'] ?>">View</a>
+          <form method="post" action="admin.php?action=delete" style="display:inline"
+                onsubmit="return confirm('Permanently delete this submission and its files?')">
+            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+            <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
+            <button type="submit" class="btn-delete">Delete</button>
+          </form>
+        </td>
+      </tr>
+    <?php endforeach; endif; ?>
+    </tbody>
+  </table>
+</main>
+</body>
+</html><?php
 }
 function handleView(PDO $pdo, int $id): void { echo 'View coming in Task 6.'; }
 function handleFile(PDO $pdo, int $id, string $field): void { http_response_code(404); echo 'Not yet implemented.'; }
 function handleResend(PDO $pdo, int $id): void { header('Location: admin.php'); }
-function handleDelete(PDO $pdo, int $id): void { header('Location: admin.php'); }
+function handleDelete(PDO $pdo, int $id): void {
+    $sub = db_get_submission($pdo, $id);
+    if (!$sub) {
+        setFlash('Submission not found.', 'error');
+        header('Location: admin.php');
+        exit;
+    }
+
+    // Delete uploaded files
+    $upload_dir = __DIR__ . '/uploads/' . $id;
+    if (is_dir($upload_dir)) {
+        foreach (glob($upload_dir . '/*') as $file) {
+            unlink($file);
+        }
+        rmdir($upload_dir);
+    }
+
+    db_delete_submission($pdo, $id);
+    setFlash('Submission deleted.', 'success');
+    header('Location: admin.php');
+    exit;
+}
