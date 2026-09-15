@@ -976,89 +976,94 @@ function getAllFormDataForSave() {
 }
 
 /**
- * Save current configuration to localStorage
+ * Get a CSRF token for account.php POST actions (draft-save, draft-delete).
+ * account.php's list page always emits a `<meta name="csrf-token">` tag in
+ * its <head>, regardless of whether the user has any drafts/submissions yet
+ * (an earlier version of this scraped the token out of a per-row delete
+ * form instead, which silently broke for a first-time user with zero rows —
+ * the meta tag is unconditional, so it works even on an empty My Cars page).
+ * Also doubles as the "is the user logged in" check: a logged-out request
+ * to account.php redirects to auth.php?action=login, whose rendered page has
+ * no such meta tag, so a missing match means "not logged in."
  */
-function saveConfiguration() {
-    try {
-        // Check if localStorage is available
-        if (typeof(Storage) === "undefined") {
-            alert('LocalStorage is not available in your browser. Cannot save configuration.');
-            console.error('LocalStorage not available');
-            return null;
-        }
+async function getAccountCsrfToken() {
+    const res = await fetch('account.php', { credentials: 'same-origin' });
+    const html = await res.text();
+    const match = html.match(/name="csrf-token" content="([^"]+)"/);
+    return match ? match[1] : null;
+}
 
-        const configData = getAllFormDataForSave();
-        
-        // Get existing saved configurations
-        const savedConfigs = getSavedConfigurations();
-        
-        // Generate a name for this configuration
-        const configName = `${configData.year} ${configData.make} ${configData.model}`.trim() || 
-                           `Configuration ${savedConfigs.length + 1}`;
-        
-        const configEntry = {
-            id: Date.now().toString(),
-            name: configName,
-            data: configData,
-            timestamp: new Date().toISOString()
-        };
-        
-        // Add to list
-        savedConfigs.push(configEntry);
-        
-        // Save to localStorage (limit to 10 most recent)
-        const configsToSave = savedConfigs.slice(-10);
-        
-        try {
-            localStorage.setItem('wcma-saved-configs', JSON.stringify(configsToSave));
-            console.log('Configuration saved:', configEntry.name);
-        } catch (e) {
-            if (e.name === 'QuotaExceededError') {
-                alert('Storage quota exceeded. Please delete some saved configurations first.');
-                console.error('LocalStorage quota exceeded');
-                return null;
-            }
-            throw e;
+/**
+ * Save the current form as a draft to the logged-in user's My Cars.
+ * Redirects to login if the user isn't authenticated.
+ */
+async function saveConfiguration() {
+    const configData = getAllFormDataForSave();
+    const label = `${configData.year} ${configData.make} ${configData.model}`.trim() || 'Untitled Draft';
+
+    const token = await getAccountCsrfToken();
+    if (!token) {
+        window.location.href = 'auth.php?action=login';
+        return;
+    }
+
+    const body = new URLSearchParams();
+    body.set('csrf_token', token);
+    body.set('label', label);
+    body.set('form_data', JSON.stringify(configData));
+
+    try {
+        const res = await fetch('account.php?action=draft-save', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString(),
+        });
+        const result = await res.json();
+        if (result.success) {
+            showMessage('Saved to My Cars!', 'success');
+        } else {
+            showMessage(result.error || 'Failed to save.', 'error');
         }
-        
-        // Show success message
-        showMessage('Configuration saved successfully!', 'success');
-        
-        return configEntry;
     } catch (error) {
-        console.error('Error saving configuration:', error);
-        alert('An error occurred while saving the configuration: ' + error.message);
-        return null;
+        console.error('Error saving draft:', error);
+        showMessage('An error occurred while saving.', 'error');
     }
 }
 
 /**
- * Get all saved configurations from localStorage
+ * Fetch the current user's drafts from the server.
  */
-function getSavedConfigurations() {
+async function getSavedConfigurations() {
     try {
-        const saved = localStorage.getItem('wcma-saved-configs');
-        return saved ? JSON.parse(saved) : [];
+        const res = await fetch('account.php?action=draft-list', { credentials: 'same-origin' });
+        const result = await res.json();
+        return result.drafts || [];
     } catch (e) {
-        console.error('Error loading saved configurations:', e);
+        console.error('Error loading drafts:', e);
         return [];
     }
 }
 
 /**
- * Load a saved configuration into the form
+ * Load a saved draft into the form.
  */
-function loadConfiguration(configId) {
-    const configs = getSavedConfigurations();
-    const config = configs.find(c => c.id === configId);
-    
-    if (!config) {
-        showMessage('Configuration not found', 'error');
+async function loadConfiguration(draftId) {
+    let data;
+    try {
+        const res = await fetch(`account.php?action=draft-load&id=${encodeURIComponent(draftId)}`, { credentials: 'same-origin' });
+        const result = await res.json();
+        if (!result.success) {
+            showMessage('Draft not found', 'error');
+            return;
+        }
+        data = result.form_data;
+    } catch (e) {
+        console.error('Error loading draft:', e);
+        showMessage('Failed to load draft', 'error');
         return;
     }
-    
-    const data = config.data;
-    
+
     // Populate all form fields (basic fields first)
     if (document.getElementById('name')) document.getElementById('name').value = data.name || '';
     if (document.getElementById('email')) document.getElementById('email').value = data.email || '';
@@ -1069,11 +1074,11 @@ function loadConfiguration(configId) {
     if (document.getElementById('competition-weight')) document.getElementById('competition-weight').value = data.competitionWeight || '';
     if (document.getElementById('declared-hp')) document.getElementById('declared-hp').value = data.declaredHp || '';
     if (document.getElementById('dyno-hp')) document.getElementById('dyno-hp').value = data.dynoHp || '';
-    
+
     // Update form data first to populate modifier options
     updateFormData();
     updateModificationFieldsState();
-    
+
     // Wait a moment for modifier options to populate, then set values
     setTimeout(() => {
         if (document.getElementById('chassis')) document.getElementById('chassis').value = data.chassis || '';
@@ -1081,17 +1086,15 @@ function loadConfiguration(configId) {
         if (document.getElementById('transmission')) document.getElementById('transmission').value = data.transmission || '';
         if (document.getElementById('drivetrain')) document.getElementById('drivetrain').value = data.drivetrain || '';
         if (document.getElementById('tires')) document.getElementById('tires').value = data.tires || '';
-        
+
         // Handle brake/suspension checkboxes - clear all first, then check saved ones
         const brakeContainer = document.getElementById('brake-suspension-options');
         if (brakeContainer) {
-            // Clear all checkboxes first
             const allCheckboxes = brakeContainer.querySelectorAll('input[type="checkbox"]');
             allCheckboxes.forEach(checkbox => {
                 checkbox.checked = false;
             });
-            
-            // Check the saved ones
+
             if (data.brakeSuspension && Array.isArray(data.brakeSuspension)) {
                 data.brakeSuspension.forEach(optionId => {
                     const checkbox = document.getElementById(`brake-${optionId}`);
@@ -1101,25 +1104,35 @@ function loadConfiguration(configId) {
                 });
             }
         }
-        
-        // Update form data and recalculate
+
         updateFormData();
         handleCalculationUpdate();
-        
-        // Close modal if open
         closeLoadModal();
-        
         showMessage('Configuration loaded successfully!', 'success');
     }, 100);
 }
 
 /**
- * Delete a saved configuration
+ * Delete a saved draft.
  */
-function deleteConfiguration(configId) {
-    const configs = getSavedConfigurations();
-    const filtered = configs.filter(c => c.id !== configId);
-    localStorage.setItem('wcma-saved-configs', JSON.stringify(filtered));
+async function deleteConfiguration(draftId) {
+    const token = await getAccountCsrfToken();
+    if (!token) return;
+
+    const body = new URLSearchParams();
+    body.set('csrf_token', token);
+    body.set('id', draftId);
+
+    try {
+        await fetch('account.php?action=draft-delete', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString(),
+        });
+    } catch (e) {
+        console.error('Error deleting draft:', e);
+    }
     showLoadModal(); // Refresh the modal
     showMessage('Configuration deleted', 'success');
 }
@@ -1127,7 +1140,7 @@ function deleteConfiguration(configId) {
 /**
  * Show load configuration modal
  */
-function showLoadModal() {
+async function showLoadModal() {
     let modal = document.getElementById('load-config-modal');
     
     if (!modal) {
@@ -1161,19 +1174,19 @@ function showLoadModal() {
     }
     
     // Populate with saved configurations
-    const configs = getSavedConfigurations();
+    const configs = await getSavedConfigurations();
     const listContainer = modal.querySelector('#saved-configs-list');
     
     if (configs.length === 0) {
         listContainer.innerHTML = '<p style="text-align: center; color: #666; padding: 2rem;">No saved configurations found.</p>';
     } else {
-        listContainer.innerHTML = configs.reverse().map(config => {
-            const date = new Date(config.timestamp);
+        listContainer.innerHTML = configs.map(config => {
+            const date = new Date(config.updated_at);
             const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             return `
                 <div class="saved-config-item">
                     <div class="saved-config-info">
-                        <div class="saved-config-name">${escapeHtml(config.name)}</div>
+                        <div class="saved-config-name">${escapeHtml(config.label || 'Untitled Draft')}</div>
                         <div class="saved-config-date">Saved: ${dateStr}</div>
                     </div>
                     <div class="saved-config-actions">
@@ -1541,6 +1554,12 @@ function initialize() {
         updateFormData();
         updateModificationFieldsState();
         updateResultsDisplay();
+
+        // If arriving from a "My Cars" draft Edit link, load that draft
+        const draftIdParam = new URLSearchParams(window.location.search).get('draft');
+        if (draftIdParam) {
+            loadConfiguration(draftIdParam);
+        }
     };
     
     // Wait for DOM to be ready
