@@ -7,6 +7,10 @@ if (!defined('DB_PATH')) {
     define('DB_PATH', __DIR__ . '/data/submissions.db');
 }
 
+if (!defined('BOOTSTRAP_ADMIN_EMAIL')) {
+    define('BOOTSTRAP_ADMIN_EMAIL', 'matt.sinfield@gmail.com');
+}
+
 function db_connect(): PDO {
     $dir = dirname(DB_PATH);
     if (!is_dir($dir)) {
@@ -62,6 +66,26 @@ function db_init(PDO $pdo): void {
             ip              TEXT PRIMARY KEY,
             attempts        INTEGER NOT NULL DEFAULT 0,
             last_attempt_at DATETIME NOT NULL
+        )
+    ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS users (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            email         TEXT NOT NULL UNIQUE,
+            password_hash TEXT,
+            google_id     TEXT UNIQUE,
+            name          TEXT NOT NULL,
+            role          TEXT NOT NULL DEFAULT 'user',
+            created_at    DATETIME NOT NULL
+        )
+    ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS password_resets (
+            token_hash TEXT PRIMARY KEY,
+            user_id    INTEGER NOT NULL,
+            expires_at DATETIME NOT NULL
         )
     ");
 }
@@ -122,6 +146,61 @@ function db_get_submission(PDO $pdo, int $id): ?array {
 
 function db_delete_submission(PDO $pdo, int $id): void {
     $pdo->prepare("DELETE FROM submissions WHERE id = :id")->execute([':id' => $id]);
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+
+function db_create_user(PDO $pdo, array $data): int {
+    $role = (strtolower($data['email']) === strtolower(BOOTSTRAP_ADMIN_EMAIL)) ? 'admin' : 'user';
+    $stmt = $pdo->prepare("
+        INSERT INTO users (email, password_hash, google_id, name, role, created_at)
+        VALUES (:email, :password_hash, :google_id, :name, :role, :created_at)
+    ");
+    $stmt->execute([
+        ':email'         => $data['email'],
+        ':password_hash' => $data['password_hash'] ?? null,
+        ':google_id'     => $data['google_id'] ?? null,
+        ':name'          => $data['name'],
+        ':role'          => $role,
+        ':created_at'    => date('Y-m-d H:i:s'),
+    ]);
+    return (int)$pdo->lastInsertId();
+}
+
+function db_find_user_by_email(PDO $pdo, string $email): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = :email COLLATE NOCASE");
+    $stmt->execute([':email' => $email]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_find_user_by_google_id(PDO $pdo, string $google_id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE google_id = :google_id");
+    $stmt->execute([':google_id' => $google_id]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_find_user_by_id(PDO $pdo, int $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM users WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_get_all_users(PDO $pdo): array {
+    return $pdo->query("SELECT * FROM users ORDER BY created_at ASC")->fetchAll();
+}
+
+function db_set_user_role(PDO $pdo, int $id, string $role): void {
+    $pdo->prepare("UPDATE users SET role = :role WHERE id = :id")
+        ->execute([':role' => $role, ':id' => $id]);
+}
+
+function db_count_admins(PDO $pdo): int {
+    return (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
+}
+
+function db_link_google_id(PDO $pdo, int $user_id, string $google_id): void {
+    $pdo->prepare("UPDATE users SET google_id = :google_id WHERE id = :id")
+        ->execute([':google_id' => $google_id, ':id' => $user_id]);
 }
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
