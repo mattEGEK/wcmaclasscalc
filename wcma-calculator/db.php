@@ -88,9 +88,20 @@ function db_init(PDO $pdo): void {
             expires_at DATETIME NOT NULL
         )
     ");
+
+    // Add user_id to submissions if migrating an existing DB
+    $columns = $pdo->query("PRAGMA table_info(submissions)")->fetchAll();
+    $hasUserId = false;
+    foreach ($columns as $col) {
+        if ($col['name'] === 'user_id') { $hasUserId = true; break; }
+    }
+    if (!$hasUserId) {
+        $pdo->exec("ALTER TABLE submissions ADD COLUMN user_id INTEGER");
+    }
 }
 
 function db_insert_submission(PDO $pdo, array $data): int {
+    $data[':user_id'] = $data[':user_id'] ?? null;
     $stmt = $pdo->prepare("
         INSERT INTO submissions (
             submitted_at, name, email, year, make, model, comments,
@@ -100,7 +111,7 @@ function db_insert_submission(PDO $pdo, array $data): int {
             chassis_value, body_mods_value, transmission_value,
             drivetrain_value, tires_value, brake_suspension_value,
             weight_factor, modification_factor, base_ratio, modified_ratio,
-            calculated_class, email_sent
+            calculated_class, email_sent, user_id
         ) VALUES (
             :submitted_at, :name, :email, :year, :make, :model, :comments,
             :competition_weight, :declared_hp, :dyno_hp,
@@ -109,7 +120,7 @@ function db_insert_submission(PDO $pdo, array $data): int {
             :chassis_value, :body_mods_value, :transmission_value,
             :drivetrain_value, :tires_value, :brake_suspension_value,
             :weight_factor, :modification_factor, :base_ratio, :modified_ratio,
-            :calculated_class, 0
+            :calculated_class, 0, :user_id
         )
     ");
     $stmt->execute($data);
@@ -141,6 +152,24 @@ function db_get_submissions(PDO $pdo, string $sort = 'submitted_at', string $dir
 function db_get_submission(PDO $pdo, int $id): ?array {
     $stmt = $pdo->prepare("SELECT * FROM submissions WHERE id = :id");
     $stmt->execute([':id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_get_user_submissions(PDO $pdo, int $user_id): array {
+    $stmt = $pdo->prepare("SELECT * FROM submissions WHERE user_id = :user_id ORDER BY submitted_at DESC");
+    $stmt->execute([':user_id' => $user_id]);
+    return $stmt->fetchAll();
+}
+
+function db_count_user_submissions(PDO $pdo, int $user_id): int {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM submissions WHERE user_id = :user_id");
+    $stmt->execute([':user_id' => $user_id]);
+    return (int)$stmt->fetchColumn();
+}
+
+function db_get_user_submission(PDO $pdo, int $user_id, int $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM submissions WHERE id = :id AND user_id = :user_id");
+    $stmt->execute([':id' => $id, ':user_id' => $user_id]);
     return $stmt->fetch() ?: null;
 }
 
@@ -201,6 +230,27 @@ function db_count_admins(PDO $pdo): int {
 function db_link_google_id(PDO $pdo, int $user_id, string $google_id): void {
     $pdo->prepare("UPDATE users SET google_id = :google_id WHERE id = :id")
         ->execute([':google_id' => $google_id, ':id' => $user_id]);
+}
+
+// ── Password resets ──────────────────────────────────────────────────────────
+
+function db_create_password_reset(PDO $pdo, int $user_id, string $token_hash, string $expires_at): void {
+    $pdo->prepare("INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (:token_hash, :user_id, :expires_at)")
+        ->execute([':token_hash' => $token_hash, ':user_id' => $user_id, ':expires_at' => $expires_at]);
+}
+
+function db_get_password_reset(PDO $pdo, string $token_hash): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM password_resets WHERE token_hash = :token_hash");
+    $stmt->execute([':token_hash' => $token_hash]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_delete_password_reset(PDO $pdo, string $token_hash): void {
+    $pdo->prepare("DELETE FROM password_resets WHERE token_hash = :token_hash")->execute([':token_hash' => $token_hash]);
+}
+
+function db_delete_password_resets_for_user(PDO $pdo, int $user_id): void {
+    $pdo->prepare("DELETE FROM password_resets WHERE user_id = :user_id")->execute([':user_id' => $user_id]);
 }
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
