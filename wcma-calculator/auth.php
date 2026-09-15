@@ -14,6 +14,21 @@ define('GOOGLE_CLIENT_ID',     'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com
 define('GOOGLE_CLIENT_SECRET', 'YOUR_GOOGLE_CLIENT_SECRET');
 define('GOOGLE_REDIRECT_URI',  'https://yourdomain.com/auth.php?action=google-callback');
 
+require __DIR__ . '/phpmailer/src/Exception.php';
+require __DIR__ . '/phpmailer/src/PHPMailer.php';
+require __DIR__ . '/phpmailer/src/SMTP.php';
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+// Match the SMTP credentials used in car-classing.php / admin.php
+define('SMTP_HOST',  'smtp.ionos.com');
+define('SMTP_PORT',  587);
+define('SMTP_USER',  'noreply@yourdomain.com');
+define('SMTP_PASS',  'YOUR_SMTP_PASSWORD');
+define('FROM_EMAIL', 'noreply@yourdomain.com');
+define('FROM_NAME',  'WCMA Calculator');
+
 function generateCsrfToken(): string {
     if (!isset($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -95,6 +110,14 @@ switch ($action) {
 
     case 'google-callback':
         handleGoogleCallback($pdo);
+        break;
+
+    case 'forgot-password':
+        handleForgotPassword($pdo);
+        break;
+
+    case 'reset-password':
+        handleResetPassword($pdo);
         break;
 
     default:
@@ -299,4 +322,107 @@ function handleGoogleCallback(PDO $pdo): void {
     login_user($user);
     header('Location: car-classing.html');
     exit;
+}
+
+function buildAuthMailer(): PHPMailer {
+    $mail = new PHPMailer(true);
+    $mail->isSMTP();
+    $mail->Host       = SMTP_HOST;
+    $mail->SMTPAuth   = true;
+    $mail->Username   = SMTP_USER;
+    $mail->Password   = SMTP_PASS;
+    $mail->SMTPSecure = (SMTP_PORT === 465) ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port       = SMTP_PORT;
+    $mail->CharSet    = 'UTF-8';
+    $mail->setFrom(FROM_EMAIL, FROM_NAME);
+    return $mail;
+}
+
+function handleForgotPassword(PDO $pdo): void {
+    $sent = false;
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $email = trim($_POST['email'] ?? '');
+        $user = db_find_user_by_email($pdo, $email);
+
+        if ($user && $user['password_hash']) {
+            db_delete_password_resets_for_user($pdo, $user['id']);
+            $token = bin2hex(random_bytes(32));
+            $tokenHash = hash('sha256', $token);
+            $expiresAt = date('Y-m-d H:i:s', time() + 3600);
+            db_create_password_reset($pdo, $user['id'], $tokenHash, $expiresAt);
+
+            $resetUrl = 'https://' . $_SERVER['HTTP_HOST'] . '/auth.php?action=reset-password&token=' . $token;
+
+            try {
+                $mail = buildAuthMailer();
+                $mail->addAddress($user['email'], $user['name']);
+                $mail->Subject = 'Reset your WCMA Calculator password';
+                $mail->isHTML(true);
+                $mail->Body = '<p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href="' . htmlspecialchars($resetUrl) . '">' . htmlspecialchars($resetUrl) . '</a></p>';
+                $mail->AltBody = "Reset your password: $resetUrl (expires in 1 hour)";
+                $mail->send();
+            } catch (Exception $e) {
+                error_log('Password reset email error: ' . $e->getMessage());
+            }
+        }
+
+        $sent = true; // Always show the same message, whether or not the email matched
+    }
+
+    $body = '';
+    if ($sent) {
+        $body .= '<div class="success">If that email is registered, a reset link has been sent.</div>';
+    }
+    $body .= '<form method="post" action="auth.php?action=forgot-password">';
+    $body .= '<label for="email">Email</label><input type="email" id="email" name="email" required>';
+    $body .= '<button type="submit" class="primary">Send Reset Link</button>';
+    $body .= '</form>';
+    $body .= '<div class="links"><a href="auth.php?action=login">Back to sign in</a></div>';
+
+    renderAuthPage('Forgot Password', $body);
+}
+
+function handleResetPassword(PDO $pdo): void {
+    $token = $_GET['token'] ?? $_POST['token'] ?? '';
+    $tokenHash = hash('sha256', $token);
+    $reset = $token !== '' ? db_get_password_reset($pdo, $tokenHash) : null;
+
+    if (!$reset || strtotime($reset['expires_at']) < time()) {
+        renderAuthPage('Reset Password', '<div class="error">This reset link is invalid or has expired.</div><div class="links"><a href="auth.php?action=forgot-password">Request a new link</a></div>');
+        return;
+    }
+
+    $error = '';
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $password = $_POST['password'] ?? '';
+        $confirm = $_POST['password_confirm'] ?? '';
+
+        if (strlen($password) < 8) {
+            $error = 'Password must be at least 8 characters.';
+        } elseif ($password !== $confirm) {
+            $error = 'Passwords do not match.';
+        } else {
+            $pdo->prepare("UPDATE users SET password_hash = :hash WHERE id = :id")
+                ->execute([':hash' => password_hash($password, PASSWORD_BCRYPT), ':id' => $reset['user_id']]);
+            db_delete_password_reset($pdo, $tokenHash);
+
+            $user = db_find_user_by_id($pdo, $reset['user_id']);
+            login_user($user);
+            header('Location: car-classing.html');
+            exit;
+        }
+    }
+
+    $body = '';
+    if ($error) $body .= '<div class="error">' . h($error) . '</div>';
+    $body .= '<form method="post" action="auth.php?action=reset-password">';
+    $body .= '<input type="hidden" name="token" value="' . h($token) . '">';
+    $body .= '<label for="password">New Password</label><input type="password" id="password" name="password" required autocomplete="new-password">';
+    $body .= '<label for="password_confirm">Confirm Password</label><input type="password" id="password_confirm" name="password_confirm" required autocomplete="new-password">';
+    $body .= '<button type="submit" class="primary">Reset Password</button>';
+    $body .= '</form>';
+
+    renderAuthPage('Reset Password', $body);
 }
