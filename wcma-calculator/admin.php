@@ -4,6 +4,7 @@ date_default_timezone_set('America/Denver');
 
 require __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
+require __DIR__ . '/view_helpers.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
 require __DIR__ . '/phpmailer/src/SMTP.php';
@@ -29,32 +30,6 @@ function requireAuth(): void {
         header('Location: car-classing.html');
         exit;
     }
-}
-
-function generateCsrfToken(): string {
-    if (!isset($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
-    return $_SESSION['csrf_token'];
-}
-
-function validateCsrfToken(string $token): bool {
-    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
-}
-
-function setFlash(string $message, string $type): void {
-    $_SESSION['flash'] = ['message' => $message, 'type' => $type];
-}
-
-function getFlash(): ?array {
-    if (!isset($_SESSION['flash'])) return null;
-    $flash = $_SESSION['flash'];
-    unset($_SESSION['flash']);
-    return $flash;
-}
-
-function h(string $s): string {
-    return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -147,39 +122,16 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Submissions — WCMA Admin</title>
-<style>
-  * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; margin: 0; background: #f0f2f5; }
-  header { background: #1a5490; color: #fff; padding: .8rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
-  header h1 { margin: 0; font-size: 1.2rem; }
-  header a { color: #cde; font-size: .9rem; }
-  main { padding: 1.5rem; }
-  .flash { padding: .7rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .9rem; }
-  .flash.success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
-  .flash.error   { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
-  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
-  th { background: #1a5490; color: #fff; padding: .7rem 1rem; text-align: left; font-size: .85rem; white-space: nowrap; }
-  td { padding: .65rem 1rem; border-bottom: 1px solid #eee; font-size: .9rem; vertical-align: middle; }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #f7f9fc; }
-  .badge-ok   { color: #155724; font-weight: bold; }
-  .badge-fail { color: #721c24; font-weight: bold; }
-  .actions a  { color: #1a5490; margin-right: .6rem; font-size: .85rem; }
-  .btn-delete { background: none; border: none; color: #c00; cursor: pointer; font-size: .85rem; padding: 0; }
-  .btn-delete:hover { text-decoration: underline; }
-  .empty { text-align: center; color: #888; padding: 2rem; }
-</style>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="css/calculator.css">
 </head>
 <body>
-<header>
-  <h1>WCMA Submissions</h1>
-  <div><a href="admin.php?action=users" style="margin-right:1rem">Manage Users</a><a href="auth.php?action=logout">Logout</a></div>
-</header>
-<main>
+<div class="container">
+  <?php renderSiteHeader('WCMA Submissions', '<a href="admin.php?action=users">Manage Users</a><a href="auth.php?action=logout">Logout</a>'); ?>
   <?php if ($flash): ?>
-  <div class="flash <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
+  <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
-  <table>
+  <table class="data-table">
     <thead>
       <tr>
         <th><?= sortLink('submitted_at', 'Submitted', $sort, $dir, $flip) ?></th>
@@ -212,14 +164,14 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
                 onsubmit="return confirm('Permanently delete this submission and its files?')">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
-            <button type="submit" class="btn-delete">Delete</button>
+            <button type="submit" class="link-button">Delete</button>
           </form>
         </td>
       </tr>
     <?php endforeach; endif; ?>
     </tbody>
   </table>
-</main>
+</div>
 </body>
 </html><?php
 }
@@ -252,47 +204,20 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Submission #<?= (int)$s['id'] ?> — WCMA Admin</title>
-<style>
-  * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; margin: 0; background: #f0f2f5; }
-  header { background: #1a5490; color: #fff; padding: .8rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
-  header h1 { margin: 0; font-size: 1.1rem; }
-  header a { color: #cde; font-size: .9rem; }
-  main { padding: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-  @media (max-width: 700px) { main { grid-template-columns: 1fr; } }
-  .card { background: #fff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.1); padding: 1.2rem; }
-  .card h2 { margin: 0 0 1rem; font-size: 1rem; color: #1a5490; border-bottom: 2px solid #1a5490; padding-bottom: .4rem; }
-  table.data td { padding: .35rem .5rem; font-size: .9rem; vertical-align: top; }
-  table.data td:first-child { font-weight: bold; width: 160px; color: #444; }
-  .calc-table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: .95rem; }
-  .calc-table td { padding: .3rem .4rem; }
-  .calc-table tr.total td { border-top: 2px solid #333; font-weight: bold; font-size: 1.05rem; padding-top: .5rem; }
-  .class-badge { font-size: 1.4rem; font-weight: bold; color: #1a5490; }
-  .flash { padding: .7rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .9rem; }
-  .flash.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-  .flash.error   { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-  .actions { margin-bottom: 1rem; }
-  .btn { display: inline-block; padding: .5rem 1.1rem; border-radius: 4px; font-size: .9rem; cursor: pointer; border: none; text-decoration: none; }
-  .btn-primary { background: #1a5490; color: #fff; }
-  .btn-secondary { background: #6c757d; color: #fff; }
-  .btn-primary:hover { background: #154070; }
-  .file-thumb { max-width: 100%; max-height: 200px; border-radius: 4px; margin-top: .5rem; display: block; }
-  .file-link { display: inline-block; margin-top: .4rem; color: #1a5490; }
-</style>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="css/calculator.css">
 </head>
 <body>
-<header>
-  <h1>Submission #<?= (int)$s['id'] ?> — <?= h($s['name']) ?></h1>
-  <a href="admin.php">← Back to list</a>
-</header>
-<main>
+<div class="container">
+  <?php renderSiteHeader('Submission #' . $s['id'] . ' — ' . $s['name'], '<a href="admin.php">← Back to list</a>'); ?>
+  <div class="detail-layout">
   <?php if ($flash): ?>
-  <div class="flash <?= h($flash['type']) ?>" style="grid-column:1/-1"><?= h($flash['message']) ?></div>
+  <div class="form-messages show <?= h($flash['type']) ?>" style="grid-column:1/-1"><?= h($flash['message']) ?></div>
   <?php endif; ?>
 
   <!-- LEFT: Calculation + details -->
   <div>
-    <div class="card" style="margin-bottom:1.5rem">
+    <div class="detail-card">
       <h2>Calculation Breakdown</h2>
       <table class="calc-table">
         <tr><td>Base Ratio</td>
@@ -317,9 +242,9 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
       </table>
     </div>
 
-    <div class="card">
+    <div class="detail-card">
       <h2>Contact &amp; Vehicle</h2>
-      <table class="data">
+      <table class="detail-table">
         <tr><td>Name</td><td><?= h($s['name']) ?></td></tr>
         <tr><td>Email</td><td><?= h($s['email']) ?></td></tr>
         <tr><td>Vehicle</td><td><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></td></tr>
@@ -335,7 +260,7 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
 
   <!-- RIGHT: Files + actions -->
   <div>
-    <div class="card" style="margin-bottom:1.5rem">
+    <div class="detail-card" style="margin-bottom:1.5rem">
       <h2>Actions</h2>
       <div class="actions">
         <form method="post" action="admin.php?action=resend" style="display:inline">
@@ -346,7 +271,7 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
       </div>
     </div>
 
-    <div class="card">
+    <div class="detail-card">
       <h2>Uploaded Files</h2>
       <?php
       $files = [
@@ -372,7 +297,8 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
       <?php if (!$any): ?><p style="color:#888;font-size:.9rem">No files uploaded.</p><?php endif; ?>
     </div>
   </div>
-</main>
+  </div>
+</div>
 </body>
 </html><?php
 }
@@ -407,37 +333,25 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Manage Users — WCMA Admin</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="css/calculator.css">
 <style>
-  * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; margin: 0; background: #f0f2f5; }
-  header { background: #1a5490; color: #fff; padding: .8rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
-  header a { color: #cde; font-size: .9rem; margin-left: 1rem; }
-  main { padding: 1.5rem; }
-  .flash { padding: .7rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .9rem; }
-  .flash.success { background: #d4edda; color: #155724; }
-  .flash.error { background: #f8d7da; color: #721c24; }
-  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
-  th { background: #1a5490; color: #fff; padding: .7rem 1rem; text-align: left; font-size: .85rem; }
-  td { padding: .65rem 1rem; border-bottom: 1px solid #eee; font-size: .9rem; }
-  .role-admin { color: #1a5490; font-weight: bold; }
-  .btn-role { background: none; border: 1px solid #1a5490; color: #1a5490; border-radius: 4px; padding: .3rem .7rem; cursor: pointer; font-size: .8rem; }
+  .btn-role { background: none; border: 1px solid var(--secondary-color); color: var(--secondary-color); border-radius: var(--border-radius); padding: .3rem .7rem; cursor: pointer; font-size: .8rem; font-family: inherit; }
+  .btn-role:hover { background: #f0f7ff; }
 </style>
 </head>
 <body>
-<header>
-  <h1>Manage Users</h1>
-  <div><a href="admin.php">Submissions</a><a href="auth.php?action=logout">Logout</a></div>
-</header>
-<main>
-  <?php if ($flash): ?><div class="flash <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
-  <table>
+<div class="container">
+  <?php renderSiteHeader('Manage Users', '<a href="admin.php">Submissions</a><a href="auth.php?action=logout">Logout</a>'); ?>
+  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+  <table class="data-table">
     <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Login Method</th><th>Created</th><th>Actions</th></tr></thead>
     <tbody>
     <?php foreach ($users as $u): ?>
       <tr>
         <td><?= h($u['email']) ?></td>
         <td><?= h($u['name']) ?></td>
-        <td class="<?= $u['role'] === 'admin' ? 'role-admin' : '' ?>"><?= h($u['role']) ?></td>
+        <td class="<?= $u['role'] === 'admin' ? 'badge-admin' : '' ?>"><?= h($u['role']) ?></td>
         <td><?= h(trim(($u['password_hash'] ? 'Password ' : '') . ($u['google_id'] ? 'Google' : ''))) ?></td>
         <td><?= h(date('M j, Y', strtotime($u['created_at']))) ?></td>
         <td>
@@ -459,7 +373,7 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
     <?php endforeach; ?>
     </tbody>
   </table>
-</main>
+</div>
 </body>
 </html><?php
 }
