@@ -104,6 +104,25 @@ switch ($action) {
         handleDelete($pdo, (int)($_POST['id'] ?? 0));
         break;
 
+    case 'users':
+        requireAuth();
+        handleUsersList($pdo);
+        break;
+
+    case 'promote':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleSetRole($pdo, (int)($_POST['id'] ?? 0), 'admin');
+        break;
+
+    case 'demote':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleSetRole($pdo, (int)($_POST['id'] ?? 0), 'user');
+        break;
+
     default:
         requireAuth();
         handleList($pdo);
@@ -159,7 +178,7 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
 <body>
 <header>
   <h1>WCMA Submissions</h1>
-  <a href="auth.php?action=logout">Logout</a>
+  <div><a href="admin.php?action=users" style="margin-right:1rem">Manage Users</a><a href="auth.php?action=logout">Logout</a></div>
 </header>
 <main>
   <?php if ($flash): ?>
@@ -358,6 +377,93 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
       <?php if (!$any): ?><p style="color:#888;font-size:.9rem">No files uploaded.</p><?php endif; ?>
     </div>
   </div>
+</main>
+</body>
+</html><?php
+}
+
+function handleUsersList(PDO $pdo): void {
+    $users = db_get_all_users($pdo);
+    $csrf = generateCsrfToken();
+    $flash = getFlash();
+    renderUsersPage($users, $csrf, $flash);
+}
+
+function handleSetRole(PDO $pdo, int $id, string $role): void {
+    if ($role === 'user' && db_count_admins($pdo) <= 1) {
+        $target = db_find_user_by_id($pdo, $id);
+        if ($target && $target['role'] === 'admin') {
+            setFlash('Cannot demote the last remaining admin.', 'error');
+            header('Location: admin.php?action=users');
+            exit;
+        }
+    }
+
+    db_set_user_role($pdo, $id, $role);
+    setFlash('User role updated.', 'success');
+    header('Location: admin.php?action=users');
+    exit;
+}
+
+function renderUsersPage(array $users, string $csrf, ?array $flash): void {
+    ?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manage Users — WCMA Admin</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; margin: 0; background: #f0f2f5; }
+  header { background: #1a5490; color: #fff; padding: .8rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+  header a { color: #cde; font-size: .9rem; margin-left: 1rem; }
+  main { padding: 1.5rem; }
+  .flash { padding: .7rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .9rem; }
+  .flash.success { background: #d4edda; color: #155724; }
+  .flash.error { background: #f8d7da; color: #721c24; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+  th { background: #1a5490; color: #fff; padding: .7rem 1rem; text-align: left; font-size: .85rem; }
+  td { padding: .65rem 1rem; border-bottom: 1px solid #eee; font-size: .9rem; }
+  .role-admin { color: #1a5490; font-weight: bold; }
+  .btn-role { background: none; border: 1px solid #1a5490; color: #1a5490; border-radius: 4px; padding: .3rem .7rem; cursor: pointer; font-size: .8rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Manage Users</h1>
+  <div><a href="admin.php">Submissions</a><a href="auth.php?action=logout">Logout</a></div>
+</header>
+<main>
+  <?php if ($flash): ?><div class="flash <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+  <table>
+    <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Login Method</th><th>Created</th><th>Actions</th></tr></thead>
+    <tbody>
+    <?php foreach ($users as $u): ?>
+      <tr>
+        <td><?= h($u['email']) ?></td>
+        <td><?= h($u['name']) ?></td>
+        <td class="<?= $u['role'] === 'admin' ? 'role-admin' : '' ?>"><?= h($u['role']) ?></td>
+        <td><?= h(trim(($u['password_hash'] ? 'Password ' : '') . ($u['google_id'] ? 'Google' : ''))) ?></td>
+        <td><?= h(date('M j, Y', strtotime($u['created_at']))) ?></td>
+        <td>
+          <?php if ($u['role'] === 'admin'): ?>
+          <form method="post" action="admin.php?action=demote" style="display:inline">
+            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+            <button type="submit" class="btn-role">Demote</button>
+          </form>
+          <?php else: ?>
+          <form method="post" action="admin.php?action=promote" style="display:inline">
+            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+            <button type="submit" class="btn-role">Promote</button>
+          </form>
+          <?php endif; ?>
+        </td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
 </main>
 </body>
 </html><?php
