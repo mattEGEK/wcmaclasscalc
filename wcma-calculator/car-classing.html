@@ -265,6 +265,7 @@
 
         <!-- Success/Error Messages -->
         <div id="form-messages" class="form-messages" role="alert" aria-live="polite"></div>
+        <div id="account-nudge"></div>
     </div>
 
     <script type="module" src="js/calculator.js?v=1.2"></script>
@@ -279,7 +280,7 @@
           if (data.loggedIn) {
             var submissionsLink = document.createElement('a');
             submissionsLink.href = 'account.php';
-            submissionsLink.appendChild(document.createTextNode('My Submissions ('));
+            submissionsLink.appendChild(document.createTextNode('My Cars ('));
             submissionsLink.appendChild(document.createTextNode(data.name));
             submissionsLink.appendChild(document.createTextNode(')'));
 

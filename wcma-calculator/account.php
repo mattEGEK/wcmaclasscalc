@@ -80,12 +80,22 @@ function handleAccountList(PDO $pdo, array $user): void {
     $drafts = db_get_user_drafts($pdo, $user['id']);
     $submissions = db_get_user_submissions($pdo, $user['id']);
     $totalCount = db_count_user_drafts($pdo, $user['id']) + db_count_user_submissions($pdo, $user['id']);
+
+    $rows = [];
+    foreach ($drafts as $d) {
+        $rows[] = ['type' => 'draft', 'sort_key' => $d['updated_at'], 'data' => $d];
+    }
+    foreach ($submissions as $s) {
+        $rows[] = ['type' => 'submission', 'sort_key' => $s['submitted_at'], 'data' => $s];
+    }
+    usort($rows, fn($a, $b) => strcmp($b['sort_key'], $a['sort_key']));
+
     $csrf = generateCsrfToken();
     $flash = getFlash();
-    renderAccountListPage($drafts, $submissions, $totalCount, $csrf, $flash);
+    renderAccountListPage($rows, $totalCount, $csrf, $flash);
 }
 
-function renderAccountListPage(array $drafts, array $submissions, int $count, string $csrf, ?array $flash): void {
+function renderAccountListPage(array $rows, int $count, string $csrf, ?array $flash): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -110,10 +120,12 @@ function renderAccountListPage(array $drafts, array $submissions, int $count, st
       <tr><th>Type</th><th>Updated</th><th>Vehicle</th><th>Class</th><th>Actions</th></tr>
     </thead>
     <tbody>
-    <?php if (empty($drafts) && empty($submissions)): ?>
+    <?php if (empty($rows)): ?>
       <tr><td colspan="5" class="empty-row">No cars yet — save a draft or submit the calculator to get started.</td></tr>
     <?php else: ?>
-      <?php foreach ($drafts as $d): ?>
+      <?php foreach ($rows as $row): ?>
+        <?php if ($row['type'] === 'draft'): ?>
+        <?php $d = $row['data']; ?>
       <tr>
         <td><span class="badge-draft">Draft</span></td>
         <td><?= h(date('M j, Y H:i', strtotime($d['updated_at']))) ?></td>
@@ -129,8 +141,8 @@ function renderAccountListPage(array $drafts, array $submissions, int $count, st
           </form>
         </td>
       </tr>
-      <?php endforeach; ?>
-      <?php foreach ($submissions as $s): ?>
+        <?php else: ?>
+        <?php $s = $row['data']; ?>
       <tr>
         <td>Submitted</td>
         <td><?= h(date('M j, Y H:i', strtotime($s['submitted_at']))) ?></td>
@@ -146,6 +158,7 @@ function renderAccountListPage(array $drafts, array $submissions, int $count, st
           </form>
         </td>
       </tr>
+        <?php endif; ?>
       <?php endforeach; ?>
     <?php endif; ?>
     </tbody>

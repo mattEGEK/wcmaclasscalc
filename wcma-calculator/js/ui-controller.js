@@ -1141,8 +1141,14 @@ async function deleteConfiguration(draftId) {
  * Show load configuration modal
  */
 async function showLoadModal() {
+    const token = await getAccountCsrfToken();
+    if (!token) {
+        window.location.href = 'auth.php?action=login';
+        return;
+    }
+
     let modal = document.getElementById('load-config-modal');
-    
+
     if (!modal) {
         // Create modal if it doesn't exist
         modal = document.createElement('div');
@@ -1549,7 +1555,7 @@ function initialize() {
             setTimeout(initFunction, 100);
             return;
         }
-        
+
         initializeEventListeners();
         updateFormData();
         updateModificationFieldsState();
@@ -1558,7 +1564,13 @@ function initialize() {
         // If arriving from a "My Cars" draft Edit link, load that draft
         const draftIdParam = new URLSearchParams(window.location.search).get('draft');
         if (draftIdParam) {
-            loadConfiguration(draftIdParam);
+            getAccountCsrfToken().then(token => {
+                if (!token) {
+                    window.location.href = 'auth.php?action=login';
+                    return;
+                }
+                loadConfiguration(draftIdParam);
+            });
         }
     };
     

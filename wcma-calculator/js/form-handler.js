@@ -312,8 +312,11 @@ export async function maybeShowAccountNudge(submittedEmail) {
         // logged-in user sees a redundant link, which is harmless.
     }
 
-    const messageElement = document.getElementById('form-messages');
-    if (!messageElement) return;
+    const nudgeContainer = document.getElementById('account-nudge');
+    if (!nudgeContainer) return;
+
+    // Clear any nudge from a previous submission so they don't stack.
+    nudgeContainer.textContent = '';
 
     const nudge = document.createElement('p');
     nudge.style.marginTop = '0.5rem';
@@ -325,7 +328,7 @@ export async function maybeShowAccountNudge(submittedEmail) {
     link.textContent = 'Create a free account';
     nudge.appendChild(link);
 
-    messageElement.appendChild(nudge);
+    nudgeContainer.appendChild(nudge);
 }
 
 /**
