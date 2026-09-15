@@ -7,6 +7,13 @@ date_default_timezone_set('America/Denver');
 $pdo = db_connect();
 db_init($pdo);
 
+// Generate a client at https://console.cloud.google.com/apis/credentials
+// (OAuth client ID → Web application). Add this file's callback URL as an
+// "Authorized redirect URI", e.g. https://yourdomain.com/auth.php?action=google-callback
+define('GOOGLE_CLIENT_ID',     'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com');
+define('GOOGLE_CLIENT_SECRET', 'YOUR_GOOGLE_CLIENT_SECRET');
+define('GOOGLE_REDIRECT_URI',  'https://yourdomain.com/auth.php?action=google-callback');
+
 function generateCsrfToken(): string {
     if (!isset($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -81,6 +88,14 @@ switch ($action) {
         session_destroy();
         header('Location: auth.php?action=login');
         exit;
+
+    case 'google-login':
+        handleGoogleLogin();
+        break;
+
+    case 'google-callback':
+        handleGoogleCallback($pdo);
+        break;
 
     default:
         header('Location: auth.php?action=login');
@@ -182,4 +197,104 @@ function handleLogin(PDO $pdo, string $ip): void {
     $body .= '<div class="links"><a href="auth.php?action=forgot-password">Forgot password?</a> &middot; <a href="auth.php?action=register">Create an account</a></div>';
 
     renderAuthPage('Sign In', $body);
+}
+
+function handleGoogleLogin(): void {
+    $state = bin2hex(random_bytes(16));
+    $_SESSION['oauth_state'] = $state;
+
+    $params = http_build_query([
+        'client_id'     => GOOGLE_CLIENT_ID,
+        'redirect_uri'  => GOOGLE_REDIRECT_URI,
+        'response_type' => 'code',
+        'scope'         => 'openid email profile',
+        'state'         => $state,
+        'prompt'        => 'select_account',
+    ]);
+
+    header('Location: https://accounts.google.com/o/oauth2/v2/auth?' . $params);
+    exit;
+}
+
+function googleCurlPost(string $url, array $fields): array {
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($fields));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $response = curl_exec($ch);
+    curl_close($ch);
+    return json_decode($response, true) ?? [];
+}
+
+function googleCurlGet(string $url, string $bearerToken): array {
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $bearerToken]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    $response = curl_exec($ch);
+    curl_close($ch);
+    return json_decode($response, true) ?? [];
+}
+
+function handleGoogleCallback(PDO $pdo): void {
+    $state = $_GET['state'] ?? '';
+    if (!isset($_SESSION['oauth_state']) || !hash_equals($_SESSION['oauth_state'], $state)) {
+        setFlash('Google sign-in failed (invalid state). Please try again.', 'error');
+        header('Location: auth.php?action=login');
+        exit;
+    }
+    unset($_SESSION['oauth_state']);
+
+    $code = $_GET['code'] ?? '';
+    if ($code === '') {
+        setFlash('Google sign-in was cancelled.', 'error');
+        header('Location: auth.php?action=login');
+        exit;
+    }
+
+    $token = googleCurlPost('https://oauth2.googleapis.com/token', [
+        'code'          => $code,
+        'client_id'     => GOOGLE_CLIENT_ID,
+        'client_secret' => GOOGLE_CLIENT_SECRET,
+        'redirect_uri'  => GOOGLE_REDIRECT_URI,
+        'grant_type'    => 'authorization_code',
+    ]);
+
+    if (!isset($token['access_token'])) {
+        setFlash('Google sign-in failed while exchanging the code. Please try again.', 'error');
+        header('Location: auth.php?action=login');
+        exit;
+    }
+
+    $profile = googleCurlGet('https://www.googleapis.com/oauth2/v3/userinfo', $token['access_token']);
+    $googleId = $profile['sub'] ?? null;
+    $email = $profile['email'] ?? null;
+    $name = $profile['name'] ?? $email;
+
+    if (!$googleId || !$email) {
+        setFlash('Google did not return the expected profile data.', 'error');
+        header('Location: auth.php?action=login');
+        exit;
+    }
+
+    $user = db_find_user_by_google_id($pdo, $googleId);
+
+    if (!$user) {
+        $existingByEmail = db_find_user_by_email($pdo, $email);
+        if ($existingByEmail) {
+            db_link_google_id($pdo, $existingByEmail['id'], $googleId);
+            $user = db_find_user_by_id($pdo, $existingByEmail['id']);
+        } else {
+            $userId = db_create_user($pdo, [
+                'email' => $email,
+                'name' => $name,
+                'password_hash' => null,
+                'google_id' => $googleId,
+            ]);
+            $user = db_find_user_by_id($pdo, $userId);
+        }
+    }
+
+    login_user($user);
+    header('Location: car-classing.html');
+    exit;
 }
