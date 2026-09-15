@@ -89,6 +89,16 @@ function db_init(PDO $pdo): void {
         )
     ");
 
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS drafts (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER NOT NULL,
+            label       TEXT,
+            form_data   TEXT NOT NULL,
+            updated_at  DATETIME NOT NULL
+        )
+    ");
+
     // Add user_id to submissions if migrating an existing DB
     $columns = $pdo->query("PRAGMA table_info(submissions)")->fetchAll();
     $hasUserId = false;
@@ -175,6 +185,48 @@ function db_get_user_submission(PDO $pdo, int $user_id, int $id): ?array {
 
 function db_delete_submission(PDO $pdo, int $id): void {
     $pdo->prepare("DELETE FROM submissions WHERE id = :id")->execute([':id' => $id]);
+}
+
+// ── Drafts ────────────────────────────────────────────────────────────────────
+
+function db_upsert_draft(PDO $pdo, int $user_id, string $label, string $form_data_json): int {
+    $stmt = $pdo->prepare("SELECT id FROM drafts WHERE user_id = :user_id AND label = :label");
+    $stmt->execute([':user_id' => $user_id, ':label' => $label]);
+    $existing = $stmt->fetch();
+    $now = date('Y-m-d H:i:s');
+
+    if ($existing) {
+        $pdo->prepare("UPDATE drafts SET form_data = :form_data, updated_at = :updated_at WHERE id = :id")
+            ->execute([':form_data' => $form_data_json, ':updated_at' => $now, ':id' => $existing['id']]);
+        return (int)$existing['id'];
+    }
+
+    $pdo->prepare("INSERT INTO drafts (user_id, label, form_data, updated_at) VALUES (:user_id, :label, :form_data, :updated_at)")
+        ->execute([':user_id' => $user_id, ':label' => $label, ':form_data' => $form_data_json, ':updated_at' => $now]);
+    return (int)$pdo->lastInsertId();
+}
+
+function db_get_user_drafts(PDO $pdo, int $user_id): array {
+    $stmt = $pdo->prepare("SELECT * FROM drafts WHERE user_id = :user_id ORDER BY updated_at DESC, id DESC");
+    $stmt->execute([':user_id' => $user_id]);
+    return $stmt->fetchAll();
+}
+
+function db_get_user_draft(PDO $pdo, int $user_id, int $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM drafts WHERE id = :id AND user_id = :user_id");
+    $stmt->execute([':id' => $id, ':user_id' => $user_id]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_count_user_drafts(PDO $pdo, int $user_id): int {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM drafts WHERE user_id = :user_id");
+    $stmt->execute([':user_id' => $user_id]);
+    return (int)$stmt->fetchColumn();
+}
+
+function db_delete_draft(PDO $pdo, int $id, int $user_id): void {
+    $pdo->prepare("DELETE FROM drafts WHERE id = :id AND user_id = :user_id")
+        ->execute([':id' => $id, ':user_id' => $user_id]);
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
