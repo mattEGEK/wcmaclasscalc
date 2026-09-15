@@ -2,6 +2,7 @@
 require __DIR__ . '/session_bootstrap.php';
 require __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
+require __DIR__ . '/view_helpers.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -15,7 +16,7 @@ date_default_timezone_set('America/Denver');
 $pdo = db_connect();
 db_init($pdo);
 
-const SUBMISSION_SOFT_CAP = 20;
+const MY_CARS_SOFT_CAP = 20;
 
 function requireLogin(): array {
     $user = current_user();
@@ -24,32 +25,6 @@ function requireLogin(): array {
         exit;
     }
     return $user;
-}
-
-function generateCsrfToken(): string {
-    if (!isset($_SESSION['csrf_token'])) {
-        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-    }
-    return $_SESSION['csrf_token'];
-}
-
-function validateCsrfToken(string $token): bool {
-    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
-}
-
-function setFlash(string $message, string $type): void {
-    $_SESSION['flash'] = ['message' => $message, 'type' => $type];
-}
-
-function getFlash(): ?array {
-    if (!isset($_SESSION['flash'])) return null;
-    $flash = $_SESSION['flash'];
-    unset($_SESSION['flash']);
-    return $flash;
-}
-
-function h(string $s): string {
-    return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
 
 $user = requireLogin();
@@ -102,78 +77,80 @@ switch ($action) {
 }
 
 function handleAccountList(PDO $pdo, array $user): void {
+    $drafts = db_get_user_drafts($pdo, $user['id']);
     $submissions = db_get_user_submissions($pdo, $user['id']);
-    $count = db_count_user_submissions($pdo, $user['id']);
+    $totalCount = db_count_user_drafts($pdo, $user['id']) + db_count_user_submissions($pdo, $user['id']);
     $csrf = generateCsrfToken();
     $flash = getFlash();
-    renderAccountListPage($submissions, $count, $csrf, $flash);
+    renderAccountListPage($drafts, $submissions, $totalCount, $csrf, $flash);
 }
 
-function renderAccountListPage(array $submissions, int $count, string $csrf, ?array $flash): void {
+function renderAccountListPage(array $drafts, array $submissions, int $count, string $csrf, ?array $flash): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>My Submissions — WCMA Calculator</title>
-<style>
-  * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; margin: 0; background: #f0f2f5; }
-  header { background: #1a5490; color: #fff; padding: .8rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
-  header h1 { margin: 0; font-size: 1.2rem; }
-  header a { color: #cde; font-size: .9rem; }
-  main { padding: 1.5rem; }
-  .flash, .banner { padding: .7rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .9rem; }
-  .flash.success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
-  .flash.error   { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
-  .banner { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; }
-  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
-  th { background: #1a5490; color: #fff; padding: .7rem 1rem; text-align: left; font-size: .85rem; }
-  td { padding: .65rem 1rem; border-bottom: 1px solid #eee; font-size: .9rem; }
-  tr:last-child td { border-bottom: none; }
-  .actions a { color: #1a5490; }
-  .empty { text-align: center; color: #888; padding: 2rem; }
-</style>
+<title>My Cars — WCMA Calculator</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="css/calculator.css">
+<meta name="csrf-token" content="<?= h($csrf) ?>">
 </head>
 <body>
-<header>
-  <h1>My Submissions</h1>
-  <a href="car-classing.html">← Back to calculator</a>
-</header>
-<main>
+<div class="container">
+  <?php renderSiteHeader('My Cars', '<a href="car-classing.html">← Back to calculator</a>'); ?>
   <?php if ($flash): ?>
-  <div class="flash <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
+  <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
-  <?php if ($count > SUBMISSION_SOFT_CAP): ?>
-  <div class="banner">You have <?= (int)$count ?> saved submissions — consider deleting some older ones.</div>
+  <?php if ($count > MY_CARS_SOFT_CAP): ?>
+  <div class="form-messages show info">You have <?= (int)$count ?> saved cars — consider deleting some older ones.</div>
   <?php endif; ?>
-  <table>
+  <table class="data-table">
     <thead>
-      <tr><th>Submitted</th><th>Vehicle</th><th>Class</th><th>Email</th><th>Actions</th></tr>
+      <tr><th>Type</th><th>Updated</th><th>Vehicle</th><th>Class</th><th>Actions</th></tr>
     </thead>
     <tbody>
-    <?php if (empty($submissions)): ?>
-      <tr><td colspan="5" class="empty">No submissions yet.</td></tr>
-    <?php else: foreach ($submissions as $s): ?>
+    <?php if (empty($drafts) && empty($submissions)): ?>
+      <tr><td colspan="5" class="empty-row">No cars yet — save a draft or submit the calculator to get started.</td></tr>
+    <?php else: ?>
+      <?php foreach ($drafts as $d): ?>
       <tr>
+        <td><span class="badge-draft">Draft</span></td>
+        <td><?= h(date('M j, Y H:i', strtotime($d['updated_at']))) ?></td>
+        <td><?= h($d['label'] ?: 'Untitled') ?></td>
+        <td>—</td>
+        <td class="actions">
+          <a href="car-classing.html?draft=<?= (int)$d['id'] ?>">Edit</a>
+          <form method="post" action="account.php?action=draft-delete" style="display:inline"
+                onsubmit="return confirm('Delete this draft?')">
+            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+            <input type="hidden" name="id" value="<?= (int)$d['id'] ?>">
+            <button type="submit" class="link-button">Delete</button>
+          </form>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+      <?php foreach ($submissions as $s): ?>
+      <tr>
+        <td>Submitted</td>
         <td><?= h(date('M j, Y H:i', strtotime($s['submitted_at']))) ?></td>
         <td><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></td>
         <td><strong><?= h($s['calculated_class'] ?? '—') ?></strong></td>
-        <td><?= $s['email_sent'] ? '✓' : '⚠ Failed' ?></td>
         <td class="actions">
           <a href="account.php?action=view&id=<?= (int)$s['id'] ?>">View</a>
           <form method="post" action="account.php?action=delete" style="display:inline"
                 onsubmit="return confirm('Permanently delete this submission and its files?')">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
-            <button type="submit" style="background:none;border:none;color:#c00;cursor:pointer;font-size:.85rem;padding:0;margin-left:.6rem">Delete</button>
+            <button type="submit" class="link-button">Delete</button>
           </form>
         </td>
       </tr>
-    <?php endforeach; endif; ?>
+      <?php endforeach; ?>
+    <?php endif; ?>
     </tbody>
   </table>
-</main>
+</div>
 </body>
 </html><?php
 }
@@ -210,37 +187,18 @@ function renderAccountViewPage(array $s, string $csrf, ?array $flash): void {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Submission #<?= (int)$s['id'] ?> — My Submissions</title>
-<style>
-  * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; margin: 0; background: #f0f2f5; }
-  header { background: #1a5490; color: #fff; padding: .8rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
-  header a { color: #cde; font-size: .9rem; }
-  main { padding: 1.5rem; display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
-  @media (max-width: 700px) { main { grid-template-columns: 1fr; } }
-  .card { background: #fff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.1); padding: 1.2rem; }
-  .card h2 { margin: 0 0 1rem; font-size: 1rem; color: #1a5490; border-bottom: 2px solid #1a5490; padding-bottom: .4rem; }
-  table.data td { padding: .35rem .5rem; font-size: .9rem; }
-  table.data td:first-child { font-weight: bold; width: 160px; }
-  .flash { padding: .7rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .9rem; grid-column: 1/-1; }
-  .flash.success { background: #d4edda; color: #155724; }
-  .flash.error { background: #f8d7da; color: #721c24; }
-  .btn { display: inline-block; padding: .5rem 1.1rem; border-radius: 4px; font-size: .9rem; cursor: pointer; border: none; }
-  .btn-primary { background: #1a5490; color: #fff; }
-  .btn-delete { background: #c00; color: #fff; }
-  .file-thumb { max-width: 100%; max-height: 200px; border-radius: 4px; margin-top: .5rem; display: block; }
-</style>
+<title>Submission #<?= (int)$s['id'] ?> — My Cars</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="css/calculator.css">
 </head>
 <body>
-<header>
-  <h1>Submission #<?= (int)$s['id'] ?></h1>
-  <a href="account.php">← Back to My Submissions</a>
-</header>
-<main>
-  <?php if ($flash): ?><div class="flash <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
-  <div class="card">
+<div class="container">
+  <?php renderSiteHeader('Submission #' . $s['id'], '<a href="account.php">← Back to My Cars</a>'); ?>
+  <div class="detail-layout">
+  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>" style="grid-column:1/-1"><?= h($flash['message']) ?></div><?php endif; ?>
+  <div class="detail-card">
     <h2>Vehicle &amp; Class</h2>
-    <table class="data">
+    <table class="detail-table">
       <tr><td>Vehicle</td><td><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></td></tr>
       <tr><td>Weight</td><td><?= h((string)$s['competition_weight']) ?> lbs</td></tr>
       <tr><td>Declared HP</td><td><?= h((string)$s['declared_hp']) ?></td></tr>
@@ -248,7 +206,7 @@ function renderAccountViewPage(array $s, string $csrf, ?array $flash): void {
       <tr><td>Submitted</td><td><?= h(date('F j, Y \a\t g:i A', strtotime($s['submitted_at']))) ?></td></tr>
     </table>
   </div>
-  <div class="card">
+  <div class="detail-card">
     <h2>Actions</h2>
     <form method="post" action="account.php?action=resend">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
@@ -279,7 +237,8 @@ function renderAccountViewPage(array $s, string $csrf, ?array $flash): void {
     <?php endforeach; ?>
     <?php if (!$any): ?><p style="color:#888">No files uploaded.</p><?php endif; ?>
   </div>
-</main>
+  </div>
+</div>
 </body>
 </html><?php
 }
