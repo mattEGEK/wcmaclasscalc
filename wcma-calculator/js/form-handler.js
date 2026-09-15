@@ -294,6 +294,41 @@ export function showFormMessage(message, type = 'success') {
 }
 
 /**
+ * After a successful anonymous submission, append an account-creation nudge
+ * below the success message. Checks session-status.php itself rather than
+ * relying on state from car-classing.html's separate inline script, since
+ * this module has no access to that script's scope.
+ *
+ * Builds the link via DOM methods (never innerHTML with interpolated data)
+ * since the submitted email is user-controlled input.
+ */
+export async function maybeShowAccountNudge(submittedEmail) {
+    try {
+        const res = await fetch('session-status.php', { credentials: 'same-origin' });
+        const status = await res.json();
+        if (status.loggedIn) return; // already have an account, no nudge needed
+    } catch (e) {
+        // If the status check fails, still show the nudge — worst case a
+        // logged-in user sees a redundant link, which is harmless.
+    }
+
+    const messageElement = document.getElementById('form-messages');
+    if (!messageElement) return;
+
+    const nudge = document.createElement('p');
+    nudge.style.marginTop = '0.5rem';
+    nudge.appendChild(document.createTextNode('Want to track this car’s history? '));
+
+    const link = document.createElement('a');
+    const params = new URLSearchParams({ action: 'register', email: submittedEmail || '' });
+    link.href = `auth.php?${params.toString()}`;
+    link.textContent = 'Create a free account';
+    nudge.appendChild(link);
+
+    messageElement.appendChild(nudge);
+}
+
+/**
  * Clear form message
  */
 export function clearFormMessage() {
@@ -452,6 +487,8 @@ export async function handleFormSubmit(form, onSubmitCallback = null) {
             
             const successMsg = result.message || 'Form submitted successfully! Thank you for your submission.';
             showFormMessage(successMsg, 'success');
+            const submittedEmail = formData.get('email');
+            maybeShowAccountNudge(submittedEmail);
             // Optionally reset form after successful submission (commented out for testing)
             // form.reset();
             return result;
