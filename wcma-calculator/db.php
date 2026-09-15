@@ -183,6 +183,12 @@ function db_get_user_submission(PDO $pdo, int $user_id, int $id): ?array {
     return $stmt->fetch() ?: null;
 }
 
+function db_link_submissions_by_email(PDO $pdo, int $user_id, string $email): int {
+    $stmt = $pdo->prepare("UPDATE submissions SET user_id = :user_id WHERE user_id IS NULL AND email = :email COLLATE NOCASE");
+    $stmt->execute([':user_id' => $user_id, ':email' => $email]);
+    return $stmt->rowCount();
+}
+
 function db_delete_submission(PDO $pdo, int $id): void {
     $pdo->prepare("DELETE FROM submissions WHERE id = :id")->execute([':id' => $id]);
 }
