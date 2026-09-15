@@ -1073,3 +1073,288 @@ textarea.error {
     outline-offset: 2px;
 }
 
+/* ── Shared sub-page header (auth/account/admin pages) ──────────────────────── */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: calc(var(--spacing-unit) * 0.5);
+    margin-bottom: var(--spacing-unit);
+    padding-bottom: calc(var(--spacing-unit) * 0.5);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.page-header .header-content {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing-unit) * 0.75);
+}
+
+.wcma-logo-sm {
+    height: 40px;
+    width: auto;
+    max-width: 120px;
+    object-fit: contain;
+}
+
+.page-header h1 {
+    color: var(--primary-color);
+    font-size: 1.4rem;
+    margin: 0;
+}
+
+.page-header nav a {
+    color: var(--secondary-color);
+    text-decoration: none;
+    margin-left: var(--spacing-unit);
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.page-header nav a:hover {
+    text-decoration: underline;
+}
+
+/* ── Account nav (login state links in the calculator page's own header) ────── */
+.account-nav {
+    margin-top: calc(var(--spacing-unit) * 0.5);
+    font-size: 0.85rem;
+}
+
+.account-nav a {
+    color: var(--secondary-color);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.account-nav a:hover {
+    text-decoration: underline;
+}
+
+/* ── Auth pages (login/register/forgot/reset password) ──────────────────────── */
+.auth-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+.auth-box {
+    max-width: 400px;
+    width: 100%;
+}
+
+.auth-box h1 {
+    text-align: center;
+    margin-bottom: calc(var(--spacing-unit) * 1.5);
+}
+
+.auth-links {
+    margin-top: var(--spacing-unit);
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.auth-links a {
+    color: var(--secondary-color);
+}
+
+.btn-block {
+    width: 100%;
+    display: block;
+    text-align: center;
+    text-decoration: none;
+    box-sizing: border-box;
+}
+
+.btn-google {
+    background: white;
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+
+.btn-google:hover {
+    background: #f5f5f5;
+}
+
+/* ── Data tables (admin submissions/users, My Cars list) ─────────────────────── */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: var(--spacing-unit);
+}
+
+.data-table th {
+    background: var(--primary-color);
+    color: white;
+    padding: calc(var(--spacing-unit) * 0.7) var(--spacing-unit);
+    text-align: left;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.data-table th a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.data-table td {
+    padding: calc(var(--spacing-unit) * 0.65) var(--spacing-unit);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.9rem;
+    vertical-align: middle;
+}
+
+.data-table tr:last-child td {
+    border-bottom: none;
+}
+
+.data-table tr:hover td {
+    background: #f7f9fc;
+}
+
+.data-table .empty-row {
+    text-align: center;
+    color: #888;
+    padding: 2rem;
+}
+
+.data-table .actions a {
+    color: var(--secondary-color);
+    margin-right: 0.6rem;
+    font-size: 0.85rem;
+    text-decoration: none;
+}
+
+.data-table .actions a:hover {
+    text-decoration: underline;
+}
+
+.data-table .actions form {
+    display: inline;
+}
+
+.data-table .actions .link-button {
+    background: none;
+    border: none;
+    color: var(--error-color);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0;
+    margin-left: 0.6rem;
+    font-family: inherit;
+}
+
+.data-table .actions .link-button:hover {
+    text-decoration: underline;
+}
+
+/* ── Status badges ────────────────────────────────────────────────────────────── */
+.badge-ok { color: var(--success-color); font-weight: bold; }
+.badge-fail { color: var(--error-color); font-weight: bold; }
+.badge-draft { color: var(--warning-color); font-weight: bold; }
+.badge-admin { color: var(--secondary-color); font-weight: bold; }
+
+/* ── Detail/card layout (submission view, My Cars view) ──────────────────────── */
+.detail-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: calc(var(--spacing-unit) * 1.5);
+}
+
+@media (max-width: 700px) {
+    .detail-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+.detail-card {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    padding: calc(var(--spacing-unit) * 1.2);
+    margin-bottom: calc(var(--spacing-unit) * 1.5);
+}
+
+.detail-card h2 {
+    margin: 0 0 var(--spacing-unit) 0;
+    font-size: 1rem;
+    color: var(--primary-color);
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: calc(var(--spacing-unit) * 0.4);
+}
+
+.detail-table td {
+    padding: 0.35rem 0.5rem;
+    font-size: 0.9rem;
+    vertical-align: top;
+}
+
+.detail-table td:first-child {
+    font-weight: bold;
+    width: 160px;
+    color: #444;
+}
+
+.calc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: monospace;
+    font-size: 0.95rem;
+}
+
+.calc-table td {
+    padding: 0.3rem 0.4rem;
+}
+
+.calc-table tr.total td {
+    border-top: 2px solid #333;
+    font-weight: bold;
+    font-size: 1.05rem;
+    padding-top: 0.5rem;
+}
+
+.class-badge {
+    font-size: 1.4rem;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.file-thumb {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: var(--border-radius);
+    margin-top: 0.5rem;
+    display: block;
+}
+
+.file-link {
+    display: inline-block;
+    margin-top: 0.4rem;
+    color: var(--secondary-color);
+}
+
+/* ── Mobile adjustments for account/admin pages ──────────────────────────────── */
+@media (max-width: 768px) {
+    .data-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+    }
+
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .page-header nav a {
+        margin-left: 0;
+        margin-right: var(--spacing-unit);
+    }
+}
+
