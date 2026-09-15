@@ -1,1 +1,3 @@
 .phpunit.result.cache
+data/*.db
+data/*.db-*
