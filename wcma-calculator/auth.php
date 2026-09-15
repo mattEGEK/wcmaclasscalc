@@ -110,8 +110,13 @@ function handleRegister(PDO $pdo): void {
                 'password_hash' => password_hash($password, PASSWORD_BCRYPT),
                 'google_id' => null,
             ]);
+            $linked = db_link_submissions_by_email($pdo, $userId, $email);
             $user = db_find_user_by_id($pdo, $userId);
             login_user($user);
+            if ($linked > 0) {
+                $plural = $linked === 1 ? 'submission' : 'submissions';
+                setFlash("Welcome — we found {$linked} past {$plural} under this email and added them to My Cars.", 'success');
+            }
             header('Location: car-classing.html');
             exit;
         }
