@@ -161,6 +161,7 @@ function handleLogin(PDO $pdo, string $ip): void {
     }
 
     $error = '';
+    $flash = getFlash();
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lockout = db_is_locked_out($pdo, $ip);
@@ -187,6 +188,7 @@ function handleLogin(PDO $pdo, string $ip): void {
     }
 
     $body = '';
+    if ($flash) $body .= '<div class="' . h($flash['type']) . '">' . h($flash['message']) . '</div>';
     if ($error) $body .= '<div class="error">' . h($error) . '</div>';
     $body .= '<form method="post" action="auth.php?action=login">';
     $body .= '<label for="email">Email</label><input type="email" id="email" name="email" required autofocus value="' . h($_POST['email'] ?? '') . '">';
