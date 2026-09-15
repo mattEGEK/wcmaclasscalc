@@ -277,9 +277,20 @@
           var nav = document.getElementById('account-nav');
           if (!nav) return;
           if (data.loggedIn) {
-            nav.innerHTML =
-              '<a href="account.php">My Submissions (' + data.name + ')</a> · ' +
-              '<a href="auth.php?action=logout">Logout</a>';
+            var submissionsLink = document.createElement('a');
+            submissionsLink.href = 'account.php';
+            submissionsLink.appendChild(document.createTextNode('My Submissions ('));
+            submissionsLink.appendChild(document.createTextNode(data.name));
+            submissionsLink.appendChild(document.createTextNode(')'));
+
+            var logoutLink = document.createElement('a');
+            logoutLink.href = 'auth.php?action=logout';
+            logoutLink.textContent = 'Logout';
+
+            nav.textContent = '';
+            nav.appendChild(submissionsLink);
+            nav.appendChild(document.createTextNode(' · '));
+            nav.appendChild(logoutLink);
           } else {
             nav.innerHTML =
               '<a href="auth.php?action=login">Sign In</a> · ' +

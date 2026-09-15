@@ -3,6 +3,7 @@ require __DIR__ . '/session_bootstrap.php';
 date_default_timezone_set('America/Denver');
 
 require __DIR__ . '/db.php';
+require __DIR__ . '/config.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
 require __DIR__ . '/phpmailer/src/SMTP.php';
@@ -11,12 +12,6 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 // ── Configuration ─────────────────────────────────────────────────────────────
-define('SMTP_HOST',      'smtp.ionos.com');
-define('SMTP_PORT',      587);
-define('SMTP_USER',      'noreply@yourdomain.com');     // ← match car-classing.php
-define('SMTP_PASS',      'YOUR_SMTP_PASSWORD');          // ← match car-classing.php
-define('FROM_EMAIL',     'noreply@yourdomain.com');      // ← match car-classing.php
-define('FROM_NAME',      'WCMA Calculator');
 define('TECH_EMAIL',     'matt.sinfield@gmail.com');
 define('TECH_NAME',      'Matt Sinfield');
 

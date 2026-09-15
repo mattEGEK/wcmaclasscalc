@@ -3,11 +3,7 @@
  * WCMA Classing Calculator - Form Submission Handler
  * Handles form submission and sends email with attachments via PHPMailer + IONOS SMTP
  *
- * SETUP REQUIRED:
- *   1. In your IONOS control panel, create an email address (e.g. noreply@221racing.com)
- *   2. Download PHPMailer: https://github.com/PHPMailer/PHPMailer/releases/latest
- *      Extract and upload the src/ folder to your server as phpmailer/src/
- *   3. Fill in the SMTP credentials below
+ * SETUP REQUIRED: see config.php for SMTP credential setup instructions.
  */
 
 // ── PHPMailer autoload ────────────────────────────────────────────────────────
@@ -19,19 +15,13 @@ require __DIR__ . '/phpmailer/src/PHPMailer.php';
 require __DIR__ . '/phpmailer/src/SMTP.php';
 require __DIR__ . '/db.php';
 require __DIR__ . '/session_bootstrap.php';
+require __DIR__ . '/config.php';
 
 $current_user = current_user();
 
 header('Content-Type: application/json');
 
 // ── Configuration ─────────────────────────────────────────────────────────────
-$smtp_host     = 'smtp.ionos.com';   // IONOS SMTP server
-$smtp_port     = 587;                 // 587 = STARTTLS  |  465 = SSL
-$smtp_user     = 'noreply@yourdomain.com';   // ← your IONOS email address
-$smtp_pass     = 'YOUR_SMTP_PASSWORD';        // ← that email's password
-$from_email    = 'noreply@yourdomain.com';    // ← must match $smtp_user
-$from_name     = 'WCMA Calculator';
-
 $to_email = 'matt.sinfield@gmail.com';
 $to_name  = 'Matt Sinfield';
 
@@ -335,23 +325,23 @@ if (!empty($calculated_class)) $email_body_text .= "Calculated Class: $calculate
 // ── Send via PHPMailer (IONOS SMTP) ──────────────────────────────────────────
 $last_error = '';
 
-function buildMailer($smtp_host, $smtp_port, $smtp_user, $smtp_pass, $from_email, $from_name) {
+function buildMailer() {
     $mail = new PHPMailer(true);
     $mail->isSMTP();
-    $mail->Host       = $smtp_host;
+    $mail->Host       = SMTP_HOST;
     $mail->SMTPAuth   = true;
-    $mail->Username   = $smtp_user;
-    $mail->Password   = $smtp_pass;
-    $mail->SMTPSecure = ($smtp_port === 465) ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port       = $smtp_port;
+    $mail->Username   = SMTP_USER;
+    $mail->Password   = SMTP_PASS;
+    $mail->SMTPSecure = (SMTP_PORT === 465) ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port       = SMTP_PORT;
     $mail->CharSet    = 'UTF-8';
-    $mail->setFrom($from_email, $from_name);
+    $mail->setFrom(FROM_EMAIL, FROM_NAME);
     return $mail;
 }
 
 try {
     // ── Email to admin ────────────────────────────────────────────────────────
-    $mail = buildMailer($smtp_host, $smtp_port, $smtp_user, $smtp_pass, $from_email, $from_name);
+    $mail = buildMailer();
     $mail->addAddress($to_email, $to_name);
     $mail->addReplyTo($email, $name);
     $mail->Subject = $subject;
@@ -364,7 +354,7 @@ try {
     $mail->send();
 
     // ── Confirmation email to submitter ───────────────────────────────────────
-    $mail2 = buildMailer($smtp_host, $smtp_port, $smtp_user, $smtp_pass, $from_email, $from_name);
+    $mail2 = buildMailer();
     $mail2->addAddress($email, $name);
     $mail2->Subject = 'Your WCMA Classing Calculator Submission';
     $mail2->isHTML(true);

@@ -1,6 +1,7 @@
 <?php
 require __DIR__ . '/session_bootstrap.php';
 require __DIR__ . '/db.php';
+require __DIR__ . '/config.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -8,13 +9,6 @@ require __DIR__ . '/phpmailer/src/SMTP.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
-
-define('SMTP_HOST',  'smtp.ionos.com');
-define('SMTP_PORT',  587);
-define('SMTP_USER',  'noreply@yourdomain.com');
-define('SMTP_PASS',  'YOUR_SMTP_PASSWORD');
-define('FROM_EMAIL', 'noreply@yourdomain.com');
-define('FROM_NAME',  'WCMA Calculator');
 
 date_default_timezone_set('America/Denver');
 

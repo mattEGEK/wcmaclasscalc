@@ -1,0 +1,3 @@
+<Files "phpunit.phar">
+Deny from all
+</Files>

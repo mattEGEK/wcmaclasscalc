@@ -1,18 +1,12 @@
 <?php
 require __DIR__ . '/session_bootstrap.php';
 require __DIR__ . '/db.php';
+require __DIR__ . '/config.php';
 
 date_default_timezone_set('America/Denver');
 
 $pdo = db_connect();
 db_init($pdo);
-
-// Generate a client at https://console.cloud.google.com/apis/credentials
-// (OAuth client ID → Web application). Add this file's callback URL as an
-// "Authorized redirect URI", e.g. https://yourdomain.com/auth.php?action=google-callback
-define('GOOGLE_CLIENT_ID',     'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com');
-define('GOOGLE_CLIENT_SECRET', 'YOUR_GOOGLE_CLIENT_SECRET');
-define('GOOGLE_REDIRECT_URI',  'https://yourdomain.com/auth.php?action=google-callback');
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -20,14 +14,6 @@ require __DIR__ . '/phpmailer/src/SMTP.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
-
-// Match the SMTP credentials used in car-classing.php / admin.php
-define('SMTP_HOST',  'smtp.ionos.com');
-define('SMTP_PORT',  587);
-define('SMTP_USER',  'noreply@yourdomain.com');
-define('SMTP_PASS',  'YOUR_SMTP_PASSWORD');
-define('FROM_EMAIL', 'noreply@yourdomain.com');
-define('FROM_NAME',  'WCMA Calculator');
 
 function generateCsrfToken(): string {
     if (!isset($_SESSION['csrf_token'])) {
@@ -306,6 +292,11 @@ function handleGoogleCallback(PDO $pdo): void {
     if (!$user) {
         $existingByEmail = db_find_user_by_email($pdo, $email);
         if ($existingByEmail) {
+            if (($profile['email_verified'] ?? false) !== true) {
+                setFlash('Google sign-in failed: your Google email address is not verified.', 'error');
+                header('Location: auth.php?action=login');
+                exit;
+            }
             db_link_google_id($pdo, $existingByEmail['id'], $googleId);
             $user = db_find_user_by_id($pdo, $existingByEmail['id']);
         } else {
