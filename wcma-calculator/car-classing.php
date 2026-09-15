@@ -18,6 +18,9 @@ require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
 require __DIR__ . '/phpmailer/src/SMTP.php';
 require __DIR__ . '/db.php';
+require __DIR__ . '/session_bootstrap.php';
+
+$current_user = current_user();
 
 header('Content-Type: application/json');
 
@@ -211,6 +214,7 @@ $submission_id = db_insert_submission($pdo, [
     ':base_ratio'             => (float)$base_ratio,
     ':modified_ratio'         => (float)$modified_ratio,
     ':calculated_class'       => $calculated_class ?: null,
+    ':user_id'                => $current_user['id'] ?? null,
 ]);
 
 // Move uploaded files to uploads/{submission_id}/
