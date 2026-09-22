@@ -30,6 +30,102 @@ let formData = {
     brakeSuspension: ''
 };
 
+// ── Unsaved-changes tracking & guest "sign in to save" nudge ────────────────
+const MEANINGFUL_FIELD_IDS = ['name', 'email', 'year', 'make', 'model', 'competition-weight', 'declared-hp'];
+const NUDGE_DISMISS_KEY = 'wcma-save-nudge-dismissed';
+let formDirty = false;
+let loginStatusPromise = null;
+let nudgeCheckTimer = null;
+
+function isFormMeaningfullyFilled() {
+    return MEANINGFUL_FIELD_IDS.some(id => {
+        const el = document.getElementById(id);
+        return el && el.value.trim() !== '';
+    });
+}
+
+function markFormDirty() {
+    formDirty = true;
+}
+
+function markFormClean() {
+    formDirty = false;
+}
+
+function getLoginStatus() {
+    if (!loginStatusPromise) {
+        loginStatusPromise = fetch('session-status.php', { credentials: 'same-origin' })
+            .then(res => res.json())
+            .catch(() => ({ loggedIn: false }));
+    }
+    return loginStatusPromise;
+}
+
+function hideSaveNudge() {
+    const container = document.getElementById('account-nudge');
+    const box = container && container.querySelector('.pre-submit-nudge');
+    if (box) box.remove();
+}
+
+async function showSaveNudgeIfNeeded() {
+    if (!isFormMeaningfullyFilled()) return;
+    if (sessionStorage.getItem(NUDGE_DISMISS_KEY) === '1') return;
+
+    const container = document.getElementById('account-nudge');
+    if (!container || container.querySelector('.pre-submit-nudge') || container.querySelector('.post-submit-nudge')) return;
+
+    const status = await getLoginStatus();
+    if (status.loggedIn) return;
+    // Re-check in case the user dismissed it or submitted while the fetch was in flight
+    if (sessionStorage.getItem(NUDGE_DISMISS_KEY) === '1') return;
+    if (container.querySelector('.pre-submit-nudge') || container.querySelector('.post-submit-nudge')) return;
+
+    const redirect = encodeURIComponent('car-classing.html');
+    const box = document.createElement('div');
+    box.className = 'pre-submit-nudge account-nudge-box';
+
+    const text = document.createElement('span');
+    text.textContent = 'Sign in to save your progress as you go. ';
+    box.appendChild(text);
+
+    const signInLink = document.createElement('a');
+    signInLink.href = `auth.php?action=login&redirect=${redirect}`;
+    signInLink.textContent = 'Sign In';
+    box.appendChild(signInLink);
+
+    box.appendChild(document.createTextNode(' · '));
+
+    const registerLink = document.createElement('a');
+    registerLink.href = `auth.php?action=register&redirect=${redirect}`;
+    registerLink.textContent = 'Register';
+    box.appendChild(registerLink);
+
+    const dismissBtn = document.createElement('button');
+    dismissBtn.type = 'button';
+    dismissBtn.className = 'nudge-dismiss';
+    dismissBtn.setAttribute('aria-label', 'Dismiss');
+    dismissBtn.textContent = '×';
+    dismissBtn.addEventListener('click', () => {
+        sessionStorage.setItem(NUDGE_DISMISS_KEY, '1');
+        box.remove();
+    });
+    box.appendChild(dismissBtn);
+
+    container.appendChild(box);
+}
+
+function scheduleNudgeCheck() {
+    if (nudgeCheckTimer) clearTimeout(nudgeCheckTimer);
+    nudgeCheckTimer = setTimeout(showSaveNudgeIfNeeded, 600);
+}
+
+window.addEventListener('beforeunload', (event) => {
+    if (formDirty && isFormMeaningfullyFilled()) {
+        event.preventDefault();
+        event.returnValue = '';
+    }
+});
+
 /**
  * Get selected brake/suspension values (multiple checkboxes)
  * @returns {Array} Array of selected option IDs
@@ -998,36 +1094,52 @@ async function getAccountCsrfToken() {
  * Redirects to login if the user isn't authenticated.
  */
 async function saveConfiguration() {
-    const configData = getAllFormDataForSave();
-    const label = `${configData.year} ${configData.make} ${configData.model}`.trim() || 'Untitled Draft';
-
-    const token = await getAccountCsrfToken();
-    if (!token) {
-        window.location.href = 'auth.php?action=login';
-        return;
+    const saveButton = document.getElementById('save-config-button');
+    const originalLabel = saveButton ? saveButton.textContent : '';
+    if (saveButton) {
+        saveButton.disabled = true;
+        saveButton.textContent = 'Saving…';
     }
 
-    const body = new URLSearchParams();
-    body.set('csrf_token', token);
-    body.set('label', label);
-    body.set('form_data', JSON.stringify(configData));
-
     try {
-        const res = await fetch('account.php?action=draft-save', {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString(),
-        });
-        const result = await res.json();
-        if (result.success) {
-            showMessage('Saved to My Cars!', 'success');
-        } else {
-            showMessage(result.error || 'Failed to save.', 'error');
+        const configData = getAllFormDataForSave();
+        const label = `${configData.year} ${configData.make} ${configData.model}`.trim() || 'Untitled Draft';
+
+        const token = await getAccountCsrfToken();
+        if (!token) {
+            window.location.href = 'auth.php?action=login&redirect=' + encodeURIComponent('car-classing.html');
+            return;
         }
-    } catch (error) {
-        console.error('Error saving draft:', error);
-        showMessage('An error occurred while saving.', 'error');
+
+        const body = new URLSearchParams();
+        body.set('csrf_token', token);
+        body.set('label', label);
+        body.set('form_data', JSON.stringify(configData));
+
+        try {
+            const res = await fetch('account.php?action=draft-save', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body.toString(),
+            });
+            const result = await res.json();
+            if (result.success) {
+                showMessage('Saved to My Cars!', 'success');
+                markFormClean();
+                hideSaveNudge();
+            } else {
+                showMessage(result.error || 'Failed to save.', 'error');
+            }
+        } catch (error) {
+            console.error('Error saving draft:', error);
+            showMessage('An error occurred while saving.', 'error');
+        }
+    } finally {
+        if (saveButton) {
+            saveButton.disabled = false;
+            saveButton.textContent = originalLabel;
+        }
     }
 }
 
@@ -1109,6 +1221,8 @@ async function loadConfiguration(draftId) {
         handleCalculationUpdate();
         closeLoadModal();
         showMessage('Configuration loaded successfully!', 'success');
+        markFormClean();
+        hideSaveNudge();
     }, 100);
 }
 
@@ -1143,7 +1257,7 @@ async function deleteConfiguration(draftId) {
 async function showLoadModal() {
     const token = await getAccountCsrfToken();
     if (!token) {
-        window.location.href = 'auth.php?action=login';
+        window.location.href = 'auth.php?action=login&redirect=' + encodeURIComponent('car-classing.html');
         return;
     }
 
@@ -1281,6 +1395,13 @@ function initializeEventListeners() {
     const form = document.getElementById('classing-form');
     if (!form) return;
 
+    // Track unsaved changes and (for guests) nudge them to sign in once
+    // there's something worth protecting.
+    form.addEventListener('input', () => {
+        markFormDirty();
+        scheduleNudgeCheck();
+    });
+
     // Form submission handler
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -1364,6 +1485,8 @@ function initializeEventListeners() {
             console.log('Calling handleFormSubmit...');
             await handleFormSubmit(form);
             console.log('Form submission completed successfully');
+            markFormClean();
+            hideSaveNudge();
         } catch (error) {
             console.error('=== UI Controller: Submission error ===');
             console.error('Error:', error);
@@ -1566,7 +1689,8 @@ function initialize() {
         if (draftIdParam) {
             getAccountCsrfToken().then(token => {
                 if (!token) {
-                    window.location.href = 'auth.php?action=login';
+                    const back = encodeURIComponent('car-classing.html?draft=' + draftIdParam);
+                    window.location.href = 'auth.php?action=login&redirect=' + back;
                     return;
                 }
                 loadConfiguration(draftIdParam);

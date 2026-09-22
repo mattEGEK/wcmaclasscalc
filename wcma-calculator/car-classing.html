@@ -272,33 +272,67 @@
     <script type="module" src="js/form-handler.js?v=1.2"></script>
     <script type="module" src="js/ui-controller.js?v=1.2"></script>
     <script>
+      (function () {
+        var nav = document.getElementById('account-nav');
+        if (nav) {
+          nav.classList.add('nav-loading');
+          nav.textContent = '…';
+        }
+      })();
+
       fetch('session-status.php')
         .then(function (res) { return res.json(); })
         .then(function (data) {
           var nav = document.getElementById('account-nav');
           if (!nav) return;
+          nav.classList.remove('nav-loading');
+
+          var current = document.createElement('span');
+          current.className = 'nav-current';
+          current.setAttribute('aria-current', 'page');
+          current.textContent = 'Calculator';
+
+          nav.textContent = '';
+          nav.appendChild(current);
+
           if (data.loggedIn) {
             var submissionsLink = document.createElement('a');
             submissionsLink.href = 'account.php';
             submissionsLink.appendChild(document.createTextNode('My Cars ('));
             submissionsLink.appendChild(document.createTextNode(data.name));
             submissionsLink.appendChild(document.createTextNode(')'));
+            nav.appendChild(submissionsLink);
+
+            if (data.role === 'admin') {
+              var adminLink = document.createElement('a');
+              adminLink.href = 'admin.php';
+              adminLink.textContent = 'Admin';
+              nav.appendChild(adminLink);
+            }
 
             var logoutLink = document.createElement('a');
             logoutLink.href = 'auth.php?action=logout';
             logoutLink.textContent = 'Logout';
-
-            nav.textContent = '';
-            nav.appendChild(submissionsLink);
-            nav.appendChild(document.createTextNode(' · '));
             nav.appendChild(logoutLink);
           } else {
-            nav.innerHTML =
-              '<a href="auth.php?action=login">Sign In</a> · ' +
-              '<a href="auth.php?action=register">Register</a>';
+            var signInLink = document.createElement('a');
+            signInLink.href = 'auth.php?action=login';
+            signInLink.textContent = 'Sign In';
+            nav.appendChild(signInLink);
+
+            var registerLink = document.createElement('a');
+            registerLink.href = 'auth.php?action=register';
+            registerLink.textContent = 'Register';
+            nav.appendChild(registerLink);
           }
         })
-        .catch(function () { /* nav stays empty if the endpoint is unreachable */ });
+        .catch(function () {
+          var nav = document.getElementById('account-nav');
+          if (nav) {
+            nav.classList.remove('nav-loading');
+            nav.textContent = '';
+          }
+        });
     </script>
 </body>
 </html>

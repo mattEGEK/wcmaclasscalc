@@ -698,6 +698,41 @@ textarea.error {
     border: 1px solid #bee5eb;
 }
 
+/* ── Save-progress nudge (guest, shown while filling the form) ──────────────── */
+.account-nudge-box {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: calc(var(--spacing-unit) * 0.4);
+    margin-top: calc(var(--spacing-unit) * 1.5);
+    padding: calc(var(--spacing-unit) * 0.75) var(--spacing-unit);
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+    border-radius: var(--border-radius);
+    font-size: 0.9rem;
+}
+
+.account-nudge-box a {
+    color: #0c5460;
+    font-weight: 600;
+}
+
+.nudge-dismiss {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: #0c5460;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.2rem;
+}
+
+.nudge-dismiss:hover {
+    opacity: 0.7;
+}
+
 /* Small buttons for modal */
 .btn-small {
     padding: calc(var(--spacing-unit) * 0.5) calc(var(--spacing-unit) * 1);
@@ -1121,10 +1156,25 @@ textarea.error {
     text-decoration: underline;
 }
 
+.nav-current {
+    color: var(--text-color);
+    margin-left: var(--spacing-unit);
+    font-size: 0.9rem;
+    font-weight: 600;
+    opacity: 0.6;
+    cursor: default;
+}
+
 /* ── Account nav (login state links in the calculator page's own header) ────── */
 .account-nav {
     margin-top: calc(var(--spacing-unit) * 0.5);
     font-size: 0.85rem;
+}
+
+.account-nav a,
+.account-nav .nav-current {
+    margin-left: 0;
+    margin-right: var(--spacing-unit);
 }
 
 .account-nav a {
@@ -1135,6 +1185,15 @@ textarea.error {
 
 .account-nav a:hover {
     text-decoration: underline;
+}
+
+.account-nav a:last-child,
+.account-nav .nav-current:last-child {
+    margin-right: 0;
+}
+
+.account-nav.nav-loading {
+    opacity: 0.5;
 }
 
 /* ── Auth pages (login/register/forgot/reset password) ──────────────────────── */
@@ -1165,6 +1224,51 @@ textarea.error {
     color: var(--secondary-color);
 }
 
+.password-field {
+    position: relative;
+}
+
+.password-field input[type="password"],
+.password-field input[type="text"] {
+    padding-right: calc(var(--spacing-unit) * 2.5);
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: calc(var(--spacing-unit) * 0.5);
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 0.2rem;
+    color: var(--secondary-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.password-toggle:hover {
+    opacity: 0.7;
+}
+
+.password-toggle.is-showing {
+    color: var(--primary-color);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: calc(var(--spacing-unit) * 0.4);
+    font-weight: normal;
+    font-size: 0.9rem;
+    margin: calc(var(--spacing-unit) * 0.5) 0 var(--spacing-unit);
+    cursor: pointer;
+}
+
+.checkbox-label input[type="checkbox"] {
+    margin: 0;
+}
+
 .btn-block {
     width: 100%;
     display: block;
@@ -1193,7 +1297,18 @@ textarea.error {
 
 .auth-logo {
     display: block;
-    margin: 0 auto calc(var(--spacing-unit) * 1.25);
+    margin: 0 auto;
+}
+
+.logo-home-link {
+    display: inline-block;
+    line-height: 0;
+}
+
+.auth-nav {
+    display: block;
+    text-align: center;
+    margin: calc(var(--spacing-unit) * 0.5) 0 calc(var(--spacing-unit) * 1.25);
 }
 
 /* ── Data tables (admin submissions/users, My Cars list) ─────────────────────── */
@@ -1270,6 +1385,96 @@ textarea.error {
 
 .data-table .actions .link-button:hover {
     text-decoration: underline;
+}
+
+.data-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.data-table th.sortable:hover {
+    background: #163a5c;
+}
+
+.data-table th.sortable::after {
+    content: '\21C5';
+    margin-left: 0.4em;
+    opacity: 0.5;
+    font-size: 0.8em;
+}
+
+.data-table th.sort-asc::after {
+    content: '\25B2';
+    opacity: 1;
+}
+
+.data-table th.sort-desc::after {
+    content: '\25BC';
+    opacity: 1;
+}
+
+/* ── List search/filter toolbar (My Cars, Admin submissions/users) ──────────── */
+.list-toolbar {
+    margin-bottom: calc(var(--spacing-unit) * 0.75);
+}
+
+.table-search {
+    padding: calc(var(--spacing-unit) * 0.5);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-size: 0.9rem;
+    font-family: inherit;
+    width: 100%;
+    max-width: 320px;
+    box-sizing: border-box;
+}
+
+.table-search:focus {
+    outline: none;
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.no-results-message {
+    text-align: center;
+    color: #888;
+    padding: 1.5rem;
+    background: white;
+    border-radius: var(--border-radius);
+    margin-top: calc(var(--spacing-unit) * -0.5);
+    margin-bottom: var(--spacing-unit);
+}
+
+/* ── Styled confirm modal (replaces native confirm()) ────────────────────────── */
+.confirm-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--spacing-unit);
+}
+
+.confirm-modal {
+    background: white;
+    border-radius: var(--border-radius);
+    padding: calc(var(--spacing-unit) * 1.5);
+    max-width: 380px;
+    width: 100%;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.confirm-modal p {
+    margin: 0 0 var(--spacing-unit);
+    color: var(--text-color);
+}
+
+.confirm-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: calc(var(--spacing-unit) * 0.5);
 }
 
 /* ── Status badges ────────────────────────────────────────────────────────────── */

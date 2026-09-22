@@ -319,6 +319,7 @@ export async function maybeShowAccountNudge(submittedEmail) {
     nudgeContainer.textContent = '';
 
     const nudge = document.createElement('p');
+    nudge.className = 'post-submit-nudge';
     nudge.style.marginTop = '0.5rem';
     nudge.appendChild(document.createTextNode('Want to track this car’s history? '));
 

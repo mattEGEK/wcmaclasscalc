@@ -108,16 +108,27 @@ function renderAccountListPage(array $rows, int $count, string $csrf, ?array $fl
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('My Cars', '<a href="car-classing.html">← Back to calculator</a>'); ?>
+  <?php renderSiteHeader('My Cars', renderCommonNav('account')); ?>
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
   <?php if ($count > MY_CARS_SOFT_CAP): ?>
   <div class="form-messages show info">You have <?= (int)$count ?> saved cars — consider deleting some older ones.</div>
   <?php endif; ?>
-  <table class="data-table">
+  <?php if (!empty($rows)): ?>
+  <div class="list-toolbar">
+    <input type="search" id="my-cars-search" class="table-search" placeholder="Search my cars…" aria-label="Search my cars">
+  </div>
+  <?php endif; ?>
+  <table class="data-table" id="my-cars-table">
     <thead>
-      <tr><th>Type</th><th>Updated</th><th>Vehicle</th><th>Class</th><th>Actions</th></tr>
+      <tr>
+        <th data-sort data-sort-type="text">Type</th>
+        <th data-sort data-sort-type="date">Updated</th>
+        <th data-sort data-sort-type="text">Vehicle</th>
+        <th data-sort data-sort-type="text">Class</th>
+        <th>Actions</th>
+      </tr>
     </thead>
     <tbody>
     <?php if (empty($rows)): ?>
@@ -128,13 +139,13 @@ function renderAccountListPage(array $rows, int $count, string $csrf, ?array $fl
         <?php $d = $row['data']; ?>
       <tr>
         <td><span class="badge-draft">Draft</span></td>
-        <td><?= h(date('M j, Y H:i', strtotime($d['updated_at']))) ?></td>
+        <td data-sort-value="<?= h($d['updated_at']) ?>"><?= h(date('M j, Y H:i', strtotime($d['updated_at']))) ?></td>
         <td><?= h($d['label'] ?: 'Untitled') ?></td>
         <td>—</td>
         <td class="actions">
           <a href="car-classing.html?draft=<?= (int)$d['id'] ?>">Edit</a>
           <form method="post" action="account.php?action=draft-delete" style="display:inline"
-                onsubmit="return confirm('Delete this draft?')">
+                data-confirm="Delete this draft?">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$d['id'] ?>">
             <button type="submit" class="link-button">Delete</button>
@@ -145,13 +156,13 @@ function renderAccountListPage(array $rows, int $count, string $csrf, ?array $fl
         <?php $s = $row['data']; ?>
       <tr>
         <td>Submitted</td>
-        <td><?= h(date('M j, Y H:i', strtotime($s['submitted_at']))) ?></td>
+        <td data-sort-value="<?= h($s['submitted_at']) ?>"><?= h(date('M j, Y H:i', strtotime($s['submitted_at']))) ?></td>
         <td><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></td>
         <td><strong><?= h($s['calculated_class'] ?? '—') ?></strong></td>
         <td class="actions">
           <a href="account.php?action=view&id=<?= (int)$s['id'] ?>">View</a>
           <form method="post" action="account.php?action=delete" style="display:inline"
-                onsubmit="return confirm('Permanently delete this submission and its files?')">
+                data-confirm="Permanently delete this submission and its files?">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
             <button type="submit" class="link-button">Delete</button>
@@ -163,7 +174,15 @@ function renderAccountListPage(array $rows, int $count, string $csrf, ?array $fl
     <?php endif; ?>
     </tbody>
   </table>
+  <p class="no-results-message" hidden>No cars match your search.</p>
 </div>
+<script src="js/table-tools.js"></script>
+<script src="js/confirm-modal.js"></script>
+<script src="js/form-feedback.js"></script>
+<script>
+  WcmaTableTools.enableSearch(document.getElementById('my-cars-search'), document.getElementById('my-cars-table'));
+  WcmaTableTools.enableSort(document.getElementById('my-cars-table'));
+</script>
 </body>
 </html><?php
 }
@@ -206,7 +225,7 @@ function renderAccountViewPage(array $s, string $csrf, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Submission #' . $s['id'], '<a href="account.php">← Back to My Cars</a>'); ?>
+  <?php renderSiteHeader('Submission #' . $s['id'], '<a href="account.php">← Back to My Cars</a>' . renderCommonNav('account')); ?>
   <div class="detail-layout">
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>" style="grid-column:1/-1"><?= h($flash['message']) ?></div><?php endif; ?>
   <div class="detail-card">
@@ -252,6 +271,7 @@ function renderAccountViewPage(array $s, string $csrf, ?array $flash): void {
   </div>
   </div>
 </div>
+<script src="js/form-feedback.js"></script>
 </body>
 </html><?php
 }

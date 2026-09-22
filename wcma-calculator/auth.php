@@ -29,24 +29,60 @@ function renderAuthPage(string $title, string $bodyHtml): void {
 <body>
 <div class="container auth-page">
   <div class="auth-box">
-    <img src="https://www.wcma.ca/wp-content/uploads/WCMA-Logo.png" alt="WCMA Logo" class="wcma-logo-sm auth-logo">
+    <a href="car-classing.html" class="logo-home-link">
+      <img src="https://www.wcma.ca/wp-content/uploads/WCMA-Logo.png" alt="WCMA Logo" class="wcma-logo-sm auth-logo">
+    </a>
+    <nav class="account-nav auth-nav"><?= renderCommonNav('auth') ?></nav>
     <h1><?= h($title) ?></h1>
     <?= $bodyHtml ?>
   </div>
 </div>
+<script src="js/auth.js" defer></script>
 </body>
 </html><?php
 }
 
+/**
+ * Whitelist redirect targets to same-site pages we actually link users back
+ * to (never an absolute/external URL) to avoid an open-redirect via
+ * ?redirect=. Falls back to the calculator.
+ */
+function safeRedirectTarget(?string $raw): string {
+    $raw = trim((string)$raw);
+    if ($raw === '') return 'car-classing.html';
+    if (preg_match('/^(car-classing\.html(\?draft=\d+)?|account\.php|admin\.php)$/', $raw)) {
+        return $raw;
+    }
+    return 'car-classing.html';
+}
+
+/**
+ * Renders a password input with a show/hide toggle button (wired up by
+ * js/auth.js) instead of a bare <input type="password">.
+ */
+function passwordFieldHtml(string $id, string $name, string $autocomplete): string {
+    return '<div class="password-field">'
+        . '<input type="password" id="' . h($id) . '" name="' . h($name) . '" required autocomplete="' . h($autocomplete) . '">'
+        . '<button type="button" class="password-toggle" data-target="' . h($id) . '" aria-label="Show password">' . eyeIconSvg() . '</button>'
+        . '</div>';
+}
+
+function eyeIconSvg(): string {
+    return <<<SVG
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+SVG;
+}
+
 $action = $_GET['action'] ?? 'login';
+$redirect = safeRedirectTarget($_GET['redirect'] ?? $_POST['redirect'] ?? '');
 
 switch ($action) {
     case 'register':
-        handleRegister($pdo);
+        handleRegister($pdo, $redirect);
         break;
 
     case 'login':
-        handleLogin($pdo, $_SERVER['REMOTE_ADDR']);
+        handleLogin($pdo, $_SERVER['REMOTE_ADDR'], $redirect);
         break;
 
     case 'logout':
@@ -56,7 +92,7 @@ switch ($action) {
         exit;
 
     case 'google-login':
-        handleGoogleLogin();
+        handleGoogleLogin($redirect);
         break;
 
     case 'google-callback':
@@ -76,9 +112,9 @@ switch ($action) {
         exit;
 }
 
-function handleRegister(PDO $pdo): void {
+function handleRegister(PDO $pdo, string $redirect): void {
     if (current_user() !== null) {
-        header('Location: car-classing.html');
+        header('Location: ' . $redirect);
         exit;
     }
 
@@ -114,7 +150,7 @@ function handleRegister(PDO $pdo): void {
                 $plural = $linked === 1 ? 'submission' : 'submissions';
                 setFlash("Welcome — we found {$linked} past {$plural} under this email and added them to My Cars.", 'success');
             }
-            header('Location: car-classing.html');
+            header('Location: ' . $redirect);
             exit;
         }
     }
@@ -122,20 +158,21 @@ function handleRegister(PDO $pdo): void {
     $body = '';
     if ($error) $body .= '<div class="form-messages show error">' . h($error) . '</div>';
     $body .= '<form method="post" action="auth.php?action=register">';
+    $body .= '<input type="hidden" name="redirect" value="' . h($redirect) . '">';
     $body .= '<label for="name">Name</label><input type="text" id="name" name="name" required value="' . h($_POST['name'] ?? '') . '">';
     $body .= '<label for="email">Email</label><input type="email" id="email" name="email" required value="' . h($_POST['email'] ?? $_GET['email'] ?? '') . '">';
-    $body .= '<label for="password">Password</label><input type="password" id="password" name="password" required autocomplete="new-password">';
-    $body .= '<label for="password_confirm">Confirm Password</label><input type="password" id="password_confirm" name="password_confirm" required autocomplete="new-password">';
+    $body .= '<label for="password">Password</label>' . passwordFieldHtml('password', 'password', 'new-password');
+    $body .= '<label for="password_confirm">Confirm Password</label>' . passwordFieldHtml('password_confirm', 'password_confirm', 'new-password');
     $body .= '<button type="submit" class="btn btn-primary btn-block">Create Account</button>';
     $body .= '</form>';
-    $body .= '<div class="auth-links">Already have an account? <a href="auth.php?action=login">Sign in</a></div>';
+    $body .= '<div class="auth-links">Already have an account? <a href="auth.php?action=login&redirect=' . urlencode($redirect) . '">Sign in</a></div>';
 
     renderAuthPage('Create Account', $body);
 }
 
-function handleLogin(PDO $pdo, string $ip): void {
+function handleLogin(PDO $pdo, string $ip, string $redirect): void {
     if (current_user() !== null) {
-        header('Location: car-classing.html');
+        header('Location: ' . $redirect);
         exit;
     }
 
@@ -154,7 +191,11 @@ function handleLogin(PDO $pdo, string $ip): void {
             if ($user && $user['password_hash'] && password_verify($password, $user['password_hash'])) {
                 db_clear_login_attempts($pdo, $ip);
                 login_user($user);
-                header('Location: car-classing.html');
+                if (!empty($_POST['remember'])) {
+                    $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+                    setcookie(session_name(), session_id(), time() + 30 * 24 * 3600, '/', '', $secure, true);
+                }
+                header('Location: ' . $redirect);
                 exit;
             }
 
@@ -170,12 +211,14 @@ function handleLogin(PDO $pdo, string $ip): void {
     if ($flash) $body .= '<div class="form-messages show ' . h($flash['type']) . '">' . h($flash['message']) . '</div>';
     if ($error) $body .= '<div class="form-messages show error">' . h($error) . '</div>';
     $body .= '<form method="post" action="auth.php?action=login">';
+    $body .= '<input type="hidden" name="redirect" value="' . h($redirect) . '">';
     $body .= '<label for="email">Email</label><input type="email" id="email" name="email" required autofocus value="' . h($_POST['email'] ?? '') . '">';
-    $body .= '<label for="password">Password</label><input type="password" id="password" name="password" required autocomplete="current-password">';
+    $body .= '<label for="password">Password</label>' . passwordFieldHtml('password', 'password', 'current-password');
+    $body .= '<label class="checkbox-label"><input type="checkbox" name="remember" value="1"> Remember me for 30 days</label>';
     $body .= '<button type="submit" class="btn btn-primary btn-block">Sign In</button>';
     $body .= '</form>';
-    $body .= '<a href="auth.php?action=google-login" class="btn btn-google btn-block">' . googleIconSvg() . 'Sign in with Google</a>';
-    $body .= '<div class="auth-links"><a href="auth.php?action=forgot-password">Forgot password?</a> &middot; <a href="auth.php?action=register">Create an account</a></div>';
+    $body .= '<a href="auth.php?action=google-login&redirect=' . urlencode($redirect) . '" class="btn btn-google btn-block">' . googleIconSvg() . 'Sign in with Google</a>';
+    $body .= '<div class="auth-links"><a href="auth.php?action=forgot-password">Forgot password?</a> &middot; <a href="auth.php?action=register&redirect=' . urlencode($redirect) . '">Create an account</a></div>';
 
     renderAuthPage('Sign In', $body);
 }
@@ -186,9 +229,10 @@ function googleIconSvg(): string {
 SVG;
 }
 
-function handleGoogleLogin(): void {
+function handleGoogleLogin(string $redirect): void {
     $state = bin2hex(random_bytes(16));
     $_SESSION['oauth_state'] = $state;
+    $_SESSION['oauth_redirect'] = $redirect;
 
     $params = http_build_query([
         'client_id'     => GOOGLE_CLIENT_ID,
@@ -287,7 +331,9 @@ function handleGoogleCallback(PDO $pdo): void {
     }
 
     login_user($user);
-    header('Location: car-classing.html');
+    $callbackRedirect = safeRedirectTarget($_SESSION['oauth_redirect'] ?? '');
+    unset($_SESSION['oauth_redirect']);
+    header('Location: ' . $callbackRedirect);
     exit;
 }
 
@@ -386,8 +432,8 @@ function handleResetPassword(PDO $pdo): void {
     if ($error) $body .= '<div class="form-messages show error">' . h($error) . '</div>';
     $body .= '<form method="post" action="auth.php?action=reset-password">';
     $body .= '<input type="hidden" name="token" value="' . h($token) . '">';
-    $body .= '<label for="password">New Password</label><input type="password" id="password" name="password" required autocomplete="new-password">';
-    $body .= '<label for="password_confirm">Confirm Password</label><input type="password" id="password_confirm" name="password_confirm" required autocomplete="new-password">';
+    $body .= '<label for="password">New Password</label>' . passwordFieldHtml('password', 'password', 'new-password');
+    $body .= '<label for="password_confirm">Confirm Password</label>' . passwordFieldHtml('password_confirm', 'password_confirm', 'new-password');
     $body .= '<button type="submit" class="btn btn-primary btn-block">Reset Password</button>';
     $body .= '</form>';
 

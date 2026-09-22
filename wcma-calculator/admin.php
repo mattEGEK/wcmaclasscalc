@@ -127,11 +127,16 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('WCMA Submissions', '<a href="admin.php?action=users">Manage Users</a><a href="auth.php?action=logout">Logout</a>'); ?>
+  <?php renderSiteHeader('WCMA Submissions', '<a href="admin.php?action=users">Manage Users</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
-  <table class="data-table">
+  <?php if (!empty($submissions)): ?>
+  <div class="list-toolbar">
+    <input type="search" id="submissions-search" class="table-search" placeholder="Search submissions…" aria-label="Search submissions">
+  </div>
+  <?php endif; ?>
+  <table class="data-table" id="submissions-table">
     <thead>
       <tr>
         <th><?= sortLink('submitted_at', 'Submitted', $sort, $dir, $flip) ?></th>
@@ -161,7 +166,7 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
         <td class="actions">
           <a href="admin.php?action=view&id=<?= (int)$s['id'] ?>">View</a>
           <form method="post" action="admin.php?action=delete" style="display:inline"
-                onsubmit="return confirm('Permanently delete this submission and its files?')">
+                data-confirm="Permanently delete this submission and its files?">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
             <button type="submit" class="link-button">Delete</button>
@@ -171,7 +176,12 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
     <?php endforeach; endif; ?>
     </tbody>
   </table>
+  <p class="no-results-message" hidden>No submissions match your search.</p>
 </div>
+<script src="js/table-tools.js"></script>
+<script src="js/confirm-modal.js"></script>
+<script src="js/form-feedback.js"></script>
+<script>WcmaTableTools.enableSearch(document.getElementById('submissions-search'), document.getElementById('submissions-table'));</script>
 </body>
 </html><?php
 }
@@ -209,7 +219,7 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Submission #' . $s['id'] . ' — ' . $s['name'], '<a href="admin.php">← Back to list</a>'); ?>
+  <?php renderSiteHeader('Submission #' . $s['id'] . ' — ' . $s['name'], '<a href="admin.php">← Back to list</a>' . renderCommonNav('admin')); ?>
   <div class="detail-layout">
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>" style="grid-column:1/-1"><?= h($flash['message']) ?></div>
@@ -299,6 +309,7 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
   </div>
   </div>
 </div>
+<script src="js/form-feedback.js"></script>
 </body>
 </html><?php
 }
@@ -342,10 +353,22 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Manage Users', '<a href="admin.php">Submissions</a><a href="auth.php?action=logout">Logout</a>'); ?>
+  <?php renderSiteHeader('Manage Users', '<a href="admin.php">Submissions</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
-  <table class="data-table">
-    <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Login Method</th><th>Created</th><th>Actions</th></tr></thead>
+  <?php if (!empty($users)): ?>
+  <div class="list-toolbar">
+    <input type="search" id="users-search" class="table-search" placeholder="Search users…" aria-label="Search users">
+  </div>
+  <?php endif; ?>
+  <table class="data-table" id="users-table">
+    <thead><tr>
+      <th data-sort data-sort-type="text">Email</th>
+      <th data-sort data-sort-type="text">Name</th>
+      <th data-sort data-sort-type="text">Role</th>
+      <th>Login Method</th>
+      <th data-sort data-sort-type="date">Created</th>
+      <th>Actions</th>
+    </tr></thead>
     <tbody>
     <?php foreach ($users as $u): ?>
       <tr>
@@ -353,10 +376,10 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
         <td><?= h($u['name']) ?></td>
         <td class="<?= $u['role'] === 'admin' ? 'badge-admin' : '' ?>"><?= h($u['role']) ?></td>
         <td><?= h(trim(($u['password_hash'] ? 'Password ' : '') . ($u['google_id'] ? 'Google' : ''))) ?></td>
-        <td><?= h(date('M j, Y', strtotime($u['created_at']))) ?></td>
+        <td data-sort-value="<?= h($u['created_at']) ?>"><?= h(date('M j, Y', strtotime($u['created_at']))) ?></td>
         <td>
           <?php if ($u['role'] === 'admin'): ?>
-          <form method="post" action="admin.php?action=demote" style="display:inline">
+          <form method="post" action="admin.php?action=demote" style="display:inline" data-confirm="Remove admin access for <?= h($u['email']) ?>?">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
             <button type="submit" class="btn-role">Demote</button>
@@ -373,7 +396,15 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
     <?php endforeach; ?>
     </tbody>
   </table>
+  <p class="no-results-message" hidden>No users match your search.</p>
 </div>
+<script src="js/table-tools.js"></script>
+<script src="js/confirm-modal.js"></script>
+<script src="js/form-feedback.js"></script>
+<script>
+  WcmaTableTools.enableSearch(document.getElementById('users-search'), document.getElementById('users-table'));
+  WcmaTableTools.enableSort(document.getElementById('users-table'));
+</script>
 </body>
 </html><?php
 }
