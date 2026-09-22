@@ -1435,6 +1435,55 @@ textarea.error {
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
 }
 
+.table-filter {
+    padding: calc(var(--spacing-unit) * 0.5);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-size: 0.9rem;
+    font-family: inherit;
+}
+
+.list-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: calc(var(--spacing-unit) * 0.5);
+    align-items: center;
+}
+
+.list-summary {
+    color: #666;
+    font-size: 0.85rem;
+    margin: 0 0 calc(var(--spacing-unit) * 0.5);
+}
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacing-unit);
+    margin: var(--spacing-unit) 0;
+    font-size: 0.9rem;
+}
+
+.pagination a {
+    color: var(--secondary-color);
+    text-decoration: none;
+}
+
+.pagination a:hover {
+    text-decoration: underline;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .no-results-message {
     text-align: center;
     color: #888;

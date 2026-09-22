@@ -15,6 +15,7 @@ use PHPMailer\PHPMailer\Exception;
 // ── Configuration ─────────────────────────────────────────────────────────────
 define('TECH_EMAIL',     'classing@wcma.ca');
 define('TECH_NAME',      'WCMA Classing');
+define('ADMIN_PAGE_SIZE', 50);
 
 $pdo = db_connect();
 db_init($pdo);
@@ -101,13 +102,17 @@ switch ($action) {
 function handleList(PDO $pdo): void {
     $sort = $_GET['sort'] ?? 'submitted_at';
     $dir  = $_GET['dir']  ?? 'desc';
-    $submissions = db_get_submissions($pdo, $sort, $dir);
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $total = db_count_submissions($pdo);
+    $totalPages = max(1, (int)ceil($total / ADMIN_PAGE_SIZE));
+    $page = min($page, $totalPages);
+    $submissions = db_get_submissions($pdo, $sort, $dir, ADMIN_PAGE_SIZE, ($page - 1) * ADMIN_PAGE_SIZE);
     $csrf = generateCsrfToken();
     $flash = getFlash();
-    renderListPage($submissions, $sort, $dir, $csrf, $flash);
+    renderListPage($submissions, $sort, $dir, $csrf, $flash, $page, $totalPages, $total);
 }
 
-function renderListPage(array $submissions, string $sort, string $dir, string $csrf, ?array $flash): void {
+function renderListPage(array $submissions, string $sort, string $dir, string $csrf, ?array $flash, int $page, int $totalPages, int $total): void {
     $flip = $dir === 'asc' ? 'desc' : 'asc';
 
     function sortLink(string $col, string $label, string $currentSort, string $currentDir, string $flip): string {
@@ -131,14 +136,32 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
+  <p class="list-summary"><?= (int)$total ?> submission<?= $total === 1 ? '' : 's' ?> total<?= $totalPages > 1 ? ' — page ' . $page . ' of ' . $totalPages : '' ?></p>
   <?php if (!empty($submissions)): ?>
   <div class="list-toolbar">
     <input type="search" id="submissions-search" class="table-search" placeholder="Search submissions…" aria-label="Search submissions">
+    <select id="submissions-class-filter" class="table-filter" aria-label="Filter by class">
+      <option value="">All classes</option>
+      <?php foreach (['GTU','GT1','GT2','GT3','GT4','IT1','IT2'] as $cls): ?>
+      <option value="<?= h($cls) ?>"><?= h($cls) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <select id="submissions-status-filter" class="table-filter" aria-label="Filter by email status">
+      <option value="">All statuses</option>
+      <option value="sent">Email sent</option>
+      <option value="failed">Email failed</option>
+    </select>
+    <form method="post" action="admin.php?action=bulk-delete" id="bulk-delete-form" style="display:inline">
+      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+      <button type="submit" id="bulk-delete-btn" class="btn btn-danger" disabled data-confirm-template="Permanently delete {n} selected submission(s) and their files?">Delete Selected</button>
+    </form>
+    <a href="admin.php?action=export&sort=<?= h($sort) ?>&dir=<?= h($dir) ?>" class="btn btn-secondary">Export CSV</a>
   </div>
   <?php endif; ?>
   <table class="data-table" id="submissions-table">
     <thead>
       <tr>
+        <th><input type="checkbox" id="submissions-select-all" aria-label="Select all submissions"></th>
         <th><?= sortLink('submitted_at', 'Submitted', $sort, $dir, $flip) ?></th>
         <th><?= sortLink('name', 'Name', $sort, $dir, $flip) ?></th>
         <th>Vehicle</th>
@@ -151,17 +174,19 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
     </thead>
     <tbody>
     <?php if (empty($submissions)): ?>
-      <tr><td colspan="8" class="empty">No submissions yet.</td></tr>
+      <tr><td colspan="9" class="empty">No submissions yet.</td></tr>
     <?php else: foreach ($submissions as $s): ?>
-      <tr>
+      <tr data-class="<?= h($s['calculated_class'] ?? '') ?>" data-status="<?= $s['email_sent'] ? 'sent' : 'failed' ?>">
+        <td><input type="checkbox" class="submission-select" form="bulk-delete-form" name="ids[]" value="<?= (int)$s['id'] ?>" aria-label="Select submission from <?= h($s['name']) ?>"></td>
         <td><?= h(date('M j, Y H:i', strtotime($s['submitted_at']))) ?></td>
         <td><?= h($s['name']) ?></td>
         <td><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></td>
         <td><?= h((string)$s['competition_weight']) ?></td>
         <td><?= h((string)$s['declared_hp']) ?></td>
         <td><strong><?= h($s['calculated_class'] ?? '—') ?></strong></td>
-        <td class="<?= $s['email_sent'] ? 'badge-ok' : 'badge-fail' ?>">
-          <?= $s['email_sent'] ? '✓' : '⚠ Failed' ?>
+        <td class="<?= $s['email_sent'] ? 'badge-ok' : 'badge-fail' ?>" title="<?= $s['email_sent'] ? 'Email sent' : 'Email failed to send' ?>">
+          <span aria-hidden="true"><?= $s['email_sent'] ? '✓' : '⚠' ?></span>
+          <span class="sr-only"><?= $s['email_sent'] ? 'Sent' : 'Failed' ?></span>
         </td>
         <td class="actions">
           <a href="admin.php?action=view&id=<?= (int)$s['id'] ?>">View</a>
@@ -177,11 +202,23 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
     </tbody>
   </table>
   <p class="no-results-message" hidden>No submissions match your search.</p>
+  <?php if ($totalPages > 1): ?>
+  <nav class="pagination" aria-label="Submissions pages">
+    <?php if ($page > 1): ?><a href="<?= h('admin.php?sort=' . $sort . '&dir=' . $dir . '&page=' . ($page - 1)) ?>">← Prev</a><?php endif; ?>
+    <span>Page <?= (int)$page ?> of <?= (int)$totalPages ?></span>
+    <?php if ($page < $totalPages): ?><a href="<?= h('admin.php?sort=' . $sort . '&dir=' . $dir . '&page=' . ($page + 1)) ?>">Next →</a><?php endif; ?>
+  </nav>
+  <?php endif; ?>
 </div>
 <script src="js/table-tools.js"></script>
 <script src="js/confirm-modal.js"></script>
 <script src="js/form-feedback.js"></script>
-<script>WcmaTableTools.enableSearch(document.getElementById('submissions-search'), document.getElementById('submissions-table'));</script>
+<script>
+  WcmaTableTools.enableSearch(document.getElementById('submissions-search'), document.getElementById('submissions-table'));
+  WcmaTableTools.enableFilter(document.getElementById('submissions-class-filter'), document.getElementById('submissions-table'), 'class');
+  WcmaTableTools.enableFilter(document.getElementById('submissions-status-filter'), document.getElementById('submissions-table'), 'status');
+  WcmaTableTools.enableBulkSelect(document.getElementById('submissions-select-all'), document.getElementById('submissions-table'), document.getElementById('bulk-delete-btn'));
+</script>
 </body>
 </html><?php
 }
