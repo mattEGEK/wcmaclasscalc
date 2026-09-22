@@ -729,6 +729,14 @@ function handleBulkDelete(PDO $pdo, array $ids): void {
     exit;
 }
 
+function csvSafe($value): string {
+    $value = (string)$value;
+    if ($value !== '' && in_array($value[0], ['=', '+', '-', '@'], true)) {
+        return "'" . $value;
+    }
+    return $value;
+}
+
 function handleExport(PDO $pdo, string $sort, string $dir): void {
     $submissions = db_get_submissions($pdo, $sort, $dir);
 
@@ -743,9 +751,9 @@ function handleExport(PDO $pdo, string $sort, string $dir): void {
     ]);
     foreach ($submissions as $s) {
         fputcsv($out, [
-            $s['id'], $s['submitted_at'], $s['name'], $s['email'], $s['year'], $s['make'], $s['model'],
-            $s['competition_weight'], $s['declared_hp'], $s['dyno_hp'], $s['base_ratio'], $s['weight_factor'],
-            $s['modification_factor'], $s['modified_ratio'], $s['calculated_class'], $s['email_sent'] ? 'Yes' : 'No',
+            csvSafe($s['id']), csvSafe($s['submitted_at']), csvSafe($s['name']), csvSafe($s['email']), csvSafe($s['year']), csvSafe($s['make']), csvSafe($s['model']),
+            csvSafe($s['competition_weight']), csvSafe($s['declared_hp']), csvSafe($s['dyno_hp']), csvSafe($s['base_ratio']), csvSafe($s['weight_factor']),
+            csvSafe($s['modification_factor']), csvSafe($s['modified_ratio']), csvSafe($s['calculated_class']), csvSafe($s['email_sent'] ? 'Yes' : 'No'),
         ]);
     }
     fclose($out);

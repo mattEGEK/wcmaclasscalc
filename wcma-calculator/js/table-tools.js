@@ -108,7 +108,9 @@
         const template = actionBtn.dataset.confirmTemplate;
 
         function checkboxes() {
-            return Array.from(table.querySelectorAll('.submission-select'));
+            return Array.from(table.querySelectorAll('.submission-select')).filter(function (cb) {
+                return !cb.closest('tr').hidden;
+            });
         }
 
         function refresh() {

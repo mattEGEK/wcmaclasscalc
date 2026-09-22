@@ -59,7 +59,7 @@ function db_init(PDO $pdo): void {
             car_image_path          TEXT,
             email_sent              INTEGER DEFAULT 0,
             last_emailed_at         DATETIME,
-            email_send_count        INTEGER DEFAULT 0
+            email_send_count        INTEGER NOT NULL DEFAULT 0
         )
     ");
 
