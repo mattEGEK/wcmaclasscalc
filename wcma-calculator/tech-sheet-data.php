@@ -140,3 +140,41 @@ function validateDriverEquipment(array $equipment): bool {
     }
     return true;
 }
+
+/**
+ * Validates and normalizes the decoded `drivers_json` payload (additional
+ * endurance drivers, numbered 2-7, max 6 of them). Returns the normalized
+ * driver rows (ready for db_replace_tech_sheet_drivers()) on success, or
+ * null if anything is invalid: more than 6 drivers, a blank/missing name, a
+ * driver_number outside [2,7], a duplicate driver_number, or equipment that
+ * fails validateDriverEquipment().
+ */
+function validateAdditionalDrivers(array $driversInput): ?array {
+    if (count($driversInput) > 6) return null;
+
+    $rows = [];
+    $seenNumbers = [];
+    foreach ($driversInput as $d) {
+        if (!is_array($d)) return null;
+
+        $name = trim((string)($d['driver_name'] ?? ''));
+        if ($name === '') return null;
+
+        $number = $d['driver_number'] ?? null;
+        if (!is_int($number) && !(is_string($number) && ctype_digit($number))) return null;
+        $number = (int)$number;
+        if ($number < 2 || $number > 7) return null;
+        if (isset($seenNumbers[$number])) return null;
+        $seenNumbers[$number] = true;
+
+        $equipment = is_array($d['equipment'] ?? null) ? $d['equipment'] : [];
+        if (!validateDriverEquipment($equipment)) return null;
+
+        $rows[] = [
+            'driver_number' => $number,
+            'driver_name' => $name,
+            'equipment_json' => json_encode($equipment),
+        ];
+    }
+    return $rows;
+}

@@ -95,4 +95,76 @@ final class TechSheetDataTest extends TestCase
         $equipment['gloves']['competitor_confirmed'] = false;
         $this->assertFalse(validateDriverEquipment($equipment));
     }
+
+    private function completeEquipment(): array {
+        $equipment = emptyDriverEquipment();
+        foreach ($equipment as $key => $v) {
+            $equipment[$key]['competitor_confirmed'] = true;
+        }
+        $equipment['helmet']['value'] = 'SA2020';
+        $equipment['suit']['value'] = 'SFI 3.2A/5';
+        return $equipment;
+    }
+
+    public function testValidateAdditionalDriversAcceptsCompleteDrivers(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-data.php';
+        $drivers = [
+            ['driver_number' => 2, 'driver_name' => 'Co-Driver A', 'equipment' => $this->completeEquipment()],
+            ['driver_number' => 3, 'driver_name' => 'Co-Driver B', 'equipment' => $this->completeEquipment()],
+        ];
+        $result = validateAdditionalDrivers($drivers);
+        $this->assertNotNull($result);
+        $this->assertCount(2, $result);
+    }
+
+    public function testValidateAdditionalDriversAcceptsEmptyList(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-data.php';
+        $this->assertSame([], validateAdditionalDrivers([]));
+    }
+
+    public function testValidateAdditionalDriversRejectsBlankName(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-data.php';
+        $drivers = [['driver_number' => 2, 'driver_name' => '  ', 'equipment' => $this->completeEquipment()]];
+        $this->assertNull(validateAdditionalDrivers($drivers));
+    }
+
+    public function testValidateAdditionalDriversRejectsOutOfRangeNumber(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-data.php';
+        $drivers = [['driver_number' => 8, 'driver_name' => 'Someone', 'equipment' => $this->completeEquipment()]];
+        $this->assertNull(validateAdditionalDrivers($drivers));
+        $drivers2 = [['driver_number' => 1, 'driver_name' => 'Someone', 'equipment' => $this->completeEquipment()]];
+        $this->assertNull(validateAdditionalDrivers($drivers2));
+    }
+
+    public function testValidateAdditionalDriversRejectsIncompleteEquipment(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-data.php';
+        $equipment = emptyDriverEquipment();
+        $drivers = [['driver_number' => 2, 'driver_name' => 'Someone', 'equipment' => $equipment]];
+        $this->assertNull(validateAdditionalDrivers($drivers));
+    }
+
+    public function testValidateAdditionalDriversRejectsMoreThanSix(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-data.php';
+        $drivers = [];
+        for ($i = 0; $i < 7; $i++) {
+            $drivers[] = ['driver_number' => 2 + ($i % 6), 'driver_name' => 'Driver ' . $i, 'equipment' => $this->completeEquipment()];
+        }
+        $this->assertNull(validateAdditionalDrivers($drivers));
+    }
+
+    public function testValidateAdditionalDriversRejectsDuplicateNumbers(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-data.php';
+        $drivers = [
+            ['driver_number' => 2, 'driver_name' => 'Driver A', 'equipment' => $this->completeEquipment()],
+            ['driver_number' => 2, 'driver_name' => 'Driver B', 'equipment' => $this->completeEquipment()],
+        ];
+        $this->assertNull(validateAdditionalDrivers($drivers));
+    }
 }
