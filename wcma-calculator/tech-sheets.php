@@ -179,6 +179,7 @@ function saveSignatureFile(int $techSheetId, string $field, string $dataUrl): ?s
     if (strpos($dataUrl, 'data:image/png;base64,') !== 0) return null;
     $binary = base64_decode(substr($dataUrl, strlen('data:image/png;base64,')));
     if ($binary === false) return null;
+    if (substr($binary, 0, 8) !== "\x89PNG\r\n\x1a\n") return null;
 
     $dir = __DIR__ . '/uploads/tech-sheets/' . $techSheetId;
     if (!is_dir($dir)) mkdir($dir, 0755, true);
