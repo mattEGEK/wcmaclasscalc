@@ -15,6 +15,7 @@ use PHPMailer\PHPMailer\Exception;
 // ── Configuration ─────────────────────────────────────────────────────────────
 define('TECH_EMAIL',     'classing@wcma.ca');
 define('TECH_NAME',      'WCMA Classing');
+define('ADMIN_PAGE_SIZE', 50);
 
 $pdo = db_connect();
 db_init($pdo);
@@ -67,11 +68,30 @@ switch ($action) {
         handleResend($pdo, (int)($_POST['id'] ?? 0));
         break;
 
+    case 'update-contact':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleUpdateContact($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
     case 'delete':
         requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleDelete($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
+    case 'bulk-delete':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleBulkDelete($pdo, array_map('intval', $_POST['ids'] ?? []));
+        break;
+
+    case 'export':
+        requireAuth();
+        handleExport($pdo, $_GET['sort'] ?? 'submitted_at', $_GET['dir'] ?? 'desc');
         break;
 
     case 'users':
@@ -93,6 +113,20 @@ switch ($action) {
         handleSetRole($pdo, (int)($_POST['id'] ?? 0), 'user');
         break;
 
+    case 'deactivate':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleSetActive($pdo, (int)($_POST['id'] ?? 0), false);
+        break;
+
+    case 'activate':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleSetActive($pdo, (int)($_POST['id'] ?? 0), true);
+        break;
+
     default:
         requireAuth();
         handleList($pdo);
@@ -101,13 +135,17 @@ switch ($action) {
 function handleList(PDO $pdo): void {
     $sort = $_GET['sort'] ?? 'submitted_at';
     $dir  = $_GET['dir']  ?? 'desc';
-    $submissions = db_get_submissions($pdo, $sort, $dir);
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $total = db_count_submissions($pdo);
+    $totalPages = max(1, (int)ceil($total / ADMIN_PAGE_SIZE));
+    $page = min($page, $totalPages);
+    $submissions = db_get_submissions($pdo, $sort, $dir, ADMIN_PAGE_SIZE, ($page - 1) * ADMIN_PAGE_SIZE);
     $csrf = generateCsrfToken();
     $flash = getFlash();
-    renderListPage($submissions, $sort, $dir, $csrf, $flash);
+    renderListPage($submissions, $sort, $dir, $csrf, $flash, $page, $totalPages, $total);
 }
 
-function renderListPage(array $submissions, string $sort, string $dir, string $csrf, ?array $flash): void {
+function renderListPage(array $submissions, string $sort, string $dir, string $csrf, ?array $flash, int $page, int $totalPages, int $total): void {
     $flip = $dir === 'asc' ? 'desc' : 'asc';
 
     function sortLink(string $col, string $label, string $currentSort, string $currentDir, string $flip): string {
@@ -131,14 +169,32 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
+  <p class="list-summary"><?= (int)$total ?> submission<?= $total === 1 ? '' : 's' ?> total<?= $totalPages > 1 ? ' — page ' . $page . ' of ' . $totalPages : '' ?></p>
   <?php if (!empty($submissions)): ?>
   <div class="list-toolbar">
     <input type="search" id="submissions-search" class="table-search" placeholder="Search submissions…" aria-label="Search submissions">
+    <select id="submissions-class-filter" class="table-filter" aria-label="Filter by class">
+      <option value="">All classes</option>
+      <?php foreach (['GTU','GT1','GT2','GT3','GT4','IT1','IT2'] as $cls): ?>
+      <option value="<?= h($cls) ?>"><?= h($cls) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <select id="submissions-status-filter" class="table-filter" aria-label="Filter by email status">
+      <option value="">All statuses</option>
+      <option value="sent">Email sent</option>
+      <option value="failed">Email failed</option>
+    </select>
+    <form method="post" action="admin.php?action=bulk-delete" id="bulk-delete-form" style="display:inline">
+      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+      <button type="submit" id="bulk-delete-btn" class="btn btn-danger" disabled data-confirm-template="Permanently delete {n} selected submission(s) and their files?">Delete Selected</button>
+    </form>
+    <a href="admin.php?action=export&sort=<?= h($sort) ?>&dir=<?= h($dir) ?>" class="btn btn-secondary">Export CSV</a>
   </div>
   <?php endif; ?>
   <table class="data-table" id="submissions-table">
     <thead>
       <tr>
+        <th><input type="checkbox" id="submissions-select-all" aria-label="Select all submissions"></th>
         <th><?= sortLink('submitted_at', 'Submitted', $sort, $dir, $flip) ?></th>
         <th><?= sortLink('name', 'Name', $sort, $dir, $flip) ?></th>
         <th>Vehicle</th>
@@ -151,17 +207,19 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
     </thead>
     <tbody>
     <?php if (empty($submissions)): ?>
-      <tr><td colspan="8" class="empty">No submissions yet.</td></tr>
+      <tr><td colspan="9" class="empty">No submissions yet.</td></tr>
     <?php else: foreach ($submissions as $s): ?>
-      <tr>
+      <tr data-class="<?= h($s['calculated_class'] ?? '') ?>" data-status="<?= $s['email_sent'] ? 'sent' : 'failed' ?>">
+        <td><input type="checkbox" class="submission-select" form="bulk-delete-form" name="ids[]" value="<?= (int)$s['id'] ?>" aria-label="Select submission from <?= h($s['name']) ?>"></td>
         <td><?= h(date('M j, Y H:i', strtotime($s['submitted_at']))) ?></td>
         <td><?= h($s['name']) ?></td>
         <td><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></td>
         <td><?= h((string)$s['competition_weight']) ?></td>
         <td><?= h((string)$s['declared_hp']) ?></td>
         <td><strong><?= h($s['calculated_class'] ?? '—') ?></strong></td>
-        <td class="<?= $s['email_sent'] ? 'badge-ok' : 'badge-fail' ?>">
-          <?= $s['email_sent'] ? '✓' : '⚠ Failed' ?>
+        <td class="<?= $s['email_sent'] ? 'badge-ok' : 'badge-fail' ?>" title="<?= $s['email_sent'] ? 'Email sent' : 'Email failed to send' ?>">
+          <span aria-hidden="true"><?= $s['email_sent'] ? '✓' : '⚠' ?></span>
+          <span class="sr-only"><?= $s['email_sent'] ? 'Sent' : 'Failed' ?></span>
         </td>
         <td class="actions">
           <a href="admin.php?action=view&id=<?= (int)$s['id'] ?>">View</a>
@@ -177,11 +235,23 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
     </tbody>
   </table>
   <p class="no-results-message" hidden>No submissions match your search.</p>
+  <?php if ($totalPages > 1): ?>
+  <nav class="pagination" aria-label="Submissions pages">
+    <?php if ($page > 1): ?><a href="<?= h('admin.php?sort=' . $sort . '&dir=' . $dir . '&page=' . ($page - 1)) ?>">← Prev</a><?php endif; ?>
+    <span>Page <?= (int)$page ?> of <?= (int)$totalPages ?></span>
+    <?php if ($page < $totalPages): ?><a href="<?= h('admin.php?sort=' . $sort . '&dir=' . $dir . '&page=' . ($page + 1)) ?>">Next →</a><?php endif; ?>
+  </nav>
+  <?php endif; ?>
 </div>
 <script src="js/table-tools.js"></script>
 <script src="js/confirm-modal.js"></script>
 <script src="js/form-feedback.js"></script>
-<script>WcmaTableTools.enableSearch(document.getElementById('submissions-search'), document.getElementById('submissions-table'));</script>
+<script>
+  WcmaTableTools.enableSearch(document.getElementById('submissions-search'), document.getElementById('submissions-table'));
+  WcmaTableTools.enableFilter(document.getElementById('submissions-class-filter'), document.getElementById('submissions-table'), 'class');
+  WcmaTableTools.enableFilter(document.getElementById('submissions-status-filter'), document.getElementById('submissions-table'), 'status');
+  WcmaTableTools.enableBulkSelect(document.getElementById('submissions-select-all'), document.getElementById('submissions-table'), document.getElementById('bulk-delete-btn'));
+</script>
 </body>
 </html><?php
 }
@@ -192,9 +262,10 @@ function handleView(PDO $pdo, int $id): void {
         header('Location: admin.php');
         exit;
     }
+    $linkedUser = $sub['user_id'] ? db_find_user_by_id($pdo, (int)$sub['user_id']) : null;
     $csrf  = generateCsrfToken();
     $flash = getFlash();
-    renderDetailPage($sub, $csrf, $flash);
+    renderDetailPage($sub, $linkedUser, $csrf, $flash);
 }
 
 // Class ranges, mirrored from js/calculator.js determineClass() — used only to
@@ -225,7 +296,7 @@ function formatClassRange(array $range): string {
     return $min === -INF ? "{$name} ({$minStr})" : "{$name} ({$minStr}{$maxStr})";
 }
 
-function renderDetailPage(array $s, string $csrf, ?array $flash): void {
+function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $flash): void {
     $brake_list = [];
     $brake_raw = json_decode($s['brake_suspension'] ?? '[]', true);
     if (is_array($brake_raw)) $brake_list = $brake_raw;
@@ -291,10 +362,13 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
     </div>
 
     <div class="detail-card">
-      <h2>Contact &amp; Vehicle</h2>
-      <table class="detail-table">
+      <h2>Contact &amp; Vehicle <button type="button" class="link-button no-print" id="edit-contact-toggle">Edit</button></h2>
+      <table class="detail-table" id="contact-view">
         <tr><td>Name</td><td><?= h($s['name']) ?></td></tr>
         <tr><td>Email</td><td><?= h($s['email']) ?></td></tr>
+        <?php if ($linkedUser): ?>
+        <tr><td>Account</td><td><a href="admin.php?action=users#user-<?= (int)$linkedUser['id'] ?>"><?= h($linkedUser['name']) ?> (<?= h($linkedUser['email']) ?>)</a></td></tr>
+        <?php endif; ?>
         <tr><td>Vehicle</td><td><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></td></tr>
         <?php if ($s['comments']): ?><tr><td>Comments</td><td><?= nl2br(h($s['comments'])) ?></td></tr><?php endif; ?>
         <tr><td>Weight</td><td><?= h((string)$s['competition_weight']) ?> lbs</td></tr>
@@ -303,6 +377,26 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
         <tr><td>Submitted</td><td><?= h(date('F j, Y \a\t g:i A', strtotime($s['submitted_at']))) ?></td></tr>
         <tr><td>Email Sent</td><td><?= $s['email_sent'] ? '✓ Yes' : '⚠ Failed' ?></td></tr>
       </table>
+      <form method="post" action="admin.php?action=update-contact" id="contact-edit" class="edit-form" hidden>
+        <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+        <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
+        <label for="edit-name">Name</label>
+        <input type="text" id="edit-name" name="name" value="<?= h($s['name']) ?>" required>
+        <label for="edit-email">Email</label>
+        <input type="email" id="edit-email" name="email" value="<?= h($s['email']) ?>" required>
+        <label for="edit-year">Year</label>
+        <input type="text" id="edit-year" name="year" value="<?= h($s['year']) ?>">
+        <label for="edit-make">Make</label>
+        <input type="text" id="edit-make" name="make" value="<?= h($s['make']) ?>">
+        <label for="edit-model">Model</label>
+        <input type="text" id="edit-model" name="model" value="<?= h($s['model']) ?>">
+        <label for="edit-comments">Comments</label>
+        <textarea id="edit-comments" name="comments" rows="3"><?= h($s['comments'] ?? '') ?></textarea>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-secondary" id="edit-contact-cancel">Cancel</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -311,12 +405,19 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
     <div class="detail-card" style="margin-bottom:1.5rem">
       <h2>Actions</h2>
       <div class="actions">
-        <form method="post" action="admin.php?action=resend" style="display:inline">
+        <form method="post" action="admin.php?action=resend" style="display:inline"
+              data-confirm="Re-send the tech sheet email to <?= h($s['name']) ?> (<?= h($s['email']) ?>) and the admin address?">
           <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
           <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
           <button type="submit" class="btn btn-primary">Re-email Tech Sheet</button>
         </form>
+        <button type="button" class="btn btn-secondary no-print" onclick="window.print()">Print</button>
       </div>
+      <?php if ($s['email_send_count'] > 0): ?>
+      <p class="email-history">Last emailed <?= h(date('M j, Y \a\t g:i A', strtotime($s['last_emailed_at']))) ?> · sent <?= (int)$s['email_send_count'] ?> time<?= $s['email_send_count'] === 1 ? '' : 's' ?></p>
+      <?php else: ?>
+      <p class="email-history">Never emailed.</p>
+      <?php endif; ?>
     </div>
 
     <div class="detail-card">
@@ -337,7 +438,7 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
       ?>
       <p style="font-weight:bold;margin:.8rem 0 .2rem"><?= h($f['label']) ?></p>
       <?php if ($is_image): ?>
-        <img src="<?= $url ?>" class="file-thumb" alt="<?= h($f['label']) ?>">
+        <img src="<?= $url ?>" class="file-thumb" data-lightbox alt="<?= h($f['label']) ?>">
       <?php else: ?>
         <a href="<?= $url ?>" target="_blank" class="file-link">Open <?= h(basename($f['path'])) ?></a>
       <?php endif; ?>
@@ -347,16 +448,30 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
   </div>
   </div>
 </div>
+<script src="js/confirm-modal.js"></script>
 <script src="js/form-feedback.js"></script>
+<script src="js/lightbox.js"></script>
+<script>
+(function () {
+  var toggle = document.getElementById('edit-contact-toggle');
+  var cancel = document.getElementById('edit-contact-cancel');
+  var view = document.getElementById('contact-view');
+  var edit = document.getElementById('contact-edit');
+  if (!toggle) return;
+  toggle.addEventListener('click', function () { view.hidden = true; edit.hidden = false; });
+  cancel.addEventListener('click', function () { view.hidden = false; edit.hidden = true; });
+})();
+</script>
 </body>
 </html><?php
 }
 
 function handleUsersList(PDO $pdo): void {
     $users = db_get_all_users($pdo);
+    $submissionCounts = db_count_submissions_by_user($pdo);
     $csrf = generateCsrfToken();
     $flash = getFlash();
-    renderUsersPage($users, $csrf, $flash);
+    renderUsersPage($users, $submissionCounts, $csrf, $flash);
 }
 
 function handleSetRole(PDO $pdo, int $id, string $role): void {
@@ -375,7 +490,23 @@ function handleSetRole(PDO $pdo, int $id, string $role): void {
     exit;
 }
 
-function renderUsersPage(array $users, string $csrf, ?array $flash): void {
+function handleSetActive(PDO $pdo, int $id, bool $active): void {
+    if (!$active && db_count_active_admins($pdo) <= 1) {
+        $target = db_find_user_by_id($pdo, $id);
+        if ($target && $target['role'] === 'admin') {
+            setFlash('Cannot deactivate the last remaining active admin.', 'error');
+            header('Location: admin.php?action=users');
+            exit;
+        }
+    }
+
+    db_set_user_active($pdo, $id, $active);
+    setFlash($active ? 'User reactivated.' : 'User deactivated.', 'success');
+    header('Location: admin.php?action=users');
+    exit;
+}
+
+function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?array $flash): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -396,6 +527,11 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
   <?php if (!empty($users)): ?>
   <div class="list-toolbar">
     <input type="search" id="users-search" class="table-search" placeholder="Search users…" aria-label="Search users">
+    <select id="users-role-filter" class="table-filter" aria-label="Filter by role">
+      <option value="">All roles</option>
+      <option value="admin">Admin</option>
+      <option value="user">User</option>
+    </select>
   </div>
   <?php endif; ?>
   <table class="data-table" id="users-table">
@@ -404,16 +540,20 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
       <th data-sort data-sort-type="text">Name</th>
       <th data-sort data-sort-type="text">Role</th>
       <th>Login Method</th>
+      <th data-sort data-sort-type="number">Submissions</th>
+      <th>Status</th>
       <th data-sort data-sort-type="date">Created</th>
       <th>Actions</th>
     </tr></thead>
     <tbody>
     <?php foreach ($users as $u): ?>
-      <tr>
+      <tr id="user-<?= (int)$u['id'] ?>" data-role="<?= h($u['role']) ?>">
         <td><?= h($u['email']) ?></td>
         <td><?= h($u['name']) ?></td>
         <td class="<?= $u['role'] === 'admin' ? 'badge-admin' : '' ?>"><?= h($u['role']) ?></td>
         <td><?= h(trim(($u['password_hash'] ? 'Password ' : '') . ($u['google_id'] ? 'Google' : ''))) ?></td>
+        <td><?= (int)($submissionCounts[(int)$u['id']] ?? 0) ?></td>
+        <td class="<?= $u['active'] ? 'badge-ok' : 'badge-fail' ?>"><?= $u['active'] ? 'Active' : 'Inactive' ?></td>
         <td data-sort-value="<?= h($u['created_at']) ?>"><?= h(date('M j, Y', strtotime($u['created_at']))) ?></td>
         <td>
           <?php if ($u['role'] === 'admin'): ?>
@@ -423,10 +563,23 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
             <button type="submit" class="btn-role">Demote</button>
           </form>
           <?php else: ?>
-          <form method="post" action="admin.php?action=promote" style="display:inline">
+          <form method="post" action="admin.php?action=promote" style="display:inline" data-confirm="Grant admin access to <?= h($u['email']) ?>?">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
             <button type="submit" class="btn-role">Promote</button>
+          </form>
+          <?php endif; ?>
+          <?php if ($u['active']): ?>
+          <form method="post" action="admin.php?action=deactivate" style="display:inline" data-confirm="Deactivate <?= h($u['email']) ?>? They won't be able to sign in until reactivated.">
+            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+            <button type="submit" class="btn-role">Deactivate</button>
+          </form>
+          <?php else: ?>
+          <form method="post" action="admin.php?action=activate" style="display:inline">
+            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+            <button type="submit" class="btn-role">Reactivate</button>
           </form>
           <?php endif; ?>
         </td>
@@ -442,6 +595,7 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
 <script>
   WcmaTableTools.enableSearch(document.getElementById('users-search'), document.getElementById('users-table'));
   WcmaTableTools.enableSort(document.getElementById('users-table'));
+  WcmaTableTools.enableFilter(document.getElementById('users-role-filter'), document.getElementById('users-table'), 'role');
 </script>
 </body>
 </html><?php
@@ -479,6 +633,36 @@ function handleFile(PDO $pdo, int $id, string $field): void {
     readfile($path);
     exit;
 }
+function handleUpdateContact(PDO $pdo, int $id): void {
+    $sub = db_get_submission($pdo, $id);
+    if (!$sub) {
+        setFlash('Submission not found.', 'error');
+        header('Location: admin.php');
+        exit;
+    }
+
+    $name = trim($_POST['name'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $year = trim($_POST['year'] ?? '');
+    $make = trim($_POST['make'] ?? '');
+    $model = trim($_POST['model'] ?? '');
+    $comments = trim($_POST['comments'] ?? '');
+
+    if ($name === '' || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        setFlash('Name and a valid email are required.', 'error');
+        header('Location: admin.php?action=view&id=' . $id);
+        exit;
+    }
+
+    db_update_submission_contact($pdo, $id, [
+        'name' => $name, 'email' => $email, 'year' => $year, 'make' => $make, 'model' => $model,
+        'comments' => $comments !== '' ? $comments : null,
+    ]);
+    setFlash('Contact details updated.', 'success');
+    header('Location: admin.php?action=view&id=' . $id);
+    exit;
+}
+
 function handleResend(PDO $pdo, int $id): void {
     $sub = db_get_submission($pdo, $id);
     if (!$sub) {
@@ -556,6 +740,61 @@ function handleDelete(PDO $pdo, int $id): void {
     db_delete_submission($pdo, $id);
     setFlash('Submission deleted.', 'success');
     header('Location: admin.php');
+    exit;
+}
+
+function handleBulkDelete(PDO $pdo, array $ids): void {
+    $ids = array_filter($ids, fn($id) => $id > 0);
+    if (empty($ids)) {
+        setFlash('No submissions selected.', 'error');
+        header('Location: admin.php');
+        exit;
+    }
+
+    foreach ($ids as $id) {
+        $upload_dir = __DIR__ . '/uploads/' . $id;
+        if (is_dir($upload_dir)) {
+            foreach (glob($upload_dir . '/*') as $file) {
+                unlink($file);
+            }
+            rmdir($upload_dir);
+        }
+    }
+
+    $deleted = db_delete_submissions($pdo, $ids);
+    setFlash("Deleted {$deleted} submission(s).", 'success');
+    header('Location: admin.php');
+    exit;
+}
+
+function csvSafe($value): string {
+    $value = (string)$value;
+    if ($value !== '' && in_array($value[0], ['=', '+', '-', '@'], true)) {
+        return "'" . $value;
+    }
+    return $value;
+}
+
+function handleExport(PDO $pdo, string $sort, string $dir): void {
+    $submissions = db_get_submissions($pdo, $sort, $dir);
+
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="wcma-submissions-' . date('Y-m-d') . '.csv"');
+
+    $out = fopen('php://output', 'w');
+    fputcsv($out, [
+        'ID', 'Submitted', 'Name', 'Email', 'Year', 'Make', 'Model',
+        'Weight', 'Declared HP', 'Dyno HP', 'Base Ratio', 'Weight Factor',
+        'Modification Factor', 'Modified Ratio', 'Class', 'Email Sent',
+    ]);
+    foreach ($submissions as $s) {
+        fputcsv($out, [
+            csvSafe($s['id']), csvSafe($s['submitted_at']), csvSafe($s['name']), csvSafe($s['email']), csvSafe($s['year']), csvSafe($s['make']), csvSafe($s['model']),
+            csvSafe($s['competition_weight']), csvSafe($s['declared_hp']), csvSafe($s['dyno_hp']), csvSafe($s['base_ratio']), csvSafe($s['weight_factor']),
+            csvSafe($s['modification_factor']), csvSafe($s['modified_ratio']), csvSafe($s['calculated_class']), csvSafe($s['email_sent'] ? 'Yes' : 'No'),
+        ]);
+    }
+    fclose($out);
     exit;
 }
 

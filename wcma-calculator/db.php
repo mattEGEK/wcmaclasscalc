@@ -57,7 +57,9 @@ function db_init(PDO $pdo): void {
             dyno_chart_path         TEXT,
             dyno_table_path         TEXT,
             car_image_path          TEXT,
-            email_sent              INTEGER DEFAULT 0
+            email_sent              INTEGER DEFAULT 0,
+            last_emailed_at         DATETIME,
+            email_send_count        INTEGER NOT NULL DEFAULT 0
         )
     ");
 
@@ -77,7 +79,8 @@ function db_init(PDO $pdo): void {
             google_id     TEXT UNIQUE,
             name          TEXT NOT NULL,
             role          TEXT NOT NULL DEFAULT 'user',
-            created_at    DATETIME NOT NULL
+            created_at    DATETIME NOT NULL,
+            active        INTEGER NOT NULL DEFAULT 1
         )
     ");
 
@@ -107,6 +110,30 @@ function db_init(PDO $pdo): void {
     }
     if (!$hasUserId) {
         $pdo->exec("ALTER TABLE submissions ADD COLUMN user_id INTEGER");
+    }
+
+    // Add email-history tracking columns if migrating an existing DB
+    $hasLastEmailedAt = false;
+    $hasEmailSendCount = false;
+    foreach ($columns as $col) {
+        if ($col['name'] === 'last_emailed_at') { $hasLastEmailedAt = true; }
+        if ($col['name'] === 'email_send_count') { $hasEmailSendCount = true; }
+    }
+    if (!$hasLastEmailedAt) {
+        $pdo->exec("ALTER TABLE submissions ADD COLUMN last_emailed_at DATETIME");
+    }
+    if (!$hasEmailSendCount) {
+        $pdo->exec("ALTER TABLE submissions ADD COLUMN email_send_count INTEGER NOT NULL DEFAULT 0");
+    }
+
+    // Add active flag to users if migrating an existing DB
+    $userColumns = $pdo->query("PRAGMA table_info(users)")->fetchAll();
+    $hasActive = false;
+    foreach ($userColumns as $col) {
+        if ($col['name'] === 'active') { $hasActive = true; break; }
+    }
+    if (!$hasActive) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
     }
 }
 
@@ -146,17 +173,38 @@ function db_update_submission_files(PDO $pdo, int $id, ?string $dyno_chart, ?str
 }
 
 function db_update_email_sent(PDO $pdo, int $id, int $sent): void {
-    $pdo->prepare("UPDATE submissions SET email_sent = :sent WHERE id = :id")
-        ->execute([':sent' => $sent, ':id' => $id]);
+    if ($sent === 1) {
+        $pdo->prepare("
+            UPDATE submissions
+            SET email_sent = 1, last_emailed_at = :now, email_send_count = email_send_count + 1
+            WHERE id = :id
+        ")->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+    } else {
+        $pdo->prepare("UPDATE submissions SET email_sent = 0 WHERE id = :id")
+            ->execute([':id' => $id]);
+    }
 }
 
-function db_get_submissions(PDO $pdo, string $sort = 'submitted_at', string $dir = 'desc'): array {
+function db_get_submissions(PDO $pdo, string $sort = 'submitted_at', string $dir = 'desc', ?int $limit = null, int $offset = 0): array {
     $allowed_sorts = ['submitted_at', 'name', 'year', 'make', 'model',
                       'competition_weight', 'declared_hp', 'calculated_class', 'email_sent'];
     $allowed_dirs  = ['asc', 'desc'];
     $sort = in_array($sort, $allowed_sorts, true) ? $sort : 'submitted_at';
     $dir  = in_array($dir,  $allowed_dirs,  true) ? $dir  : 'desc';
-    return $pdo->query("SELECT * FROM submissions ORDER BY {$sort} {$dir}")->fetchAll();
+    $sql = "SELECT * FROM submissions ORDER BY {$sort} {$dir}";
+    if ($limit !== null) {
+        $sql .= " LIMIT :limit OFFSET :offset";
+        $stmt = $pdo->prepare($sql);
+        $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetchAll();
+    }
+    return $pdo->query($sql)->fetchAll();
+}
+
+function db_count_submissions(PDO $pdo): int {
+    return (int)$pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn();
 }
 
 function db_get_submission(PDO $pdo, int $id): ?array {
@@ -191,6 +239,35 @@ function db_link_submissions_by_email(PDO $pdo, int $user_id, string $email): in
 
 function db_delete_submission(PDO $pdo, int $id): void {
     $pdo->prepare("DELETE FROM submissions WHERE id = :id")->execute([':id' => $id]);
+}
+
+function db_delete_submissions(PDO $pdo, array $ids): int {
+    if (empty($ids)) return 0;
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("DELETE FROM submissions WHERE id IN ({$placeholders})");
+    $stmt->execute(array_map('intval', $ids));
+    return $stmt->rowCount();
+}
+
+function db_count_submissions_by_user(PDO $pdo): array {
+    $rows = $pdo->query("SELECT user_id, COUNT(*) AS cnt FROM submissions WHERE user_id IS NOT NULL GROUP BY user_id")->fetchAll();
+    $counts = [];
+    foreach ($rows as $row) {
+        $counts[(int)$row['user_id']] = (int)$row['cnt'];
+    }
+    return $counts;
+}
+
+function db_update_submission_contact(PDO $pdo, int $id, array $data): void {
+    $pdo->prepare("
+        UPDATE submissions
+        SET name = :name, email = :email, year = :year, make = :make, model = :model, comments = :comments
+        WHERE id = :id
+    ")->execute([
+        ':name' => $data['name'], ':email' => $data['email'],
+        ':year' => $data['year'], ':make' => $data['make'], ':model' => $data['model'],
+        ':comments' => $data['comments'], ':id' => $id,
+    ]);
 }
 
 // ── Drafts ────────────────────────────────────────────────────────────────────
@@ -283,6 +360,15 @@ function db_set_user_role(PDO $pdo, int $id, string $role): void {
 
 function db_count_admins(PDO $pdo): int {
     return (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
+}
+
+function db_set_user_active(PDO $pdo, int $id, bool $active): void {
+    $pdo->prepare("UPDATE users SET active = :active WHERE id = :id")
+        ->execute([':active' => $active ? 1 : 0, ':id' => $id]);
+}
+
+function db_count_active_admins(PDO $pdo): int {
+    return (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin' AND active = 1")->fetchColumn();
 }
 
 function db_link_google_id(PDO $pdo, int $user_id, string $google_id): void {

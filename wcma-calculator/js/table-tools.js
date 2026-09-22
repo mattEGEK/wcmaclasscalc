@@ -73,5 +73,68 @@
         });
     }
 
-    window.WcmaTableTools = { enableSearch: enableSearch, enableSort: enableSort };
+    function enableFilter(select, table, datasetKey) {
+        if (!select || !table) return;
+        const rows = dataRows(table);
+        const noResults = table.parentElement.querySelector('.no-results-message');
+        const searchInput = table.parentElement.querySelector('.table-search');
+
+        function apply() {
+            const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+            const filterValues = Array.from(table.parentElement.querySelectorAll('.table-filter'))
+                .filter(function (s) { return s.value; })
+                .map(function (s) { return s; });
+
+            let visibleCount = 0;
+            rows.forEach(function (row) {
+                const matchesSearch = !q || row.textContent.toLowerCase().indexOf(q) !== -1;
+                const matchesFilters = filterValues.every(function (s) {
+                    return row.dataset[s.dataset.filterKey] === s.value;
+                });
+                const visible = matchesSearch && matchesFilters;
+                row.hidden = !visible;
+                if (visible) visibleCount++;
+            });
+            if (noResults) noResults.hidden = visibleCount !== 0;
+        }
+
+        select.dataset.filterKey = datasetKey;
+        select.addEventListener('change', apply);
+        if (searchInput) searchInput.addEventListener('input', apply);
+    }
+
+    function enableBulkSelect(selectAll, table, actionBtn) {
+        if (!selectAll || !table || !actionBtn) return;
+        const template = actionBtn.dataset.confirmTemplate;
+
+        function checkboxes() {
+            return Array.from(table.querySelectorAll('.submission-select')).filter(function (cb) {
+                return !cb.closest('tr').hidden;
+            });
+        }
+
+        function refresh() {
+            const all = checkboxes();
+            const checked = all.filter(function (cb) { return cb.checked; });
+            actionBtn.disabled = checked.length === 0;
+            if (template) {
+                actionBtn.closest('form').dataset.confirm = template.replace('{n}', checked.length);
+            }
+            selectAll.checked = all.length > 0 && checked.length === all.length;
+            selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+        }
+
+        selectAll.addEventListener('change', function () {
+            checkboxes().forEach(function (cb) { cb.checked = selectAll.checked; });
+            refresh();
+        });
+
+        table.addEventListener('change', function (e) {
+            if (e.target.classList.contains('submission-select')) refresh();
+        });
+
+        refresh();
+    }
+
+    window.WcmaTableTools = { enableSearch: enableSearch, enableSort: enableSort, enableFilter: enableFilter, enableBulkSelect: enableBulkSelect };
 })();
