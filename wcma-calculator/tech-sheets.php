@@ -46,6 +46,30 @@ switch ($action) {
         handleSubmit($pdo, $user);
         break;
 
+    case 'view':
+        $user = requireTechSheetLogin();
+        handleView($pdo, $user, (int)($_GET['id'] ?? 0));
+        break;
+
+    case 'edit':
+        $user = requireTechSheetLogin();
+        handleEdit($pdo, $user, (int)($_GET['id'] ?? 0));
+        break;
+
+    case 'update':
+        $user = requireTechSheetLogin();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: account.php'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleUpdate($pdo, $user);
+        break;
+
+    case 'resend':
+        $user = requireTechSheetLogin();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: account.php'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleResendTechSheet($pdo, $user, (int)($_POST['id'] ?? 0));
+        break;
+
     default:
         header('Location: account.php');
         exit;
@@ -70,24 +94,116 @@ function handleNew(PDO $pdo, array $user, int $submissionId): void {
     renderTechSheetForm($submission, $events, $csrf);
 }
 
-function renderTechSheetForm(array $submission, array $events, string $csrf): void {
+function handleView(PDO $pdo, array $user, int $id): void {
+    $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
+    if (!$sheet) {
+        setFlash('Tech sheet not found.', 'error');
+        header('Location: account.php');
+        exit;
+    }
+    $event = db_get_event($pdo, (int)$sheet['event_id']);
+    $drivers = db_get_tech_sheet_drivers($pdo, $id);
+    $csrf = generateCsrfToken();
+    $flash = getFlash();
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Submit Tech Sheet — WCMA Calculator</title>
+<title>Tech Sheet #<?= (int)$sheet['id'] ?> — WCMA Calculator</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="css/calculator.css">
+</head>
+<body>
+<div class="container">
+  <?php renderSiteHeader('Tech Sheet #' . $sheet['id'], '<a href="account.php">← Back to My Cars</a>' . renderCommonNav('account')); ?>
+  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+  <div class="detail-card actions no-print">
+    <?php if ($sheet['status'] === 'submitted'): ?>
+    <a href="tech-sheets.php?action=edit&id=<?= (int)$sheet['id'] ?>" class="btn btn-secondary">Edit</a>
+    <?php endif; ?>
+    <form method="post" action="tech-sheets.php?action=resend" style="display:inline">
+      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+      <input type="hidden" name="id" value="<?= (int)$sheet['id'] ?>">
+      <button type="submit" class="btn btn-primary">Resend Email</button>
+    </form>
+    <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
+  </div>
+  <?= renderTechSheetHtml($sheet, $drivers, $event ?? []) ?>
+</div>
+<script src="js/form-feedback.js"></script>
+</body>
+</html><?php
+}
+
+function handleEdit(PDO $pdo, array $user, int $id): void {
+    $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
+    if (!$sheet) {
+        setFlash('Tech sheet not found.', 'error');
+        header('Location: account.php');
+        exit;
+    }
+    if ($sheet['status'] !== 'submitted') {
+        setFlash('This tech sheet has already been reviewed and can no longer be edited.', 'error');
+        header('Location: tech-sheets.php?action=view&id=' . $id);
+        exit;
+    }
+
+    $events = db_get_active_events($pdo);
+    $drivers = db_get_tech_sheet_drivers($pdo, $id);
+    $csrf = generateCsrfToken();
+    renderTechSheetEditForm($sheet, $drivers, $events, $csrf);
+}
+
+function renderTechSheetForm(array $submission, array $events, string $csrf, ?array $existingSheet = null, array $existingDrivers = []): void {
+    $isEdit = $existingSheet !== null;
+    $formAction = $isEdit ? 'tech-sheets.php?action=update' : 'tech-sheets.php?action=submit';
+    $pageTitle = $isEdit ? 'Edit Tech Sheet' : 'Submit Tech Sheet';
+    $entrantName = $isEdit ? $existingSheet['entrant_name'] : $submission['name'];
+    $driverName = $isEdit ? $existingSheet['driver_name'] : $submission['name'];
+    $carNumber = $isEdit ? $existingSheet['car_number'] : '';
+    $carColour = $isEdit ? $existingSheet['car_colour'] : '';
+    $engineCc = $isEdit ? $existingSheet['engine_cc'] : '';
+    $engineHp = $isEdit ? $existingSheet['engine_hp'] : ($submission['dyno_hp'] ?: $submission['declared_hp']);
+    $carMake = $isEdit ? $existingSheet['car_make'] : $submission['make'];
+    $carModel = $isEdit ? $existingSheet['car_model'] : $submission['model'];
+    $carClass = $isEdit ? $existingSheet['class'] : ($submission['calculated_class'] ?? '');
+    $carWeight = $isEdit ? (int)$existingSheet['car_weight'] : (int)$submission['competition_weight'];
+    $selectedEventId = $isEdit ? (int)$existingSheet['event_id'] : null;
+    $selectedSheetType = $isEdit ? $existingSheet['sheet_type'] : 'standard';
+    $existingChecklist = $isEdit ? (json_decode($existingSheet['checklist_json'] ?? '{}', true) ?: []) : [];
+    $existingEquipment = $isEdit ? (json_decode($existingSheet['driver1_equipment_json'] ?? '{}', true) ?: []) : [];
+    $existingLogBook = $isEdit ? $existingSheet['log_book_turned_in'] : null;
+    $hasEntrantSignature = $isEdit && !empty($existingSheet['entrant_signature_path']);
+    $hasDriverSignature = $isEdit && !empty($existingSheet['driver_signature_path']);
+    $existingDriversForJs = array_map(function (array $d): array {
+        return [
+            'driver_number' => (int)$d['driver_number'],
+            'driver_name' => $d['driver_name'],
+            'equipment' => json_decode($d['equipment_json'] ?? '{}', true) ?: [],
+        ];
+    }, $existingDrivers);
+    ?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title><?= h($pageTitle) ?> — WCMA Calculator</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="css/calculator.css">
 <meta name="csrf-token" content="<?= h($csrf) ?>">
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Submit Tech Sheet', '<a href="account.php">← Back to My Cars</a>' . renderCommonNav('account')); ?>
+  <?php renderSiteHeader($pageTitle, '<a href="account.php">← Back to My Cars</a>' . renderCommonNav('account')); ?>
 
-  <form id="tech-sheet-form" method="post" action="tech-sheets.php?action=submit">
+  <form id="tech-sheet-form" method="post" action="<?= h($formAction) ?>">
     <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+    <?php if ($isEdit): ?>
+    <input type="hidden" name="tech_sheet_id" value="<?= (int)$existingSheet['id'] ?>">
+    <?php else: ?>
     <input type="hidden" name="submission_id" value="<?= (int)$submission['id'] ?>">
+    <?php endif; ?>
     <input type="hidden" name="checklist_json" id="checklist_json">
     <input type="hidden" name="driver1_equipment_json" id="driver1_equipment_json">
     <input type="hidden" name="drivers_json" id="drivers_json">
@@ -99,30 +215,30 @@ function renderTechSheetForm(array $submission, array $events, string $csrf): vo
       <label for="event_id">Event</label>
       <select id="event_id" name="event_id" required>
         <?php foreach ($events as $e): ?>
-        <option value="<?= (int)$e['id'] ?>"><?= h($e['name']) ?> — <?= h(date('M j, Y', strtotime($e['event_date']))) ?></option>
+        <option value="<?= (int)$e['id'] ?>" <?= ($e['id'] == $selectedEventId) ? 'selected' : '' ?>><?= h($e['name']) ?> — <?= h(date('M j, Y', strtotime($e['event_date']))) ?></option>
         <?php endforeach; ?>
       </select>
       <label for="sheet_type">Sheet Type</label>
       <select id="sheet_type" name="sheet_type">
-        <option value="standard">Standard</option>
-        <option value="endurance">Endurance (multiple drivers)</option>
+        <option value="standard" <?= $selectedSheetType === 'standard' ? 'selected' : '' ?>>Standard</option>
+        <option value="endurance" <?= $selectedSheetType === 'endurance' ? 'selected' : '' ?>>Endurance (multiple drivers)</option>
       </select>
     </div>
 
     <div class="detail-card">
       <h2>Vehicle &amp; Entrant</h2>
       <div class="tech-sheet-header-grid">
-        <div><label for="entrant_name">Entrant</label><input type="text" id="entrant_name" name="entrant_name" required value="<?= h($submission['name']) ?>"></div>
-        <div><label for="driver_name">Driver/Team Name</label><input type="text" id="driver_name" name="driver_name" required value="<?= h($submission['name']) ?>"></div>
-        <div><label for="car_number">Car Number</label><input type="text" id="car_number" name="car_number" required></div>
-        <div><label for="car_colour">Car Colour</label><input type="text" id="car_colour" name="car_colour" required></div>
-        <div><label for="engine_cc">Engine CC</label><input type="text" id="engine_cc" name="engine_cc"></div>
-        <div><label for="engine_hp">Engine HP</label><input type="text" id="engine_hp" name="engine_hp" value="<?= h((string)($submission['dyno_hp'] ?: $submission['declared_hp'])) ?>"></div>
+        <div><label for="entrant_name">Entrant</label><input type="text" id="entrant_name" name="entrant_name" required value="<?= h((string)$entrantName) ?>"></div>
+        <div><label for="driver_name">Driver/Team Name</label><input type="text" id="driver_name" name="driver_name" required value="<?= h((string)$driverName) ?>"></div>
+        <div><label for="car_number">Car Number</label><input type="text" id="car_number" name="car_number" required value="<?= h((string)$carNumber) ?>"></div>
+        <div><label for="car_colour">Car Colour</label><input type="text" id="car_colour" name="car_colour" required value="<?= h((string)$carColour) ?>"></div>
+        <div><label for="engine_cc">Engine CC</label><input type="text" id="engine_cc" name="engine_cc" value="<?= h((string)$engineCc) ?>"></div>
+        <div><label for="engine_hp">Engine HP</label><input type="text" id="engine_hp" name="engine_hp" value="<?= h((string)$engineHp) ?>"></div>
       </div>
-      <input type="hidden" name="car_make" value="<?= h($submission['make']) ?>">
-      <input type="hidden" name="car_model" value="<?= h($submission['model']) ?>">
-      <input type="hidden" name="class" value="<?= h($submission['calculated_class'] ?? '') ?>">
-      <input type="hidden" name="car_weight" value="<?= (int)$submission['competition_weight'] ?>">
+      <input type="hidden" name="car_make" value="<?= h((string)$carMake) ?>">
+      <input type="hidden" name="car_model" value="<?= h((string)$carModel) ?>">
+      <input type="hidden" name="class" value="<?= h((string)$carClass) ?>">
+      <input type="hidden" name="car_weight" value="<?= (int)$carWeight ?>">
     </div>
 
     <div class="detail-card">
@@ -135,7 +251,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf): vo
       <div id="equipment-container"></div>
     </div>
 
-    <div class="detail-card" id="endurance-drivers-card" hidden>
+    <div class="detail-card" id="endurance-drivers-card" <?= $selectedSheetType === 'endurance' ? '' : 'hidden' ?>>
       <h2>Additional Drivers</h2>
       <div id="additional-drivers-container"></div>
       <button type="button" class="btn btn-secondary" id="add-driver-btn">+ Add Driver</button>
@@ -143,23 +259,26 @@ function renderTechSheetForm(array $submission, array $events, string $csrf): vo
 
     <div class="detail-card">
       <h2>Log Book</h2>
-      <label class="checkbox-label"><input type="radio" name="log_book_turned_in" value="1" required> Yes</label>
-      <label class="checkbox-label"><input type="radio" name="log_book_turned_in" value="0"> No</label>
+      <label class="checkbox-label"><input type="radio" name="log_book_turned_in" value="1" <?= ((string)$existingLogBook === '1') ? 'checked' : '' ?> required> Yes</label>
+      <label class="checkbox-label"><input type="radio" name="log_book_turned_in" value="0" <?= ($isEdit && (string)$existingLogBook === '0') ? 'checked' : '' ?>> No</label>
     </div>
 
     <div class="detail-card">
       <h2>Declaration &amp; Signatures</h2>
       <p><em>I hereby stipulate that the above vehicle meets the regulations for the event.</em></p>
+      <?php if ($isEdit): ?><p class="form-hint">Leave the pads blank to keep the signatures already on file.</p><?php endif; ?>
       <label>Entrant's Signature</label>
+      <?php if ($hasEntrantSignature): ?><div><?= techSheetSignatureImg($existingSheet['entrant_signature_path']) ?></div><?php endif; ?>
       <div class="sig-pad-wrap"><canvas id="entrant-sig-canvas"></canvas></div>
       <div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="entrant">Clear</button></div>
       <label>Driver's Signature</label>
+      <?php if ($hasDriverSignature): ?><div><?= techSheetSignatureImg($existingSheet['driver_signature_path']) ?></div><?php endif; ?>
       <div class="sig-pad-wrap"><canvas id="driver-sig-canvas"></canvas></div>
       <div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="driver">Clear</button></div>
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary" id="tech-sheet-submit-btn">Submit Tech Sheet</button>
+      <button type="submit" class="btn btn-primary" id="tech-sheet-submit-btn"><?= $isEdit ? 'Save Changes' : 'Submit Tech Sheet' ?></button>
     </div>
     <div id="tech-sheet-error" class="form-messages error" hidden></div>
   </form>
@@ -167,12 +286,21 @@ function renderTechSheetForm(array $submission, array $events, string $csrf): vo
 <script>
   const TECH_CHECKLIST_SECTIONS = <?= json_encode(TECH_CHECKLIST_SECTIONS) ?>;
   const TECH_DRIVER_EQUIPMENT_ITEMS = <?= json_encode(TECH_DRIVER_EQUIPMENT_ITEMS) ?>;
+  window.TECH_SHEET_EXISTING_CHECKLIST = <?= json_encode($existingChecklist ?: new stdClass()) ?>;
+  window.TECH_SHEET_EXISTING_EQUIPMENT = <?= json_encode($existingEquipment ?: new stdClass()) ?>;
+  window.TECH_SHEET_EXISTING_DRIVERS = <?= json_encode($existingDriversForJs) ?>;
+  window.TECH_SHEET_HAS_ENTRANT_SIGNATURE = <?= $hasEntrantSignature ? 'true' : 'false' ?>;
+  window.TECH_SHEET_HAS_DRIVER_SIGNATURE = <?= $hasDriverSignature ? 'true' : 'false' ?>;
 </script>
 <script src="js/tech-sheet-checklist.js"></script>
 <script src="js/signature-pad.js"></script>
 <script src="js/tech-sheet-form.js"></script>
 </body>
 </html><?php
+}
+
+function renderTechSheetEditForm(array $sheet, array $drivers, array $events, string $csrf): void {
+    renderTechSheetForm([], $events, $csrf, $sheet, $drivers);
 }
 
 function saveSignatureFile(int $techSheetId, string $field, string $dataUrl): ?string {
@@ -293,6 +421,112 @@ function handleSubmit(PDO $pdo, array $user): void {
     db_update_email_sent_tech_sheet($pdo, $id, $sent ? 1 : 0);
 
     setFlash('Tech sheet submitted' . ($sent ? ' and emailed to you and the club.' : ', but the confirmation email failed to send.'), $sent ? 'success' : 'error');
+    header('Location: tech-sheets.php?action=view&id=' . $id);
+    exit;
+}
+
+function handleUpdate(PDO $pdo, array $user): void {
+    $id = (int)($_POST['tech_sheet_id'] ?? 0);
+    $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
+    if (!$sheet || $sheet['status'] !== 'submitted') {
+        setFlash('Tech sheet not found or no longer editable.', 'error');
+        header('Location: account.php');
+        exit;
+    }
+
+    $eventId = (int)($_POST['event_id'] ?? 0);
+    $event = db_get_event($pdo, $eventId);
+    $sheetType = ($_POST['sheet_type'] ?? 'standard') === 'endurance' ? 'endurance' : 'standard';
+    $checklist = json_decode($_POST['checklist_json'] ?? '{}', true) ?: [];
+    $equipment = json_decode($_POST['driver1_equipment_json'] ?? '{}', true) ?: [];
+    $driversInput = json_decode($_POST['drivers_json'] ?? '[]', true) ?: [];
+    $entrantName = trim($_POST['entrant_name'] ?? '');
+    $driverName = trim($_POST['driver_name'] ?? '');
+    $carNumber = trim($_POST['car_number'] ?? '');
+    $carColour = trim($_POST['car_colour'] ?? '');
+    $logBook = $_POST['log_book_turned_in'] ?? null;
+
+    if (!$event || !validateChecklist($checklist) || !validateDriverEquipment($equipment)
+        || $entrantName === '' || $driverName === '' || $carNumber === '' || $carColour === ''
+        || !in_array($logBook, ['0', '1'], true)) {
+        setFlash('Please complete every required field.', 'error');
+        header('Location: tech-sheets.php?action=edit&id=' . $id);
+        exit;
+    }
+
+    db_update_tech_sheet($pdo, $id, [
+        'event_id' => $eventId, 'sheet_type' => $sheetType,
+        'entrant_name' => $entrantName, 'driver_name' => $driverName,
+        'car_make' => $sheet['car_make'], 'car_model' => $sheet['car_model'], 'car_colour' => $carColour,
+        'car_number' => $carNumber, 'class' => $sheet['class'],
+        'engine_cc' => trim($_POST['engine_cc'] ?? '') ?: null, 'engine_hp' => trim($_POST['engine_hp'] ?? '') ?: null,
+        'car_weight' => (int)$sheet['car_weight'],
+        'checklist_json' => json_encode($checklist), 'driver1_equipment_json' => json_encode($equipment),
+        'log_book_turned_in' => (int)$logBook,
+    ]);
+
+    if (!empty($_POST['entrant_signature'])) {
+        $path = saveSignatureFile($id, 'entrant', $_POST['entrant_signature']);
+        if ($path) db_update_tech_sheet_signatures($pdo, $id, ['entrant_signature_path' => $path]);
+    }
+    if (!empty($_POST['driver_signature'])) {
+        $path = saveSignatureFile($id, 'driver', $_POST['driver_signature']);
+        if ($path) db_update_tech_sheet_signatures($pdo, $id, ['driver_signature_path' => $path]);
+    }
+
+    if ($sheetType === 'endurance') {
+        $driverRows = [];
+        foreach ($driversInput as $d) {
+            $driverRows[] = [
+                'driver_number' => (int)($d['driver_number'] ?? 0),
+                'driver_name' => trim($d['driver_name'] ?? ''),
+                'equipment_json' => json_encode($d['equipment'] ?? []),
+            ];
+        }
+        db_replace_tech_sheet_drivers($pdo, $id, $driverRows);
+    } else {
+        db_replace_tech_sheet_drivers($pdo, $id, []);
+    }
+
+    setFlash('Tech sheet updated.', 'success');
+    header('Location: tech-sheets.php?action=view&id=' . $id);
+    exit;
+}
+
+function handleResendTechSheet(PDO $pdo, array $user, int $id): void {
+    $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
+    if (!$sheet) {
+        setFlash('Tech sheet not found.', 'error');
+        header('Location: account.php');
+        exit;
+    }
+    $event = db_get_event($pdo, (int)$sheet['event_id']);
+    $drivers = db_get_tech_sheet_drivers($pdo, $id);
+    $bodyHtml = '<html><body>' . renderTechSheetHtml($sheet, $drivers, $event ?? []) . '</body></html>';
+
+    // current_user() doesn't carry an email; resolve the original submission's email
+    // (same fallback handleSubmit() uses when sending the initial confirmation).
+    $submission = db_get_submission($pdo, (int)$sheet['submission_id']);
+    $recipientEmail = $submission['email'] ?? null;
+
+    $sent = false;
+    try {
+        if (!$recipientEmail) {
+            throw new Exception('No email address on file for this tech sheet.');
+        }
+        $mail = buildTechSheetMailer();
+        $mail->addAddress($recipientEmail, $sheet['entrant_name']);
+        $mail->addAddress(TECH_SHEET_EMAIL, TECH_SHEET_EMAIL_NAME);
+        $mail->Subject = 'WCMA Tech Sheet — ' . $sheet['entrant_name'] . ' — ' . ($event['name'] ?? '');
+        $mail->isHTML(true);
+        $mail->Body = $bodyHtml;
+        $mail->send();
+        $sent = true;
+    } catch (Exception $e) {
+        error_log('Tech sheet resend error: ' . $e->getMessage());
+    }
+    db_update_email_sent_tech_sheet($pdo, $id, $sent ? 1 : 0);
+    setFlash($sent ? 'Tech sheet email re-sent.' : 'Failed to re-send email.', $sent ? 'success' : 'error');
     header('Location: tech-sheets.php?action=view&id=' . $id);
     exit;
 }
