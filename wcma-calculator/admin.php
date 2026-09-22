@@ -13,8 +13,8 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 // ── Configuration ─────────────────────────────────────────────────────────────
-define('TECH_EMAIL',     'matt.sinfield@gmail.com');
-define('TECH_NAME',      'Matt Sinfield');
+define('TECH_EMAIL',     'classing@wcma.ca');
+define('TECH_NAME',      'WCMA Classing');
 
 $pdo = db_connect();
 db_init($pdo);
