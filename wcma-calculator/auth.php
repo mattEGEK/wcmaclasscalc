@@ -189,21 +189,25 @@ function handleLogin(PDO $pdo, string $ip, string $redirect): void {
             $user = db_find_user_by_email($pdo, $email);
 
             if ($user && $user['password_hash'] && password_verify($password, $user['password_hash'])) {
-                db_clear_login_attempts($pdo, $ip);
-                login_user($user);
-                if (!empty($_POST['remember'])) {
-                    $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
-                    setcookie(session_name(), session_id(), time() + 30 * 24 * 3600, '/', '', $secure, true);
+                if ((int)$user['active'] === 0) {
+                    $error = 'This account has been deactivated. Contact an administrator.';
+                } else {
+                    db_clear_login_attempts($pdo, $ip);
+                    login_user($user);
+                    if (!empty($_POST['remember'])) {
+                        $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+                        setcookie(session_name(), session_id(), time() + 30 * 24 * 3600, '/', '', $secure, true);
+                    }
+                    header('Location: ' . $redirect);
+                    exit;
                 }
-                header('Location: ' . $redirect);
-                exit;
+            } else {
+                db_record_failed_attempt($pdo, $ip);
+                $lockout = db_is_locked_out($pdo, $ip);
+                $error = $lockout['locked']
+                    ? "Too many failed attempts. Try again in {$lockout['remaining']} minute(s)."
+                    : 'Incorrect email or password.';
             }
-
-            db_record_failed_attempt($pdo, $ip);
-            $lockout = db_is_locked_out($pdo, $ip);
-            $error = $lockout['locked']
-                ? "Too many failed attempts. Try again in {$lockout['remaining']} minute(s)."
-                : 'Incorrect email or password.';
         }
     }
 
@@ -328,6 +332,12 @@ function handleGoogleCallback(PDO $pdo): void {
             ]);
             $user = db_find_user_by_id($pdo, $userId);
         }
+    }
+
+    if ((int)$user['active'] === 0) {
+        setFlash('This account has been deactivated. Contact an administrator.', 'error');
+        header('Location: auth.php?action=login');
+        exit;
     }
 
     login_user($user);
