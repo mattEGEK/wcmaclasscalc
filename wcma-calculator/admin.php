@@ -113,6 +113,20 @@ switch ($action) {
         handleSetRole($pdo, (int)($_POST['id'] ?? 0), 'user');
         break;
 
+    case 'deactivate':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleSetActive($pdo, (int)($_POST['id'] ?? 0), false);
+        break;
+
+    case 'activate':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleSetActive($pdo, (int)($_POST['id'] ?? 0), true);
+        break;
+
     default:
         requireAuth();
         handleList($pdo);
@@ -416,9 +430,10 @@ function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $fl
 
 function handleUsersList(PDO $pdo): void {
     $users = db_get_all_users($pdo);
+    $submissionCounts = db_count_submissions_by_user($pdo);
     $csrf = generateCsrfToken();
     $flash = getFlash();
-    renderUsersPage($users, $csrf, $flash);
+    renderUsersPage($users, $submissionCounts, $csrf, $flash);
 }
 
 function handleSetRole(PDO $pdo, int $id, string $role): void {
@@ -437,7 +452,23 @@ function handleSetRole(PDO $pdo, int $id, string $role): void {
     exit;
 }
 
-function renderUsersPage(array $users, string $csrf, ?array $flash): void {
+function handleSetActive(PDO $pdo, int $id, bool $active): void {
+    if (!$active && db_count_active_admins($pdo) <= 1) {
+        $target = db_find_user_by_id($pdo, $id);
+        if ($target && $target['role'] === 'admin') {
+            setFlash('Cannot deactivate the last remaining active admin.', 'error');
+            header('Location: admin.php?action=users');
+            exit;
+        }
+    }
+
+    db_set_user_active($pdo, $id, $active);
+    setFlash($active ? 'User reactivated.' : 'User deactivated.', 'success');
+    header('Location: admin.php?action=users');
+    exit;
+}
+
+function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?array $flash): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -458,6 +489,11 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
   <?php if (!empty($users)): ?>
   <div class="list-toolbar">
     <input type="search" id="users-search" class="table-search" placeholder="Search users…" aria-label="Search users">
+    <select id="users-role-filter" class="table-filter" aria-label="Filter by role">
+      <option value="">All roles</option>
+      <option value="admin">Admin</option>
+      <option value="user">User</option>
+    </select>
   </div>
   <?php endif; ?>
   <table class="data-table" id="users-table">
@@ -466,16 +502,20 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
       <th data-sort data-sort-type="text">Name</th>
       <th data-sort data-sort-type="text">Role</th>
       <th>Login Method</th>
+      <th data-sort data-sort-type="number">Submissions</th>
+      <th>Status</th>
       <th data-sort data-sort-type="date">Created</th>
       <th>Actions</th>
     </tr></thead>
     <tbody>
     <?php foreach ($users as $u): ?>
-      <tr>
+      <tr id="user-<?= (int)$u['id'] ?>" data-role="<?= h($u['role']) ?>">
         <td><?= h($u['email']) ?></td>
         <td><?= h($u['name']) ?></td>
         <td class="<?= $u['role'] === 'admin' ? 'badge-admin' : '' ?>"><?= h($u['role']) ?></td>
         <td><?= h(trim(($u['password_hash'] ? 'Password ' : '') . ($u['google_id'] ? 'Google' : ''))) ?></td>
+        <td><?= (int)($submissionCounts[(int)$u['id']] ?? 0) ?></td>
+        <td class="<?= $u['active'] ? 'badge-ok' : 'badge-fail' ?>"><?= $u['active'] ? 'Active' : 'Inactive' ?></td>
         <td data-sort-value="<?= h($u['created_at']) ?>"><?= h(date('M j, Y', strtotime($u['created_at']))) ?></td>
         <td>
           <?php if ($u['role'] === 'admin'): ?>
@@ -485,10 +525,23 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
             <button type="submit" class="btn-role">Demote</button>
           </form>
           <?php else: ?>
-          <form method="post" action="admin.php?action=promote" style="display:inline">
+          <form method="post" action="admin.php?action=promote" style="display:inline" data-confirm="Grant admin access to <?= h($u['email']) ?>?">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
             <button type="submit" class="btn-role">Promote</button>
+          </form>
+          <?php endif; ?>
+          <?php if ($u['active']): ?>
+          <form method="post" action="admin.php?action=deactivate" style="display:inline" data-confirm="Deactivate <?= h($u['email']) ?>? They won't be able to sign in until reactivated.">
+            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+            <button type="submit" class="btn-role">Deactivate</button>
+          </form>
+          <?php else: ?>
+          <form method="post" action="admin.php?action=activate" style="display:inline">
+            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+            <button type="submit" class="btn-role">Reactivate</button>
           </form>
           <?php endif; ?>
         </td>
@@ -504,6 +557,7 @@ function renderUsersPage(array $users, string $csrf, ?array $flash): void {
 <script>
   WcmaTableTools.enableSearch(document.getElementById('users-search'), document.getElementById('users-table'));
   WcmaTableTools.enableSort(document.getElementById('users-table'));
+  WcmaTableTools.enableFilter(document.getElementById('users-role-filter'), document.getElementById('users-table'), 'role');
 </script>
 </body>
 </html><?php
