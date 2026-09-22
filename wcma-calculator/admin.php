@@ -558,7 +558,7 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Manage Users', '<a href="admin.php">Submissions</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Manage Users', '<a href="admin.php">Submissions</a> <a href="admin.php?action=events">Events</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <?php if (!empty($users)): ?>
   <div class="list-toolbar">
