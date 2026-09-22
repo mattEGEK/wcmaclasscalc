@@ -30,3 +30,11 @@ define('FROM_NAME',  'WCMA Calculator');
 define('GOOGLE_CLIENT_ID',     'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com');
 define('GOOGLE_CLIENT_SECRET', 'YOUR_GOOGLE_CLIENT_SECRET');
 define('GOOGLE_REDIRECT_URI',  'https://yourdomain.com/auth.php?action=google-callback');
+
+// ── Notification recipients ─────────────────────────────────────────────────
+// Where class-calculation submissions (car-classing.php) are sent
+define('CLASSING_RECIPIENT_EMAIL', 'classing@wcma.ca');
+define('CLASSING_RECIPIENT_NAME',  'WCMA Classing');
+// Where tech sheet submissions (tech-sheets.php, admin.php) are sent
+define('TECH_SHEET_RECIPIENT_EMAIL', 'classing@wcma.ca');
+define('TECH_SHEET_RECIPIENT_NAME',  'WCMA Classing');

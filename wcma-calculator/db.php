@@ -157,6 +157,13 @@ function db_init(PDO $pdo): void {
     ");
 
     $pdo->exec("
+        CREATE TABLE IF NOT EXISTS settings (
+            setting_key   TEXT PRIMARY KEY,
+            setting_value TEXT NOT NULL
+        )
+    ");
+
+    $pdo->exec("
         CREATE TABLE IF NOT EXISTS tech_sheet_drivers (
             id               INTEGER PRIMARY KEY AUTOINCREMENT,
             tech_sheet_id    INTEGER NOT NULL,
@@ -665,4 +672,20 @@ function db_record_failed_attempt(PDO $pdo, string $ip): void {
 
 function db_clear_login_attempts(PDO $pdo, string $ip): void {
     $pdo->prepare("DELETE FROM login_attempts WHERE ip = :ip")->execute([':ip' => $ip]);
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+function db_get_setting(PDO $pdo, string $key, ?string $default = null): ?string {
+    $stmt = $pdo->prepare("SELECT setting_value FROM settings WHERE setting_key = :key");
+    $stmt->execute([':key' => $key]);
+    $row = $stmt->fetch();
+    return $row ? $row['setting_value'] : $default;
+}
+
+function db_set_setting(PDO $pdo, string $key, string $value): void {
+    $pdo->prepare("
+        INSERT INTO settings (setting_key, setting_value) VALUES (:key, :value)
+        ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value
+    ")->execute([':key' => $key, ':value' => $value]);
 }

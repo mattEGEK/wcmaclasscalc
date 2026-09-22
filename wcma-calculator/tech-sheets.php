@@ -16,11 +16,11 @@ use PHPMailer\PHPMailer\Exception;
 
 date_default_timezone_set('America/Denver');
 
-const TECH_SHEET_EMAIL = 'classing@wcma.ca';
-const TECH_SHEET_EMAIL_NAME = 'WCMA Classing';
-
 $pdo = db_connect();
 db_init($pdo);
+
+define('TECH_SHEET_EMAIL', db_get_setting($pdo, 'tech_sheet_recipient_email', TECH_SHEET_RECIPIENT_EMAIL));
+define('TECH_SHEET_EMAIL_NAME', db_get_setting($pdo, 'tech_sheet_recipient_name', TECH_SHEET_RECIPIENT_NAME));
 
 /**
  * Signature-src resolver for the web/print view: an authenticated URL served

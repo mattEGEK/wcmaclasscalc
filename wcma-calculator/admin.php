@@ -13,12 +13,13 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 // ── Configuration ─────────────────────────────────────────────────────────────
-define('TECH_EMAIL',     'classing@wcma.ca');
-define('TECH_NAME',      'WCMA Classing');
 define('ADMIN_PAGE_SIZE', 50);
 
 $pdo = db_connect();
 db_init($pdo);
+
+define('TECH_EMAIL', db_get_setting($pdo, 'tech_sheet_recipient_email', TECH_SHEET_RECIPIENT_EMAIL));
+define('TECH_NAME',  db_get_setting($pdo, 'tech_sheet_recipient_name', TECH_SHEET_RECIPIENT_NAME));
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 function requireAuth(): void {
@@ -160,6 +161,18 @@ switch ($action) {
         handleEventSetActive($pdo, (int)($_POST['id'] ?? 0), true);
         break;
 
+    case 'settings':
+        requireAuth();
+        handleSettings($pdo);
+        break;
+
+    case 'settings-update':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=settings'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleSettingsUpdate($pdo);
+        break;
+
     default:
         requireAuth();
         handleList($pdo);
@@ -198,7 +211,7 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('WCMA Submissions', '<a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('WCMA Submissions', '<a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
@@ -558,7 +571,7 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Manage Users', '<a href="admin.php">Submissions</a> <a href="admin.php?action=events">Events</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Manage Users', '<a href="admin.php">Submissions</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <?php if (!empty($users)): ?>
   <div class="list-toolbar">
@@ -964,7 +977,7 @@ function renderEventsPage(array $events, string $csrf, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Events', '<a href="admin.php">Submissions</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Events', '<a href="admin.php">Submissions</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=settings">Settings</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">
@@ -1015,6 +1028,93 @@ function renderEventsPage(array $events, string $csrf, ?array $flash): void {
   </table>
 </div>
 <script src="js/confirm-modal.js"></script>
+<script src="js/form-feedback.js"></script>
+</body>
+</html><?php
+}
+
+function handleSettings(PDO $pdo): void {
+    $values = [
+        'classing_recipient_email'   => db_get_setting($pdo, 'classing_recipient_email', CLASSING_RECIPIENT_EMAIL),
+        'classing_recipient_name'    => db_get_setting($pdo, 'classing_recipient_name', CLASSING_RECIPIENT_NAME),
+        'tech_sheet_recipient_email' => db_get_setting($pdo, 'tech_sheet_recipient_email', TECH_SHEET_RECIPIENT_EMAIL),
+        'tech_sheet_recipient_name'  => db_get_setting($pdo, 'tech_sheet_recipient_name', TECH_SHEET_RECIPIENT_NAME),
+    ];
+    $csrf = generateCsrfToken();
+    $flash = getFlash();
+    renderSettingsPage($values, $csrf, $flash);
+}
+
+function handleSettingsUpdate(PDO $pdo): void {
+    $fields = [
+        'classing_recipient_email'   => ['name' => 'classing_recipient_name',    'label' => 'Class calculator'],
+        'tech_sheet_recipient_email' => ['name' => 'tech_sheet_recipient_name',  'label' => 'Tech sheet'],
+    ];
+
+    $clean = [];
+    foreach ($fields as $emailKey => $info) {
+        $email = trim($_POST[$emailKey] ?? '');
+        $name  = trim($_POST[$info['name']] ?? '');
+        if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            setFlash($info['label'] . ' recipient requires a valid email address.', 'error');
+            header('Location: admin.php?action=settings');
+            exit;
+        }
+        if ($name === '') {
+            setFlash($info['label'] . ' recipient requires a name.', 'error');
+            header('Location: admin.php?action=settings');
+            exit;
+        }
+        $clean[$emailKey] = $email;
+        $clean[$info['name']] = $name;
+    }
+
+    foreach ($clean as $key => $value) {
+        db_set_setting($pdo, $key, $value);
+    }
+
+    setFlash('Notification settings updated.', 'success');
+    header('Location: admin.php?action=settings');
+    exit;
+}
+
+function renderSettingsPage(array $values, string $csrf, ?array $flash): void {
+    ?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings — WCMA Admin</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="css/calculator.css">
+</head>
+<body>
+<div class="container">
+  <?php renderSiteHeader('Settings', '<a href="admin.php">Submissions</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a>' . renderCommonNav('admin')); ?>
+  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+
+  <div class="detail-card" style="margin-bottom:1.5rem">
+    <h2>Notification Recipients</h2>
+    <p style="color:#666;font-size:.9rem;margin-top:-.5rem">Where class-calculator and tech sheet submissions are emailed. Submitters always also get their own confirmation copy.</p>
+    <form method="post" action="admin.php?action=settings-update" class="edit-form">
+      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+
+      <label for="classing-email">Class Calculator — Email</label>
+      <input type="email" id="classing-email" name="classing_recipient_email" value="<?= h($values['classing_recipient_email']) ?>" required>
+      <label for="classing-name">Class Calculator — Name</label>
+      <input type="text" id="classing-name" name="classing_recipient_name" value="<?= h($values['classing_recipient_name']) ?>" required>
+
+      <label for="tech-sheet-email">Tech Sheets — Email</label>
+      <input type="email" id="tech-sheet-email" name="tech_sheet_recipient_email" value="<?= h($values['tech_sheet_recipient_email']) ?>" required>
+      <label for="tech-sheet-name">Tech Sheets — Name</label>
+      <input type="text" id="tech-sheet-name" name="tech_sheet_recipient_name" value="<?= h($values['tech_sheet_recipient_name']) ?>" required>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
 <script src="js/form-feedback.js"></script>
 </body>
 </html><?php

@@ -22,8 +22,10 @@ $current_user = current_user();
 header('Content-Type: application/json');
 
 // ── Configuration ─────────────────────────────────────────────────────────────
-$to_email = 'matt.sinfield@gmail.com';
-$to_name  = 'Matt Sinfield';
+$pdo = db_connect();
+db_init($pdo);
+$to_email = db_get_setting($pdo, 'classing_recipient_email', CLASSING_RECIPIENT_EMAIL);
+$to_name  = db_get_setting($pdo, 'classing_recipient_name', CLASSING_RECIPIENT_NAME);
 
 // Set timezone to Mountain Standard Time
 date_default_timezone_set('America/Denver');
@@ -173,9 +175,6 @@ if (!empty($errors)) {
 }
 
 // ── Persist to database ───────────────────────────────────────────────────────
-$pdo = db_connect();
-db_init($pdo);
-
 $submission_id = db_insert_submission($pdo, [
     ':submitted_at'           => date('Y-m-d H:i:s'),
     ':name'                   => $name,
