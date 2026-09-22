@@ -446,7 +446,7 @@ function handleUpdate(PDO $pdo, array $user): void {
     $carColour = trim($_POST['car_colour'] ?? '');
     $logBook = $_POST['log_book_turned_in'] ?? null;
 
-    if (!$event || !validateChecklist($checklist) || !validateDriverEquipment($equipment)
+    if (!$event || (int)$event['active'] !== 1 || !validateChecklist($checklist) || !validateDriverEquipment($equipment)
         || $entrantName === '' || $driverName === '' || $carNumber === '' || $carColour === ''
         || !in_array($logBook, ['0', '1'], true)) {
         setFlash('Please complete every required field.', 'error');
