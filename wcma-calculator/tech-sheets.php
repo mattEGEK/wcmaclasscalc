@@ -19,8 +19,8 @@ date_default_timezone_set('America/Denver');
 $pdo = db_connect();
 db_init($pdo);
 
-define('TECH_SHEET_EMAIL', db_get_setting($pdo, 'tech_sheet_recipient_email', TECH_SHEET_RECIPIENT_EMAIL));
-define('TECH_SHEET_EMAIL_NAME', db_get_setting($pdo, 'tech_sheet_recipient_name', TECH_SHEET_RECIPIENT_NAME));
+define('TECH_SHEET_EMAIL', db_get_setting($pdo, 'tech_sheet_recipient_email', config_default('TECH_SHEET_RECIPIENT_EMAIL', 'classing@wcma.ca')));
+define('TECH_SHEET_EMAIL_NAME', db_get_setting($pdo, 'tech_sheet_recipient_name', config_default('TECH_SHEET_RECIPIENT_NAME', 'WCMA Classing')));
 
 /**
  * Signature-src resolver for the web/print view: an authenticated URL served

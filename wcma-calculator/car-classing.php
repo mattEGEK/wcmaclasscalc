@@ -24,8 +24,8 @@ header('Content-Type: application/json');
 // ── Configuration ─────────────────────────────────────────────────────────────
 $pdo = db_connect();
 db_init($pdo);
-$to_email = db_get_setting($pdo, 'classing_recipient_email', CLASSING_RECIPIENT_EMAIL);
-$to_name  = db_get_setting($pdo, 'classing_recipient_name', CLASSING_RECIPIENT_NAME);
+$to_email = db_get_setting($pdo, 'classing_recipient_email', config_default('CLASSING_RECIPIENT_EMAIL', 'classing@wcma.ca'));
+$to_name  = db_get_setting($pdo, 'classing_recipient_name', config_default('CLASSING_RECIPIENT_NAME', 'WCMA Classing'));
 
 // Set timezone to Mountain Standard Time
 date_default_timezone_set('America/Denver');

@@ -683,6 +683,15 @@ function db_get_setting(PDO $pdo, string $key, ?string $default = null): ?string
     return $row ? $row['setting_value'] : $default;
 }
 
+/**
+ * Reads a config.php constant if defined, otherwise falls back to a literal.
+ * Guards against a deployed config.php that predates a constant being added —
+ * referencing an undefined constant directly is a fatal error in PHP 8.
+ */
+function config_default(string $constant, string $fallback): string {
+    return defined($constant) ? constant($constant) : $fallback;
+}
+
 function db_set_setting(PDO $pdo, string $key, string $value): void {
     $pdo->prepare("
         INSERT INTO settings (setting_key, setting_value) VALUES (:key, :value)

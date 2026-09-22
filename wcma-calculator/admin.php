@@ -18,8 +18,8 @@ define('ADMIN_PAGE_SIZE', 50);
 $pdo = db_connect();
 db_init($pdo);
 
-define('TECH_EMAIL', db_get_setting($pdo, 'tech_sheet_recipient_email', TECH_SHEET_RECIPIENT_EMAIL));
-define('TECH_NAME',  db_get_setting($pdo, 'tech_sheet_recipient_name', TECH_SHEET_RECIPIENT_NAME));
+define('TECH_EMAIL', db_get_setting($pdo, 'tech_sheet_recipient_email', config_default('TECH_SHEET_RECIPIENT_EMAIL', 'classing@wcma.ca')));
+define('TECH_NAME',  db_get_setting($pdo, 'tech_sheet_recipient_name', config_default('TECH_SHEET_RECIPIENT_NAME', 'WCMA Classing')));
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
 function requireAuth(): void {
@@ -1035,10 +1035,10 @@ function renderEventsPage(array $events, string $csrf, ?array $flash): void {
 
 function handleSettings(PDO $pdo): void {
     $values = [
-        'classing_recipient_email'   => db_get_setting($pdo, 'classing_recipient_email', CLASSING_RECIPIENT_EMAIL),
-        'classing_recipient_name'    => db_get_setting($pdo, 'classing_recipient_name', CLASSING_RECIPIENT_NAME),
-        'tech_sheet_recipient_email' => db_get_setting($pdo, 'tech_sheet_recipient_email', TECH_SHEET_RECIPIENT_EMAIL),
-        'tech_sheet_recipient_name'  => db_get_setting($pdo, 'tech_sheet_recipient_name', TECH_SHEET_RECIPIENT_NAME),
+        'classing_recipient_email'   => db_get_setting($pdo, 'classing_recipient_email', config_default('CLASSING_RECIPIENT_EMAIL', 'classing@wcma.ca')),
+        'classing_recipient_name'    => db_get_setting($pdo, 'classing_recipient_name', config_default('CLASSING_RECIPIENT_NAME', 'WCMA Classing')),
+        'tech_sheet_recipient_email' => db_get_setting($pdo, 'tech_sheet_recipient_email', config_default('TECH_SHEET_RECIPIENT_EMAIL', 'classing@wcma.ca')),
+        'tech_sheet_recipient_name'  => db_get_setting($pdo, 'tech_sheet_recipient_name', config_default('TECH_SHEET_RECIPIENT_NAME', 'WCMA Classing')),
     ];
     $csrf = generateCsrfToken();
     $flash = getFlash();
