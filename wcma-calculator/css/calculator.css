@@ -1712,3 +1712,102 @@ textarea.error {
     }
 }
 
+/* Tech Sheet checklist accordion */
+.checklist-progress-wrap {
+    position: sticky;
+    top: 0;
+    background: white;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.6rem 0 0.8rem;
+    z-index: 5;
+}
+.checklist-progress-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #666;
+    margin-bottom: 0.4rem;
+}
+.checklist-progress-bar {
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 20px;
+    overflow: hidden;
+}
+.checklist-progress-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--success-color);
+    border-radius: 20px;
+    transition: width 0.2s ease;
+}
+
+.checklist-section {
+    border-bottom: 1px solid var(--border-color);
+    background: white;
+}
+.checklist-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.9rem 0.2rem;
+    cursor: pointer;
+}
+.checklist-section-name { font-weight: 700; font-size: 0.95rem; color: var(--primary-color); }
+.checklist-section-count { font-size: 0.78rem; color: #888; margin-top: 0.15rem; }
+.checklist-chevron { font-size: 1.1rem; color: #999; transition: transform 0.15s ease; }
+.checklist-section-open .checklist-chevron { transform: rotate(180deg); }
+
+.checklist-section-body {
+    display: none;
+    padding-bottom: 0.5rem;
+}
+.checklist-section-open .checklist-section-body { display: block; }
+
+.checklist-mark-all {
+    font-size: 0.78rem;
+    color: var(--secondary-color);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0.2rem;
+    margin-bottom: 0.3rem;
+}
+
+.checklist-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 0.2rem;
+    border-top: 1px solid #f0f1f2;
+    gap: 0.75rem;
+}
+.checklist-item-label { font-size: 0.88rem; flex: 1; }
+.checklist-toggle-group { display: flex; gap: 0.4rem; flex-shrink: 0; }
+.checklist-chip {
+    min-width: 44px;
+    min-height: 40px;
+    border-radius: var(--border-radius);
+    border: 1.5px solid var(--border-color);
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #999;
+    background: #fafafa;
+    cursor: pointer;
+}
+.checklist-chip-selected-ok { background: var(--success-color); border-color: var(--success-color); color: white; }
+.checklist-chip-selected-na { background: #eee; border-color: #bbb; color: #666; }
+
+/* Signature pad */
+.sig-pad-wrap { border: 1.5px solid var(--border-color); border-radius: var(--border-radius); background: #fff; }
+.sig-pad-wrap canvas { width: 100%; height: 140px; touch-action: none; display: block; }
+.sig-pad-actions { margin-top: 0.4rem; }
+
+/* Tech sheet form/header grid */
+.tech-sheet-header-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem 1.5rem;
+    margin-bottom: 1rem;
+}
+@media (max-width: 600px) {
+    .tech-sheet-header-grid { grid-template-columns: 1fr; }
+}
