@@ -102,6 +102,17 @@ function db_init(PDO $pdo): void {
         )
     ");
 
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS events (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            name        TEXT NOT NULL,
+            event_date  DATE NOT NULL,
+            location    TEXT,
+            active      INTEGER NOT NULL DEFAULT 1,
+            created_at  DATETIME NOT NULL
+        )
+    ");
+
     // Add user_id to submissions if migrating an existing DB
     $columns = $pdo->query("PRAGMA table_info(submissions)")->fetchAll();
     $hasUserId = false;
@@ -310,6 +321,43 @@ function db_count_user_drafts(PDO $pdo, int $user_id): int {
 function db_delete_draft(PDO $pdo, int $id, int $user_id): void {
     $pdo->prepare("DELETE FROM drafts WHERE id = :id AND user_id = :user_id")
         ->execute([':id' => $id, ':user_id' => $user_id]);
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
+
+function db_create_event(PDO $pdo, string $name, string $event_date, ?string $location): int {
+    $pdo->prepare("
+        INSERT INTO events (name, event_date, location, active, created_at)
+        VALUES (:name, :event_date, :location, 1, :created_at)
+    ")->execute([
+        ':name' => $name, ':event_date' => $event_date, ':location' => $location,
+        ':created_at' => date('Y-m-d H:i:s'),
+    ]);
+    return (int)$pdo->lastInsertId();
+}
+
+function db_get_active_events(PDO $pdo): array {
+    return $pdo->query("SELECT * FROM events WHERE active = 1 ORDER BY event_date ASC")->fetchAll();
+}
+
+function db_get_all_events(PDO $pdo): array {
+    return $pdo->query("SELECT * FROM events ORDER BY event_date DESC")->fetchAll();
+}
+
+function db_get_event(PDO $pdo, int $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM events WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_update_event(PDO $pdo, int $id, string $name, string $event_date, ?string $location): void {
+    $pdo->prepare("UPDATE events SET name = :name, event_date = :event_date, location = :location WHERE id = :id")
+        ->execute([':name' => $name, ':event_date' => $event_date, ':location' => $location, ':id' => $id]);
+}
+
+function db_set_event_active(PDO $pdo, int $id, bool $active): void {
+    $pdo->prepare("UPDATE events SET active = :active WHERE id = :id")
+        ->execute([':active' => $active ? 1 : 0, ':id' => $id]);
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
