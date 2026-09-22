@@ -82,6 +82,11 @@ function handleAccountList(PDO $pdo, array $user): void {
     $techSheets = db_get_user_tech_sheets($pdo, $user['id']);
     $totalCount = db_count_user_drafts($pdo, $user['id']) + db_count_user_submissions($pdo, $user['id']);
 
+    $eventNames = [];
+    foreach (db_get_all_events($pdo) as $e) {
+        $eventNames[(int)$e['id']] = $e['name'];
+    }
+
     $rows = [];
     foreach ($drafts as $d) {
         $rows[] = ['type' => 'draft', 'sort_key' => $d['updated_at'], 'data' => $d];
@@ -93,10 +98,10 @@ function handleAccountList(PDO $pdo, array $user): void {
 
     $csrf = generateCsrfToken();
     $flash = getFlash();
-    renderAccountListPage($rows, $totalCount, $csrf, $flash, $techSheets, $pdo);
+    renderAccountListPage($rows, $totalCount, $csrf, $flash, $techSheets, $eventNames);
 }
 
-function renderAccountListPage(array $rows, int $count, string $csrf, ?array $flash, array $techSheets = [], ?PDO $pdo = null): void {
+function renderAccountListPage(array $rows, int $count, string $csrf, ?array $flash, array $techSheets = [], array $eventNames = []): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -185,9 +190,9 @@ function renderAccountListPage(array $rows, int $count, string $csrf, ?array $fl
   <table class="data-table" id="tech-sheets-table">
     <thead><tr><th>Event</th><th>Vehicle</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>
-    <?php foreach ($techSheets as $ts): $event = $pdo ? db_get_event($pdo, (int)$ts['event_id']) : null; ?>
+    <?php foreach ($techSheets as $ts): $eventName = $eventNames[(int)$ts['event_id']] ?? null; ?>
       <tr>
-        <td><?= h($event['name'] ?? 'Unknown event') ?></td>
+        <td><?= h($eventName ?? 'Unknown event') ?></td>
         <td><?= h(trim($ts['car_make'] . ' ' . $ts['car_model'] . ' #' . $ts['car_number'])) ?></td>
         <td><?= h(ucfirst($ts['sheet_type'])) ?></td>
         <td class="<?= $ts['status'] === 'teched' ? 'badge-ok' : 'badge-fail' ?>"><?= $ts['status'] === 'teched' ? 'Reviewed' : 'Submitted' ?></td>
