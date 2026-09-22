@@ -75,6 +75,18 @@ switch ($action) {
         handleDelete($pdo, (int)($_POST['id'] ?? 0));
         break;
 
+    case 'bulk-delete':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleBulkDelete($pdo, array_map('intval', $_POST['ids'] ?? []));
+        break;
+
+    case 'export':
+        requireAuth();
+        handleExport($pdo, $_GET['sort'] ?? 'submitted_at', $_GET['dir'] ?? 'desc');
+        break;
+
     case 'users':
         requireAuth();
         handleUsersList($pdo);
@@ -555,6 +567,53 @@ function handleDelete(PDO $pdo, int $id): void {
     db_delete_submission($pdo, $id);
     setFlash('Submission deleted.', 'success');
     header('Location: admin.php');
+    exit;
+}
+
+function handleBulkDelete(PDO $pdo, array $ids): void {
+    $ids = array_filter($ids, fn($id) => $id > 0);
+    if (empty($ids)) {
+        setFlash('No submissions selected.', 'error');
+        header('Location: admin.php');
+        exit;
+    }
+
+    foreach ($ids as $id) {
+        $upload_dir = __DIR__ . '/uploads/' . $id;
+        if (is_dir($upload_dir)) {
+            foreach (glob($upload_dir . '/*') as $file) {
+                unlink($file);
+            }
+            rmdir($upload_dir);
+        }
+    }
+
+    $deleted = db_delete_submissions($pdo, $ids);
+    setFlash("Deleted {$deleted} submission(s).", 'success');
+    header('Location: admin.php');
+    exit;
+}
+
+function handleExport(PDO $pdo, string $sort, string $dir): void {
+    $submissions = db_get_submissions($pdo, $sort, $dir);
+
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="wcma-submissions-' . date('Y-m-d') . '.csv"');
+
+    $out = fopen('php://output', 'w');
+    fputcsv($out, [
+        'ID', 'Submitted', 'Name', 'Email', 'Year', 'Make', 'Model',
+        'Weight', 'Declared HP', 'Dyno HP', 'Base Ratio', 'Weight Factor',
+        'Modification Factor', 'Modified Ratio', 'Class', 'Email Sent',
+    ]);
+    foreach ($submissions as $s) {
+        fputcsv($out, [
+            $s['id'], $s['submitted_at'], $s['name'], $s['email'], $s['year'], $s['make'], $s['model'],
+            $s['competition_weight'], $s['declared_hp'], $s['dyno_hp'], $s['base_ratio'], $s['weight_factor'],
+            $s['modification_factor'], $s['modified_ratio'], $s['calculated_class'], $s['email_sent'] ? 'Yes' : 'No',
+        ]);
+    }
+    fclose($out);
     exit;
 }
 
