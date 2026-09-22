@@ -268,21 +268,24 @@ function handleView(PDO $pdo, int $id): void {
     renderDetailPage($sub, $linkedUser, $csrf, $flash);
 }
 
-// Class ranges, mirrored from js/calculator.js determineClass() — used only to
-// annotate the admin breakdown, not to recompute stored results.
-const CLASS_RANGES = [
-    ['GTU', -INF, 6.00],
-    ['GT1', 6.00, 8.00],
-    ['GT2', 8.00, 10.00],
-    ['GT3', 10.00, 12.00],
-    ['GT4', 12.00, 14.00],
-    ['IT1', 14.00, 18.00],
-    ['IT2', 18.00, INF],
-];
-
 function classForRatio(float $ratio): ?array {
+    // Class ranges, mirrored from js/calculator.js determineClass() — used only
+    // to annotate the admin breakdown, not to recompute stored results. Kept as
+    // a local static (not a file-scope const) because a top-level const isn't
+    // hoisted like a function declaration — it only becomes defined once
+    // execution reaches this line, which is after the router's switch above,
+    // and the switch is exactly what calls into this function.
+    static $ranges = [
+        ['GTU', -INF, 6.00],
+        ['GT1', 6.00, 8.00],
+        ['GT2', 8.00, 10.00],
+        ['GT3', 10.00, 12.00],
+        ['GT4', 12.00, 14.00],
+        ['IT1', 14.00, 18.00],
+        ['IT2', 18.00, INF],
+    ];
     if ($ratio <= 0) return null;
-    foreach (CLASS_RANGES as $range) {
+    foreach ($ranges as $range) {
         [$name, $min, $max] = $range;
         if ($ratio >= $min && $ratio < $max) return $range;
     }
