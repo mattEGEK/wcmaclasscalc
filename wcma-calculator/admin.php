@@ -127,6 +127,39 @@ switch ($action) {
         handleSetActive($pdo, (int)($_POST['id'] ?? 0), true);
         break;
 
+    case 'events':
+        requireAuth();
+        handleEventsList($pdo);
+        break;
+
+    case 'event-create':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleEventCreate($pdo);
+        break;
+
+    case 'event-update':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleEventUpdate($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
+    case 'event-deactivate':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleEventSetActive($pdo, (int)($_POST['id'] ?? 0), false);
+        break;
+
+    case 'event-activate':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleEventSetActive($pdo, (int)($_POST['id'] ?? 0), true);
+        break;
+
     default:
         requireAuth();
         handleList($pdo);
@@ -165,7 +198,7 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('WCMA Submissions', '<a href="admin.php?action=users">Manage Users</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('WCMA Submissions', '<a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
@@ -869,4 +902,120 @@ function buildResendEmailText(array $s, array $brake_list): string {
     $t .= "Modified Ratio: " . number_format((float)$s['modified_ratio'], 2) . "\n";
     $t .= "Calculated Class: " . ($s['calculated_class'] ?? '') . "\n";
     return $t;
+}
+
+function handleEventsList(PDO $pdo): void {
+    $events = db_get_all_events($pdo);
+    $csrf = generateCsrfToken();
+    $flash = getFlash();
+    renderEventsPage($events, $csrf, $flash);
+}
+
+function handleEventCreate(PDO $pdo): void {
+    $name = trim($_POST['name'] ?? '');
+    $date = trim($_POST['event_date'] ?? '');
+    $location = trim($_POST['location'] ?? '');
+
+    if ($name === '' || $date === '') {
+        setFlash('Event name and date are required.', 'error');
+        header('Location: admin.php?action=events');
+        exit;
+    }
+
+    db_create_event($pdo, $name, $date, $location !== '' ? $location : null);
+    setFlash('Event created.', 'success');
+    header('Location: admin.php?action=events');
+    exit;
+}
+
+function handleEventUpdate(PDO $pdo, int $id): void {
+    $name = trim($_POST['name'] ?? '');
+    $date = trim($_POST['event_date'] ?? '');
+    $location = trim($_POST['location'] ?? '');
+
+    if ($name === '' || $date === '') {
+        setFlash('Event name and date are required.', 'error');
+        header('Location: admin.php?action=events');
+        exit;
+    }
+
+    db_update_event($pdo, $id, $name, $date, $location !== '' ? $location : null);
+    setFlash('Event updated.', 'success');
+    header('Location: admin.php?action=events');
+    exit;
+}
+
+function handleEventSetActive(PDO $pdo, int $id, bool $active): void {
+    db_set_event_active($pdo, $id, $active);
+    setFlash($active ? 'Event reactivated.' : 'Event deactivated.', 'success');
+    header('Location: admin.php?action=events');
+    exit;
+}
+
+function renderEventsPage(array $events, string $csrf, ?array $flash): void {
+    ?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Events — WCMA Admin</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="css/calculator.css">
+</head>
+<body>
+<div class="container">
+  <?php renderSiteHeader('Events', '<a href="admin.php">Submissions</a>' . renderCommonNav('admin')); ?>
+  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+
+  <div class="detail-card" style="margin-bottom:1.5rem">
+    <h2>Add Event</h2>
+    <form method="post" action="admin.php?action=event-create" class="edit-form">
+      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+      <label for="new-event-name">Name</label>
+      <input type="text" id="new-event-name" name="name" required>
+      <label for="new-event-date">Date</label>
+      <input type="date" id="new-event-date" name="event_date" required>
+      <label for="new-event-location">Location</label>
+      <input type="text" id="new-event-location" name="location">
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Add Event</button>
+      </div>
+    </form>
+  </div>
+
+  <table class="data-table" id="events-table">
+    <thead><tr><th>Date</th><th>Name</th><th>Location</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+    <?php if (empty($events)): ?>
+      <tr><td colspan="5" class="empty-row">No events yet.</td></tr>
+    <?php else: foreach ($events as $e): ?>
+      <tr>
+        <td><?= h(date('M j, Y', strtotime($e['event_date']))) ?></td>
+        <td><?= h($e['name']) ?></td>
+        <td><?= h($e['location'] ?? '—') ?></td>
+        <td class="<?= $e['active'] ? 'badge-ok' : 'badge-fail' ?>"><?= $e['active'] ? 'Active' : 'Inactive' ?></td>
+        <td class="actions">
+          <?php if ($e['active']): ?>
+          <form method="post" action="admin.php?action=event-deactivate" style="display:inline" data-confirm="Deactivate <?= h($e['name']) ?>? Competitors won't be able to pick it for new tech sheets.">
+            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+            <input type="hidden" name="id" value="<?= (int)$e['id'] ?>">
+            <button type="submit" class="link-button">Deactivate</button>
+          </form>
+          <?php else: ?>
+          <form method="post" action="admin.php?action=event-activate" style="display:inline">
+            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+            <input type="hidden" name="id" value="<?= (int)$e['id'] ?>">
+            <button type="submit" class="link-button">Reactivate</button>
+          </form>
+          <?php endif; ?>
+        </td>
+      </tr>
+    <?php endforeach; endif; ?>
+    </tbody>
+  </table>
+</div>
+<script src="js/confirm-modal.js"></script>
+<script src="js/form-feedback.js"></script>
+</body>
+</html><?php
 }
