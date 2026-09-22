@@ -68,6 +68,13 @@ switch ($action) {
         handleResend($pdo, (int)($_POST['id'] ?? 0));
         break;
 
+    case 'update-contact':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleUpdateContact($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
     case 'delete':
         requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php'); exit; }
@@ -303,8 +310,8 @@ function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $fl
     </div>
 
     <div class="detail-card">
-      <h2>Contact &amp; Vehicle</h2>
-      <table class="detail-table">
+      <h2>Contact &amp; Vehicle <button type="button" class="link-button no-print" id="edit-contact-toggle">Edit</button></h2>
+      <table class="detail-table" id="contact-view">
         <tr><td>Name</td><td><?= h($s['name']) ?></td></tr>
         <tr><td>Email</td><td><?= h($s['email']) ?></td></tr>
         <?php if ($linkedUser): ?>
@@ -318,6 +325,26 @@ function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $fl
         <tr><td>Submitted</td><td><?= h(date('F j, Y \a\t g:i A', strtotime($s['submitted_at']))) ?></td></tr>
         <tr><td>Email Sent</td><td><?= $s['email_sent'] ? '✓ Yes' : '⚠ Failed' ?></td></tr>
       </table>
+      <form method="post" action="admin.php?action=update-contact" id="contact-edit" class="edit-form" hidden>
+        <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+        <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
+        <label for="edit-name">Name</label>
+        <input type="text" id="edit-name" name="name" value="<?= h($s['name']) ?>" required>
+        <label for="edit-email">Email</label>
+        <input type="email" id="edit-email" name="email" value="<?= h($s['email']) ?>" required>
+        <label for="edit-year">Year</label>
+        <input type="text" id="edit-year" name="year" value="<?= h($s['year']) ?>">
+        <label for="edit-make">Make</label>
+        <input type="text" id="edit-make" name="make" value="<?= h($s['make']) ?>">
+        <label for="edit-model">Model</label>
+        <input type="text" id="edit-model" name="model" value="<?= h($s['model']) ?>">
+        <label for="edit-comments">Comments</label>
+        <textarea id="edit-comments" name="comments" rows="3"><?= h($s['comments'] ?? '') ?></textarea>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-secondary" id="edit-contact-cancel">Cancel</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -371,6 +398,17 @@ function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $fl
 </div>
 <script src="js/confirm-modal.js"></script>
 <script src="js/form-feedback.js"></script>
+<script>
+(function () {
+  var toggle = document.getElementById('edit-contact-toggle');
+  var cancel = document.getElementById('edit-contact-cancel');
+  var view = document.getElementById('contact-view');
+  var edit = document.getElementById('contact-edit');
+  if (!toggle) return;
+  toggle.addEventListener('click', function () { view.hidden = true; edit.hidden = false; });
+  cancel.addEventListener('click', function () { view.hidden = false; edit.hidden = true; });
+})();
+</script>
 </body>
 </html><?php
 }
@@ -502,6 +540,36 @@ function handleFile(PDO $pdo, int $id, string $field): void {
     readfile($path);
     exit;
 }
+function handleUpdateContact(PDO $pdo, int $id): void {
+    $sub = db_get_submission($pdo, $id);
+    if (!$sub) {
+        setFlash('Submission not found.', 'error');
+        header('Location: admin.php');
+        exit;
+    }
+
+    $name = trim($_POST['name'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $year = trim($_POST['year'] ?? '');
+    $make = trim($_POST['make'] ?? '');
+    $model = trim($_POST['model'] ?? '');
+    $comments = trim($_POST['comments'] ?? '');
+
+    if ($name === '' || $email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        setFlash('Name and a valid email are required.', 'error');
+        header('Location: admin.php?action=view&id=' . $id);
+        exit;
+    }
+
+    db_update_submission_contact($pdo, $id, [
+        'name' => $name, 'email' => $email, 'year' => $year, 'make' => $make, 'model' => $model,
+        'comments' => $comments !== '' ? $comments : null,
+    ]);
+    setFlash('Contact details updated.', 'success');
+    header('Location: admin.php?action=view&id=' . $id);
+    exit;
+}
+
 function handleResend(PDO $pdo, int $id): void {
     $sub = db_get_submission($pdo, $id);
     if (!$sub) {

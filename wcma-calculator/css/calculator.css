@@ -1589,6 +1589,36 @@ textarea.error {
     color: #444;
 }
 
+.edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing-unit) * 0.4);
+    margin-top: var(--spacing-unit);
+    padding-top: var(--spacing-unit);
+    border-top: 1px solid var(--border-color);
+}
+
+.edit-form label {
+    font-size: 0.85rem;
+    font-weight: bold;
+    color: #444;
+}
+
+.edit-form input,
+.edit-form textarea {
+    padding: 0.4rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    font-family: inherit;
+    font-size: 0.9rem;
+}
+
+.edit-form .form-actions {
+    display: flex;
+    gap: calc(var(--spacing-unit) * 0.5);
+    margin-top: 0.4rem;
+}
+
 .calc-table {
     width: 100%;
     border-collapse: collapse;
