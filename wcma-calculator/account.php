@@ -79,6 +79,7 @@ switch ($action) {
 function handleAccountList(PDO $pdo, array $user): void {
     $drafts = db_get_user_drafts($pdo, $user['id']);
     $submissions = db_get_user_submissions($pdo, $user['id']);
+    $techSheets = db_get_user_tech_sheets($pdo, $user['id']);
     $totalCount = db_count_user_drafts($pdo, $user['id']) + db_count_user_submissions($pdo, $user['id']);
 
     $rows = [];
@@ -92,10 +93,10 @@ function handleAccountList(PDO $pdo, array $user): void {
 
     $csrf = generateCsrfToken();
     $flash = getFlash();
-    renderAccountListPage($rows, $totalCount, $csrf, $flash);
+    renderAccountListPage($rows, $totalCount, $csrf, $flash, $techSheets, $pdo);
 }
 
-function renderAccountListPage(array $rows, int $count, string $csrf, ?array $flash): void {
+function renderAccountListPage(array $rows, int $count, string $csrf, ?array $flash, array $techSheets = [], ?PDO $pdo = null): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -161,6 +162,7 @@ function renderAccountListPage(array $rows, int $count, string $csrf, ?array $fl
         <td><strong><?= h($s['calculated_class'] ?? '—') ?></strong></td>
         <td class="actions">
           <a href="account.php?action=view&id=<?= (int)$s['id'] ?>">View</a>
+          <a href="tech-sheets.php?action=new&submission_id=<?= (int)$s['id'] ?>">Submit Tech Sheet</a>
           <form method="post" action="account.php?action=delete" style="display:inline"
                 data-confirm="Permanently delete this submission and its files?">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
@@ -175,6 +177,26 @@ function renderAccountListPage(array $rows, int $count, string $csrf, ?array $fl
     </tbody>
   </table>
   <p class="no-results-message" hidden>No cars match your search.</p>
+
+  <h2 style="margin-top:2rem">My Tech Sheets</h2>
+  <?php if (empty($techSheets)): ?>
+  <p class="empty-row">No tech sheets submitted yet.</p>
+  <?php else: ?>
+  <table class="data-table" id="tech-sheets-table">
+    <thead><tr><th>Event</th><th>Vehicle</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody>
+    <?php foreach ($techSheets as $ts): $event = $pdo ? db_get_event($pdo, (int)$ts['event_id']) : null; ?>
+      <tr>
+        <td><?= h($event['name'] ?? 'Unknown event') ?></td>
+        <td><?= h(trim($ts['car_make'] . ' ' . $ts['car_model'] . ' #' . $ts['car_number'])) ?></td>
+        <td><?= h(ucfirst($ts['sheet_type'])) ?></td>
+        <td class="<?= $ts['status'] === 'teched' ? 'badge-ok' : 'badge-fail' ?>"><?= $ts['status'] === 'teched' ? 'Reviewed' : 'Submitted' ?></td>
+        <td class="actions"><a href="tech-sheets.php?action=view&id=<?= (int)$ts['id'] ?>">View</a></td>
+      </tr>
+    <?php endforeach; ?>
+    </tbody>
+  </table>
+  <?php endif; ?>
 </div>
 <script src="js/table-tools.js"></script>
 <script src="js/confirm-modal.js"></script>
