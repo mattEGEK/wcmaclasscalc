@@ -112,11 +112,14 @@
         }
 
         function refresh() {
-            const checked = checkboxes().filter(function (cb) { return cb.checked; });
+            const all = checkboxes();
+            const checked = all.filter(function (cb) { return cb.checked; });
             actionBtn.disabled = checked.length === 0;
             if (template) {
                 actionBtn.closest('form').dataset.confirm = template.replace('{n}', checked.length);
             }
+            selectAll.checked = all.length > 0 && checked.length === all.length;
+            selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
         }
 
         selectAll.addEventListener('change', function () {
