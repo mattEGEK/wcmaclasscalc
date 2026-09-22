@@ -241,12 +241,13 @@ function handleView(PDO $pdo, int $id): void {
         header('Location: admin.php');
         exit;
     }
+    $linkedUser = $sub['user_id'] ? db_find_user_by_id($pdo, (int)$sub['user_id']) : null;
     $csrf  = generateCsrfToken();
     $flash = getFlash();
-    renderDetailPage($sub, $csrf, $flash);
+    renderDetailPage($sub, $linkedUser, $csrf, $flash);
 }
 
-function renderDetailPage(array $s, string $csrf, ?array $flash): void {
+function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $flash): void {
     $brake_list = [];
     $brake_raw = json_decode($s['brake_suspension'] ?? '[]', true);
     if (is_array($brake_raw)) $brake_list = $brake_raw;
@@ -306,6 +307,9 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
       <table class="detail-table">
         <tr><td>Name</td><td><?= h($s['name']) ?></td></tr>
         <tr><td>Email</td><td><?= h($s['email']) ?></td></tr>
+        <?php if ($linkedUser): ?>
+        <tr><td>Account</td><td><a href="admin.php?action=users#user-<?= (int)$linkedUser['id'] ?>"><?= h($linkedUser['name']) ?> (<?= h($linkedUser['email']) ?>)</a></td></tr>
+        <?php endif; ?>
         <tr><td>Vehicle</td><td><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></td></tr>
         <?php if ($s['comments']): ?><tr><td>Comments</td><td><?= nl2br(h($s['comments'])) ?></td></tr><?php endif; ?>
         <tr><td>Weight</td><td><?= h((string)$s['competition_weight']) ?> lbs</td></tr>
@@ -322,12 +326,19 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
     <div class="detail-card" style="margin-bottom:1.5rem">
       <h2>Actions</h2>
       <div class="actions">
-        <form method="post" action="admin.php?action=resend" style="display:inline">
+        <form method="post" action="admin.php?action=resend" style="display:inline"
+              data-confirm="Re-send the tech sheet email to <?= h($s['name']) ?> (<?= h($s['email']) ?>) and the admin address?">
           <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
           <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
           <button type="submit" class="btn btn-primary">Re-email Tech Sheet</button>
         </form>
+        <button type="button" class="btn btn-secondary no-print" onclick="window.print()">Print</button>
       </div>
+      <?php if ($s['email_send_count'] > 0): ?>
+      <p class="email-history">Last emailed <?= h(date('M j, Y \a\t g:i A', strtotime($s['last_emailed_at']))) ?> · sent <?= (int)$s['email_send_count'] ?> time<?= $s['email_send_count'] === 1 ? '' : 's' ?></p>
+      <?php else: ?>
+      <p class="email-history">Never emailed.</p>
+      <?php endif; ?>
     </div>
 
     <div class="detail-card">
@@ -358,6 +369,7 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
   </div>
   </div>
 </div>
+<script src="js/confirm-modal.js"></script>
 <script src="js/form-feedback.js"></script>
 </body>
 </html><?php

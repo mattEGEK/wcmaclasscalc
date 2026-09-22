@@ -1098,6 +1098,22 @@ textarea.error {
     }
 }
 
+.email-history {
+    color: #666;
+    font-size: 0.85rem;
+    margin-top: 0.6rem;
+}
+
+@media print {
+    .detail-layout {
+        display: block;
+    }
+    .page-header nav,
+    .no-print {
+        display: none !important;
+    }
+}
+
 /* Accessibility */
 @media (prefers-reduced-motion: reduce) {
     * {
