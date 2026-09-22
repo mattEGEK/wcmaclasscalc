@@ -22,6 +22,32 @@ const TECH_SHEET_EMAIL_NAME = 'WCMA Classing';
 $pdo = db_connect();
 db_init($pdo);
 
+/**
+ * Signature-src resolver for the web/print view: an authenticated URL served
+ * through the ?action=sig route below (uploads/ itself is Deny-from-all).
+ * Reusable by other scripts (e.g. a future admin/review page) via $script.
+ */
+function techSheetSignatureResolverWeb(int $techSheetId, string $script = 'tech-sheets.php'): callable {
+    return function (string $which, string $path) use ($techSheetId, $script): ?string {
+        return $script . '?action=sig&id=' . $techSheetId . '&which=' . rawurlencode($which);
+    };
+}
+
+/**
+ * Signature-src resolver for email bodies: mail recipients have no session
+ * (can't use the authenticated URL) and mail clients often block remote
+ * images anyway, so the PNG is read from disk and inlined as a data: URI.
+ */
+function techSheetSignatureResolverEmail(): callable {
+    return function (string $which, string $path): ?string {
+        $full = __DIR__ . '/' . $path;
+        if (!is_file($full)) return null;
+        $data = @file_get_contents($full);
+        if ($data === false) return null;
+        return 'data:image/png;base64,' . base64_encode($data);
+    };
+}
+
 function requireTechSheetLogin(): array {
     $user = current_user();
     if ($user === null) {
@@ -68,6 +94,11 @@ switch ($action) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: account.php'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleResendTechSheet($pdo, $user, (int)($_POST['id'] ?? 0));
+        break;
+
+    case 'sig':
+        $user = requireTechSheetLogin();
+        handleTechSheetSignature($pdo, $user, (int)($_GET['id'] ?? 0), (string)($_GET['which'] ?? ''));
         break;
 
     default:
@@ -129,7 +160,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
     </form>
     <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
   </div>
-  <?= renderTechSheetHtml($sheet, $drivers, $event ?? []) ?>
+  <?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id'])) ?>
 </div>
 <script src="js/form-feedback.js"></script>
 </body>
@@ -268,11 +299,11 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
       <p><em>I hereby stipulate that the above vehicle meets the regulations for the event.</em></p>
       <?php if ($isEdit): ?><p class="form-hint">Leave the pads blank to keep the signatures already on file.</p><?php endif; ?>
       <label>Entrant's Signature</label>
-      <?php if ($hasEntrantSignature): ?><div><?= techSheetSignatureImg($existingSheet['entrant_signature_path']) ?></div><?php endif; ?>
+      <?php if ($hasEntrantSignature): ?><div><?= techSheetSignatureImg($existingSheet['entrant_signature_path'], 'entrant', techSheetSignatureResolverWeb((int)$existingSheet['id'])) ?></div><?php endif; ?>
       <div class="sig-pad-wrap"><canvas id="entrant-sig-canvas"></canvas></div>
       <div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="entrant">Clear</button></div>
       <label>Driver's Signature</label>
-      <?php if ($hasDriverSignature): ?><div><?= techSheetSignatureImg($existingSheet['driver_signature_path']) ?></div><?php endif; ?>
+      <?php if ($hasDriverSignature): ?><div><?= techSheetSignatureImg($existingSheet['driver_signature_path'], 'driver', techSheetSignatureResolverWeb((int)$existingSheet['id'])) ?></div><?php endif; ?>
       <div class="sig-pad-wrap"><canvas id="driver-sig-canvas"></canvas></div>
       <div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="driver">Clear</button></div>
     </div>
@@ -316,6 +347,29 @@ function saveSignatureFile(int $techSheetId, string $field, string $dataUrl): ?s
     return $relative;
 }
 
+function handleTechSheetSignature(PDO $pdo, array $user, int $id, string $which): void {
+    $columnMap = [
+        'entrant' => 'entrant_signature_path',
+        'driver'  => 'driver_signature_path',
+        'tech'    => 'tech_signature_path',
+    ];
+    if (!isset($columnMap[$which])) { http_response_code(404); exit; }
+
+    $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
+    if (!$sheet) { http_response_code(404); exit; }
+
+    $path = $sheet[$columnMap[$which]] ?? null;
+    if (!$path) { http_response_code(404); exit; }
+
+    $fullPath = __DIR__ . '/' . $path;
+    if (!file_exists($fullPath)) { http_response_code(404); exit; }
+
+    header('Content-Type: image/png');
+    header('Content-Length: ' . filesize($fullPath));
+    readfile($fullPath);
+    exit;
+}
+
 function buildTechSheetMailer(): PHPMailer {
     $mail = new PHPMailer(true);
     $mail->isSMTP();
@@ -328,6 +382,75 @@ function buildTechSheetMailer(): PHPMailer {
     $mail->CharSet    = 'UTF-8';
     $mail->setFrom(FROM_EMAIL, FROM_NAME);
     return $mail;
+}
+
+/**
+ * Decodes and trims the POST fields shared by handleSubmit() and
+ * handleUpdate(). Purely a parse step — no validation here (see
+ * validateTechSheetPost()).
+ */
+function parseTechSheetPost(array $post): array {
+    return [
+        'sheet_type'    => ($post['sheet_type'] ?? 'standard') === 'endurance' ? 'endurance' : 'standard',
+        'checklist'     => json_decode($post['checklist_json'] ?? '{}', true) ?: [],
+        'equipment'     => json_decode($post['driver1_equipment_json'] ?? '{}', true) ?: [],
+        'drivers_input' => json_decode($post['drivers_json'] ?? '[]', true) ?: [],
+        'entrant_name'  => trim($post['entrant_name'] ?? ''),
+        'driver_name'   => trim($post['driver_name'] ?? ''),
+        'car_number'    => trim($post['car_number'] ?? ''),
+        'car_colour'    => trim($post['car_colour'] ?? ''),
+        'engine_cc'     => trim($post['engine_cc'] ?? '') ?: null,
+        'engine_hp'     => trim($post['engine_hp'] ?? '') ?: null,
+        'log_book'      => $post['log_book_turned_in'] ?? null,
+    ];
+}
+
+/**
+ * Validates everything handleSubmit()/handleUpdate() share: the checklist,
+ * driver-1 equipment, the plain required text fields, and — for endurance
+ * sheets — every additional driver's name/number/equipment (this is where
+ * the C2 fix lives). Returns the normalized additional-driver rows (possibly
+ * an empty array, for a standard sheet or an endurance sheet with none) on
+ * success, or null on any failure. Callers must check for null explicitly,
+ * not falsiness, since an empty array is a valid result.
+ */
+function validateTechSheetPost(array $parsed): ?array {
+    if (!validateChecklist($parsed['checklist'])) return null;
+    if (!validateDriverEquipment($parsed['equipment'])) return null;
+    if ($parsed['entrant_name'] === '' || $parsed['driver_name'] === ''
+        || $parsed['car_number'] === '' || $parsed['car_colour'] === '') return null;
+    if (!in_array($parsed['log_book'], ['0', '1'], true)) return null;
+
+    if ($parsed['sheet_type'] === 'endurance') {
+        $driverRows = validateAdditionalDrivers($parsed['drivers_input']);
+        if ($driverRows === null) return null;
+        return $driverRows;
+    }
+    return [];
+}
+
+/**
+ * Sends the tech sheet confirmation email (to the competitor and the club)
+ * shared by handleSubmit(), handleUpdate() and handleResendTechSheet().
+ * Always embeds signatures as inline data: URIs (see
+ * techSheetSignatureResolverEmail()) since recipients have no session.
+ */
+function sendTechSheetConfirmationEmail(array $sheet, array $drivers, array $event, string $recipientEmail, string $entrantName): bool {
+    $bodyHtml = '<html><body>' . renderTechSheetHtml($sheet, $drivers, $event, techSheetSignatureResolverEmail()) . '</body></html>';
+    try {
+        $mail = buildTechSheetMailer();
+        $mail->addAddress($recipientEmail, $entrantName);
+        $mail->addAddress(TECH_SHEET_EMAIL, TECH_SHEET_EMAIL_NAME);
+        $mail->Subject = 'WCMA Tech Sheet — ' . $entrantName . ' — ' . ($event['name'] ?? '');
+        $mail->isHTML(true);
+        $mail->Body = $bodyHtml;
+        $mail->AltBody = 'Your tech sheet for ' . ($event['name'] ?? '') . ' is available online at tech-sheets.php?action=view&id=' . $sheet['id'];
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        error_log('Tech sheet email error: ' . $e->getMessage());
+        return false;
+    }
 }
 
 function handleSubmit(PDO $pdo, array $user): void {
@@ -347,33 +470,28 @@ function handleSubmit(PDO $pdo, array $user): void {
         exit;
     }
 
-    $sheetType = ($_POST['sheet_type'] ?? 'standard') === 'endurance' ? 'endurance' : 'standard';
-    $checklist = json_decode($_POST['checklist_json'] ?? '{}', true) ?: [];
-    $equipment = json_decode($_POST['driver1_equipment_json'] ?? '{}', true) ?: [];
-    $driversInput = json_decode($_POST['drivers_json'] ?? '[]', true) ?: [];
-    $entrantName = trim($_POST['entrant_name'] ?? '');
-    $driverName = trim($_POST['driver_name'] ?? '');
-    $carNumber = trim($_POST['car_number'] ?? '');
-    $carColour = trim($_POST['car_colour'] ?? '');
-    $logBook = $_POST['log_book_turned_in'] ?? null;
-
-    if (!validateChecklist($checklist) || !validateDriverEquipment($equipment)
-        || $entrantName === '' || $driverName === '' || $carNumber === '' || $carColour === ''
-        || !in_array($logBook, ['0', '1'], true)) {
-        setFlash('Please complete every required field before submitting.', 'error');
+    $parsed = parseTechSheetPost($_POST);
+    $driverRows = validateTechSheetPost($parsed);
+    if ($driverRows === null) {
+        setFlash('Please complete every required field, including all driver equipment checklists, before submitting.', 'error');
         header('Location: tech-sheets.php?action=new&submission_id=' . $submissionId);
+        // Residual risk (I3): a validation failure here loses the filled-in form,
+        // since real re-population from $_POST wasn't built in this fix wave.
+        // The C2 client-side validation added alongside this makes hitting this
+        // path rare (bad extension/second-tab/race only) — see the fix-wave
+        // report for the full rationale.
         exit;
     }
 
     $id = db_insert_tech_sheet($pdo, [
-        'submission_id' => $submission['id'], 'user_id' => $user['id'], 'event_id' => $eventId, 'sheet_type' => $sheetType,
-        'entrant_name' => $entrantName, 'driver_name' => $driverName,
-        'car_make' => $submission['make'], 'car_model' => $submission['model'], 'car_colour' => $carColour,
-        'car_number' => $carNumber, 'class' => $submission['calculated_class'] ?? '',
-        'engine_cc' => trim($_POST['engine_cc'] ?? '') ?: null, 'engine_hp' => trim($_POST['engine_hp'] ?? '') ?: null,
+        'submission_id' => $submission['id'], 'user_id' => $user['id'], 'event_id' => $eventId, 'sheet_type' => $parsed['sheet_type'],
+        'entrant_name' => $parsed['entrant_name'], 'driver_name' => $parsed['driver_name'],
+        'car_make' => $submission['make'], 'car_model' => $submission['model'], 'car_colour' => $parsed['car_colour'],
+        'car_number' => $parsed['car_number'], 'class' => $submission['calculated_class'] ?? '',
+        'engine_cc' => $parsed['engine_cc'], 'engine_hp' => $parsed['engine_hp'],
         'car_weight' => (int)$submission['competition_weight'],
-        'checklist_json' => json_encode($checklist), 'driver1_equipment_json' => json_encode($equipment),
-        'log_book_turned_in' => (int)$logBook,
+        'checklist_json' => json_encode($parsed['checklist']), 'driver1_equipment_json' => json_encode($parsed['equipment']),
+        'log_book_turned_in' => (int)$parsed['log_book'],
     ]);
 
     $sigPaths = [];
@@ -387,37 +505,14 @@ function handleSubmit(PDO $pdo, array $user): void {
         db_update_tech_sheet_signatures($pdo, $id, $sigPaths);
     }
 
-    if ($sheetType === 'endurance' && !empty($driversInput)) {
-        $driverRows = [];
-        foreach ($driversInput as $d) {
-            $driverRows[] = [
-                'driver_number' => (int)($d['driver_number'] ?? 0),
-                'driver_name' => trim($d['driver_name'] ?? ''),
-                'equipment_json' => json_encode($d['equipment'] ?? []),
-            ];
-        }
+    if ($parsed['sheet_type'] === 'endurance' && !empty($driverRows)) {
         db_replace_tech_sheet_drivers($pdo, $id, $driverRows);
     }
 
     $sheet = db_get_tech_sheet($pdo, $id);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
-    $bodyHtml = '<html><body>' . renderTechSheetHtml($sheet, $drivers, $event) . '</body></html>';
-    $subject = 'WCMA Tech Sheet — ' . $entrantName . ' — ' . $event['name'];
-
-    $sent = false;
-    try {
-        $mail = buildTechSheetMailer();
-        $mail->addAddress($user['email'] ?? $submission['email'], $entrantName);
-        $mail->addAddress(TECH_SHEET_EMAIL, TECH_SHEET_EMAIL_NAME);
-        $mail->Subject = $subject;
-        $mail->isHTML(true);
-        $mail->Body = $bodyHtml;
-        $mail->AltBody = 'Your tech sheet for ' . $event['name'] . ' has been submitted. View it online at tech-sheets.php?action=view&id=' . $id;
-        $mail->send();
-        $sent = true;
-    } catch (Exception $e) {
-        error_log('Tech sheet submit email error: ' . $e->getMessage());
-    }
+    $recipientEmail = $user['email'] ?? $submission['email'];
+    $sent = sendTechSheetConfirmationEmail($sheet, $drivers, $event, $recipientEmail, $parsed['entrant_name']);
     db_update_email_sent_tech_sheet($pdo, $id, $sent ? 1 : 0);
 
     setFlash('Tech sheet submitted' . ($sent ? ' and emailed to you and the club.' : ', but the confirmation email failed to send.'), $sent ? 'success' : 'error');
@@ -436,33 +531,30 @@ function handleUpdate(PDO $pdo, array $user): void {
 
     $eventId = (int)($_POST['event_id'] ?? 0);
     $event = db_get_event($pdo, $eventId);
-    $sheetType = ($_POST['sheet_type'] ?? 'standard') === 'endurance' ? 'endurance' : 'standard';
-    $checklist = json_decode($_POST['checklist_json'] ?? '{}', true) ?: [];
-    $equipment = json_decode($_POST['driver1_equipment_json'] ?? '{}', true) ?: [];
-    $driversInput = json_decode($_POST['drivers_json'] ?? '[]', true) ?: [];
-    $entrantName = trim($_POST['entrant_name'] ?? '');
-    $driverName = trim($_POST['driver_name'] ?? '');
-    $carNumber = trim($_POST['car_number'] ?? '');
-    $carColour = trim($_POST['car_colour'] ?? '');
-    $logBook = $_POST['log_book_turned_in'] ?? null;
-
-    if (!$event || (int)$event['active'] !== 1 || !validateChecklist($checklist) || !validateDriverEquipment($equipment)
-        || $entrantName === '' || $driverName === '' || $carNumber === '' || $carColour === ''
-        || !in_array($logBook, ['0', '1'], true)) {
-        setFlash('Please complete every required field.', 'error');
+    if (!$event || (int)$event['active'] !== 1) {
+        setFlash('Please choose a valid event.', 'error');
         header('Location: tech-sheets.php?action=edit&id=' . $id);
         exit;
     }
 
+    $parsed = parseTechSheetPost($_POST);
+    $driverRows = validateTechSheetPost($parsed);
+    if ($driverRows === null) {
+        setFlash('Please complete every required field, including all driver equipment checklists.', 'error');
+        header('Location: tech-sheets.php?action=edit&id=' . $id);
+        // Residual risk (I3): same as handleSubmit() — see comment there.
+        exit;
+    }
+
     db_update_tech_sheet($pdo, $id, [
-        'event_id' => $eventId, 'sheet_type' => $sheetType,
-        'entrant_name' => $entrantName, 'driver_name' => $driverName,
-        'car_make' => $sheet['car_make'], 'car_model' => $sheet['car_model'], 'car_colour' => $carColour,
-        'car_number' => $carNumber, 'class' => $sheet['class'],
-        'engine_cc' => trim($_POST['engine_cc'] ?? '') ?: null, 'engine_hp' => trim($_POST['engine_hp'] ?? '') ?: null,
+        'event_id' => $eventId, 'sheet_type' => $parsed['sheet_type'],
+        'entrant_name' => $parsed['entrant_name'], 'driver_name' => $parsed['driver_name'],
+        'car_make' => $sheet['car_make'], 'car_model' => $sheet['car_model'], 'car_colour' => $parsed['car_colour'],
+        'car_number' => $parsed['car_number'], 'class' => $sheet['class'],
+        'engine_cc' => $parsed['engine_cc'], 'engine_hp' => $parsed['engine_hp'],
         'car_weight' => (int)$sheet['car_weight'],
-        'checklist_json' => json_encode($checklist), 'driver1_equipment_json' => json_encode($equipment),
-        'log_book_turned_in' => (int)$logBook,
+        'checklist_json' => json_encode($parsed['checklist']), 'driver1_equipment_json' => json_encode($parsed['equipment']),
+        'log_book_turned_in' => (int)$parsed['log_book'],
     ]);
 
     if (!empty($_POST['entrant_signature'])) {
@@ -474,21 +566,24 @@ function handleUpdate(PDO $pdo, array $user): void {
         if ($path) db_update_tech_sheet_signatures($pdo, $id, ['driver_signature_path' => $path]);
     }
 
-    if ($sheetType === 'endurance') {
-        $driverRows = [];
-        foreach ($driversInput as $d) {
-            $driverRows[] = [
-                'driver_number' => (int)($d['driver_number'] ?? 0),
-                'driver_name' => trim($d['driver_name'] ?? ''),
-                'equipment_json' => json_encode($d['equipment'] ?? []),
-            ];
-        }
+    if ($parsed['sheet_type'] === 'endurance') {
         db_replace_tech_sheet_drivers($pdo, $id, $driverRows);
     } else {
         db_replace_tech_sheet_drivers($pdo, $id, []);
     }
 
-    setFlash('Tech sheet updated.', 'success');
+    // I6: re-emailing on edit — the club's copy would otherwise go stale after
+    // a change unless the competitor separately clicked "Resend Email".
+    $updatedSheet = db_get_tech_sheet($pdo, $id);
+    $updatedDrivers = db_get_tech_sheet_drivers($pdo, $id);
+    $submission = db_get_submission($pdo, (int)$sheet['submission_id']);
+    $recipientEmail = $submission['email'] ?? null;
+    $sent = $recipientEmail
+        ? sendTechSheetConfirmationEmail($updatedSheet, $updatedDrivers, $event, $recipientEmail, $parsed['entrant_name'])
+        : false;
+    db_update_email_sent_tech_sheet($pdo, $id, $sent ? 1 : 0);
+
+    setFlash('Tech sheet updated' . ($sent ? ' and re-emailed to you and the club.' : ', but the confirmation email failed to send.'), $sent ? 'success' : 'error');
     header('Location: tech-sheets.php?action=view&id=' . $id);
     exit;
 }
@@ -502,28 +597,17 @@ function handleResendTechSheet(PDO $pdo, array $user, int $id): void {
     }
     $event = db_get_event($pdo, (int)$sheet['event_id']);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
-    $bodyHtml = '<html><body>' . renderTechSheetHtml($sheet, $drivers, $event ?? []) . '</body></html>';
 
     // current_user() doesn't carry an email; resolve the original submission's email
     // (same fallback handleSubmit() uses when sending the initial confirmation).
     $submission = db_get_submission($pdo, (int)$sheet['submission_id']);
     $recipientEmail = $submission['email'] ?? null;
 
-    $sent = false;
-    try {
-        if (!$recipientEmail) {
-            throw new Exception('No email address on file for this tech sheet.');
-        }
-        $mail = buildTechSheetMailer();
-        $mail->addAddress($recipientEmail, $sheet['entrant_name']);
-        $mail->addAddress(TECH_SHEET_EMAIL, TECH_SHEET_EMAIL_NAME);
-        $mail->Subject = 'WCMA Tech Sheet — ' . $sheet['entrant_name'] . ' — ' . ($event['name'] ?? '');
-        $mail->isHTML(true);
-        $mail->Body = $bodyHtml;
-        $mail->send();
-        $sent = true;
-    } catch (Exception $e) {
-        error_log('Tech sheet resend error: ' . $e->getMessage());
+    $sent = $recipientEmail
+        ? sendTechSheetConfirmationEmail($sheet, $drivers, $event ?? [], $recipientEmail, $sheet['entrant_name'])
+        : false;
+    if (!$recipientEmail) {
+        error_log('Tech sheet resend error: No email address on file for this tech sheet.');
     }
     db_update_email_sent_tech_sheet($pdo, $id, $sent ? 1 : 0);
     setFlash($sent ? 'Tech sheet email re-sent.' : 'Failed to re-send email.', $sent ? 'success' : 'error');
