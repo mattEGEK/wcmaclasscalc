@@ -197,10 +197,43 @@ function handleView(PDO $pdo, int $id): void {
     renderDetailPage($sub, $csrf, $flash);
 }
 
+// Class ranges, mirrored from js/calculator.js determineClass() — used only to
+// annotate the admin breakdown, not to recompute stored results.
+const CLASS_RANGES = [
+    ['GTU', -INF, 6.00],
+    ['GT1', 6.00, 8.00],
+    ['GT2', 8.00, 10.00],
+    ['GT3', 10.00, 12.00],
+    ['GT4', 12.00, 14.00],
+    ['IT1', 14.00, 18.00],
+    ['IT2', 18.00, INF],
+];
+
+function classForRatio(float $ratio): ?array {
+    if ($ratio <= 0) return null;
+    foreach (CLASS_RANGES as $range) {
+        [$name, $min, $max] = $range;
+        if ($ratio >= $min && $ratio < $max) return $range;
+    }
+    return null;
+}
+
+function formatClassRange(array $range): string {
+    [$name, $min, $max] = $range;
+    $minStr = $min === -INF ? '< ' . number_format($max, 2) : number_format($min, 2);
+    $maxStr = $max === INF ? '+' : ' – ' . number_format($max - 0.01, 2);
+    return $min === -INF ? "{$name} ({$minStr})" : "{$name} ({$minStr}{$maxStr})";
+}
+
 function renderDetailPage(array $s, string $csrf, ?array $flash): void {
     $brake_list = [];
     $brake_raw = json_decode($s['brake_suspension'] ?? '[]', true);
     if (is_array($brake_raw)) $brake_list = $brake_raw;
+
+    $weight = (float)$s['competition_weight'];
+    $hp     = (float)$s['declared_hp'];
+    $baseRatio = (float)$s['base_ratio'];
+    $baseClassRange = classForRatio($baseRatio);
 
     function modRow(string $label, ?string $display, float $value): string {
         if (!$display && $value == 0) return '';
@@ -231,9 +264,14 @@ function renderDetailPage(array $s, string $csrf, ?array $flash): void {
       <h2>Calculation Breakdown</h2>
       <table class="calc-table">
         <tr><td>Base Ratio</td>
-            <td style="text-align:right"><?= number_format((float)$s['base_ratio'], 2) ?></td><td></td></tr>
+            <td style="text-align:right"><?= number_format($baseRatio, 2) ?></td>
+            <td style="color:#666;font-size:.85rem">
+              <?= number_format($weight, 0) ?> lbs ÷ <?= number_format($hp, 0) ?> hp
+              <?php if ($baseClassRange): ?> → <?= h(formatClassRange($baseClassRange)) ?><?php endif; ?>
+            </td></tr>
         <tr><td>Weight Factor</td>
-            <td style="text-align:right"><?= ($s['weight_factor'] >= 0 ? '+' : '') . number_format((float)$s['weight_factor'], 2) ?></td><td></td></tr>
+            <td style="text-align:right"><?= ($s['weight_factor'] >= 0 ? '+' : '') . number_format((float)$s['weight_factor'], 2) ?></td>
+            <td style="color:#666;font-size:.85rem">at <?= number_format($weight, 0) ?> lbs</td></tr>
         <?= modRow('Chassis', $s['chassis_display'], (float)$s['chassis_value']) ?>
         <?= modRow('Body Mods', $s['body_mods_display'], (float)$s['body_mods_value']) ?>
         <?= modRow('Transmission', $s['transmission_display'], (float)$s['transmission_value']) ?>
