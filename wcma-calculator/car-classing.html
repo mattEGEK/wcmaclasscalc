@@ -22,8 +22,13 @@
         </header>
         
         <div class="instructions-box">
-            <h2>How to Use</h2>
-            <p>Enter your vehicle's competition weight and declared horsepower to calculate your base ratio. Select any applicable modification factors from the dropdowns, and the calculator will automatically update your modified ratio and calculated class in real-time. Review the results in the calculation box on the right before submitting.</p>
+            <h2>How Classing Works</h2>
+            <ol class="how-it-works-steps">
+                <li><strong>Base Ratio.</strong> Competition Weight &divide; Declared HP gives your starting ratio and Base Class (e.g. a 2800&nbsp;lb / 350&nbsp;hp car &rarr; ratio 8.00 &rarr; GT2).</li>
+                <li><strong>Modifiers shift the ratio.</strong> Each chassis, body, transmission, drivetrain, tire, and brake/suspension option you select adds or subtracts from that ratio &mdash; the value next to each dropdown shows exactly how much.</li>
+                <li><strong>Final class.</strong> Base Ratio + Weight Factor + Modification Factor = Modified Ratio, and the Modified Ratio determines your Calculated Class shown on the right.</li>
+            </ol>
+            <p class="rulebook-disclaimer">This calculator gives an estimate for planning purposes &mdash; it is not a substitute for tech inspection. For authoritative criteria, see the official <a href="https://www.wcma.ca/racing/racing-regulations/" target="_blank" rel="noopener">Sporting &amp; Technical Regulations</a> (updated annually).</p>
         </div>
 
         <div class="main-layout">
@@ -115,7 +120,9 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="dyno-hp">Dyno HP (optional)</label>
+                        <label for="dyno-hp">Dyno HP (optional)
+                            <button type="button" class="info-tooltip-trigger" data-tooltip-key="dynoHp" aria-label="What is Dyno HP?">?</button>
+                        </label>
                         <input type="number" id="dyno-hp" name="dyno_hp" min="0" step="1" placeholder="Enter dyno HP">
                         <span class="error-message" id="dyno-hp-error"></span>
                     </div>
@@ -127,6 +134,7 @@
                             </select>
                             <span class="modifier-value" id="chassis-modifier">+0.00</span>
                         </div>
+                        <p class="modifier-explainer" id="chassis-explainer"></p>
                     </div>
 
                     <div class="form-group">
@@ -137,6 +145,7 @@
                             </select>
                             <span class="modifier-value" id="body-mods-modifier">+0.00</span>
                         </div>
+                        <p class="modifier-explainer" id="body-mods-explainer"></p>
                     </div>
 
                     <div class="form-group">
@@ -147,6 +156,7 @@
                             </select>
                             <span class="modifier-value" id="transmission-modifier">+0.00</span>
                         </div>
+                        <p class="modifier-explainer" id="transmission-explainer"></p>
                     </div>
 
                     <div class="form-group">
@@ -157,6 +167,7 @@
                             </select>
                             <span class="modifier-value" id="drivetrain-modifier">+0.00</span>
                         </div>
+                        <p class="modifier-explainer" id="drivetrain-explainer"></p>
                     </div>
 
                     <div class="form-group">
@@ -168,6 +179,7 @@
                             <span class="modifier-value" id="tires-modifier">+0.00</span>
                         </div>
                         <span class="field-note">IT1/IT2: Tire width based on vehicle weight</span>
+                        <p class="modifier-explainer" id="tires-explainer"></p>
                     </div>
 
                     <div class="form-group">
@@ -193,6 +205,7 @@
             </div>
 
             <p class="submit-note">Note: Print out a copy for yourself before hitting submit.</p>
+            <p class="submit-note">This is an estimate, not a ruling &mdash; see the official <a href="https://www.wcma.ca/racing/racing-regulations/" target="_blank" rel="noopener">Sporting &amp; Technical Regulations</a> for the authoritative criteria.</p>
             </form>
             </div>
 
@@ -203,25 +216,39 @@
                         <h2>Calculation Results</h2>
                         <div class="inline-calculation-summary">
                             <div class="summary-item">
-                                <span class="summary-label">Weight Factor:</span>
+                                <span class="summary-label">Weight Factor:
+                                    <button type="button" class="info-tooltip-trigger" data-tooltip-key="weightFactor" aria-label="What is Weight Factor?">?</button>
+                                </span>
                                 <span class="summary-value" id="weight-factor-display">--</span>
                             </div>
                             <div class="summary-item">
-                                <span class="summary-label">Base Ratio:</span>
+                                <span class="summary-label">Base Ratio:
+                                    <button type="button" class="info-tooltip-trigger" data-tooltip-key="baseRatio" aria-label="What is Base Ratio?">?</button>
+                                </span>
                                 <span class="summary-value" id="inline-base-ratio">--</span>
                             </div>
                             <div class="summary-item">
-                                <span class="summary-label">Additional Mod Factors:</span>
+                                <span class="summary-label">Additional Mod Factors:
+                                    <button type="button" class="info-tooltip-trigger" data-tooltip-key="modificationFactor" aria-label="What is Modification Factor?">?</button>
+                                </span>
                                 <span class="summary-value" id="additional-mods-display">--</span>
                             </div>
                             <div class="summary-item">
-                                <span class="summary-label">Modified Ratio:</span>
+                                <span class="summary-label">Modified Ratio:
+                                    <button type="button" class="info-tooltip-trigger" data-tooltip-key="modifiedRatio" aria-label="What is Modified Ratio?">?</button>
+                                </span>
                                 <span class="summary-value" id="inline-modified-ratio">--</span>
                             </div>
                             <div class="summary-item highlight">
                                 <span class="summary-label">Calculated Class:</span>
                                 <span class="summary-value" id="inline-calculated-class">--</span>
                             </div>
+                        </div>
+                        <div class="boundary-gauge" id="boundary-gauge" hidden>
+                            <div class="boundary-gauge-track">
+                                <div class="boundary-gauge-fill" id="boundary-gauge-fill"></div>
+                            </div>
+                            <p class="boundary-gauge-label" id="boundary-gauge-label"></p>
                         </div>
                     </div>
                     
@@ -267,6 +294,9 @@
         <div id="form-messages" class="form-messages" role="alert" aria-live="polite"></div>
         <div id="account-nudge"></div>
     </div>
+
+    <!-- Shared glossary tooltip popover, positioned next to whichever (?) trigger is active -->
+    <div id="info-tooltip-popover" class="info-tooltip-popover" role="tooltip" hidden></div>
 
     <script type="module" src="js/calculator.js?v=1.2"></script>
     <script type="module" src="js/form-handler.js?v=1.2"></script>

@@ -3,7 +3,7 @@
  * Handles DOM manipulation, event handling, and real-time updates
  */
 
-import { updateCalculations, formatNumber } from './calculator.js';
+import { updateCalculations, formatNumber, CLASS_RANGES } from './calculator.js';
 import { handleFormSubmit, clearFieldError, showFieldError, validateFileSize, validateFileType } from './form-handler.js';
 import {
     chassisModifierTable,
@@ -15,6 +15,15 @@ import {
     getModifierValue,
     isOptionAvailable
 } from './modifiers.js';
+
+// Glossary content for the (?) tooltip triggers
+const TOOLTIP_CONTENT = {
+    baseRatio: 'Competition Weight ÷ Declared HP, rounded to 2 decimals. This sets your starting class before any modifiers are applied.',
+    weightFactor: 'An adjustment based on how light or heavy your car is compared to the typical range for its class — very light or very heavy cars get nudged to keep classing fair.',
+    modificationFactor: 'The sum of all your selected chassis, body, transmission, drivetrain, tire, and brake/suspension modifiers.',
+    modifiedRatio: 'Base Ratio + Weight Factor + Modification Factor. This final number determines your Calculated Class.',
+    dynoHp: 'Horsepower measured on a dynamometer. Optional, but if you have a dyno chart, providing this helps verify your Declared HP at tech inspection.'
+};
 
 // Form data state
 let formData = {
@@ -125,6 +134,145 @@ window.addEventListener('beforeunload', (event) => {
         event.returnValue = '';
     }
 });
+
+/**
+ * Wire up the shared (?) glossary tooltip popover used across the form.
+ * A single popover element is repositioned next to whichever trigger
+ * was clicked, rather than one popover per field.
+ */
+function initInfoTooltips() {
+    const popover = document.getElementById('info-tooltip-popover');
+    if (!popover) return;
+    let activeTrigger = null;
+
+    function hideTooltip() {
+        popover.hidden = true;
+        if (activeTrigger) activeTrigger.classList.remove('is-active');
+        activeTrigger = null;
+    }
+
+    function showTooltip(trigger) {
+        const key = trigger.getAttribute('data-tooltip-key');
+        const text = TOOLTIP_CONTENT[key];
+        if (!text) return;
+
+        popover.textContent = text;
+        popover.hidden = false;
+        trigger.classList.add('is-active');
+        activeTrigger = trigger;
+
+        const triggerRect = trigger.getBoundingClientRect();
+        const popRect = popover.getBoundingClientRect();
+        let left = triggerRect.left + window.scrollX;
+        const top = triggerRect.bottom + window.scrollY + 6;
+        const maxLeft = window.scrollX + document.documentElement.clientWidth - popRect.width - 8;
+        left = Math.min(left, maxLeft);
+        left = Math.max(left, window.scrollX + 8);
+
+        popover.style.left = `${left}px`;
+        popover.style.top = `${top}px`;
+    }
+
+    document.addEventListener('click', (event) => {
+        const trigger = event.target.closest('.info-tooltip-trigger');
+        if (trigger) {
+            event.preventDefault();
+            if (activeTrigger === trigger) {
+                hideTooltip();
+            } else {
+                showTooltip(trigger);
+            }
+            return;
+        }
+        if (!event.target.closest('.info-tooltip-popover')) {
+            hideTooltip();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') hideTooltip();
+    });
+}
+
+/**
+ * Show the full qualifying-criteria text for each selected modifier
+ * dropdown option, since the <option> label itself gets visually
+ * truncated and the full description only appears once selected.
+ */
+function updateModifierExplainers() {
+    const explainerFields = [
+        { selectId: 'chassis', explainerId: 'chassis-explainer', table: chassisModifierTable },
+        { selectId: 'body-mods', explainerId: 'body-mods-explainer', table: bodyModifierTable },
+        { selectId: 'transmission', explainerId: 'transmission-explainer', table: transModifierTable },
+        { selectId: 'drivetrain', explainerId: 'drivetrain-explainer', table: dtModifierTable },
+        { selectId: 'tires', explainerId: 'tires-explainer', table: tireModifierTable }
+    ];
+
+    explainerFields.forEach(field => {
+        const select = document.getElementById(field.selectId);
+        const explainer = document.getElementById(field.explainerId);
+        if (!select || !explainer) return;
+
+        const optionId = select.value;
+        if (!optionId) {
+            explainer.textContent = '';
+            return;
+        }
+
+        const row = field.table.find(r => r[0] === optionId);
+        explainer.textContent = row ? row[1] : '';
+    });
+}
+
+/**
+ * Render the class-boundary proximity gauge: where the modified ratio
+ * sits within the current class band, and how far to the nearer edge.
+ * @param {Object} results - Calculation results from updateCalculations
+ */
+function updateBoundaryGauge(results) {
+    const gauge = document.getElementById('boundary-gauge');
+    const fill = document.getElementById('boundary-gauge-fill');
+    const label = document.getElementById('boundary-gauge-label');
+    if (!gauge || !fill || !label) return;
+
+    const ratio = results.modifiedRatio > 0 ? results.modifiedRatio : results.baseRatio;
+    const range = ratio > 0 && results.calculatedClass
+        ? CLASS_RANGES.find(r => r.name === results.calculatedClass)
+        : null;
+
+    if (!range) {
+        gauge.hidden = true;
+        return;
+    }
+    gauge.hidden = false;
+
+    // GTU/IT2 are open-ended on one side; use a nominal 2.0-wide band
+    // purely for the fill bar's proportions, not for the distance text.
+    const nominalWidth = 2.0;
+    const lowerBound = isFinite(range.min) ? range.min : range.max - nominalWidth;
+    const upperBound = isFinite(range.max) ? range.max : range.min + nominalWidth;
+    const clampedRatio = Math.min(Math.max(ratio, lowerBound), upperBound);
+    const pct = ((clampedRatio - lowerBound) / (upperBound - lowerBound)) * 100;
+    fill.style.width = `${pct.toFixed(1)}%`;
+
+    const idx = CLASS_RANGES.findIndex(r => r.name === results.calculatedClass);
+    const lowerNeighbor = CLASS_RANGES[idx - 1];
+    const upperNeighbor = CLASS_RANGES[idx + 1];
+    const distToLower = isFinite(range.min) ? (ratio - range.min) : null;
+    const distToUpper = isFinite(range.max) ? (range.max - ratio) : null;
+
+    let text = '';
+    if (distToLower !== null && distToUpper !== null) {
+        text = (distToUpper <= distToLower)
+            ? `${formatNumber(distToUpper)} from ${upperNeighbor.name}`
+            : `${formatNumber(distToLower)} from ${lowerNeighbor.name}`;
+    } else if (distToUpper !== null && upperNeighbor) {
+        text = `${formatNumber(distToUpper)} from ${upperNeighbor.name}`;
+    } else if (distToLower !== null && lowerNeighbor) {
+        text = `${formatNumber(distToLower)} from ${lowerNeighbor.name}`;
+    }
+    label.textContent = text;
+}
 
 /**
  * Get selected brake/suspension values (multiple checkboxes)
@@ -493,6 +641,9 @@ function updateInlineResults(results) {
     
     // Highlight the calculated class in the class ranges box
     highlightCalculatedClass(results.calculatedClass);
+
+    // Show where the modified ratio sits within its class band
+    updateBoundaryGauge(results);
 }
 
 /**
@@ -623,6 +774,7 @@ function handleCalculationUpdate() {
     updateFormData();
     updateModificationFieldsState();
     updateModifierValues();
+    updateModifierExplainers();
     const results = updateCalculations(formData);
     updateResultsDisplay(results);
 
@@ -1680,8 +1832,10 @@ function initialize() {
         }
 
         initializeEventListeners();
+        initInfoTooltips();
         updateFormData();
         updateModificationFieldsState();
+        updateModifierExplainers();
         updateResultsDisplay();
 
         // If arriving from a "My Cars" draft Edit link, load that draft

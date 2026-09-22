@@ -136,6 +136,21 @@ export function calculateModifiedRatio(baseRatio, modFactor) {
 }
 
 /**
+ * Class boundaries, in the same order/values used by determineClass().
+ * Shared so the UI can render "how close to the next class" without
+ * duplicating the boundary numbers a third time.
+ */
+export const CLASS_RANGES = [
+    { name: 'GTU', min: -Infinity, max: 6.00 },
+    { name: 'GT1', min: 6.00, max: 8.00 },
+    { name: 'GT2', min: 8.00, max: 10.00 },
+    { name: 'GT3', min: 10.00, max: 12.00 },
+    { name: 'GT4', min: 12.00, max: 14.00 },
+    { name: 'IT1', min: 14.00, max: 18.00 },
+    { name: 'IT2', min: 18.00, max: Infinity }
+];
+
+/**
  * Determine class based on adjusted weight/horsepower ratio
  * @param {number} ratio - Adjusted weight/hp ratio
  * @returns {string} Class name (GTU, GT1, GT2, GT3, GT4, IT1, IT2)

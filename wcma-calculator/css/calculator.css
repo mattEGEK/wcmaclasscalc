@@ -143,6 +143,121 @@ header h1 {
     margin: 0;
 }
 
+.how-it-works-steps {
+    margin: 0 0 calc(var(--spacing-unit) * 0.6) calc(var(--spacing-unit) * 1.1);
+    padding: 0;
+    color: #555;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.how-it-works-steps li {
+    margin-bottom: calc(var(--spacing-unit) * 0.3);
+}
+
+.how-it-works-steps li:last-child {
+    margin-bottom: 0;
+}
+
+.rulebook-disclaimer {
+    color: #666;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    margin: 0;
+    font-style: italic;
+}
+
+.rulebook-disclaimer a {
+    color: var(--secondary-color);
+    font-style: normal;
+}
+
+/* Info tooltip trigger + popover */
+.info-tooltip-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin-left: 0.3em;
+    border: 1px solid currentColor;
+    border-radius: 50%;
+    background: none;
+    color: inherit;
+    opacity: 0.75;
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.info-tooltip-trigger:hover,
+.info-tooltip-trigger:focus-visible,
+.info-tooltip-trigger.is-active {
+    opacity: 1;
+}
+
+.info-tooltip-popover {
+    position: absolute;
+    z-index: 1200;
+    max-width: 280px;
+    background: #1f2d3d;
+    color: #fff;
+    padding: calc(var(--spacing-unit) * 0.5) calc(var(--spacing-unit) * 0.65);
+    border-radius: var(--border-radius);
+    font-size: 0.82rem;
+    line-height: 1.4;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+
+.info-tooltip-popover[hidden] {
+    display: none;
+}
+
+/* Per-modifier explainer text (full qualifying criteria, shown once an option is selected) */
+.modifier-explainer {
+    font-size: 0.78rem;
+    color: #666;
+    line-height: 1.4;
+    margin: calc(var(--spacing-unit) * 0.2) 0 0;
+}
+
+.modifier-explainer:empty {
+    display: none;
+}
+
+/* Class boundary proximity gauge */
+.boundary-gauge {
+    margin-top: calc(var(--spacing-unit) * 1.25);
+    padding-top: calc(var(--spacing-unit) * 1);
+    border-top: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.boundary-gauge-track {
+    position: relative;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.boundary-gauge-fill {
+    height: 100%;
+    width: 0%;
+    background: #fff;
+    border-radius: 20px;
+    transition: width 0.2s ease;
+}
+
+.boundary-gauge-label {
+    margin-top: calc(var(--spacing-unit) * 0.4);
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.9);
+    text-align: center;
+}
+
 /* Form Section Styles */
 .form-section {
     margin-bottom: var(--spacing-unit);
