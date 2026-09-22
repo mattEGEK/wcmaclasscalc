@@ -28,7 +28,7 @@
                 <li><strong>Modifiers shift the ratio.</strong> Each chassis, body, transmission, drivetrain, tire, and brake/suspension option you select adds or subtracts from that ratio &mdash; the value next to each dropdown shows exactly how much.</li>
                 <li><strong>Final class.</strong> Base Ratio + Weight Factor + Modification Factor = Modified Ratio, and the Modified Ratio determines your Calculated Class shown on the right.</li>
             </ol>
-            <p class="rulebook-disclaimer">This calculator gives an estimate for planning purposes &mdash; it is not a substitute for tech inspection. For authoritative criteria, see the official <a href="https://www.wcma.ca/racing/racing-regulations/" target="_blank" rel="noopener">Sporting &amp; Technical Regulations</a> (updated annually).</p>
+            <p class="rulebook-disclaimer">Per the Sporting Regulations, this Calculator &ldquo;substitutes for the class rules and vehicle specification sheet&rdquo; &mdash; what you submit is your class declaration to WCMA, and it needs to be <strong>kept up to date and accurate at all times</strong>. See the official <a href="https://www.wcma.ca/racing/racing-regulations/" target="_blank" rel="noopener">Sporting &amp; Technical Regulations</a> (updated annually) for the full criteria.</p>
         </div>
 
         <div class="main-layout">
@@ -102,7 +102,9 @@
                 <h2 id="vehicle-factors-heading">Vehicle Factors</h2>
                 <div class="form-grid compact-grid">
                     <div class="form-group">
-                        <label for="competition-weight">Competition Wgt (lbs) <span class="required">*</span></label>
+                        <label for="competition-weight">Competition Wgt (lbs) <span class="required">*</span>
+                            <button type="button" class="info-tooltip-trigger" data-tooltip-key="competitionWeight" aria-label="What is Competition Weight?">?</button>
+                        </label>
                         <div class="input-with-result">
                             <input type="number" id="competition-weight" name="competition_weight" required aria-required="true" min="0" step="1" placeholder="Enter weight">
                             <span class="inline-result" id="weight-result">--</span>
@@ -205,7 +207,7 @@
             </div>
 
             <p class="submit-note">Note: Print out a copy for yourself before hitting submit.</p>
-            <p class="submit-note">This is an estimate, not a ruling &mdash; see the official <a href="https://www.wcma.ca/racing/racing-regulations/" target="_blank" rel="noopener">Sporting &amp; Technical Regulations</a> for the authoritative criteria.</p>
+            <p class="submit-note">Submitting sends this as your class declaration to WCMA &mdash; keep it accurate and up to date, per the official <a href="https://www.wcma.ca/racing/racing-regulations/" target="_blank" rel="noopener">Sporting &amp; Technical Regulations</a>.</p>
             </form>
             </div>
 
@@ -250,6 +252,7 @@
                             </div>
                             <p class="boundary-gauge-label" id="boundary-gauge-label"></p>
                         </div>
+                        <p class="higher-class-note">You may always choose to compete in a higher class than your calculated one.</p>
                     </div>
                     
                     <!-- Class Ranges Box -->
@@ -298,9 +301,9 @@
     <!-- Shared glossary tooltip popover, positioned next to whichever (?) trigger is active -->
     <div id="info-tooltip-popover" class="info-tooltip-popover" role="tooltip" hidden></div>
 
-    <script type="module" src="js/calculator.js?v=1.2"></script>
-    <script type="module" src="js/form-handler.js?v=1.2"></script>
-    <script type="module" src="js/ui-controller.js?v=1.2"></script>
+    <script type="module" src="js/calculator.js?v=1.3"></script>
+    <script type="module" src="js/form-handler.js?v=1.3"></script>
+    <script type="module" src="js/ui-controller.js?v=1.3"></script>
     <script>
       (function () {
         var nav = document.getElementById('account-nav');

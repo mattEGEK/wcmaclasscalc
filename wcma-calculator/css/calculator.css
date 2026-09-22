@@ -258,6 +258,14 @@ header h1 {
     text-align: center;
 }
 
+.higher-class-note {
+    margin-top: calc(var(--spacing-unit) * 0.75);
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.75);
+    text-align: center;
+    font-style: italic;
+}
+
 /* Form Section Styles */
 .form-section {
     margin-bottom: var(--spacing-unit);

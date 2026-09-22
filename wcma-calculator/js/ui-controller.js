@@ -22,7 +22,8 @@ const TOOLTIP_CONTENT = {
     weightFactor: 'An adjustment based on how light or heavy your car is compared to the typical range for its class — very light or very heavy cars get nudged to keep classing fair.',
     modificationFactor: 'The sum of all your selected chassis, body, transmission, drivetrain, tire, and brake/suspension modifiers.',
     modifiedRatio: 'Base Ratio + Weight Factor + Modification Factor. This final number determines your Calculated Class.',
-    dynoHp: 'Horsepower measured on a dynamometer. Optional, but if you have a dyno chart, providing this helps verify your Declared HP at tech inspection.'
+    dynoHp: 'Horsepower measured on a dynamometer. Optional, but if you have a dyno chart, providing this helps verify your Declared HP at tech inspection.',
+    competitionWeight: 'Per WCMA regs, this is the minimum weight your car competes at — including driver and safety equipment — not just its static or curb weight.'
 };
 
 // Form data state
