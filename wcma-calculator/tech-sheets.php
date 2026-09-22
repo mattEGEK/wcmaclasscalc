@@ -35,17 +35,41 @@ function techSheetSignatureResolverWeb(int $techSheetId, string $script = 'tech-
 
 /**
  * Signature-src resolver for email bodies: mail recipients have no session
- * (can't use the authenticated URL) and mail clients often block remote
- * images anyway, so the PNG is read from disk and inlined as a data: URI.
+ * (can't use the authenticated URL), and data: URIs don't work here either —
+ * Gmail and other major webmail clients strip embedded base64 images from
+ * HTML mail, which is what made signatures show up as broken links. Instead
+ * the PNG is attached to the given PHPMailer instance as a CID-embedded
+ * image, which every major client renders inline.
  */
-function techSheetSignatureResolverEmail(): callable {
-    return function (string $which, string $path): ?string {
+function techSheetSignatureResolverEmail(PHPMailer $mail): callable {
+    return function (string $which, string $path) use ($mail): ?string {
         $full = __DIR__ . '/' . $path;
         if (!is_file($full)) return null;
-        $data = @file_get_contents($full);
-        if ($data === false) return null;
-        return 'data:image/png;base64,' . base64_encode($data);
+        $cid = 'sig-' . $which;
+        try {
+            $mail->addEmbeddedImage($full, $cid, basename($full), 'base64', 'image/png');
+        } catch (Exception $e) {
+            return null;
+        }
+        return 'cid:' . $cid;
     };
+}
+
+/**
+ * CID source for the WCMA logo header in email bodies — same reasoning as
+ * techSheetSignatureResolverEmail(): embed rather than hotlink so it
+ * actually renders inline instead of needing "show images" or getting
+ * stripped.
+ */
+function techSheetEmailLogoSrc(PHPMailer $mail): ?string {
+    $full = __DIR__ . '/assets/wcma-logo.png';
+    if (!is_file($full)) return null;
+    try {
+        $mail->addEmbeddedImage($full, 'wcma-logo', 'wcma-logo.png', 'base64', 'image/png');
+    } catch (Exception $e) {
+        return null;
+    }
+    return 'cid:wcma-logo';
 }
 
 function requireTechSheetLogin(): array {
@@ -160,7 +184,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
     </form>
     <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
   </div>
-  <?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id'])) ?>
+  <?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?>
 </div>
 <script src="js/form-feedback.js"></script>
 </body>
@@ -436,9 +460,11 @@ function validateTechSheetPost(array $parsed): ?array {
  * techSheetSignatureResolverEmail()) since recipients have no session.
  */
 function sendTechSheetConfirmationEmail(array $sheet, array $drivers, array $event, string $recipientEmail, string $entrantName): bool {
-    $bodyHtml = '<html><body>' . renderTechSheetHtml($sheet, $drivers, $event, techSheetSignatureResolverEmail()) . '</body></html>';
     try {
         $mail = buildTechSheetMailer();
+        // Built before rendering: the resolvers below attach embedded images
+        // (CIDs) directly to this $mail instance as they resolve each src.
+        $bodyHtml = '<html><body>' . renderTechSheetHtml($sheet, $drivers, $event, techSheetSignatureResolverEmail($mail), techSheetEmailLogoSrc($mail)) . '</body></html>';
         $mail->addAddress($recipientEmail, $entrantName);
         $mail->addAddress(TECH_SHEET_EMAIL, TECH_SHEET_EMAIL_NAME);
         $mail->Subject = 'WCMA Tech Sheet — ' . $entrantName . ' — ' . ($event['name'] ?? '');

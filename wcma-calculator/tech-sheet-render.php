@@ -47,7 +47,7 @@ function techSheetEquipmentTable(array $equipment, bool $showTechColumn): string
     return $out;
 }
 
-function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callable $resolveSignatureSrc = null): string {
+function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callable $resolveSignatureSrc = null, ?string $logoSrc = null): string {
     // Real call sites (web view/print, email) must pass an explicit resolver —
     // see techSheetSignatureResolverWeb()/Email() in tech-sheets.php. This
     // null-returning default only exists so callers that don't care about
@@ -61,6 +61,9 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
     $showTechColumn = ($sheet['status'] ?? 'submitted') === 'teched';
 
     $out = '<div style="font-family:Arial,sans-serif;color:#222;max-width:800px">';
+    if ($logoSrc) {
+        $out .= '<div style="text-align:center;margin-bottom:0.5rem"><img src="' . h($logoSrc) . '" alt="WCMA Logo" style="max-height:70px"></div>';
+    }
     $out .= '<h1 style="text-align:center;margin-bottom:0.2rem">VEHICLE INSPECTION FORM</h1>';
     $out .= '<p style="text-align:center;color:#555;font-size:0.85rem">' . h($event['name'] ?? '') . ' — ' . h(date('F j, Y', strtotime($event['event_date'] ?? 'now'))) . '</p>';
 

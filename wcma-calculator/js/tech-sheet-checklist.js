@@ -43,6 +43,9 @@ window.WcmaTechChecklist = (function () {
         progressWrap.appendChild(progressBarOuter);
         container.appendChild(progressWrap);
 
+        const allRowRefs = {};
+        const allSectionEls = {};
+
         function updateProgress() {
             const c = countComplete(sections, state);
             const pct = c.total === 0 ? 0 : Math.round((c.done / c.total) * 100);
@@ -88,6 +91,7 @@ window.WcmaTechChecklist = (function () {
             body.appendChild(markAll);
 
             const chipRefs = {};
+            const rowRefs = {};
 
             function refreshAllChips() {
                 Object.keys(chipRefs).forEach(function (itemKey) {
@@ -137,6 +141,9 @@ window.WcmaTechChecklist = (function () {
                 });
 
                 chipRefs[itemKey] = { ok: okBtn, na: naBtn };
+                rowRefs[itemKey] = row;
+                allRowRefs[itemKey] = row;
+                allSectionEls[itemKey] = sectionEl;
                 group.appendChild(okBtn);
                 group.appendChild(naBtn);
                 row.appendChild(label);
@@ -161,6 +168,20 @@ window.WcmaTechChecklist = (function () {
         return {
             getState: function () { return JSON.parse(JSON.stringify(state)); },
             isComplete: function () { return countComplete(sections, state).done === countComplete(sections, state).total; },
+            // Marks every unfinished item's row and opens its section so the
+            // highlight is actually visible, not hidden in a collapsed section.
+            highlightIncomplete: function () {
+                Object.keys(allRowRefs).forEach(function (itemKey) {
+                    const incomplete = !state[itemKey] || !state[itemKey].status;
+                    allRowRefs[itemKey].classList.toggle('field-error', incomplete);
+                    if (incomplete) allSectionEls[itemKey].classList.add('checklist-section-open');
+                });
+            },
+            clearHighlights: function () {
+                Object.keys(allRowRefs).forEach(function (itemKey) {
+                    allRowRefs[itemKey].classList.remove('field-error');
+                });
+            },
         };
     }
 

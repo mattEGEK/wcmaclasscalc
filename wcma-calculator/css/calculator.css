@@ -1801,6 +1801,10 @@ textarea.error {
 .sig-pad-wrap canvas { width: 100%; height: 140px; touch-action: none; display: block; }
 .sig-pad-actions { margin-top: 0.4rem; }
 
+/* Tech sheet field-level validation highlighting */
+.checklist-item-row.field-error { background: #fdecea; border-radius: var(--border-radius); }
+.sig-pad-wrap.field-error { border-color: var(--error-color); box-shadow: 0 0 0 1px var(--error-color); }
+
 /* Tech sheet form/header grid */
 .tech-sheet-header-grid {
     display: grid;

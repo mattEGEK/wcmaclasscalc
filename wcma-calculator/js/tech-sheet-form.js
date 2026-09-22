@@ -7,6 +7,8 @@
     function renderEquipmentInto(container, prefix, existingState) {
         existingState = existingState || {};
         const state = {};
+        const rowRefs = {};
+        const ratingInputRefs = {};
         Object.keys(TECH_DRIVER_EQUIPMENT_ITEMS).forEach(function (key) {
             const existing = existingState[key] || {};
             state[key] = {
@@ -17,6 +19,7 @@
             const def = TECH_DRIVER_EQUIPMENT_ITEMS[key];
             const row = document.createElement('div');
             row.className = 'checklist-item-row';
+            rowRefs[key] = row;
             const label = document.createElement('div');
             label.className = 'checklist-item-label';
             label.textContent = def.label;
@@ -31,7 +34,9 @@
                 input.addEventListener('input', function () {
                     state[key].value = input.value;
                     state[key].competitor_confirmed = input.value.trim() !== '';
+                    if (input.value.trim() !== '') { input.classList.remove('error'); row.classList.remove('field-error'); }
                 });
+                ratingInputRefs[key] = input;
                 row.appendChild(input);
             } else {
                 const confirmBtn = document.createElement('button');
@@ -42,12 +47,32 @@
                 confirmBtn.addEventListener('click', function () {
                     state[key].competitor_confirmed = !state[key].competitor_confirmed;
                     confirmBtn.classList.toggle('checklist-chip-selected-ok', state[key].competitor_confirmed);
+                    if (state[key].competitor_confirmed) row.classList.remove('field-error');
                 });
                 row.appendChild(confirmBtn);
             }
             container.appendChild(row);
         });
-        return state;
+
+        function highlightIncomplete() {
+            Object.keys(TECH_DRIVER_EQUIPMENT_ITEMS).forEach(function (key) {
+                const def = TECH_DRIVER_EQUIPMENT_ITEMS[key];
+                const item = state[key];
+                const incomplete = (!def.optional && !item.competitor_confirmed)
+                    || (def.has_rating && (item.value == null || String(item.value).trim() === ''));
+                rowRefs[key].classList.toggle('field-error', incomplete);
+                if (ratingInputRefs[key]) ratingInputRefs[key].classList.toggle('error', incomplete);
+            });
+        }
+
+        function clearHighlights() {
+            Object.keys(rowRefs).forEach(function (key) {
+                rowRefs[key].classList.remove('field-error');
+                if (ratingInputRefs[key]) ratingInputRefs[key].classList.remove('error');
+            });
+        }
+
+        return { state: state, highlightIncomplete: highlightIncomplete, clearHighlights: clearHighlights };
     }
 
     // Mirrors tech-sheet-data.php's validateDriverEquipment(): every
@@ -63,7 +88,8 @@
         });
     }
 
-    const driver1State = renderEquipmentInto(document.getElementById('equipment-container'), 'driver1', window.TECH_SHEET_EXISTING_EQUIPMENT);
+    const driver1Equipment = renderEquipmentInto(document.getElementById('equipment-container'), 'driver1', window.TECH_SHEET_EXISTING_EQUIPMENT);
+    const driver1State = driver1Equipment.state;
 
     const entrantPad = WcmaSignaturePad.attach(document.getElementById('entrant-sig-canvas'));
     const driverPad = WcmaSignaturePad.attach(document.getElementById('driver-sig-canvas'));
@@ -134,8 +160,14 @@
         wrap.appendChild(removeBtn);
 
         additionalDriversContainer.appendChild(wrap);
-        const state = renderEquipmentInto(equipContainer, 'driver' + number, existingDriver ? existingDriver.equipment : null);
-        additionalDrivers.push({ number: number, nameInput: nameInput, state: state, wrap: wrap });
+        const equip = renderEquipmentInto(equipContainer, 'driver' + number, existingDriver ? existingDriver.equipment : null);
+        additionalDrivers.push({
+            number: number, nameInput: nameInput, state: equip.state, wrap: wrap,
+            highlightIncomplete: equip.highlightIncomplete, clearHighlights: equip.clearHighlights,
+        });
+        nameInput.addEventListener('input', function () {
+            if (nameInput.value.trim() !== '') nameInput.classList.remove('error');
+        });
     }
 
     document.getElementById('add-driver-btn').addEventListener('click', function () {
@@ -147,20 +179,37 @@
         existingDrivers.forEach(function (d) { addDriverRow(d); });
     }
 
+    const entrantSigWrap = document.getElementById('entrant-sig-canvas').closest('.sig-pad-wrap');
+    const driverSigWrap = document.getElementById('driver-sig-canvas').closest('.sig-pad-wrap');
+
+    function clearAllHighlights() {
+        checklistWidget.clearHighlights();
+        driver1Equipment.clearHighlights();
+        additionalDrivers.forEach(function (d) {
+            d.clearHighlights();
+            d.nameInput.classList.remove('error');
+        });
+        entrantSigWrap.classList.remove('field-error');
+        driverSigWrap.classList.remove('field-error');
+    }
+
     document.getElementById('tech-sheet-form').addEventListener('submit', function (e) {
         const errorEl = document.getElementById('tech-sheet-error');
         errorEl.hidden = true;
+        clearAllHighlights();
 
         if (!checklistWidget.isComplete()) {
             e.preventDefault();
-            errorEl.textContent = 'Please mark every checklist item OK or N/A before submitting.';
+            checklistWidget.highlightIncomplete();
+            errorEl.textContent = 'Please mark every checklist item OK or N/A before submitting — the missing items are highlighted below.';
             errorEl.hidden = false;
             errorEl.classList.add('show');
             return;
         }
         if (!isEquipmentComplete(driver1State)) {
             e.preventDefault();
-            errorEl.textContent = 'Please confirm all of Driver 1\'s safety equipment (including helmet and suit ratings) before submitting.';
+            driver1Equipment.highlightIncomplete();
+            errorEl.textContent = 'Please confirm all of Driver 1\'s safety equipment (including helmet and suit ratings) before submitting — the missing items are highlighted below.';
             errorEl.hidden = false;
             errorEl.classList.add('show');
             return;
@@ -171,7 +220,9 @@
             });
             if (incompleteDriver) {
                 e.preventDefault();
-                errorEl.textContent = 'Please enter a name and confirm all safety equipment for every added driver (Driver ' + incompleteDriver.number + ') before submitting.';
+                if (incompleteDriver.nameInput.value.trim() === '') incompleteDriver.nameInput.classList.add('error');
+                incompleteDriver.highlightIncomplete();
+                errorEl.textContent = 'Please enter a name and confirm all safety equipment for every added driver (Driver ' + incompleteDriver.number + ') before submitting — the missing fields are highlighted below.';
                 errorEl.hidden = false;
                 errorEl.classList.add('show');
                 return;
@@ -181,7 +232,9 @@
         const driverSignatureMissing = driverPad.isEmpty() && !window.TECH_SHEET_HAS_DRIVER_SIGNATURE;
         if (entrantSignatureMissing || driverSignatureMissing) {
             e.preventDefault();
-            errorEl.textContent = 'Both the entrant and driver signatures are required.';
+            if (entrantSignatureMissing) entrantSigWrap.classList.add('field-error');
+            if (driverSignatureMissing) driverSigWrap.classList.add('field-error');
+            errorEl.textContent = 'Both the entrant and driver signatures are required — the missing signature pad(s) are highlighted below.';
             errorEl.hidden = false;
             errorEl.classList.add('show');
             return;
