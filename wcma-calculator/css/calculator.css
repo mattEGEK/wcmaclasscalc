@@ -1671,6 +1671,28 @@ textarea.error {
     color: var(--secondary-color);
 }
 
+.file-thumb[data-lightbox] {
+    cursor: zoom-in;
+}
+
+.lightbox-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1100;
+    padding: calc(var(--spacing-unit) * 2);
+    cursor: zoom-out;
+}
+
+.lightbox-image {
+    max-width: 100%;
+    max-height: 100%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
 /* ── Mobile adjustments for account/admin pages ──────────────────────────────── */
 @media (max-width: 768px) {
     .data-table {

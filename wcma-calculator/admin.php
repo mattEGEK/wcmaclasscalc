@@ -386,7 +386,7 @@ function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $fl
       ?>
       <p style="font-weight:bold;margin:.8rem 0 .2rem"><?= h($f['label']) ?></p>
       <?php if ($is_image): ?>
-        <img src="<?= $url ?>" class="file-thumb" alt="<?= h($f['label']) ?>">
+        <img src="<?= $url ?>" class="file-thumb" data-lightbox alt="<?= h($f['label']) ?>">
       <?php else: ?>
         <a href="<?= $url ?>" target="_blank" class="file-link">Open <?= h(basename($f['path'])) ?></a>
       <?php endif; ?>
@@ -398,6 +398,7 @@ function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $fl
 </div>
 <script src="js/confirm-modal.js"></script>
 <script src="js/form-feedback.js"></script>
+<script src="js/lightbox.js"></script>
 <script>
 (function () {
   var toggle = document.getElementById('edit-contact-toggle');
