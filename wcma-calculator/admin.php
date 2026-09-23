@@ -6,6 +6,7 @@ require __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
 require __DIR__ . '/view_helpers.php';
 require __DIR__ . '/feedback-lib.php';
+require __DIR__ . '/admin-feedback.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
 require __DIR__ . '/phpmailer/src/SMTP.php';
@@ -174,6 +175,30 @@ switch ($action) {
         handleSettingsUpdate($pdo);
         break;
 
+    case 'feedback':
+        requireAuth();
+        handleFeedbackList($pdo);
+        break;
+
+    case 'feedback-view':
+        requireAuth();
+        handleFeedbackView($pdo, (int)($_GET['id'] ?? 0));
+        break;
+
+    case 'feedback-status':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=feedback'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleFeedbackStatus($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
+    case 'feedback-retry':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=feedback'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleFeedbackRetry($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
     default:
         requireAuth();
         handleList($pdo);
@@ -212,7 +237,7 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('WCMA Submissions', '<a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('WCMA Submissions', '<a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
@@ -572,7 +597,7 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Manage Users', '<a href="admin.php">Submissions</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Manage Users', '<a href="admin.php">Submissions</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <?php if (!empty($users)): ?>
   <div class="list-toolbar">
@@ -978,7 +1003,7 @@ function renderEventsPage(array $events, string $csrf, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Events', '<a href="admin.php">Submissions</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=settings">Settings</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Events', '<a href="admin.php">Submissions</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">
@@ -1095,7 +1120,7 @@ function renderSettingsPage(array $values, string $csrf, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Settings', '<a href="admin.php">Submissions</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Settings', '<a href="admin.php">Submissions</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">
