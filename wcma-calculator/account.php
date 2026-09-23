@@ -246,13 +246,13 @@ function renderAccountViewPage(array $s, string $csrf, ?array $flash): void {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Submission #<?= (int)$s['id'] ?> — My Cars</title>
+<title>Class Declaration — <?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="css/calculator.css">
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Submission #' . $s['id'], '<a href="account.php">← Back to My Cars</a>' . renderCommonNav('account')); ?>
+  <?php renderSiteHeader('Class Declaration — ' . trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model']), '<a href="account.php">← Back to My Cars</a>' . renderCommonNav('account')); ?>
   <div class="detail-layout">
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>" style="grid-column:1/-1"><?= h($flash['message']) ?></div><?php endif; ?>
   <div class="detail-card">

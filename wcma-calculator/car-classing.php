@@ -55,7 +55,7 @@ $tires_display = isset($_POST['tires_display']) ? trim($_POST['tires_display']) 
 $brake_suspension = isset($_POST['brake_suspension']) ? $_POST['brake_suspension'] : [];
 
 // Subject with submitter name and date
-$subject = 'WCMA Classing Calculator Submission - ' . htmlspecialchars($name) . ' - ' . date('M j, Y');
+$subject = 'WCMA Class Declaration - ' . htmlspecialchars($name) . ' - ' . date('M j, Y');
 
 // Calculation results (from hidden fields)
 $calculated_class = isset($_POST['calculated_class']) ? trim($_POST['calculated_class']) : '';
