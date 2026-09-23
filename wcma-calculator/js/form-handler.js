@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Form Handler Module
  * Handles form validation and submission
  */
@@ -321,7 +321,7 @@ export async function maybeShowAccountNudge(submittedEmail) {
     const nudge = document.createElement('p');
     nudge.className = 'post-submit-nudge';
     nudge.style.marginTop = '0.5rem';
-    nudge.appendChild(document.createTextNode(‘Create a free account so this class declaration is saved — you’ll need it when you submit a tech sheet for an upcoming event. ‘));
+    nudge.appendChild(document.createTextNode('Create a free account so this class declaration is saved — you\u2019ll need it when you submit a tech sheet for an upcoming event. '));
 
     const link = document.createElement('a');
     const params = new URLSearchParams({ action: 'register', email: submittedEmail || '' });
