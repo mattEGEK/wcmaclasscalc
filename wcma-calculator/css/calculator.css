@@ -138,7 +138,7 @@ header h1 {
 
 .instructions-box p {
     color: #666;
-    font-size: 0.85rem;
+    font-size: 1rem;
     line-height: 1.5;
     margin: 0;
 }
@@ -147,7 +147,7 @@ header h1 {
     margin: 0 0 calc(var(--spacing-unit) * 0.6) calc(var(--spacing-unit) * 1.1);
     padding: 0;
     color: #555;
-    font-size: 0.85rem;
+    font-size: 1rem;
     line-height: 1.5;
 }
 
@@ -161,7 +161,7 @@ header h1 {
 
 .rulebook-disclaimer {
     color: #666;
-    font-size: 0.8rem;
+    font-size: 0.95rem;
     line-height: 1.5;
     margin: 0;
     font-style: italic;
@@ -241,7 +241,7 @@ header h1 {
 
 .summary-help {
     display: block;
-    font-size: 0.8rem;
+    font-size: 0.95rem;
     font-weight: normal;
     color: rgba(255, 255, 255, 0.75);
     margin-top: 0.15rem;
@@ -249,7 +249,7 @@ header h1 {
 
 /* Per-modifier explainer text (full qualifying criteria, shown once an option is selected) */
 .modifier-explainer {
-    font-size: 0.78rem;
+    font-size: 0.95rem;
     color: #666;
     line-height: 1.4;
     margin: calc(var(--spacing-unit) * 0.2) 0 0;
@@ -322,7 +322,7 @@ header h1 {
 .section-note,
 .file-note {
     color: #666;
-    font-size: 0.85rem;
+    font-size: 1rem;
     margin-bottom: calc(var(--spacing-unit) * 0.5);
     font-style: italic;
 }
@@ -357,7 +357,7 @@ label {
     font-weight: 600;
     margin-bottom: calc(var(--spacing-unit) * 0.25);
     color: var(--text-color);
-    font-size: 0.9rem;
+    font-size: 1rem;
 }
 
 .required {
@@ -374,7 +374,7 @@ textarea {
     padding: calc(var(--spacing-unit) * 0.5);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
-    font-size: 0.95rem;
+    font-size: 1rem;
     font-family: inherit;
     width: 100%;
     box-sizing: border-box;
@@ -406,7 +406,7 @@ textarea:focus {
 .inline-result {
     font-weight: 600;
     color: var(--secondary-color);
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     padding: calc(var(--spacing-unit) * 0.2) calc(var(--spacing-unit) * 0.4);
     background: #f0f7ff;
     border-radius: calc(var(--border-radius) * 0.75);
@@ -551,7 +551,7 @@ textarea:focus {
 .modifier-value {
     font-weight: 600;
     color: var(--secondary-color);
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     padding: calc(var(--spacing-unit) * 0.2) calc(var(--spacing-unit) * 0.4);
     background: #f0f7ff;
     border-radius: calc(var(--border-radius) * 0.75);
@@ -586,7 +586,9 @@ textarea:focus {
 }
 
 .checkbox-item input[type="checkbox"] {
-    margin-top: 0.2rem;
+    width: 20px;
+    height: 20px;
+    margin-top: 0.1rem;
     cursor: pointer;
 }
 
@@ -594,7 +596,7 @@ textarea:focus {
     cursor: pointer;
     font-weight: normal;
     margin-bottom: 0;
-    font-size: 0.9rem;
+    font-size: 1rem;
     flex: 1;
 }
 
@@ -637,14 +639,14 @@ input[type="file"]:focus {
 }
 
 .file-info {
-    font-size: 0.85rem;
+    font-size: 1rem;
     color: #666;
     margin-top: calc(var(--spacing-unit) * 0.25);
     font-style: italic;
 }
 
 .field-note {
-    font-size: 0.75rem;
+    font-size: 0.9rem;
     color: #666;
     margin-top: calc(var(--spacing-unit) * 0.25);
     font-style: italic;
@@ -654,7 +656,7 @@ input[type="file"]:focus {
 /* Error Messages */
 .error-message {
     color: var(--error-color);
-    font-size: 0.85rem;
+    font-size: 1rem;
     margin-top: calc(var(--spacing-unit) * 0.25);
     display: none;
 }
@@ -765,7 +767,7 @@ textarea.error {
 .submit-note {
     text-align: center;
     color: #666;
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     margin-top: calc(var(--spacing-unit) * 0.5);
     font-style: italic;
 }
@@ -1497,7 +1499,7 @@ textarea.error {
     color: white;
     padding: calc(var(--spacing-unit) * 0.7) var(--spacing-unit);
     text-align: left;
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     white-space: nowrap;
 }
 
@@ -1509,7 +1511,7 @@ textarea.error {
 .data-table td {
     padding: calc(var(--spacing-unit) * 0.65) var(--spacing-unit);
     border-bottom: 1px solid var(--border-color);
-    font-size: 0.9rem;
+    font-size: 1rem;
     vertical-align: middle;
 }
 
@@ -1592,7 +1594,7 @@ textarea.error {
     padding: calc(var(--spacing-unit) * 0.5);
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius);
-    font-size: 0.9rem;
+    font-size: 1rem;
     font-family: inherit;
     width: 100%;
     max-width: 320px;
