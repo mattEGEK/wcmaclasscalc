@@ -1,7 +1,7 @@
 # Competitor Flow Clarity — Design Spec
 **Date:** 2026-09-22
 **Project:** WCMA Classing Calculator (221racing.com)
-**Status:** Draft — pending user review
+**Status:** Approved for implementation
 
 ---
 
@@ -109,7 +109,7 @@ No mechanism change (still unverified email-match linking, per the accepted risk
 
 ---
 
-## Open Questions for Review
+## Resolved Questions
 
-1. Confirm removing the standalone "My Tech Sheets" tab (folding it into per-car grouping) doesn't conflict with a use case the admin/tech-inspector side depends on — the admin Tech Sheets list is untouched either way, this only affects the competitor-facing account.php view.
-2. Confirm the plain-language two-step panel copy above is acceptable as final, or wants club-specific wording review.
+1. Removing the standalone competitor-facing "My Tech Sheets" tab is confirmed safe — the admin/tech-inspector Tech Sheets list (§ Admin & Tech-Inspector Flow in the prior spec) is untouched by this spec and keeps its existing filtering/viewing exactly as today; only the competitor-facing `account.php` view changes.
+2. The two-step panel copy in §1a is approved as final — no club-specific wording changes requested.
