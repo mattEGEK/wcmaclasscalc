@@ -231,48 +231,20 @@ header h1 {
     margin-bottom: 0;
 }
 
-/* Info tooltip trigger + popover */
-.info-tooltip-trigger {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    height: 16px;
-    margin-left: 0.3em;
-    border: 1px solid currentColor;
-    border-radius: 50%;
-    background: none;
-    color: inherit;
-    opacity: 0.75;
-    font-size: 0.7rem;
-    font-weight: 700;
-    line-height: 1;
-    padding: 0;
-    cursor: pointer;
-    vertical-align: middle;
-}
-
-.info-tooltip-trigger:hover,
-.info-tooltip-trigger:focus-visible,
-.info-tooltip-trigger.is-active {
-    opacity: 1;
-}
-
-.info-tooltip-popover {
-    position: absolute;
-    z-index: 1200;
-    max-width: 280px;
-    background: #1f2d3d;
-    color: #fff;
-    padding: calc(var(--spacing-unit) * 0.5) calc(var(--spacing-unit) * 0.65);
-    border-radius: var(--border-radius);
-    font-size: 0.82rem;
+/* ── Always-visible field help text (replaces icon-only tooltips) ────────────── */
+.field-help {
+    font-size: 0.95rem;
+    color: #555;
     line-height: 1.4;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+    margin: calc(var(--spacing-unit) * 0.25) 0 0;
 }
 
-.info-tooltip-popover[hidden] {
-    display: none;
+.summary-help {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: normal;
+    color: rgba(255, 255, 255, 0.75);
+    margin-top: 0.15rem;
 }
 
 /* Per-modifier explainer text (full qualifying criteria, shown once an option is selected) */

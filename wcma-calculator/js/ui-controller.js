@@ -16,16 +16,6 @@ import {
     isOptionAvailable
 } from './modifiers.js';
 
-// Glossary content for the (?) tooltip triggers
-const TOOLTIP_CONTENT = {
-    baseRatio: 'Competition Weight ÷ Declared HP, rounded to 2 decimals. This sets your starting class before any modifiers are applied.',
-    weightFactor: 'An adjustment based on how light or heavy your car is compared to the typical range for its class — very light or very heavy cars get nudged to keep classing fair.',
-    modificationFactor: 'The sum of all your selected chassis, body, transmission, drivetrain, tire, and brake/suspension modifiers.',
-    modifiedRatio: 'Base Ratio + Weight Factor + Modification Factor. This final number determines your Calculated Class.',
-    dynoHp: 'Horsepower measured on a dynamometer. Optional, but if you have a dyno chart, providing this helps verify your Declared HP at tech inspection.',
-    competitionWeight: 'Per WCMA regs, this is the minimum weight your car competes at — including driver and safety equipment — not just its static or curb weight.'
-};
-
 // Form data state
 let formData = {
     competitionWeight: '',
@@ -135,65 +125,6 @@ window.addEventListener('beforeunload', (event) => {
         event.returnValue = '';
     }
 });
-
-/**
- * Wire up the shared (?) glossary tooltip popover used across the form.
- * A single popover element is repositioned next to whichever trigger
- * was clicked, rather than one popover per field.
- */
-function initInfoTooltips() {
-    const popover = document.getElementById('info-tooltip-popover');
-    if (!popover) return;
-    let activeTrigger = null;
-
-    function hideTooltip() {
-        popover.hidden = true;
-        if (activeTrigger) activeTrigger.classList.remove('is-active');
-        activeTrigger = null;
-    }
-
-    function showTooltip(trigger) {
-        const key = trigger.getAttribute('data-tooltip-key');
-        const text = TOOLTIP_CONTENT[key];
-        if (!text) return;
-
-        popover.textContent = text;
-        popover.hidden = false;
-        trigger.classList.add('is-active');
-        activeTrigger = trigger;
-
-        const triggerRect = trigger.getBoundingClientRect();
-        const popRect = popover.getBoundingClientRect();
-        let left = triggerRect.left + window.scrollX;
-        const top = triggerRect.bottom + window.scrollY + 6;
-        const maxLeft = window.scrollX + document.documentElement.clientWidth - popRect.width - 8;
-        left = Math.min(left, maxLeft);
-        left = Math.max(left, window.scrollX + 8);
-
-        popover.style.left = `${left}px`;
-        popover.style.top = `${top}px`;
-    }
-
-    document.addEventListener('click', (event) => {
-        const trigger = event.target.closest('.info-tooltip-trigger');
-        if (trigger) {
-            event.preventDefault();
-            if (activeTrigger === trigger) {
-                hideTooltip();
-            } else {
-                showTooltip(trigger);
-            }
-            return;
-        }
-        if (!event.target.closest('.info-tooltip-popover')) {
-            hideTooltip();
-        }
-    });
-
-    document.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') hideTooltip();
-    });
-}
 
 /**
  * Show the full qualifying-criteria text for each selected modifier
@@ -1833,7 +1764,6 @@ function initialize() {
         }
 
         initializeEventListeners();
-        initInfoTooltips();
         updateFormData();
         updateModificationFieldsState();
         updateModifierExplainers();
