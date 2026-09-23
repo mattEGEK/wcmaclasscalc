@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/../db.php';
+require __DIR__ . '/../feedback-lib.php';
 
 function make_temp_pdo(): PDO {
     $path = sys_get_temp_dir() . '/wcma_test_' . uniqid() . '.db';
