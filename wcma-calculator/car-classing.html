@@ -308,7 +308,8 @@
 
     <script type="module" src="js/calculator.js?v=1.3"></script>
     <script type="module" src="js/form-handler.js?v=1.3"></script>
-    <script type="module" src="js/ui-controller.js?v=1.3"></script>
+    <script type="module" src="js/ui-controller.js?v=1.4"></script>
+    <script src="js/feedback.js"></script>
     <script>
       (function () {
         var nav = document.getElementById('account-nav');
@@ -332,6 +333,12 @@
 
           nav.textContent = '';
           nav.appendChild(current);
+
+          var feedbackLink = document.createElement('a');
+          feedbackLink.href = '#';
+          feedbackLink.setAttribute('data-feedback-open', '');
+          feedbackLink.textContent = 'Feedback';
+          nav.appendChild(feedbackLink);
 
           if (data.loggedIn) {
             var submissionsLink = document.createElement('a');

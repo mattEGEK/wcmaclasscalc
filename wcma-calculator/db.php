@@ -164,6 +164,27 @@ function db_init(PDO $pdo): void {
     ");
 
     $pdo->exec("
+        CREATE TABLE IF NOT EXISTS feedback (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            type                TEXT NOT NULL,
+            message             TEXT NOT NULL,
+            name                TEXT,
+            email               TEXT,
+            user_id             INTEGER,
+            page_url            TEXT,
+            user_agent          TEXT,
+            viewport            TEXT,
+            calc_inputs         TEXT,
+            ip_hash             TEXT,
+            status              TEXT NOT NULL DEFAULT 'new',
+            github_issue_number INTEGER,
+            github_issue_url    TEXT,
+            github_error        TEXT,
+            created_at          DATETIME NOT NULL
+        )
+    ");
+
+    $pdo->exec("
         CREATE TABLE IF NOT EXISTS tech_sheet_drivers (
             id               INTEGER PRIMARY KEY AUTOINCREMENT,
             tech_sheet_id    INTEGER NOT NULL,
@@ -697,4 +718,58 @@ function db_set_setting(PDO $pdo, string $key, string $value): void {
         INSERT INTO settings (setting_key, setting_value) VALUES (:key, :value)
         ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value
     ")->execute([':key' => $key, ':value' => $value]);
+}
+
+// ── Feedback ──────────────────────────────────────────────────────────────────
+
+function db_insert_feedback(PDO $pdo, array $data): int {
+    $pdo->prepare("
+        INSERT INTO feedback (type, message, name, email, user_id, page_url, user_agent, viewport, calc_inputs, ip_hash, status, created_at)
+        VALUES (:type, :message, :name, :email, :user_id, :page_url, :user_agent, :viewport, :calc_inputs, :ip_hash, 'new', :created_at)
+    ")->execute([
+        ':type'        => $data['type'],
+        ':message'     => $data['message'],
+        ':name'        => $data['name'] ?? null,
+        ':email'       => $data['email'] ?? null,
+        ':user_id'     => $data['user_id'] ?? null,
+        ':page_url'    => $data['page_url'] ?? null,
+        ':user_agent'  => $data['user_agent'] ?? null,
+        ':viewport'    => $data['viewport'] ?? null,
+        ':calc_inputs' => $data['calc_inputs'] ?? null,
+        ':ip_hash'     => $data['ip_hash'] ?? null,
+        ':created_at'  => $data['created_at'],
+    ]);
+    return (int)$pdo->lastInsertId();
+}
+
+function db_get_feedback(PDO $pdo, int $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM feedback WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_get_all_feedback(PDO $pdo): array {
+    return $pdo->query("SELECT * FROM feedback ORDER BY created_at DESC, id DESC")->fetchAll();
+}
+
+function db_update_feedback_status(PDO $pdo, int $id, string $status): void {
+    $pdo->prepare("UPDATE feedback SET status = :status WHERE id = :id")
+        ->execute([':status' => $status, ':id' => $id]);
+}
+
+function db_set_feedback_github(PDO $pdo, int $id, int $number, string $url): void {
+    $pdo->prepare("
+        UPDATE feedback SET github_issue_number = :n, github_issue_url = :url, github_error = NULL WHERE id = :id
+    ")->execute([':n' => $number, ':url' => $url, ':id' => $id]);
+}
+
+function db_set_feedback_github_error(PDO $pdo, int $id, string $error): void {
+    $pdo->prepare("UPDATE feedback SET github_error = :err WHERE id = :id")
+        ->execute([':err' => $error, ':id' => $id]);
+}
+
+function db_count_recent_feedback_by_ip_hash(PDO $pdo, string $ipHash, string $since): int {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM feedback WHERE ip_hash = :h AND created_at >= :since");
+    $stmt->execute([':h' => $ipHash, ':since' => $since]);
+    return (int)$stmt->fetchColumn();
 }

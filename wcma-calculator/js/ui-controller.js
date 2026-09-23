@@ -234,6 +234,9 @@ function getFormData() {
     };
 }
 
+// Read by feedback.js so bug reports made on this page carry the current inputs.
+window.wcmaGetCalcInputs = getFormData;
+
 /**
  * Update form data state
  */
