@@ -406,15 +406,26 @@ function handleChassisRestrictions() {
 }
 
 /**
- * Populate brake/suspension checkboxes based on calculated class
+ * Populate brake/suspension checkboxes based on the BASE class (before modifiers).
+ * Cars whose base ratio isn't IT1/IT2 lose the section and any ticked mods.
  */
-function populateBrakeSuspensionCheckboxes(calculatedClass) {
+function populateBrakeSuspensionCheckboxes(baseClass) {
     const container = document.getElementById('brake-suspension-options');
     if (!container) return;
-    
-    // Only show for IT1 and IT2
-    if (calculatedClass !== 'IT1' && calculatedClass !== 'IT2') {
-        container.innerHTML = '<span class="field-note">Brake and suspension mods are only available for IT1 and IT2 classes</span>';
+
+    if (baseClass !== 'IT1' && baseClass !== 'IT2') {
+        const hadSelections = container.querySelector('input[type="checkbox"]:checked') !== null;
+        container.innerHTML = '';
+        if (hadSelections) {
+            const notice = document.createElement('span');
+            notice.className = 'field-note brake-removed-note';
+            notice.textContent = 'Brake & suspension selections were removed because your car is no longer in IT1/IT2.';
+            container.appendChild(notice);
+        }
+        const note = document.createElement('span');
+        note.className = 'field-note';
+        note.textContent = 'Available when your base ratio (weight ÷ HP) is 14.00 or higher.';
+        container.appendChild(note);
         return;
     }
     
@@ -429,8 +440,8 @@ function populateBrakeSuspensionCheckboxes(calculatedClass) {
         const optionId = row[0];
         const description = row[1];
         
-        if (isOptionAvailable(brakeModifierTable, optionId, calculatedClass)) {
-            const modifierValue = getModifierValue(brakeModifierTable, optionId, calculatedClass);
+        if (isOptionAvailable(brakeModifierTable, optionId, baseClass)) {
+            const modifierValue = getModifierValue(brakeModifierTable, optionId, baseClass);
             if (modifierValue !== null) {
                 const checkboxWrapper = document.createElement('div');
                 checkboxWrapper.className = 'checkbox-item';
@@ -709,12 +720,6 @@ function handleCalculationUpdate() {
     updateModifierExplainers();
     const results = updateCalculations(formData);
     updateResultsDisplay(results);
-
-    // Re-render brake/suspension using final class — it may differ from base class
-    // when modifiers push the score across the GT4/IT1 boundary
-    if (results.calculatedClass) {
-        populateBrakeSuspensionCheckboxes(results.calculatedClass);
-    }
 }
 
 /**
