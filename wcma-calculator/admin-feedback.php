@@ -17,7 +17,7 @@ function handleFeedbackView(PDO $pdo, int $id): void {
         header('Location: admin.php?action=feedback');
         exit;
     }
-    $cfg = feedbackGithubConfig(feedbackBaseUrl($_SERVER));
+    $cfg = feedbackGithubConfig(feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', '')));
     renderFeedbackViewPage($row, generateCsrfToken(), getFlash(), $cfg['token'] !== '');
 }
 
@@ -35,7 +35,7 @@ function handleFeedbackStatus(PDO $pdo, int $id): void {
 }
 
 function handleFeedbackRetry(PDO $pdo, int $id): void {
-    $cfg = feedbackGithubConfig(feedbackBaseUrl($_SERVER));
+    $cfg = feedbackGithubConfig(feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', '')));
     if (!db_get_feedback($pdo, $id)) {
         setFlash('Feedback not found.', 'error');
         header('Location: admin.php?action=feedback');

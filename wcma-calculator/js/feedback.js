@@ -55,11 +55,15 @@
     function open() {
         if (!overlay) build();
         var form = overlay.querySelector('#feedback-form');
+        overlay.querySelectorAll('.feedback-done').forEach(function (n) { n.remove(); });
         form.hidden = false;
         form.reset();
         overlay.querySelector('#feedback-messages').className = 'form-messages';
-        overlay.querySelector('[data-role="send"]').disabled = false;
-        overlay.querySelector('[data-role="send"]').textContent = 'Send';
+        var openSendBtn = overlay.querySelector('[data-role="send"]');
+        openSendBtn.textContent = 'Send';
+        // Hold Send until the CSRF token has arrived (or the lookup has failed).
+        openSendBtn.disabled = true;
+        session = { loggedIn: false, email: '', csrfToken: '' };
         overlay.hidden = false;
 
         fetch('session-status.php', { credentials: 'same-origin' })
@@ -68,8 +72,12 @@
                 session = data;
                 var emailInput = overlay.querySelector('#feedback-email');
                 if (data.loggedIn && data.email && !emailInput.value) emailInput.value = data.email;
+                openSendBtn.disabled = false;
             })
-            .catch(function () { /* submit will report a missing token */ });
+            .catch(function () {
+                // Let the user try anyway; the server will report a missing token.
+                openSendBtn.disabled = false;
+            });
 
         overlay.querySelector('#feedback-message').focus();
     }
@@ -101,10 +109,11 @@
                 if (r.ok && r.data.ok) {
                     form.hidden = true;
                     var done = document.createElement('p');
+                    done.className = 'feedback-done';
                     done.textContent = 'Thanks — we got it.';
                     var closeBtn = document.createElement('button');
                     closeBtn.type = 'button';
-                    closeBtn.className = 'btn btn-primary';
+                    closeBtn.className = 'btn btn-primary feedback-done';
                     closeBtn.textContent = 'Close';
                     closeBtn.addEventListener('click', function () { done.remove(); closeBtn.remove(); close(); });
                     form.parentNode.appendChild(done);

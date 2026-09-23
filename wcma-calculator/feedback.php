@@ -41,7 +41,7 @@ if ($sessionUser !== null) {
     $user = ['id' => $sessionUser['id'], 'name' => $sessionUser['name'], 'email' => $row['email'] ?? null];
 }
 
-$base      = feedbackBaseUrl($_SERVER);
+$base      = feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', ''));
 $recipient = feedbackRecipient($pdo);
 
 $notify = function (array $row, ?string $issueUrl) use ($recipient, $base): void {

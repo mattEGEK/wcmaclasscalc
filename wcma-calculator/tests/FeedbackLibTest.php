@@ -51,6 +51,18 @@ final class FeedbackLibTest extends TestCase
         $this->assertNull($clean['calc_inputs']);
     }
 
+    public function testValidateCollapsesWhitespaceInPageUrlAndViewport(): void
+    {
+        [$clean] = feedbackValidate([
+            'type' => 'bug', 'message' => 'x',
+            'page_url' => "https://x/
+@someuser  y", 'viewport' => "10
+x 5",
+        ]);
+        $this->assertSame('https://x/ @someuser y', $clean['page_url']);
+        $this->assertSame('10 x 5', $clean['viewport']);
+    }
+
     // ── issue ──
     public function testBuildIssueTitleLabelsAndBody(): void
     {
@@ -61,10 +73,27 @@ final class FeedbackLibTest extends TestCase
         $this->assertStringContainsString("> Class is wrong @\u{200B}octocat", $issue['body']);
         $this->assertStringContainsString('> second line', $issue['body']);
         $this->assertStringNotContainsString('@octocat', $issue['body']);
-        $this->assertStringContainsString('pat@example.com', $issue['body']);
+        $this->assertStringContainsString("pat@\u{200B}example.com", $issue['body']);
         $this->assertStringContainsString('```json', $issue['body']);
         $this->assertStringContainsString('competitionWeight', $issue['body']);
         $this->assertStringContainsString('https://x.test/admin.php?action=feedback-view&id=7', $issue['body']);
+    }
+
+    public function testBuildIssueMetadataLinesAreSingleLineAndNeutralised(): void
+    {
+        $issue = feedbackBuildIssue($this->row([
+            'page_url' => "https://x/
+@octocat",
+            'user_agent' => "UA
+@octocat",
+            'viewport' => "1
+@octocat",
+        ]), 'u');
+        $this->assertStringNotContainsString('@octocat', $issue['body']);
+        foreach (['Page', 'Browser', 'Viewport'] as $label) {
+            $this->assertSame(1, preg_match_all('/^- \*\*' . $label . ':\*\* `[^`
+]*`$/m', $issue['body']), $label);
+        }
     }
 
     public function testBuildIssueTruncatesTitleAt60Chars(): void
@@ -116,6 +145,9 @@ final class FeedbackLibTest extends TestCase
         $this->assertSame('https://221racing.com/classing', $base);
         $this->assertSame('https://221racing.com/classing/admin.php?action=feedback-view&id=9', feedbackAdminUrl($base . '/', 9));
         $this->assertSame('http://localhost:8080', feedbackBaseUrl(['HTTP_HOST' => 'localhost:8080', 'SCRIPT_NAME' => '/feedback.php']));
+        $evil = ['HTTPS' => 'on', 'HTTP_HOST' => 'evil.test', 'SCRIPT_NAME' => '/x/feedback.php'];
+        $this->assertSame('https://221racing.com/classing', feedbackBaseUrl($evil, ' https://221racing.com/classing/ '));
+        $this->assertSame('https://evil.test/x', feedbackBaseUrl($evil, '  '));
     }
 
     public function testHashIpIsStableAndNotThePlainIp(): void

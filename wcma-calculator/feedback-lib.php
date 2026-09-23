@@ -61,8 +61,8 @@ function feedbackValidate(array $in): array {
         'type'        => $type,
         'message'     => $message,
         'email'       => $email !== '' ? $email : null,
-        'page_url'    => mb_substr(trim((string)($in['page_url'] ?? '')), 0, 500),
-        'viewport'    => mb_substr(trim((string)($in['viewport'] ?? '')), 0, 30),
+        'page_url'    => mb_substr(feedbackCollapseWhitespace((string)($in['page_url'] ?? '')), 0, 500),
+        'viewport'    => mb_substr(feedbackCollapseWhitespace((string)($in['viewport'] ?? '')), 0, 30),
         'calc_inputs' => $calc,
     ], $errors];
 }
@@ -79,12 +79,17 @@ function feedbackNeutraliseMentions(string $text): string {
     return str_replace('@', "@\u{200B}", $text);
 }
 
+function feedbackCollapseWhitespace(string $s): string {
+    return trim((string)preg_replace('/\s+/u', ' ', $s));
+}
+
 function feedbackTitleSnippet(string $message, int $max = 60): string {
     $one = trim((string)preg_replace('/\s+/u', ' ', $message));
     return mb_strlen($one) > $max ? mb_substr($one, 0, $max) . '…' : $one;
 }
 
 function feedbackInlineCode(string $s): string {
+    $s = feedbackNeutraliseMentions(feedbackCollapseWhitespace($s));
     return '`' . str_replace('`', "'", $s) . '`';
 }
 
@@ -160,7 +165,11 @@ function feedbackBuildEmail(array $row, ?string $issueUrl, string $adminUrl): ar
     return ['subject' => $subject, 'html' => $html, 'text' => $text];
 }
 
-function feedbackBaseUrl(array $server): string {
+function feedbackBaseUrl(array $server, string $configured = ''): string {
+    $configured = rtrim(trim($configured), '/');
+    if ($configured !== '') {
+        return $configured;
+    }
     $https = !empty($server['HTTPS']) && $server['HTTPS'] !== 'off';
     $dir   = rtrim(str_replace('\\', '/', dirname($server['SCRIPT_NAME'] ?? '/')), '/');
     return ($https ? 'https' : 'http') . '://' . ($server['HTTP_HOST'] ?? 'localhost') . $dir;
@@ -272,7 +281,7 @@ function feedbackHandleSubmission(PDO $pdo, array $in, array $ctx, callable $htt
         $id = db_insert_feedback($pdo, $clean + [
             'name'       => $user['name'] ?? null,
             'user_id'    => $user['id'] ?? null,
-            'user_agent' => mb_substr((string)($ctx['user_agent'] ?? ''), 0, 300),
+            'user_agent' => mb_substr(feedbackCollapseWhitespace((string)($ctx['user_agent'] ?? '')), 0, 300),
             'ip_hash'    => $ipHash,
             'created_at' => date('Y-m-d H:i:s', $now),
         ]);
