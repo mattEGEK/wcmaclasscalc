@@ -1,0 +1,10 @@
+<FilesMatch "^(autopull\.sh|git-autopull\.log|CLAUDE\.md|README\.md|phpunit\.xml)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+RedirectMatch 404 (^|/)(logs|docs|tests)(/|$)
