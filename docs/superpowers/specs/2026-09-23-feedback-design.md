@@ -23,6 +23,7 @@ New table `feedback` (added in `db.php` with `CREATE TABLE IF NOT EXISTS`, match
 | `type` | `bug` \| `feedback` \| `idea` |
 | `message` | TEXT NOT NULL, max 2000 chars |
 | `email` | nullable; prefilled for logged-in users |
+| `name` | nullable; logged-in user's name from the session |
 | `user_id` | nullable |
 | `page_url` | page the user was on |
 | `user_agent`, `viewport` | auto-captured |
