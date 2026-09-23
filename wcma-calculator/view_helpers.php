@@ -35,6 +35,7 @@ function renderSiteHeader(string $title, string $navHtml = ''): void {
     <h1><?= h($title) ?></h1>
   </div>
   <nav><?= $navHtml ?></nav>
+  <script src="js/feedback.js" defer></script>
 </header>
 <?php
 }
@@ -71,6 +72,8 @@ function renderCommonNav(string $current = ''): string {
     } else {
         $links[] = navItem('auth.php?action=login', 'Sign In', $current === 'auth');
     }
+
+    $links[] = '<a href="#" data-feedback-open>Feedback</a>';
 
     return implode('', $links);
 }

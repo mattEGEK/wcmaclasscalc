@@ -2038,3 +2038,28 @@ textarea.error {
 }
 
 .badge-pending { color: var(--warning-color); font-weight: bold; }
+
+/* ── Feedback modal ──────────────────────────────────────────────────────────── */
+.feedback-modal {
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.feedback-modal h2 {
+    margin: 0 0 var(--spacing-unit);
+}
+
+.feedback-modal textarea,
+.feedback-modal select,
+.feedback-modal input[type="email"] {
+    width: 100%;
+}
+
+.feedback-hp {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}

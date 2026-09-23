@@ -38,6 +38,7 @@ function renderAuthPage(string $title, string $bodyHtml): void {
   </div>
 </div>
 <script src="js/auth.js" defer></script>
+<script src="js/feedback.js" defer></script>
 </body>
 </html><?php
 }
