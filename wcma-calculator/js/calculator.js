@@ -178,6 +178,30 @@ export function determineClass(ratio) {
 }
 
 /**
+ * Describe how far a ratio is from each edge of its class band.
+ * Ratios are 2-decimal, and a lower band's max is exclusive, so dropping
+ * into the class below takes 0.01 more than the gap to the band minimum.
+ * @param {number} ratio - Current (modified) weight/hp ratio
+ * @param {string} className - Class the ratio falls in
+ * @returns {{min: number, max: number, up: ?{className: string, amount: number}, down: ?{className: string, amount: number}}|null}
+ */
+export function getBoundaryDistances(ratio, className) {
+    const idx = CLASS_RANGES.findIndex(r => r.name === className);
+    if (!(ratio > 0) || idx === -1) {
+        return null;
+    }
+    const range = CLASS_RANGES[idx];
+    const round2 = n => Math.round(n * 100) / 100;
+    const up = isFinite(range.max)
+        ? { className: CLASS_RANGES[idx + 1].name, amount: round2(range.max - ratio) }
+        : null;
+    const down = isFinite(range.min)
+        ? { className: CLASS_RANGES[idx - 1].name, amount: round2(ratio - range.min + 0.01) }
+        : null;
+    return { min: range.min, max: range.max, up, down };
+}
+
+/**
  * Format number to specified decimal places
  * @param {number} value - Number to format
  * @param {number} decimals - Number of decimal places (default: 2)

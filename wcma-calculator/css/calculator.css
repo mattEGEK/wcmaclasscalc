@@ -282,6 +282,14 @@ header h1 {
     transition: width 0.2s ease;
 }
 
+.boundary-gauge-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2px;
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
 .boundary-gauge-label {
     margin-top: calc(var(--spacing-unit) * 0.4);
     font-size: 0.95rem;

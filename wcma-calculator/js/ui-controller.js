@@ -3,7 +3,7 @@
  * Handles DOM manipulation, event handling, and real-time updates
  */
 
-import { updateCalculations, formatNumber, CLASS_RANGES } from './calculator.js';
+import { updateCalculations, formatNumber, getBoundaryDistances, CLASS_RANGES } from './calculator.js';
 import { handleFormSubmit, clearFieldError, showFieldError, validateFileSize, validateFileType } from './form-handler.js';
 import {
     chassisModifierTable,
@@ -187,23 +187,20 @@ function updateBoundaryGauge(results) {
     const pct = ((clampedRatio - lowerBound) / (upperBound - lowerBound)) * 100;
     fill.style.width = `${pct.toFixed(1)}%`;
 
-    const idx = CLASS_RANGES.findIndex(r => r.name === results.calculatedClass);
-    const lowerNeighbor = CLASS_RANGES[idx - 1];
-    const upperNeighbor = CLASS_RANGES[idx + 1];
-    const distToLower = isFinite(range.min) ? (ratio - range.min) : null;
-    const distToUpper = isFinite(range.max) ? (range.max - ratio) : null;
-
-    let text = '';
-    if (distToLower !== null && distToUpper !== null) {
-        text = (distToUpper <= distToLower)
-            ? `${formatNumber(distToUpper)} from ${upperNeighbor.name}`
-            : `${formatNumber(distToLower)} from ${lowerNeighbor.name}`;
-    } else if (distToUpper !== null && upperNeighbor) {
-        text = `${formatNumber(distToUpper)} from ${upperNeighbor.name}`;
-    } else if (distToLower !== null && lowerNeighbor) {
-        text = `${formatNumber(distToLower)} from ${lowerNeighbor.name}`;
+    const distances = getBoundaryDistances(ratio, results.calculatedClass);
+    const parts = [];
+    if (distances.up) {
+        parts.push(`${formatNumber(distances.up.amount)} more and you're in ${distances.up.className}`);
     }
-    label.textContent = text;
+    if (distances.down) {
+        parts.push(`${formatNumber(distances.down.amount)} less and you're in ${distances.down.className}`);
+    }
+    label.textContent = parts.join(' · ');
+
+    const minTick = document.getElementById('boundary-gauge-min');
+    const maxTick = document.getElementById('boundary-gauge-max');
+    if (minTick) minTick.textContent = isFinite(range.min) ? formatNumber(range.min) : '';
+    if (maxTick) maxTick.textContent = isFinite(range.max) ? formatNumber(range.max) : '';
 }
 
 /**
