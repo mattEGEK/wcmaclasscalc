@@ -9,6 +9,8 @@ require __DIR__ . '/feedback-lib.php';
 require __DIR__ . '/admin-feedback.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
+require __DIR__ . '/email-helpers.php';
+require __DIR__ . '/submission-email-render.php';
 require __DIR__ . '/phpmailer/src/SMTP.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -746,9 +748,7 @@ function handleResend(PDO $pdo, int $id): void {
         exit;
     }
 
-    $brake_list = json_decode($sub['brake_suspension'] ?? '[]', true) ?? [];
-    $body_html  = buildResendEmailHtml($sub, $brake_list);
-    $body_text  = buildResendEmailText($sub, $brake_list);
+    $body_text  = renderSubmissionEmailText($sub, true);
     $subject    = 'WCMA Classing Calculator Submission — ' . $sub['name'] . ' — ' . date('M j, Y', strtotime($sub['submitted_at']));
 
     // Collect file attachments that still exist on disk
@@ -770,7 +770,7 @@ function handleResend(PDO $pdo, int $id): void {
         $mail->addReplyTo($sub['email'], $sub['name']);
         $mail->Subject = $subject;
         $mail->isHTML(true);
-        $mail->Body    = $body_html;
+        $mail->Body    = renderSubmissionEmailHtml($sub, emailLogoSrc($mail), true);
         $mail->AltBody = $body_text;
         foreach ($attachments as $att) { $mail->addAttachment($att['path'], $att['name']); }
         $mail->send();
@@ -780,7 +780,7 @@ function handleResend(PDO $pdo, int $id): void {
         $mail2->addAddress($sub['email'], $sub['name']);
         $mail2->Subject = 'Your WCMA Classing Calculator Submission';
         $mail2->isHTML(true);
-        $mail2->Body    = $body_html;
+        $mail2->Body    = renderSubmissionEmailHtml($sub, emailLogoSrc($mail2), true);
         $mail2->AltBody = $body_text;
         foreach ($attachments as $att) { $mail2->addAttachment($att['path'], $att['name']); }
         $mail2->send();
@@ -885,62 +885,6 @@ function buildMailer(): PHPMailer {
     $mail->CharSet    = 'UTF-8';
     $mail->setFrom(FROM_EMAIL, FROM_NAME);
     return $mail;
-}
-
-function buildResendEmailHtml(array $s, array $brake_list): string {
-    $b = '<html><body style="font-family:Arial,sans-serif;line-height:1.6;color:#333">';
-    $b .= '<h2 style="color:#1a5490">WCMA Classing Calculator Submission</h2>';
-    $b .= '<p><strong>Originally submitted:</strong> ' . htmlspecialchars(date('F j, Y \a\t g:i A', strtotime($s['submitted_at']))) . '</p>';
-    $b .= '<h3 style="color:#1a5490;border-bottom:2px solid #1a5490;padding-bottom:5px">Contact Information</h3>';
-    $b .= '<table cellpadding="5"><tr><td width="200"><strong>Name:</strong></td><td>' . htmlspecialchars($s['name']) . '</td></tr>';
-    $b .= '<tr><td><strong>Email:</strong></td><td>' . htmlspecialchars($s['email']) . '</td></tr>';
-    $b .= '<tr><td><strong>Vehicle:</strong></td><td>' . htmlspecialchars(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) . '</td></tr>';
-    if ($s['comments']) $b .= '<tr><td><strong>Comments:</strong></td><td>' . nl2br(htmlspecialchars($s['comments'])) . '</td></tr>';
-    $b .= '</table>';
-    $b .= '<h3 style="color:#1a5490;border-bottom:2px solid #1a5490;padding-bottom:5px">Vehicle Factors</h3>';
-    $b .= '<table cellpadding="5">';
-    $b .= '<tr><td width="200"><strong>Competition Weight:</strong></td><td>' . htmlspecialchars((string)$s['competition_weight']) . ' lbs</td></tr>';
-    $b .= '<tr><td><strong>Declared HP:</strong></td><td>' . htmlspecialchars((string)$s['declared_hp']) . '</td></tr>';
-    if ($s['dyno_hp'])             $b .= '<tr><td><strong>Dyno HP:</strong></td><td>' . htmlspecialchars((string)$s['dyno_hp']) . '</td></tr>';
-    if ($s['chassis_display'])     $b .= '<tr><td><strong>Chassis:</strong></td><td>' . htmlspecialchars($s['chassis_display']) . '</td></tr>';
-    if ($s['body_mods_display'])   $b .= '<tr><td><strong>Body Mods:</strong></td><td>' . htmlspecialchars($s['body_mods_display']) . '</td></tr>';
-    if ($s['transmission_display'])$b .= '<tr><td><strong>Transmission:</strong></td><td>' . htmlspecialchars($s['transmission_display']) . '</td></tr>';
-    if ($s['drivetrain_display'])  $b .= '<tr><td><strong>Drivetrain:</strong></td><td>' . htmlspecialchars($s['drivetrain_display']) . '</td></tr>';
-    if ($s['tires_display'])       $b .= '<tr><td><strong>Tires:</strong></td><td>' . htmlspecialchars($s['tires_display']) . '</td></tr>';
-    if ($brake_list)               $b .= '<tr><td><strong>Brake &amp; Susp:</strong></td><td>' . htmlspecialchars(implode(', ', $brake_list)) . '</td></tr>';
-    $b .= '</table>';
-    $b .= '<h3 style="color:#1a5490;border-bottom:2px solid #1a5490;padding-bottom:5px">Calculation Results</h3>';
-    $b .= '<table cellpadding="5" style="background:#f9f9f9;border:1px solid #ddd">';
-    $b .= '<tr><td width="200"><strong>Weight Factor:</strong></td><td>' . htmlspecialchars(number_format((float)$s['weight_factor'], 2)) . '</td></tr>';
-    $b .= '<tr><td><strong>Base Ratio:</strong></td><td>' . htmlspecialchars(number_format((float)$s['base_ratio'], 2)) . '</td></tr>';
-    $b .= '<tr><td><strong>Additional Mod Factors:</strong></td><td>' . htmlspecialchars(number_format((float)$s['modification_factor'], 2)) . '</td></tr>';
-    $b .= '<tr><td><strong>Modified Ratio:</strong></td><td>' . htmlspecialchars(number_format((float)$s['modified_ratio'], 2)) . '</td></tr>';
-    $b .= '<tr style="font-size:1.2em"><td><strong>Calculated Class:</strong></td><td style="font-weight:bold;color:#1a5490">' . htmlspecialchars($s['calculated_class'] ?? '') . '</td></tr>';
-    $b .= '</table></body></html>';
-    return $b;
-}
-
-function buildResendEmailText(array $s, array $brake_list): string {
-    $t  = "WCMA Classing Calculator Submission\n";
-    $t .= "Originally submitted: " . date('F j, Y \a\t g:i A', strtotime($s['submitted_at'])) . "\n\n";
-    $t .= "CONTACT\nName: {$s['name']}\nEmail: {$s['email']}\n";
-    $t .= "Vehicle: " . trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model']) . "\n";
-    if ($s['comments']) $t .= "Comments: {$s['comments']}\n";
-    $t .= "\nVEHICLE FACTORS\nWeight: {$s['competition_weight']} lbs\nDeclared HP: {$s['declared_hp']}\n";
-    if ($s['dyno_hp'])              $t .= "Dyno HP: {$s['dyno_hp']}\n";
-    if ($s['chassis_display'])      $t .= "Chassis: {$s['chassis_display']}\n";
-    if ($s['body_mods_display'])    $t .= "Body Mods: {$s['body_mods_display']}\n";
-    if ($s['transmission_display']) $t .= "Transmission: {$s['transmission_display']}\n";
-    if ($s['drivetrain_display'])   $t .= "Drivetrain: {$s['drivetrain_display']}\n";
-    if ($s['tires_display'])        $t .= "Tires: {$s['tires_display']}\n";
-    if ($brake_list)                $t .= "Brake & Susp: " . implode(', ', $brake_list) . "\n";
-    $t .= "\nCALCULATION RESULTS\n";
-    $t .= "Weight Factor: " . number_format((float)$s['weight_factor'], 2) . "\n";
-    $t .= "Base Ratio: " . number_format((float)$s['base_ratio'], 2) . "\n";
-    $t .= "Mod Factors: " . number_format((float)$s['modification_factor'], 2) . "\n";
-    $t .= "Modified Ratio: " . number_format((float)$s['modified_ratio'], 2) . "\n";
-    $t .= "Calculated Class: " . ($s['calculated_class'] ?? '') . "\n";
-    return $t;
 }
 
 function handleEventsList(PDO $pdo): void {

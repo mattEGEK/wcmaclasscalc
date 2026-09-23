@@ -16,6 +16,8 @@ require __DIR__ . '/phpmailer/src/SMTP.php';
 require __DIR__ . '/db.php';
 require __DIR__ . '/session_bootstrap.php';
 require __DIR__ . '/config.php';
+require __DIR__ . '/email-helpers.php';
+require __DIR__ . '/submission-email-render.php';
 
 $current_user = current_user();
 
@@ -227,99 +229,31 @@ unset($att);
 
 db_update_submission_files($pdo, $submission_id, $file_paths['dyno_chart'], $file_paths['dyno_table'], $file_paths['car_image']);
 
-// Email body (HTML format for better readability)
-$email_body = '<html><body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">';
-$email_body .= '<h2 style="color: #1a5490;">WCMA Classing Calculator Submission</h2>';
-$email_body .= '<p><strong>Submitted:</strong> ' . date('F j, Y \a\t g:i A') . '</p>';
-
-$email_body .= '<h3 style="color: #1a5490; border-bottom: 2px solid #1a5490; padding-bottom: 5px;">Contact Information</h3>';
-$email_body .= '<table cellpadding="5" cellspacing="0" style="width: 100%; margin-bottom: 20px;">';
-$email_body .= '<tr><td style="width: 200px;"><strong>Name:</strong></td><td>' . htmlspecialchars($name) . '</td></tr>';
-$email_body .= '<tr><td><strong>Email:</strong></td><td>' . htmlspecialchars($email) . '</td></tr>';
-$email_body .= '<tr><td><strong>Vehicle:</strong></td><td>' . htmlspecialchars($year . ' ' . $make . ' ' . $model) . '</td></tr>';
-if (!empty($comments)) {
-    $email_body .= '<tr><td><strong>Comments:</strong></td><td>' . nl2br(htmlspecialchars($comments)) . '</td></tr>';
-}
-$email_body .= '</table>';
-
-$email_body .= '<h3 style="color: #1a5490; border-bottom: 2px solid #1a5490; padding-bottom: 5px;">Vehicle Factors</h3>';
-$email_body .= '<table cellpadding="5" cellspacing="0" style="width: 100%; margin-bottom: 20px;">';
-$email_body .= '<tr><td style="width: 200px;"><strong>Competition Weight (lbs):</strong></td><td>' . htmlspecialchars($competition_weight) . '</td></tr>';
-$email_body .= '<tr><td><strong>Declared HP:</strong></td><td>' . htmlspecialchars($declared_hp) . '</td></tr>';
-if (!empty($dyno_hp)) {
-    $email_body .= '<tr><td><strong>Dyno HP:</strong></td><td>' . htmlspecialchars($dyno_hp) . '</td></tr>';
-}
-if (!empty($chassis_display)) {
-    $email_body .= '<tr><td><strong>Chassis:</strong></td><td>' . htmlspecialchars($chassis_display) . '</td></tr>';
-}
-if (!empty($body_mods_display)) {
-    $email_body .= '<tr><td><strong>Body Mods:</strong></td><td>' . htmlspecialchars($body_mods_display) . '</td></tr>';
-}
-if (!empty($transmission_display)) {
-    $email_body .= '<tr><td><strong>Transmission:</strong></td><td>' . htmlspecialchars($transmission_display) . '</td></tr>';
-}
-if (!empty($drivetrain_display)) {
-    $email_body .= '<tr><td><strong>Drivetrain:</strong></td><td>' . htmlspecialchars($drivetrain_display) . '</td></tr>';
-}
-if (!empty($tires_display)) {
-    $email_body .= '<tr><td><strong>Tires:</strong></td><td>' . htmlspecialchars($tires_display) . '</td></tr>';
-}
-if (!empty($brake_suspension)) {
-    $brake_list = is_array($brake_suspension) ? implode(', ', array_map('htmlspecialchars', $brake_suspension)) : htmlspecialchars($brake_suspension);
-    $email_body .= '<tr><td><strong>Brake & Suspension:</strong></td><td>' . $brake_list . '</td></tr>';
-}
-$email_body .= '</table>';
-
-$email_body .= '<h3 style="color: #1a5490; border-bottom: 2px solid #1a5490; padding-bottom: 5px;">Calculation Results</h3>';
-$email_body .= '<table cellpadding="5" cellspacing="0" style="width: 100%; margin-bottom: 20px; background-color: #f9f9f9; border: 1px solid #ddd;">';
-if (!empty($weight_factor)) {
-    $email_body .= '<tr><td style="width: 200px;"><strong>Weight Factor:</strong></td><td>' . htmlspecialchars($weight_factor) . '</td></tr>';
-}
-if (!empty($base_ratio)) {
-    $email_body .= '<tr><td><strong>Base Ratio:</strong></td><td>' . htmlspecialchars($base_ratio) . '</td></tr>';
-}
-if (!empty($modification_factor)) {
-    $email_body .= '<tr><td><strong>Additional Mod Factors:</strong></td><td>' . htmlspecialchars($modification_factor) . '</td></tr>';
-}
-if (!empty($modified_ratio)) {
-    $email_body .= '<tr><td><strong>Modified Ratio:</strong></td><td>' . htmlspecialchars($modified_ratio) . '</td></tr>';
-}
-if (!empty($calculated_class)) {
-    $email_body .= '<tr><td style="font-size: 1.2em; padding-top: 10px;"><strong>Calculated Class:</strong></td><td style="font-size: 1.2em; font-weight: bold; color: #1a5490; padding-top: 10px;">' . htmlspecialchars($calculated_class) . '</td></tr>';
-}
-$email_body .= '</table>';
-
-$email_body .= '</body></html>';
-
-// Plain text version for email clients that don't support HTML
-$email_body_text = "WCMA Classing Calculator Submission\n";
-$email_body_text .= "Submitted: " . date('F j, Y \a\t g:i A') . "\n\n";
-$email_body_text .= "CONTACT INFORMATION\n";
-$email_body_text .= "Name: $name\n";
-$email_body_text .= "Email: $email\n";
-$email_body_text .= "Vehicle: $year $make $model\n";
-if (!empty($comments)) {
-    $email_body_text .= "Comments: $comments\n";
-}
-$email_body_text .= "\nVEHICLE FACTORS\n";
-$email_body_text .= "Competition Weight (lbs): $competition_weight\n";
-$email_body_text .= "Declared HP: $declared_hp\n";
-if (!empty($dyno_hp)) $email_body_text .= "Dyno HP: $dyno_hp\n";
-if (!empty($chassis_display)) $email_body_text .= "Chassis: $chassis_display\n";
-if (!empty($body_mods_display)) $email_body_text .= "Body Mods: $body_mods_display\n";
-if (!empty($transmission_display)) $email_body_text .= "Transmission: $transmission_display\n";
-if (!empty($drivetrain_display)) $email_body_text .= "Drivetrain: $drivetrain_display\n";
-if (!empty($tires_display)) $email_body_text .= "Tires: $tires_display\n";
-if (!empty($brake_suspension)) {
-    $brake_list = is_array($brake_suspension) ? implode(', ', $brake_suspension) : $brake_suspension;
-    $email_body_text .= "Brake & Suspension: $brake_list\n";
-}
-$email_body_text .= "\nCALCULATION RESULTS\n";
-if (!empty($weight_factor)) $email_body_text .= "Weight Factor: $weight_factor\n";
-if (!empty($base_ratio)) $email_body_text .= "Base Ratio: $base_ratio\n";
-if (!empty($modification_factor)) $email_body_text .= "Additional Mod Factors: $modification_factor\n";
-if (!empty($modified_ratio)) $email_body_text .= "Modified Ratio: $modified_ratio\n";
-if (!empty($calculated_class)) $email_body_text .= "Calculated Class: $calculated_class\n";
+// Email body: same branded layout as the admin resend (see submission-email-render.php)
+$submission_for_email = [
+    'submitted_at'        => date('Y-m-d H:i:s'),
+    'name'                => $name,
+    'email'               => $email,
+    'year'                => $year,
+    'make'                => $make,
+    'model'               => $model,
+    'comments'            => $comments,
+    'competition_weight'  => $competition_weight,
+    'declared_hp'         => $declared_hp,
+    'dyno_hp'             => $dyno_hp,
+    'chassis_display'     => $chassis_display,
+    'body_mods_display'   => $body_mods_display,
+    'transmission_display'=> $transmission_display,
+    'drivetrain_display'  => $drivetrain_display,
+    'tires_display'       => $tires_display,
+    'brake_suspension'    => $brake_suspension,
+    'weight_factor'       => $weight_factor,
+    'base_ratio'          => $base_ratio,
+    'modification_factor' => $modification_factor,
+    'modified_ratio'      => $modified_ratio,
+    'calculated_class'    => $calculated_class,
+];
+$email_body_text = renderSubmissionEmailText($submission_for_email);
 
 // ── Send via PHPMailer (IONOS SMTP) ──────────────────────────────────────────
 $last_error = '';
@@ -345,7 +279,7 @@ try {
     $mail->addReplyTo($email, $name);
     $mail->Subject = $subject;
     $mail->isHTML(true);
-    $mail->Body    = $email_body;
+    $mail->Body    = renderSubmissionEmailHtml($submission_for_email, emailLogoSrc($mail));
     $mail->AltBody = $email_body_text;
     foreach ($attachments as $att) {
         $mail->addAttachment($att['path'], $att['name']);
@@ -357,7 +291,7 @@ try {
     $mail2->addAddress($email, $name);
     $mail2->Subject = 'Your WCMA Classing Calculator Submission';
     $mail2->isHTML(true);
-    $mail2->Body    = $email_body;
+    $mail2->Body    = renderSubmissionEmailHtml($submission_for_email, emailLogoSrc($mail2));
     $mail2->AltBody = $email_body_text;
     foreach ($attachments as $att) {
         $mail2->addAttachment($att['path'], $att['name']);

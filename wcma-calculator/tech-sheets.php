@@ -6,6 +6,7 @@ require __DIR__ . '/config.php';
 require __DIR__ . '/view_helpers.php';
 require __DIR__ . '/tech-sheet-data.php';
 require __DIR__ . '/tech-sheet-render.php';
+require __DIR__ . '/email-helpers.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -53,23 +54,6 @@ function techSheetSignatureResolverEmail(PHPMailer $mail): callable {
         }
         return 'cid:' . $cid;
     };
-}
-
-/**
- * CID source for the WCMA logo header in email bodies — same reasoning as
- * techSheetSignatureResolverEmail(): embed rather than hotlink so it
- * actually renders inline instead of needing "show images" or getting
- * stripped.
- */
-function techSheetEmailLogoSrc(PHPMailer $mail): ?string {
-    $full = __DIR__ . '/assets/wcma-logo.png';
-    if (!is_file($full)) return null;
-    try {
-        $mail->addEmbeddedImage($full, 'wcma-logo', 'wcma-logo.png', 'base64', 'image/png');
-    } catch (Exception $e) {
-        return null;
-    }
-    return 'cid:wcma-logo';
 }
 
 function requireTechSheetLogin(): array {
@@ -464,7 +448,7 @@ function sendTechSheetConfirmationEmail(array $sheet, array $drivers, array $eve
         $mail = buildTechSheetMailer();
         // Built before rendering: the resolvers below attach embedded images
         // (CIDs) directly to this $mail instance as they resolve each src.
-        $bodyHtml = '<html><body>' . renderTechSheetHtml($sheet, $drivers, $event, techSheetSignatureResolverEmail($mail), techSheetEmailLogoSrc($mail)) . '</body></html>';
+        $bodyHtml = '<html><body>' . renderTechSheetHtml($sheet, $drivers, $event, techSheetSignatureResolverEmail($mail), emailLogoSrc($mail)) . '</body></html>';
         $mail->addAddress($recipientEmail, $entrantName);
         $mail->addAddress(TECH_SHEET_EMAIL, TECH_SHEET_EMAIL_NAME);
         $mail->Subject = 'WCMA Tech Sheet — ' . $entrantName . ' — ' . ($event['name'] ?? '');
