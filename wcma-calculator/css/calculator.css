@@ -1971,3 +1971,70 @@ textarea.error {
 @media (max-width: 600px) {
     .tech-sheet-header-grid { grid-template-columns: 1fr; }
 }
+
+/* ── My Cars: one card per classed car, tech sheets nested per event ─────────── */
+.car-card {
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    padding: calc(var(--spacing-unit) * 1.2);
+    margin-bottom: calc(var(--spacing-unit) * 1);
+}
+
+.car-card-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: calc(var(--spacing-unit) * 0.5);
+}
+
+.car-card-vehicle {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--primary-color);
+}
+
+.car-card-class {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--secondary-color);
+}
+
+.car-card-meta {
+    color: #666;
+    font-size: 0.95rem;
+    margin: 0.2rem 0 0.8rem;
+}
+
+.car-card-actions {
+    margin-bottom: 0.8rem;
+}
+
+.car-card-actions a,
+.car-card-actions .link-button {
+    margin-right: 1rem;
+    font-size: 0.95rem;
+}
+
+.car-card-tech-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.6rem 0 0;
+    border-top: 1px solid var(--border-color);
+}
+
+.car-card-tech-line {
+    font-size: 1rem;
+    padding: 0.4rem 0;
+    line-height: 1.5;
+}
+
+.car-card-no-events {
+    color: #888;
+    font-size: 0.95rem;
+    font-style: italic;
+    margin: 0.6rem 0 0;
+}
+
+.badge-pending { color: var(--warning-color); font-weight: bold; }

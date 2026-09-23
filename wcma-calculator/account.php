@@ -80,6 +80,7 @@ function handleAccountList(PDO $pdo, array $user): void {
     $drafts = db_get_user_drafts($pdo, $user['id']);
     $submissions = db_get_user_submissions($pdo, $user['id']);
     $techSheets = db_get_user_tech_sheets($pdo, $user['id']);
+    $activeEvents = db_get_active_events($pdo);
     $totalCount = db_count_user_drafts($pdo, $user['id']) + db_count_user_submissions($pdo, $user['id']);
 
     $eventNames = [];
@@ -87,21 +88,14 @@ function handleAccountList(PDO $pdo, array $user): void {
         $eventNames[(int)$e['id']] = $e['name'];
     }
 
-    $rows = [];
-    foreach ($drafts as $d) {
-        $rows[] = ['type' => 'draft', 'sort_key' => $d['updated_at'], 'data' => $d];
-    }
-    foreach ($submissions as $s) {
-        $rows[] = ['type' => 'submission', 'sort_key' => $s['submitted_at'], 'data' => $s];
-    }
-    usort($rows, fn($a, $b) => strcmp($b['sort_key'], $a['sort_key']));
+    $carGroups = buildCarTechSheetGroups($submissions, $techSheets, $activeEvents, $eventNames);
 
     $csrf = generateCsrfToken();
     $flash = getFlash();
-    renderAccountListPage($rows, $totalCount, $csrf, $flash, $techSheets, $eventNames);
+    renderAccountListPage($drafts, $carGroups, $totalCount, $csrf, $flash);
 }
 
-function renderAccountListPage(array $rows, int $count, string $csrf, ?array $flash, array $techSheets = [], array $eventNames = []): void {
+function renderAccountListPage(array $drafts, array $carGroups, int $count, string $csrf, ?array $flash): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -121,33 +115,85 @@ function renderAccountListPage(array $rows, int $count, string $csrf, ?array $fl
   <?php if ($count > MY_CARS_SOFT_CAP): ?>
   <div class="form-messages show info">You have <?= (int)$count ?> saved cars — consider deleting some older ones.</div>
   <?php endif; ?>
-  <?php if (!empty($rows)): ?>
+
+  <h2>My Cars</h2>
+  <?php if (empty($carGroups['cars'])): ?>
+  <p class="empty-row">No classed cars yet — use the calculator to declare a class.</p>
+  <?php else: ?>
+    <?php foreach ($carGroups['cars'] as $car): $s = $car['submission']; ?>
+    <div class="car-card">
+      <div class="car-card-header">
+        <span class="car-card-vehicle"><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></span>
+        <span class="car-card-class"><?= h($s['calculated_class'] ?? '—') ?></span>
+      </div>
+      <p class="car-card-meta">Class declared <?= h(date('M j, Y', strtotime($s['submitted_at']))) ?></p>
+      <div class="car-card-actions">
+        <a href="account.php?action=view&id=<?= (int)$s['id'] ?>">View declaration</a>
+        <form method="post" action="account.php?action=delete" style="display:inline"
+              data-confirm="Permanently delete this class declaration and its files?">
+          <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+          <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
+          <button type="submit" class="link-button">Delete</button>
+        </form>
+      </div>
+      <?php if (!empty($car['lines'])): ?>
+      <ul class="car-card-tech-list">
+        <?php foreach ($car['lines'] as $line): $sheet = $line['sheet']; ?>
+        <?php $eventLabel = h($line['event_name']) . ($line['event_date'] ? ' (' . h(date('M j', strtotime($line['event_date']))) . ')' : ''); ?>
+        <li class="car-card-tech-line">
+          <?php if ($sheet === null): ?>
+            Tech sheet for <strong><?= $eventLabel ?></strong>: <span class="badge-pending">not submitted</span> —
+            <a href="tech-sheets.php?action=new&submission_id=<?= (int)$s['id'] ?>">Submit now</a>
+          <?php else: ?>
+            Tech sheet for <strong><?= $eventLabel ?></strong>:
+            <span class="<?= $sheet['status'] === 'teched' ? 'badge-ok' : 'badge-fail' ?>"><?= $sheet['status'] === 'teched' ? 'submitted, reviewed' : 'submitted' ?></span> —
+            <a href="tech-sheets.php?action=view&id=<?= (int)$sheet['id'] ?>">View</a>
+          <?php endif; ?>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+      <?php else: ?>
+      <p class="car-card-no-events">No upcoming events open for tech sheet submission yet.</p>
+      <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+  <?php endif; ?>
+
+  <?php if (!empty($carGroups['orphanSheets'])): ?>
+  <h2 style="margin-top:2rem">Other Tech Sheets</h2>
+  <ul class="car-card-tech-list">
+    <?php foreach ($carGroups['orphanSheets'] as $ts): ?>
+    <li class="car-card-tech-line">
+      <?= h(trim($ts['car_make'] . ' ' . $ts['car_model'] . ' #' . $ts['car_number'])) ?> —
+      <span class="<?= $ts['status'] === 'teched' ? 'badge-ok' : 'badge-fail' ?>"><?= $ts['status'] === 'teched' ? 'submitted, reviewed' : 'submitted' ?></span> —
+      <a href="tech-sheets.php?action=view&id=<?= (int)$ts['id'] ?>">View</a>
+    </li>
+    <?php endforeach; ?>
+  </ul>
+  <?php endif; ?>
+
+  <h2 style="margin-top:2rem">Drafts</h2>
+  <?php if (!empty($drafts)): ?>
   <div class="list-toolbar">
-    <input type="search" id="my-cars-search" class="table-search" placeholder="Search my cars…" aria-label="Search my cars">
+    <input type="search" id="my-drafts-search" class="table-search" placeholder="Search my drafts…" aria-label="Search my drafts">
   </div>
   <?php endif; ?>
-  <table class="data-table" id="my-cars-table">
+  <table class="data-table" id="my-drafts-table">
     <thead>
       <tr>
-        <th data-sort data-sort-type="text">Type</th>
         <th data-sort data-sort-type="date">Updated</th>
         <th data-sort data-sort-type="text">Vehicle</th>
-        <th data-sort data-sort-type="text">Class</th>
         <th>Actions</th>
       </tr>
     </thead>
     <tbody>
-    <?php if (empty($rows)): ?>
-      <tr><td colspan="5" class="empty-row">No cars yet — save a draft or submit the calculator to get started.</td></tr>
+    <?php if (empty($drafts)): ?>
+      <tr><td colspan="3" class="empty-row">No drafts yet — start the calculator and save your progress to come back to it later.</td></tr>
     <?php else: ?>
-      <?php foreach ($rows as $row): ?>
-        <?php if ($row['type'] === 'draft'): ?>
-        <?php $d = $row['data']; ?>
+      <?php foreach ($drafts as $d): ?>
       <tr>
-        <td><span class="badge-draft">Draft</span></td>
         <td data-sort-value="<?= h($d['updated_at']) ?>"><?= h(date('M j, Y H:i', strtotime($d['updated_at']))) ?></td>
         <td><?= h($d['label'] ?: 'Untitled') ?></td>
-        <td>—</td>
         <td class="actions">
           <a href="car-classing.html?draft=<?= (int)$d['id'] ?>">Edit</a>
           <form method="post" action="account.php?action=draft-delete" style="display:inline"
@@ -158,57 +204,18 @@ function renderAccountListPage(array $rows, int $count, string $csrf, ?array $fl
           </form>
         </td>
       </tr>
-        <?php else: ?>
-        <?php $s = $row['data']; ?>
-      <tr>
-        <td>Submitted</td>
-        <td data-sort-value="<?= h($s['submitted_at']) ?>"><?= h(date('M j, Y H:i', strtotime($s['submitted_at']))) ?></td>
-        <td><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></td>
-        <td><strong><?= h($s['calculated_class'] ?? '—') ?></strong></td>
-        <td class="actions">
-          <a href="account.php?action=view&id=<?= (int)$s['id'] ?>">View</a>
-          <a href="tech-sheets.php?action=new&submission_id=<?= (int)$s['id'] ?>">Submit Tech Sheet</a>
-          <form method="post" action="account.php?action=delete" style="display:inline"
-                data-confirm="Permanently delete this submission and its files?">
-            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-            <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
-            <button type="submit" class="link-button">Delete</button>
-          </form>
-        </td>
-      </tr>
-        <?php endif; ?>
       <?php endforeach; ?>
     <?php endif; ?>
     </tbody>
   </table>
-  <p class="no-results-message" hidden>No cars match your search.</p>
-
-  <h2 style="margin-top:2rem">My Tech Sheets</h2>
-  <?php if (empty($techSheets)): ?>
-  <p class="empty-row">No tech sheets submitted yet.</p>
-  <?php else: ?>
-  <table class="data-table" id="tech-sheets-table">
-    <thead><tr><th>Event</th><th>Vehicle</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
-    <tbody>
-    <?php foreach ($techSheets as $ts): $eventName = $eventNames[(int)$ts['event_id']] ?? null; ?>
-      <tr>
-        <td><?= h($eventName ?? 'Unknown event') ?></td>
-        <td><?= h(trim($ts['car_make'] . ' ' . $ts['car_model'] . ' #' . $ts['car_number'])) ?></td>
-        <td><?= h(ucfirst($ts['sheet_type'])) ?></td>
-        <td class="<?= $ts['status'] === 'teched' ? 'badge-ok' : 'badge-fail' ?>"><?= $ts['status'] === 'teched' ? 'Reviewed' : 'Submitted' ?></td>
-        <td class="actions"><a href="tech-sheets.php?action=view&id=<?= (int)$ts['id'] ?>">View</a></td>
-      </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table>
-  <?php endif; ?>
+  <p class="no-results-message" hidden>No drafts match your search.</p>
 </div>
 <script src="js/table-tools.js"></script>
 <script src="js/confirm-modal.js"></script>
 <script src="js/form-feedback.js"></script>
 <script>
-  WcmaTableTools.enableSearch(document.getElementById('my-cars-search'), document.getElementById('my-cars-table'));
-  WcmaTableTools.enableSort(document.getElementById('my-cars-table'));
+  WcmaTableTools.enableSearch(document.getElementById('my-drafts-search'), document.getElementById('my-drafts-table'));
+  WcmaTableTools.enableSort(document.getElementById('my-drafts-table'));
 </script>
 </body>
 </html><?php
