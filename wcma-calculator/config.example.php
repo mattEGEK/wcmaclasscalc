@@ -38,3 +38,14 @@ define('CLASSING_RECIPIENT_NAME',  'WCMA Classing');
 // Where tech sheet submissions (tech-sheets.php, admin.php) are sent
 define('TECH_SHEET_RECIPIENT_EMAIL', 'classing@wcma.ca');
 define('TECH_SHEET_RECIPIENT_NAME',  'WCMA Classing');
+
+// Where feedback / bug-report notifications (feedback.php) are sent.
+// Overridable at runtime on the admin Settings page.
+define('FEEDBACK_RECIPIENT_EMAIL', 'classing@wcma.ca');
+define('FEEDBACK_RECIPIENT_NAME',  'WCMA Classing');
+
+// ── GitHub (feedback → issues) ──────────────────────────────────────────────
+// Fine-grained personal access token with ONLY "Issues: Read and write" on the
+// repo below. Leave empty to disable GitHub sync (feedback is still stored + emailed).
+define('GITHUB_TOKEN', '');
+define('GITHUB_REPO',  'mattEGEK/wcmaclasscalc');
