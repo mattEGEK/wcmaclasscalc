@@ -169,3 +169,126 @@ function feedbackBaseUrl(array $server): string {
 function feedbackAdminUrl(string $base, int $id): string {
     return rtrim($base, '/') . '/admin.php?action=feedback-view&id=' . $id;
 }
+
+// ── GitHub sync ───────────────────────────────────────────────────────────────
+
+function feedbackGithubConfig(string $adminBase): array {
+    return [
+        'token'      => config_default('GITHUB_TOKEN', ''),
+        'repo'       => config_default('GITHUB_REPO', 'mattEGEK/wcmaclasscalc'),
+        'admin_base' => $adminBase,
+    ];
+}
+
+/** Real transport for feedbackSyncToGithub(). Throws RuntimeException on transport errors. */
+function feedbackGithubHttp(string $url, string $token, array $payload): array {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => json_encode($payload),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 3,
+        CURLOPT_TIMEOUT        => 5,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . $token,
+            'Accept: application/vnd.github+json',
+            'X-GitHub-Api-Version: 2022-11-28',
+            'User-Agent: wcma-calculator',
+            'Content-Type: application/json',
+        ],
+    ]);
+    $body = curl_exec($ch);
+    if ($body === false) {
+        $err = curl_error($ch);
+        curl_close($ch);
+        throw new RuntimeException('GitHub request failed: ' . $err);
+    }
+    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return ['status' => $status, 'body' => (string)$body];
+}
+
+/**
+ * Creates a GitHub issue for a stored feedback row. Returns true if the row
+ * has an issue afterwards. Failures are recorded on the row, never thrown.
+ */
+function feedbackSyncToGithub(PDO $pdo, int $id, array $cfg, callable $http): bool {
+    if (($cfg['token'] ?? '') === '' || ($cfg['repo'] ?? '') === '') {
+        return false;
+    }
+    $row = db_get_feedback($pdo, $id);
+    if (!$row) {
+        return false;
+    }
+    if ($row['github_issue_number'] !== null) {
+        return true;
+    }
+
+    $issue = feedbackBuildIssue($row, feedbackAdminUrl((string)($cfg['admin_base'] ?? ''), $id));
+    try {
+        $res = $http('https://api.github.com/repos/' . $cfg['repo'] . '/issues', $cfg['token'], [
+            'title'  => $issue['title'],
+            'body'   => $issue['body'],
+            'labels' => $issue['labels'],
+        ]);
+        $data = json_decode((string)($res['body'] ?? ''), true);
+        if (($res['status'] ?? 0) === 201 && is_array($data) && isset($data['number'], $data['html_url'])) {
+            db_set_feedback_github($pdo, $id, (int)$data['number'], (string)$data['html_url']);
+            return true;
+        }
+        db_set_feedback_github_error($pdo, $id, 'HTTP ' . ($res['status'] ?? 0) . ': ' . mb_substr((string)($res['body'] ?? ''), 0, 300));
+    } catch (Throwable $e) {
+        db_set_feedback_github_error($pdo, $id, mb_substr($e->getMessage(), 0, 300));
+    }
+    return false;
+}
+
+// ── Submission orchestrator ───────────────────────────────────────────────────
+
+/** @return array{status: int, body: array} */
+function feedbackHandleSubmission(PDO $pdo, array $in, array $ctx, callable $http, callable $notify): array {
+    if (trim((string)($in['website'] ?? '')) !== '') {
+        return ['status' => 200, 'body' => ['ok' => true]];
+    }
+
+    [$clean, $errors] = feedbackValidate($in);
+    if ($errors) {
+        return ['status' => 422, 'body' => ['ok' => false, 'errors' => $errors]];
+    }
+
+    $ipHash = feedbackHashIp((string)($ctx['ip'] ?? ''));
+    $now    = (int)($ctx['now'] ?? time());
+    $since  = date('Y-m-d H:i:s', $now - (int)($ctx['rate_window'] ?? 3600));
+    if (db_count_recent_feedback_by_ip_hash($pdo, $ipHash, $since) >= (int)($ctx['rate_limit'] ?? 5)) {
+        return ['status' => 429, 'body' => ['ok' => false, 'errors' => ['You have sent a lot of feedback recently. Please try again later.']]];
+    }
+
+    $user = $ctx['user'] ?? null;
+    if ($clean['email'] === null && !empty($user['email'])) {
+        $clean['email'] = $user['email'];
+    }
+
+    try {
+        $id = db_insert_feedback($pdo, $clean + [
+            'name'       => $user['name'] ?? null,
+            'user_id'    => $user['id'] ?? null,
+            'user_agent' => mb_substr((string)($ctx['user_agent'] ?? ''), 0, 300),
+            'ip_hash'    => $ipHash,
+            'created_at' => date('Y-m-d H:i:s', $now),
+        ]);
+    } catch (Throwable $e) {
+        error_log('Feedback insert failed: ' . $e->getMessage());
+        return ['status' => 500, 'body' => ['ok' => false, 'errors' => ['Sorry, we could not save your feedback. Please try again.']]];
+    }
+
+    feedbackSyncToGithub($pdo, $id, $ctx['github'] ?? [], $http);
+
+    $row = db_get_feedback($pdo, $id);
+    try {
+        $notify($row, $row['github_issue_url']);
+    } catch (Throwable $e) {
+        error_log('Feedback notification failed: ' . $e->getMessage());
+    }
+
+    return ['status' => 200, 'body' => ['ok' => true]];
+}
