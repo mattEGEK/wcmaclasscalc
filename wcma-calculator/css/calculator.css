@@ -172,6 +172,65 @@ header h1 {
     font-style: normal;
 }
 
+/* ── Two-step overview panel (landing page) ─────────────────────────────────── */
+.two-step-panel {
+    background: #eaf6ff;
+    border: 1px solid var(--secondary-color);
+    border-radius: var(--border-radius);
+    padding: calc(var(--spacing-unit) * 1) calc(var(--spacing-unit) * 1.25);
+    margin-bottom: var(--spacing-unit);
+}
+
+.two-step-panel-title {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--primary-color);
+    margin: 0 0 calc(var(--spacing-unit) * 0.5) 0;
+}
+
+.two-step-list {
+    margin: 0 0 0 calc(var(--spacing-unit) * 1.2);
+    padding: 0;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--text-color);
+}
+
+.two-step-list li {
+    margin-bottom: calc(var(--spacing-unit) * 0.4);
+}
+
+.two-step-list li:last-child {
+    margin-bottom: 0;
+}
+
+.two-step-current,
+.two-step-note {
+    color: #555;
+    font-style: italic;
+}
+
+/* ── Collapsed "how is my class calculated" disclosure ───────────────────────── */
+.calc-explainer-details {
+    margin-bottom: var(--spacing-unit);
+}
+
+.calc-explainer-details summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--secondary-color);
+    padding: calc(var(--spacing-unit) * 0.4) 0;
+}
+
+.calc-explainer-details summary:hover {
+    text-decoration: underline;
+}
+
+.calc-explainer-details .instructions-box {
+    margin-top: calc(var(--spacing-unit) * 0.5);
+    margin-bottom: 0;
+}
+
 /* Info tooltip trigger + popover */
 .info-tooltip-trigger {
     display: inline-flex;
