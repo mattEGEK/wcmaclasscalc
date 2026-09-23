@@ -145,8 +145,8 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
             Tech sheet for <strong><?= $eventLabel ?></strong>: <span class="badge-pending">not submitted</span> —
             <a href="tech-sheets.php?action=new&submission_id=<?= (int)$s['id'] ?>">Submit now</a>
           <?php else: ?>
-            Tech sheet for <strong><?= $eventLabel ?></strong>:
-            <span class="<?= $sheet['status'] === 'teched' ? 'badge-ok' : 'badge-fail' ?>"><?= $sheet['status'] === 'teched' ? 'submitted, reviewed' : 'submitted' ?></span> —
+            Tech sheet (<?= h(ucfirst($sheet['sheet_type'])) ?>) for <strong><?= $eventLabel ?></strong>:
+            <span class="<?= $sheet['status'] === 'teched' ? 'badge-ok' : 'badge-pending' ?>"><?= $sheet['status'] === 'teched' ? 'submitted, reviewed' : 'submitted' ?></span> —
             <a href="tech-sheets.php?action=view&id=<?= (int)$sheet['id'] ?>">View</a>
           <?php endif; ?>
         </li>
@@ -164,8 +164,8 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
   <ul class="car-card-tech-list">
     <?php foreach ($carGroups['orphanSheets'] as $ts): ?>
     <li class="car-card-tech-line">
-      <?= h(trim($ts['car_make'] . ' ' . $ts['car_model'] . ' #' . $ts['car_number'])) ?> —
-      <span class="<?= $ts['status'] === 'teched' ? 'badge-ok' : 'badge-fail' ?>"><?= $ts['status'] === 'teched' ? 'submitted, reviewed' : 'submitted' ?></span> —
+      Tech sheet (<?= h(ucfirst($ts['sheet_type'])) ?>): <?= h(trim($ts['car_make'] . ' ' . $ts['car_model'] . ' #' . $ts['car_number'])) ?> —
+      <span class="<?= $ts['status'] === 'teched' ? 'badge-ok' : 'badge-pending' ?>"><?= $ts['status'] === 'teched' ? 'submitted, reviewed' : 'submitted' ?></span> —
       <a href="tech-sheets.php?action=view&id=<?= (int)$ts['id'] ?>">View</a>
     </li>
     <?php endforeach; ?>
@@ -238,7 +238,7 @@ function buildAccountMailer(): PHPMailer {
 function handleAccountView(PDO $pdo, array $user, int $id): void {
     $sub = db_get_user_submission($pdo, $user['id'], $id);
     if (!$sub) {
-        setFlash('Submission not found.', 'error');
+        setFlash('Class declaration not found.', 'error');
         header('Location: account.php');
         exit;
     }
@@ -313,7 +313,7 @@ function renderAccountViewPage(array $s, string $csrf, ?array $flash): void {
 function handleAccountResend(PDO $pdo, array $user, int $id): void {
     $sub = db_get_user_submission($pdo, $user['id'], $id);
     if (!$sub) {
-        setFlash('Submission not found.', 'error');
+        setFlash('Class declaration not found.', 'error');
         header('Location: account.php');
         exit;
     }
@@ -330,7 +330,7 @@ function handleAccountResend(PDO $pdo, array $user, int $id): void {
     try {
         $mail = buildAccountMailer();
         $mail->addAddress($sub['email'], $sub['name']);
-        $mail->Subject = 'Your WCMA Classing Calculator Submission';
+        $mail->Subject = 'Your WCMA Class Declaration';
         $mail->isHTML(true);
         $mail->Body = '<p>Class: <strong>' . htmlspecialchars($sub['calculated_class'] ?? '') . '</strong></p><p>Vehicle: ' . htmlspecialchars(trim($sub['year'] . ' ' . $sub['make'] . ' ' . $sub['model'])) . '</p>';
         $mail->AltBody = 'Class: ' . ($sub['calculated_class'] ?? '') . "\nVehicle: " . trim($sub['year'] . ' ' . $sub['make'] . ' ' . $sub['model']);
@@ -350,7 +350,7 @@ function handleAccountResend(PDO $pdo, array $user, int $id): void {
 function handleAccountDelete(PDO $pdo, array $user, int $id): void {
     $sub = db_get_user_submission($pdo, $user['id'], $id);
     if (!$sub) {
-        setFlash('Submission not found.', 'error');
+        setFlash('Class declaration not found.', 'error');
         header('Location: account.php');
         exit;
     }
@@ -362,7 +362,7 @@ function handleAccountDelete(PDO $pdo, array $user, int $id): void {
     }
 
     db_delete_submission($pdo, $id);
-    setFlash('Submission deleted.', 'success');
+    setFlash('Class declaration deleted.', 'success');
     header('Location: account.php');
     exit;
 }

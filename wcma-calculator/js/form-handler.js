@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Form Handler Module
  * Handles form validation and submission
  */

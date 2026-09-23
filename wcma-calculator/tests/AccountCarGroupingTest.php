@@ -101,4 +101,17 @@ final class AccountCarGroupingTest extends TestCase
         $this->assertCount(1, $groups['orphanSheets']);
         $this->assertSame(100, (int)$groups['orphanSheets'][0]['id']);
     }
+
+    public function testDuplicateSheetsForSameEventKeepsNewestNotOldest(): void
+    {
+        // Rows arrive newest-first, matching db_get_user_tech_sheets()'s ORDER BY created_at DESC, id DESC.
+        $groups = buildCarTechSheetGroups(
+            [$this->submission(1)],
+            [$this->techSheet(102, 1, 10, 'submitted'), $this->techSheet(100, 1, 10, 'teched')],
+            [$this->event(10, 'Fall Sprint')],
+            [10 => 'Fall Sprint']
+        );
+
+        $this->assertSame(102, (int)$groups['cars'][0]['lines'][0]['sheet']['id']);
+    }
 }

@@ -114,7 +114,10 @@ function buildCarTechSheetGroups(array $submissions, array $techSheets, array $a
         $subId = (int)$s['id'];
         $sheetsByEvent = [];
         foreach ($sheetsBySubmission[$subId] ?? [] as $ts) {
-            $sheetsByEvent[(int)$ts['event_id']] = $ts;
+            $eid = (int)$ts['event_id'];
+            if (!isset($sheetsByEvent[$eid])) {
+                $sheetsByEvent[$eid] = $ts;
+            }
         }
 
         $lines = [];

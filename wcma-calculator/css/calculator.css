@@ -284,14 +284,14 @@ header h1 {
 
 .boundary-gauge-label {
     margin-top: calc(var(--spacing-unit) * 0.4);
-    font-size: 0.8rem;
+    font-size: 0.95rem;
     color: rgba(255, 255, 255, 0.9);
     text-align: center;
 }
 
 .higher-class-note {
     margin-top: calc(var(--spacing-unit) * 0.75);
-    font-size: 0.78rem;
+    font-size: 0.95rem;
     color: rgba(255, 255, 255, 0.75);
     text-align: center;
     font-style: italic;
@@ -516,7 +516,7 @@ textarea:focus {
 }
 
 .summary-label {
-    font-size: 0.9rem;
+    font-size: 1rem;
     color: rgba(255, 255, 255, 0.9);
 }
 
@@ -1532,7 +1532,7 @@ textarea.error {
 .data-table .actions a {
     color: var(--secondary-color);
     margin-right: 0.6rem;
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     text-decoration: none;
 }
 
@@ -1549,7 +1549,7 @@ textarea.error {
     border: none;
     color: var(--error-color);
     cursor: pointer;
-    font-size: 0.85rem;
+    font-size: 0.95rem;
     padding: 0;
     margin-left: 0.6rem;
     font-family: inherit;
@@ -1909,7 +1909,7 @@ textarea.error {
     cursor: pointer;
 }
 .checklist-section-name { font-weight: 700; font-size: 0.95rem; color: var(--primary-color); }
-.checklist-section-count { font-size: 0.78rem; color: #888; margin-top: 0.15rem; }
+.checklist-section-count { font-size: 0.95rem; color: #888; margin-top: 0.15rem; }
 .checklist-chevron { font-size: 1.1rem; color: #999; transition: transform 0.15s ease; }
 .checklist-section-open .checklist-chevron { transform: rotate(180deg); }
 
@@ -1936,7 +1936,7 @@ textarea.error {
     border-top: 1px solid #f0f1f2;
     gap: 0.75rem;
 }
-.checklist-item-label { font-size: 0.88rem; flex: 1; }
+.checklist-item-label { font-size: 1rem; flex: 1; }
 .checklist-toggle-group { display: flex; gap: 0.4rem; flex-shrink: 0; }
 .checklist-chip {
     min-width: 44px;
