@@ -45,7 +45,7 @@ function techCarStatus(array $sheets): array {
             return ['state' => 'accepted', 'via' => $s['accepted_via'] ?? 'in_person', 'sheet_id' => (int)$s['id']];
         }
     }
-    foreach (['needs_changes' => 'needs_changes', 'submitted' => 'pending_review', 'draft' => 'photos_draft'] as $photoStatus => $state) {
+    foreach (['needs_changes' => 'needs_changes', 'submitted' => 'pending_review', 'accepted' => 'pending_review', 'draft' => 'photos_draft'] as $photoStatus => $state) {
         foreach ($sheets as $s) {
             if (($s['photo_status'] ?? null) === $photoStatus) {
                 return ['state' => $state, 'via' => null, 'sheet_id' => (int)$s['id']];
@@ -102,11 +102,13 @@ function techBuildRoster(array $eventSheets, array $seasonSheets): array {
     return $rows;
 }
 
-/** $filter: 'all' | 'needs_tech' (car not accepted) | 'accepted'. Unknown values mean 'all'. */
+/** $filter: 'all' | 'needs_tech' (car not accepted) | 'accepted' | 'pending_review'. Unknown values mean 'all'. */
 function techRosterFilter(array $rows, string $filter): array {
-    if ($filter !== 'needs_tech' && $filter !== 'accepted') return $rows;
+    if (!in_array($filter, ['needs_tech', 'accepted', 'pending_review'], true)) return $rows;
     return array_values(array_filter($rows, function (array $r) use ($filter): bool {
-        $accepted = $r['status']['state'] === 'accepted';
+        $state = $r['status']['state'];
+        if ($filter === 'pending_review') return $state === 'pending_review';
+        $accepted = $state === 'accepted';
         return $filter === 'accepted' ? $accepted : !$accepted;
     }));
 }

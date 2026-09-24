@@ -50,13 +50,16 @@ function inspectionPhotoRelativePath(string $subjectType, int $subjectId, string
 }
 
 /**
- * Owners may read their own sheet's photos and write until the sheet is
- * accepted ('teched'), when it locks. Admins may always read and write.
+ * Owners may read their own sheet's photos. They may write until the sheet is accepted
+ * ('teched') or its photo set is under/after review (photo_status 'submitted' or 'accepted'),
+ * when it locks. Admins may always read and write.
  */
 function inspectionCanAccess(array $user, array $sheet, bool $forWrite): bool {
     if (($user['role'] ?? '') === 'admin') return true;
     if ((int)$user['id'] !== (int)$sheet['user_id']) return false;
-    return !$forWrite || ($sheet['status'] ?? '') !== 'teched';
+    if (!$forWrite) return true;
+    return ($sheet['status'] ?? '') !== 'teched'
+        && !in_array($sheet['photo_status'] ?? null, ['submitted', 'accepted'], true);
 }
 
 /**
@@ -108,6 +111,8 @@ function inspectionSavePhoto(
     if ($previous !== null && $previous !== '' && $previous !== $relative && is_file($baseDir . '/' . $previous)) {
         unlink($baseDir . '/' . $previous);
     }
+
+    if ($subjectType === 'tech_sheet') db_mark_tech_sheet_photos_draft($pdo, $subjectId);
 
     $stored = db_get_inspection_photos($pdo, $subjectType, $subjectId)[$requirementKey];
     return ['ok' => true, 'error' => null, 'photo' => $stored];

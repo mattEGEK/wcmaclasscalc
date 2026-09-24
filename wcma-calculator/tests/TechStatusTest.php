@@ -160,4 +160,22 @@ final class TechStatusTest extends TestCase
         $this->assertSame(4, techDefaultEventId($events, '2027-01-01'));   // none upcoming: most recent event
         $this->assertSame(0, techDefaultEventId([], '2026-09-24'));
     }
+
+    public function testAcceptedPhotoStatusWithoutTechedSheetCountsAsPending(): void
+    {
+        $status = techCarStatus([$this->sheet(1, ['photo_status' => 'accepted'])]);
+        $this->assertSame('pending_review', $status['state']);
+    }
+
+    public function testPendingReviewRosterFilter(): void
+    {
+        $rows = [
+            ['sheet' => $this->sheet(1), 'status' => ['state' => 'pending_review', 'via' => null, 'sheet_id' => 1]],
+            ['sheet' => $this->sheet(2), 'status' => ['state' => 'none', 'via' => null, 'sheet_id' => null]],
+            ['sheet' => $this->sheet(3), 'status' => ['state' => 'needs_changes', 'via' => null, 'sheet_id' => 3]],
+            ['sheet' => $this->sheet(4), 'status' => ['state' => 'accepted', 'via' => 'photos', 'sheet_id' => 4]],
+        ];
+        $this->assertSame([1], array_map(fn($r) => $r['sheet']['id'], techRosterFilter($rows, 'pending_review')));
+        $this->assertSame([1, 2, 3], array_map(fn($r) => $r['sheet']['id'], techRosterFilter($rows, 'needs_tech')));
+    }
 }
