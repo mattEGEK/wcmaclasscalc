@@ -194,6 +194,24 @@ function db_init(PDO $pdo): void {
         )
     ");
 
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS inspection_photos (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            subject_type         TEXT NOT NULL,
+            subject_id           INTEGER NOT NULL,
+            requirement_key      TEXT NOT NULL,
+            requirement_version  INTEGER NOT NULL,
+            file_path            TEXT NOT NULL DEFAULT '',
+            typed_value          TEXT,
+            review_status        TEXT NOT NULL DEFAULT 'pending',
+            reviewer_note        TEXT,
+            applies              INTEGER NOT NULL DEFAULT 1,
+            created_at           DATETIME NOT NULL,
+            updated_at           DATETIME NOT NULL,
+            UNIQUE (subject_type, subject_id, requirement_key)
+        )
+    ");
+
     // Add user_id to submissions if migrating an existing DB
     $columns = $pdo->query("PRAGMA table_info(submissions)")->fetchAll();
     $hasUserId = false;
@@ -772,4 +790,61 @@ function db_count_recent_feedback_by_ip_hash(PDO $pdo, string $ipHash, string $s
     $stmt = $pdo->prepare("SELECT COUNT(*) FROM feedback WHERE ip_hash = :h AND created_at >= :since");
     $stmt->execute([':h' => $ipHash, ':since' => $since]);
     return (int)$stmt->fetchColumn();
+}
+
+/**
+ * Inserts the photo for (subject_type, subject_id, requirement_key), or
+ * replaces it if one exists (a retake): the review state resets to pending.
+ * Returns the previous file_path when replacing, so the caller can delete the
+ * stale file, or null for a first upload.
+ */
+function db_upsert_inspection_photo(PDO $pdo, array $d): ?string {
+    $now = date('Y-m-d H:i:s');
+    $stmt = $pdo->prepare("SELECT id, file_path FROM inspection_photos WHERE subject_type = :t AND subject_id = :s AND requirement_key = :k");
+    $stmt->execute([':t' => $d['subject_type'], ':s' => $d['subject_id'], ':k' => $d['requirement_key']]);
+    $existing = $stmt->fetch();
+
+    if ($existing) {
+        $pdo->prepare("
+            UPDATE inspection_photos SET
+                requirement_version = :v, file_path = :p, typed_value = :tv,
+                review_status = 'pending', reviewer_note = NULL, applies = 1, updated_at = :now
+            WHERE id = :id
+        ")->execute([
+            ':v' => $d['requirement_version'], ':p' => $d['file_path'], ':tv' => $d['typed_value'],
+            ':now' => $now, ':id' => $existing['id'],
+        ]);
+        return $existing['file_path'];
+    }
+
+    $pdo->prepare("
+        INSERT INTO inspection_photos
+            (subject_type, subject_id, requirement_key, requirement_version, file_path, typed_value, created_at, updated_at)
+        VALUES (:t, :s, :k, :v, :p, :tv, :now, :now)
+    ")->execute([
+        ':t' => $d['subject_type'], ':s' => $d['subject_id'], ':k' => $d['requirement_key'],
+        ':v' => $d['requirement_version'], ':p' => $d['file_path'], ':tv' => $d['typed_value'], ':now' => $now,
+    ]);
+    return null;
+}
+
+function db_get_inspection_photo(PDO $pdo, int $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM inspection_photos WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+/** All photos for a subject, keyed by requirement_key. */
+function db_get_inspection_photos(PDO $pdo, string $subjectType, int $subjectId): array {
+    $stmt = $pdo->prepare("SELECT * FROM inspection_photos WHERE subject_type = :t AND subject_id = :s ORDER BY id ASC");
+    $stmt->execute([':t' => $subjectType, ':s' => $subjectId]);
+    $out = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $out[$row['requirement_key']] = $row;
+    }
+    return $out;
+}
+
+function db_delete_inspection_photo(PDO $pdo, int $id): void {
+    $pdo->prepare("DELETE FROM inspection_photos WHERE id = :id")->execute([':id' => $id]);
 }
