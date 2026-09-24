@@ -2086,3 +2086,8 @@ textarea.error {
 .pretech-typed label { display: block; font-size: 0.85rem; margin-bottom: 0.15rem; }
 .pretech-upload { display: inline-block; cursor: pointer; margin-top: 0.4rem; }
 .pretech-toggle { display: block; margin: 0.4rem 0; }
+
+/* ── My Drivers ──────────────────────────────────────────────────────────── */
+#gear-add-form label { display: block; margin: 0.5rem 0 0.15rem; font-size: 0.9rem; }
+#gear-add-form input[type="text"] { width: 100%; max-width: 420px; }
+#gear-table td.actions a { white-space: nowrap; }

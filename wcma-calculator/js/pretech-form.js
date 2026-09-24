@@ -7,6 +7,8 @@
 
     const state = window.PRETECH_STATE;
     if (!state || state.locked) return;
+    const subjectType = state.subjectType || 'tech_sheet';
+    const subjectId = state.subjectId !== undefined ? state.subjectId : state.sheetId;
 
     const client = WcmaPhotoUpload.browserClient(state.csrf);
     const present = new Set(Object.keys(state.photos));
@@ -83,7 +85,7 @@
                 setStatus(card, 'Uploading…', 'badge-pending');
                 try {
                     const photo = await client.upload({
-                        file: file, subjectType: 'tech_sheet', subjectId: state.sheetId,
+                        file: file, subjectType: subjectType, subjectId: subjectId,
                         requirementKey: key, typed: typedValues(card),
                     });
                     state.photos[key] = photo;
@@ -118,7 +120,7 @@
             toggle.addEventListener('change', async function () {
                 setError(card, '');
                 try {
-                    await client.applies({ subjectType: 'tech_sheet', subjectId: state.sheetId, requirementKey: key, applies: toggle.checked });
+                    await client.applies({ subjectType: subjectType, subjectId: subjectId, requirementKey: key, applies: toggle.checked });
                     if (toggle.checked) {
                         applicable.add(key);
                     } else {

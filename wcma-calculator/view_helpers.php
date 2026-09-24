@@ -65,6 +65,7 @@ function renderCommonNav(string $current = ''): string {
 
     if ($user !== null) {
         $links[] = navItem('account.php', 'My Cars', $current === 'account');
+        $links[] = navItem('gear.php', 'My Drivers', $current === 'gear');
         if (is_admin()) {
             $links[] = navItem('admin.php', 'Admin', $current === 'admin');
         }
