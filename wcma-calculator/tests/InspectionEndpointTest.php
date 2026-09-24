@@ -299,6 +299,54 @@ final class InspectionEndpointTest extends TestCase
         $this->assertSame(404, $res['status']);
     }
 
+    private function post(string $action, array $post, ?int $userId, string $role = 'user', string $csrf = self::CSRF): array
+    {
+        return $this->request('POST', ['action' => $action], $post + ['csrf_token' => $csrf], $this->session($userId, $role));
+    }
+
+    public function testAppliesToggleRoundTrip(): void
+    {
+        $fields = ['subject_type' => 'tech_sheet', 'subject_id' => $this->ownerSheet, 'requirement_key' => 'ballast', 'applies' => '1'];
+
+        $on = $this->post('applies', $fields, $this->ownerId);
+        $this->assertSame(200, $on['status']);
+        $this->assertTrue(json_decode($on['body'], true)['ok']);
+        $this->assertArrayHasKey('ballast', db_get_inspection_photos($this->pdo, 'tech_sheet', $this->ownerSheet));
+
+        $off = $this->post('applies', ['applies' => '0'] + $fields, $this->ownerId);
+        $this->assertSame(200, $off['status']);
+        $this->assertArrayNotHasKey('ballast', db_get_inspection_photos($this->pdo, 'tech_sheet', $this->ownerSheet));
+    }
+
+    public function testAppliesAndTypedRefuseWrongCsrfOtherUsersAndLockedSheets(): void
+    {
+        $fields = ['subject_type' => 'tech_sheet', 'subject_id' => $this->ownerSheet, 'requirement_key' => 'ballast', 'applies' => '1'];
+
+        $this->assertSame(401, $this->post('applies', $fields, null)['status']);
+        $this->assertSame(403, $this->post('applies', $fields, $this->ownerId, 'user', 'wrong')['status']);
+        $this->assertSame(404, $this->post('applies', $fields, $this->otherId)['status']);
+        $this->assertSame(405, $this->request('GET', ['action' => 'applies'], [], $this->session($this->ownerId))['status']);
+
+        $typed = ['id' => (string)$this->ownerPhotoId, 'typed' => ['date' => '05/2025']];
+        $this->assertSame(404, $this->post('typed', $typed, $this->otherId)['status']);
+
+        $this->pdo->prepare("UPDATE tech_sheets SET photo_status = 'submitted' WHERE id = :id")->execute([':id' => $this->ownerSheet]);
+        $this->assertSame(404, $this->post('applies', $fields, $this->ownerId)['status']);       // locked while under review
+        $this->assertSame(404, $this->post('typed', $typed, $this->ownerId)['status']);
+        $this->assertSame(200, $this->post('applies', $fields, $this->adminId, 'admin')['status']);   // admins may still write
+    }
+
+    public function testTypedUpdateOnAnExistingPhoto(): void
+    {
+        // ownerPhotoId is a front_34 photo, which has no typed fields; any value is rejected, an empty set is accepted.
+        $bad = $this->post('typed', ['id' => (string)$this->ownerPhotoId, 'typed' => ['date' => '05/2025']], $this->ownerId);
+        $this->assertSame(400, $bad['status']);
+
+        $ok = $this->post('typed', ['id' => (string)$this->ownerPhotoId], $this->ownerId);
+        $this->assertSame(200, $ok['status']);
+        $this->assertSame([], json_decode($ok['body'], true)['photo']['typed']);
+    }
+
     public function testAdminCanReadAndWriteAnotherUsersSheet(): void
     {
         $res = $this->request('GET', ['action' => 'photo', 'id' => $this->ownerPhotoId], [], $this->session($this->adminId, 'admin'));

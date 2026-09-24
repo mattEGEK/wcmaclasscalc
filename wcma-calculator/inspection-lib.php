@@ -139,3 +139,47 @@ function inspectionPublicPhoto(array $row): array {
         'url' => 'inspection.php?action=photo&id=' . (int)$row['id'],
     ];
 }
+
+/**
+ * Marks a conditional photo as applying to the car or not. Turning it off removes any photo already
+ * uploaded for it (file and row); turning it on creates an empty placeholder and puts a tech sheet's
+ * photo set into 'draft'.
+ *
+ * @return array{ok: bool, error: ?string}
+ */
+function inspectionSetApplies(PDO $pdo, string $baseDir, string $subjectType, int $subjectId, string $requirementKey, bool $applies): array {
+    $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg];
+
+    if (!isset(INSPECTION_SUBJECT_SCOPE[$subjectType])) return $fail('Unknown photo subject.');
+    $requirement = photoRequirementByKey($requirementKey);
+    if ($requirement === null || $requirement['scope'] !== INSPECTION_SUBJECT_SCOPE[$subjectType]) {
+        return $fail('Unknown photo type.');
+    }
+    if ($requirement['tier'] !== 'conditional') return $fail('That photo is not optional.');
+
+    $previous = db_set_conditional_photo_applies($pdo, $subjectType, $subjectId, $requirementKey, PHOTO_REQUIREMENTS_VERSION, $applies);
+    if ($previous !== null && $previous !== '' && is_file($baseDir . '/' . $previous)) {
+        unlink($baseDir . '/' . $previous);
+    }
+    if ($applies && $subjectType === 'tech_sheet') db_mark_tech_sheet_photos_draft($pdo, $subjectId);
+
+    return ['ok' => true, 'error' => null];
+}
+
+/**
+ * Edits the typed details (dates, standards) of an existing photo without re-uploading it.
+ *
+ * @return array{ok: bool, error: ?string, photo?: array}
+ */
+function inspectionUpdateTyped(PDO $pdo, int $photoId, array $typedInput): array {
+    $photo = db_get_inspection_photo($pdo, $photoId);
+    if ($photo === null) return ['ok' => false, 'error' => 'Photo not found.'];
+    if ($photo['file_path'] === '') return ['ok' => false, 'error' => 'Add the photo first, then its details.'];
+
+    $requirement = photoRequirementByKey($photo['requirement_key']);
+    $typed = $requirement === null ? null : photoValidateTypedValue($requirement, $typedInput);
+    if ($typed === null) return ['ok' => false, 'error' => 'One of the details entered for this photo is not valid.'];
+
+    db_update_inspection_photo_typed($pdo, $photoId, $typed ? json_encode($typed) : null);
+    return ['ok' => true, 'error' => null, 'photo' => inspectionPublicPhoto(db_get_inspection_photo($pdo, $photoId))];
+}

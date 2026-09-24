@@ -82,3 +82,30 @@ test('upload does not send typed entries whose value is undefined or null', asyn
     assert.strictEqual(body.get('typed[c]'), '0');
     assert.strictEqual(body.get('typed[d]'), '');
 });
+
+test('applies posts the toggle fields', async () => {
+    const { calls, client } = makeClient(okResponse({ ok: true, applies: true }));
+    await client.applies({ subjectType: 'tech_sheet', subjectId: 7, requirementKey: 'ballast', applies: true });
+    assert.strictEqual(calls[0].url, 'inspection.php?action=applies');
+    const body = calls[0].init.body;
+    assert.strictEqual(body.get('csrf_token'), 'tok123');
+    assert.strictEqual(body.get('subject_type'), 'tech_sheet');
+    assert.strictEqual(body.get('subject_id'), '7');
+    assert.strictEqual(body.get('requirement_key'), 'ballast');
+    assert.strictEqual(body.get('applies'), '1');
+
+    await client.applies({ subjectType: 'tech_sheet', subjectId: 7, requirementKey: 'ballast', applies: false });
+    assert.strictEqual(calls[1].init.body.get('applies'), '0');
+});
+
+test('typed posts the photo id and typed fields and resolves the photo', async () => {
+    const photo = { id: 9, typed: { date: '05/2025' } };
+    const { calls, client } = makeClient(okResponse({ ok: true, photo }));
+    const result = await client.typed({ id: 9, typed: { date: '05/2025', standard: null } });
+    assert.deepStrictEqual(result, photo);
+    assert.strictEqual(calls[0].url, 'inspection.php?action=typed');
+    const body = calls[0].init.body;
+    assert.strictEqual(body.get('id'), '9');
+    assert.strictEqual(body.get('typed[date]'), '05/2025');
+    assert.strictEqual(body.get('typed[standard]'), null);   // nullish values are skipped
+});

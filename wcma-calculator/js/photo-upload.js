@@ -57,7 +57,29 @@
             await post('delete', form);
         }
 
-        return { upload: upload, remove: remove };
+        async function applies(opts) {
+            const form = new FormData();
+            form.append('csrf_token', csrfToken);
+            form.append('subject_type', opts.subjectType);
+            form.append('subject_id', String(opts.subjectId));
+            form.append('requirement_key', opts.requirementKey);
+            form.append('applies', opts.applies ? '1' : '0');
+            await post('applies', form);
+        }
+
+        async function typed(opts) {
+            const form = new FormData();
+            form.append('csrf_token', csrfToken);
+            form.append('id', String(opts.id));
+            const values = opts.typed || {};
+            Object.keys(values).forEach(function (name) {
+                if (values[name] === undefined || values[name] === null) return;
+                form.append('typed[' + name + ']', values[name]);
+            });
+            return (await post('typed', form)).photo;
+        }
+
+        return { upload: upload, remove: remove, applies: applies, typed: typed };
     }
 
     const api = {

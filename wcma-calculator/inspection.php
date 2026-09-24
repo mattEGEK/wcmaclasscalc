@@ -69,6 +69,37 @@ if ($action === 'delete') {
     inspectionJson(200, ['ok' => true]);
 }
 
+if ($action === 'applies') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') inspectionJson(405, ['ok' => false, 'error' => 'POST required.']);
+    if (!validateCsrfToken((string)($_POST['csrf_token'] ?? ''))) inspectionJson(403, ['ok' => false, 'error' => 'Invalid CSRF token.']);
+
+    $type = (string)($_POST['subject_type'] ?? '');
+    $subjectId = (int)($_POST['subject_id'] ?? 0);
+    if (inspectionLoadSubject($pdo, $user, $type, $subjectId, true) === null) {
+        inspectionJson(404, ['ok' => false, 'error' => 'Not found.']);
+    }
+
+    $applies = ($_POST['applies'] ?? '') === '1';
+    $result = inspectionSetApplies($pdo, __DIR__, $type, $subjectId, (string)($_POST['requirement_key'] ?? ''), $applies);
+    if (!$result['ok']) inspectionJson(400, ['ok' => false, 'error' => $result['error']]);
+    inspectionJson(200, ['ok' => true, 'applies' => $applies]);
+}
+
+if ($action === 'typed') {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') inspectionJson(405, ['ok' => false, 'error' => 'POST required.']);
+    if (!validateCsrfToken((string)($_POST['csrf_token'] ?? ''))) inspectionJson(403, ['ok' => false, 'error' => 'Invalid CSRF token.']);
+
+    $photo = db_get_inspection_photo($pdo, (int)($_POST['id'] ?? 0));
+    if ($photo === null || inspectionLoadSubject($pdo, $user, $photo['subject_type'], (int)$photo['subject_id'], true) === null) {
+        inspectionJson(404, ['ok' => false, 'error' => 'Not found.']);
+    }
+
+    $typed = isset($_POST['typed']) && is_array($_POST['typed']) ? $_POST['typed'] : [];
+    $result = inspectionUpdateTyped($pdo, (int)$photo['id'], $typed);
+    if (!$result['ok']) inspectionJson(400, ['ok' => false, 'error' => $result['error']]);
+    inspectionJson(200, ['ok' => true, 'photo' => $result['photo']]);
+}
+
 if ($action === 'photo') {
     $photo = db_get_inspection_photo($pdo, (int)($_GET['id'] ?? 0));
     if ($photo === null || $photo['file_path'] === ''

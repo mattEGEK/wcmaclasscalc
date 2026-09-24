@@ -173,6 +173,51 @@ final class InspectionLibTest extends TestCase
         $this->assertFalse(inspectionDeletePhoto($pdo, $this->dir, 99999));
     }
 
+    public function testSetAppliesOnlyForConditionalPhotosAndRemovesTheFileWhenTurnedOff(): void
+    {
+        $pdo = make_temp_pdo();
+
+        $this->assertTrue(inspectionSetApplies($pdo, $this->dir, 'tech_sheet', 7, 'aero', true)['ok']);
+        $this->assertSame('', db_get_inspection_photos($pdo, 'tech_sheet', 7)['aero']['file_path']);
+
+        $saved = inspectionSavePhoto($pdo, $this->dir, 'tech_sheet', 7, 'aero', $this->tmpFile($this->jpeg()), [], 'rename');
+        $this->assertTrue($saved['ok'], (string)$saved['error']);
+        $file = $this->dir . '/' . $saved['photo']['file_path'];
+        $this->assertFileExists($file);
+
+        $this->assertTrue(inspectionSetApplies($pdo, $this->dir, 'tech_sheet', 7, 'aero', false)['ok']);
+        $this->assertFileDoesNotExist($file);
+        $this->assertSame([], db_get_inspection_photos($pdo, 'tech_sheet', 7));
+
+        $required = inspectionSetApplies($pdo, $this->dir, 'tech_sheet', 7, 'front_34', true);
+        $this->assertFalse($required['ok']);
+        $this->assertStringContainsString('not optional', $required['error']);
+        $this->assertFalse(inspectionSetApplies($pdo, $this->dir, 'tech_sheet', 7, 'nope', true)['ok']);
+        $this->assertFalse(inspectionSetApplies($pdo, $this->dir, 'gear_record', 7, 'aero', true)['ok']);
+        $this->assertFalse(inspectionSetApplies($pdo, $this->dir, 'tech_sheet', 7, 'helmet_label', true)['ok']);   // gear scope on a car subject
+    }
+
+    public function testUpdateTypedValidatesAndResetsReview(): void
+    {
+        $pdo = make_temp_pdo();
+        $saved = inspectionSavePhoto($pdo, $this->dir, 'tech_sheet', 7, 'harness_date', $this->tmpFile($this->jpeg()), [], 'rename');
+        $photoId = (int)$saved['photo']['id'];
+        db_set_inspection_photo_review($pdo, $photoId, 'retake', 'Not readable');
+
+        $r = inspectionUpdateTyped($pdo, $photoId, ['date' => '05/2025']);
+        $this->assertTrue($r['ok'], (string)$r['error']);
+        $this->assertSame(['date' => '05/2025'], $r['photo']['typed']);
+        $this->assertSame('pending', $r['photo']['review_status']);
+
+        $bad = inspectionUpdateTyped($pdo, $photoId, ['date' => '2025-05']);
+        $this->assertFalse($bad['ok']);
+        $this->assertFalse(inspectionUpdateTyped($pdo, 99999, ['date' => '05/2025'])['ok']);
+
+        db_set_conditional_photo_applies($pdo, 'tech_sheet', 7, 'ballast', 1, true);
+        $placeholderId = (int)db_get_inspection_photos($pdo, 'tech_sheet', 7)['ballast']['id'];
+        $this->assertStringContainsString('photo first', inspectionUpdateTyped($pdo, $placeholderId, [])['error']);
+    }
+
     public function testPublicPhotoHidesFilePath(): void
     {
         $row = [
