@@ -170,7 +170,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
     </form>
     <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
   </div>
-  <p class="no-print">Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h(techCarStatusLabel($carStatus, (int)$sheet['season'])) ?></strong></p>
+  <p class="no-print">Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h(techCarStatusLabel($carStatus, (int)($sheet['season'] ?? date('Y')))) ?></strong></p>
   <?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?>
 </div>
 <script src="js/form-feedback.js"></script>

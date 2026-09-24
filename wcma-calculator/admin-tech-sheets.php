@@ -165,7 +165,7 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Tech Sheet #' . $id, '<a href="admin.php?action=tech-sheets&event=' . (int)$sheet['event_id'] . '">← Back to roster</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Tech Sheet #' . $id, '<a href="admin.php?action=tech-sheets&amp;event=' . (int)$sheet['event_id'] . '">← Back to roster</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card">
@@ -181,11 +181,12 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
       <button type="submit" class="btn btn-secondary">Revoke acceptance</button>
     </form>
     <?php else: ?>
-    <p class="form-hint">Accepting records that what the competitor submitted matches the car in front of you. It is not a certification that the vehicle is safe.</p>
+    <p class="form-hint">Accepting records that what the competitor submitted matches the car in front of you. <?= h(TECH_ACCEPTANCE_DISCLAIMER) ?></p>
     <form method="post" action="admin.php?action=tech-sheet-accept" id="tech-accept-form">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
       <input type="hidden" name="tech_signature" id="tech_signature">
+      <p id="tech-accept-error" class="form-messages" role="alert" hidden></p>
       <label>Tech representative signature</label>
       <div class="sig-pad-wrap"><canvas id="tech-sig-canvas"></canvas></div>
       <div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="tech">Clear</button></div>
