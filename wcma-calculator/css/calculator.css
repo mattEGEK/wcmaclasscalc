@@ -2075,3 +2075,14 @@ textarea.error {
 .confirm-modal-overlay[hidden] {
     display: none;
 }
+
+/* ── Pre-tech photo page ─────────────────────────────────────────────────── */
+.pretech-card { border: 1px solid var(--border-color); border-radius: var(--border-radius); background: #fff; padding: 1rem; margin-bottom: 1rem; }
+.pretech-card h3 { margin: 0 0 0.25rem; font-size: 1.05rem; }
+.pretech-status { font-size: 0.85rem; margin-left: 0.4rem; }
+.pretech-note { margin: 0.4rem 0; }
+.pretech-thumb { display: block; max-width: 100%; max-height: 220px; margin: 0.5rem 0; border-radius: var(--border-radius); }
+.pretech-typed { margin: 0.4rem 0; }
+.pretech-typed label { display: block; font-size: 0.85rem; margin-bottom: 0.15rem; }
+.pretech-upload { display: inline-block; cursor: pointer; margin-top: 0.4rem; }
+.pretech-toggle { display: block; margin: 0.4rem 0; }

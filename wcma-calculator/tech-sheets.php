@@ -8,6 +8,12 @@ require __DIR__ . '/tech-sheet-data.php';
 require __DIR__ . '/tech-sheet-render.php';
 require __DIR__ . '/email-helpers.php';
 require __DIR__ . '/tech-sheet-files.php';
+require __DIR__ . '/feedback-lib.php';
+require __DIR__ . '/photo-requirements.php';
+require __DIR__ . '/inspection-lib.php';
+require __DIR__ . '/pretech-lib.php';
+require __DIR__ . '/pretech-email.php';
+require __DIR__ . '/pretech-page.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -105,6 +111,18 @@ switch ($action) {
         handleResendTechSheet($pdo, $user, (int)($_POST['id'] ?? 0));
         break;
 
+    case 'pretech':
+        $user = requireTechSheetLogin();
+        handlePretech($pdo, $user, (int)($_GET['id'] ?? 0));
+        break;
+
+    case 'pretech-submit':
+        $user = requireTechSheetLogin();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: account.php'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handlePretechSubmit($pdo, $user, (int)($_POST['id'] ?? 0));
+        break;
+
     case 'sig':
         $user = requireTechSheetLogin();
         handleTechSheetSignature($pdo, $user, (int)($_GET['id'] ?? 0), (string)($_GET['which'] ?? ''));
@@ -163,6 +181,9 @@ function handleView(PDO $pdo, array $user, int $id): void {
     <?php if ($sheet['status'] === 'submitted'): ?>
     <a href="tech-sheets.php?action=edit&id=<?= (int)$sheet['id'] ?>" class="btn btn-secondary">Edit</a>
     <?php endif; ?>
+    <?php if ($sheet['status'] === 'submitted' && $carStatus['state'] !== 'accepted'): ?>
+    <a href="tech-sheets.php?action=pretech&id=<?= (int)$sheet['id'] ?>" class="btn btn-secondary">Get pre-teched (optional)</a>
+    <?php endif; ?>
     <form method="post" action="tech-sheets.php?action=resend" style="display:inline">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= (int)$sheet['id'] ?>">
@@ -176,6 +197,42 @@ function handleView(PDO $pdo, array $user, int $id): void {
 <script src="js/form-feedback.js"></script>
 </body>
 </html><?php
+}
+
+function handlePretech(PDO $pdo, array $user, int $id): void {
+    $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
+    if (!$sheet) {
+        setFlash('Tech sheet not found.', 'error');
+        header('Location: account.php');
+        exit;
+    }
+    $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
+    $identity = db_get_identity_sheets($pdo, (int)$user['id'], (string)$sheet['car_number_norm'], (int)$sheet['season']);
+    renderPretechPage($sheet, $event, pretechPageMode($sheet, $identity), pretechSnapshot($pdo, $id), generateCsrfToken(), getFlash());
+}
+
+function handlePretechSubmit(PDO $pdo, array $user, int $id): void {
+    $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
+    if (!$sheet) {
+        setFlash('Tech sheet not found.', 'error');
+        header('Location: account.php');
+        exit;
+    }
+
+    $result = pretechSubmit($pdo, $id);
+    if (!$result['ok']) {
+        setFlash($result['error'], 'error');
+    } else {
+        $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
+        $sent = pretechNotify(
+            $pdo, 'submitted', db_get_tech_sheet($pdo, $id), $event,
+            feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', '')),
+            ['email' => TECH_SHEET_EMAIL, 'name' => TECH_SHEET_EMAIL_NAME], 'emailSmtpSend'
+        );
+        setFlash('Photos submitted for review.' . ($sent ? ' We emailed you a confirmation.' : ' The confirmation email could not be sent.'), $sent ? 'success' : 'error');
+    }
+    header('Location: tech-sheets.php?action=pretech&id=' . $id);
+    exit;
 }
 
 function handleEdit(PDO $pdo, array $user, int $id): void {
