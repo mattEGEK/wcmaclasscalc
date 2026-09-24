@@ -137,7 +137,7 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
   </div>
 
   <?php foreach ($requirements as $key => $req): ?>
-    <?= pretechRenderCard($key, $req, $snapshot['photos'][$key] ?? null, in_array($key, $snapshot['applicable'], true), $locked) ?>
+    <?= pretechRenderCard($key, $req, $snapshot['photos'][$key] ?? null, in_array($key, $snapshot['applicable'], true), $locked, 'This applies to this driver') ?>
   <?php endforeach; ?>
 
   <?php if (!$locked): ?>

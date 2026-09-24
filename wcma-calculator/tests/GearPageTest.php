@@ -159,6 +159,14 @@ final class GearPageTest extends TestCase
         $this->assertMatchesRegularExpression('/data-applies-toggle[^>]*checked/', $html);
     }
 
+    public function testConditionalToggleIsWordedForDrivers(): void
+    {
+        $html = $this->renderPretech($this->gear(), $this->snapshot());
+        $this->assertStringContainsString('This applies to this driver', $html);
+        $this->assertStringNotContainsString('my car', $html);
+        $this->assertStringContainsString('This applies to my car', pretechRenderCard('underwear_label', photoRequirements('gear')['underwear_label'], null, false, false));
+    }
+
     public function testCopyAvoidsBannedWording(): void
     {
         foreach ([$this->renderList([$this->gear()]), $this->renderPretech($this->gear(), $this->snapshot())] as $html) {

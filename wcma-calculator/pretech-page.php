@@ -27,7 +27,7 @@ function pretechRenderTypedField(array $field, array $typed, bool $locked): stri
     return $out . '<input type="text" id="' . h($id) . '" data-typed="' . h($field['name']) . '" value="' . h($value) . '"' . $placeholder . ($locked ? ' disabled' : '') . '>';
 }
 
-function pretechRenderCard(string $key, array $req, ?array $photoRow, bool $applies, bool $locked): string {
+function pretechRenderCard(string $key, array $req, ?array $photoRow, bool $applies, bool $locked, string $appliesLabel = 'This applies to my car'): string {
     $hasPhoto = $photoRow !== null && $photoRow['file_path'] !== '';
     $public = $hasPhoto ? inspectionPublicPhoto($photoRow) : null;
     $typed = $public['typed'] ?? [];
@@ -45,7 +45,7 @@ function pretechRenderCard(string $key, array $req, ?array $photoRow, bool $appl
     }
     if ($req['tier'] === 'conditional') {
         $out .= '<label class="pretech-toggle"><input type="checkbox" data-applies-toggle' . ($applies ? ' checked' : '') . ($locked ? ' disabled' : '')
-            . '> This applies to my car</label>';
+            . '> ' . h($appliesLabel) . '</label>';
     }
     $out .= '<img class="pretech-thumb" data-thumb alt="' . h($req['label']) . '"' . ($hasPhoto ? ' src="' . h($public['url']) . '"' : ' hidden') . '>';
     foreach ($req['typed'] as $field) {
