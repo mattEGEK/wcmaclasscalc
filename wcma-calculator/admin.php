@@ -226,7 +226,7 @@ switch ($action) {
 
     case 'gear-record':
         requireAuth();
-        handleGearAdminView($pdo, (int)($_GET['id'] ?? 0));
+        handleGearAdminView($pdo, is_scalar($_GET['id'] ?? null) ? (int)$_GET['id'] : 0);
         break;
 
     case 'gear-record-accept':

@@ -13,9 +13,9 @@ const GEAR_ADMIN_FILTERS = [
 ];
 
 function handleGearAdminList(PDO $pdo): void {
-    $season = isset($_GET['season']) ? (int)$_GET['season'] : gearSeasonNow();
+    $season = isset($_GET['season']) && is_scalar($_GET['season']) ? (int)$_GET['season'] : gearSeasonNow();
     if ($season < 2000 || $season > 2100) $season = gearSeasonNow();
-    $filter = (string)($_GET['filter'] ?? 'all');
+    $filter = is_string($_GET['filter'] ?? null) ? $_GET['filter'] : 'all';
     if (!isset(GEAR_ADMIN_FILTERS[$filter])) $filter = 'all';
 
     $records = db_get_gear_records_for_season($pdo, $season);

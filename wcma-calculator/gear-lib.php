@@ -90,8 +90,8 @@ function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $
     $name = trim((string)preg_replace('/\s+/', ' ', $name));
     $licence = trim($licence);
     if ($name === '') return $fail('Enter the driver\'s name.');
-    if (strlen($name) > 100) return $fail('That name is too long (100 characters at most).');
-    if (strlen($licence) > 40) return $fail('That licence number is too long (40 characters at most).');
+    if (mb_strlen($name, 'UTF-8') > 100) return $fail('That name is too long (100 characters at most).');
+    if (mb_strlen($licence, 'UTF-8') > 40) return $fail('That licence number is too long (40 characters at most).');
 
     $norm = gearNameNorm($name);
     if (db_find_gear_record($pdo, $ownerId, $norm, $season) !== null) {
@@ -237,7 +237,23 @@ function gearAcceptInPerson(PDO $pdo, int $id, int $reviewerUserId): array {
 
 /** Undo an acceptance (for example the wrong driver was accepted). @return array{ok: bool, error: ?string} */
 function gearRevoke(PDO $pdo, int $id): array {
-    if (db_get_gear_record($pdo, $id) === null) return ['ok' => false, 'error' => 'Gear record not found.'];
-    if (!db_revoke_gear_acceptance($pdo, $id)) return ['ok' => false, 'error' => 'This gear record has not been accepted.'];
+    $gear = db_get_gear_record($pdo, $id);
+    if ($gear === null) return ['ok' => false, 'error' => 'Gear record not found.'];
+    $viaPhotos = ($gear['accepted_via'] ?? null) === 'photos';
+
+    $own = !$pdo->inTransaction();
+    if ($own) $pdo->beginTransaction();
+    try {
+        if (!db_revoke_gear_acceptance($pdo, $id)) {
+            if ($own) $pdo->rollBack();
+            return ['ok' => false, 'error' => 'This gear record has not been accepted.'];
+        }
+        // The photos go back to awaiting review along with the record.
+        if ($viaPhotos) db_set_all_photos_review_status($pdo, 'gear_record', $id, 'pending');
+        if ($own) $pdo->commit();
+    } catch (Throwable $e) {
+        if ($own && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
     return ['ok' => true, 'error' => null];
 }

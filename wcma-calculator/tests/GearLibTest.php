@@ -249,8 +249,41 @@ final class GearLibTest extends TestCase
         $this->assertTrue(gearRevoke($pdo, $id)['ok']);
         $this->assertSame('open', db_get_gear_record($pdo, $id)['status']);
         $this->assertSame('submitted', db_get_gear_record($pdo, $id)['photo_status']);
+        $photos = db_get_inspection_photos($pdo, 'gear_record', $id);
+        $this->assertNotEmpty($photos);
+        foreach ($photos as $photo) {
+            $this->assertSame('pending', $photo['review_status']);
+        }
         $this->assertStringContainsString('has not been accepted', gearRevoke($pdo, $id)['error']);
         $this->assertFalse(gearRevoke($pdo, 99999)['ok']);
+    }
+
+    public function testRevokeOfInPersonAcceptanceLeavesPhotosUnchanged(): void
+    {
+        $pdo = make_temp_pdo();
+        [$owner, $admin] = $this->users($pdo);
+        $id = $this->newGear($pdo, $owner);
+        $this->addRequired($pdo, $id);
+        $before = db_get_inspection_photos($pdo, 'gear_record', $id);
+        $this->assertNotEmpty($before);
+
+        $this->assertTrue(gearAcceptInPerson($pdo, $id, $admin)['ok']);
+        $this->assertTrue(gearRevoke($pdo, $id)['ok']);
+
+        $after = db_get_inspection_photos($pdo, 'gear_record', $id);
+        foreach ($before as $key => $photo) {
+            $this->assertSame($photo['review_status'], $after[$key]['review_status']);
+        }
+    }
+
+    public function testCreateCountsCharactersNotBytes(): void
+    {
+        $pdo = make_temp_pdo();
+        [$owner] = $this->users($pdo);
+        $this->assertTrue(gearCreate($pdo, $owner, str_repeat('é', 100), '', 2026)['ok']);
+        $this->assertFalse(gearCreate($pdo, $owner, str_repeat('é', 101), '', 2027)['ok']);
+        $this->assertTrue(gearCreate($pdo, $owner, 'Lic Ok', str_repeat('é', 40), 2026)['ok']);
+        $this->assertFalse(gearCreate($pdo, $owner, 'Lic Bad', str_repeat('é', 41), 2026)['ok']);
     }
 
     public function testAcceptInPersonWithoutPhotos(): void
