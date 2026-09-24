@@ -5,6 +5,7 @@ require __DIR__ . '/db.php';
 require __DIR__ . '/view_helpers.php';
 require_once __DIR__ . '/photo-requirements.php';
 require __DIR__ . '/inspection-lib.php';
+require __DIR__ . '/gear-lib.php';
 
 $pdo = db_connect();
 db_init($pdo);
@@ -20,12 +21,13 @@ function inspectionJson(int $status, array $body): void {
 function inspectionLoadSubject(PDO $pdo, array $user, string $type, int $id, bool $forWrite): ?array {
     if (!isset(INSPECTION_SUBJECT_SCOPE[$type])) return null;
     // Explicit dispatch: a type added to INSPECTION_SUBJECT_SCOPE without a branch here is a 404.
-    $sheet = match ($type) {
+    $subject = match ($type) {
         'tech_sheet' => db_get_tech_sheet($pdo, $id),
+        'gear_record' => ($gear = db_get_gear_record($pdo, $id)) ? gearAccessShape($gear) : null,
         default => null,
     };
-    if (!$sheet || !inspectionCanAccess($user, $sheet, $forWrite)) return null;
-    return $sheet;
+    if (!$subject || !inspectionCanAccess($user, $subject, $forWrite)) return null;
+    return $subject;
 }
 
 $user = current_user();

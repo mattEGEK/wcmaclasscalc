@@ -12,9 +12,10 @@ const INSPECTION_MAX_EDGE = 4000;
 /**
  * Which requirement scope each subject type stores photos for.
  * Adding a key here REQUIRES a matching loader branch in inspectionLoadSubject()
- * (inspection.php); without one the endpoint returns 404 for that type.
+ * (inspection.php, which also requires gear-lib.php for gear records); without one the
+ * endpoint returns 404 for that type.
  */
-const INSPECTION_SUBJECT_SCOPE = ['tech_sheet' => 'car'];
+const INSPECTION_SUBJECT_SCOPE = ['tech_sheet' => 'car', 'gear_record' => 'gear'];
 
 /**
  * Checks an uploaded file really is a JPEG/PNG/WebP of acceptable size and
@@ -112,7 +113,11 @@ function inspectionSavePhoto(
         unlink($baseDir . '/' . $previous);
     }
 
-    if ($subjectType === 'tech_sheet') db_mark_tech_sheet_photos_draft($pdo, $subjectId);
+    if ($subjectType === 'tech_sheet') {
+        db_mark_tech_sheet_photos_draft($pdo, $subjectId);
+    } elseif ($subjectType === 'gear_record') {
+        db_mark_gear_photos_draft($pdo, $subjectId);
+    }
 
     $stored = db_get_inspection_photos($pdo, $subjectType, $subjectId)[$requirementKey];
     return ['ok' => true, 'error' => null, 'photo' => $stored];
@@ -161,7 +166,11 @@ function inspectionSetApplies(PDO $pdo, string $baseDir, string $subjectType, in
     if ($previous !== null && $previous !== '' && is_file($baseDir . '/' . $previous)) {
         unlink($baseDir . '/' . $previous);
     }
-    if ($applies && $subjectType === 'tech_sheet') db_mark_tech_sheet_photos_draft($pdo, $subjectId);
+    if ($applies && $subjectType === 'tech_sheet') {
+        db_mark_tech_sheet_photos_draft($pdo, $subjectId);
+    } elseif ($applies && $subjectType === 'gear_record') {
+        db_mark_gear_photos_draft($pdo, $subjectId);
+    }
 
     return ['ok' => true, 'error' => null];
 }

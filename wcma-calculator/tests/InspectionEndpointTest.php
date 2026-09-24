@@ -14,6 +14,7 @@
 // seeded sheets get very high ids and tearDown removes their upload directories.
 require_once __DIR__ . '/../photo-requirements.php';
 require_once __DIR__ . '/../inspection-lib.php';
+require_once __DIR__ . '/../gear-lib.php';
 
 use PHPUnit\Framework\TestCase;
 
@@ -52,6 +53,9 @@ final class InspectionEndpointTest extends TestCase
     {
         foreach ($this->sheetIds as $id) {
             $this->removeDir(dirname(__DIR__) . '/uploads/inspection/tech_sheet/' . $id);
+        }
+        foreach ($this->gearIds as $id) {
+            $this->removeDir(dirname(__DIR__) . '/uploads/inspection/gear_record/' . $id);
         }
         $this->removeDir($this->payloadDir);
         unset($this->pdo);
@@ -345,6 +349,62 @@ final class InspectionEndpointTest extends TestCase
         $ok = $this->post('typed', ['id' => (string)$this->ownerPhotoId], $this->ownerId);
         $this->assertSame(200, $ok['status']);
         $this->assertSame([], json_decode($ok['body'], true)['photo']['typed']);
+    }
+
+    private array $gearIds = [];
+
+    /** A gear record owned by $ownerId with a high forced id so real uploads/ folders cannot collide. */
+    private function makeGear(int $ownerId): int
+    {
+        $id = gearCreate($this->pdo, $ownerId, 'Jane Racer', '', 2026)['id'];
+        $forced = 900000 + random_int(1, 90000);
+        $this->pdo->prepare('UPDATE gear_records SET id = :new WHERE id = :old')->execute([':new' => $forced, ':old' => $id]);
+        $this->gearIds[] = $forced;
+        return $forced;
+    }
+
+    public function testGearRecordAppliesAndTypedAreOwnerScopedAndLocked(): void
+    {
+        $gear = $this->makeGear($this->ownerId);
+        $fields = ['subject_type' => 'gear_record', 'subject_id' => $gear, 'requirement_key' => 'underwear_label', 'applies' => '1'];
+
+        $this->assertSame(401, $this->post('applies', $fields, null)['status']);
+        $this->assertSame(403, $this->post('applies', $fields, $this->ownerId, 'user', 'wrong')['status']);
+        $this->assertSame(404, $this->post('applies', $fields, $this->otherId)['status']);
+
+        $on = $this->post('applies', $fields, $this->ownerId);
+        $this->assertSame(200, $on['status']);
+        $this->assertArrayHasKey('underwear_label', db_get_inspection_photos($this->pdo, 'gear_record', $gear));
+        $this->assertSame('draft', db_get_gear_record($this->pdo, $gear)['photo_status']);
+
+        $this->pdo->prepare("UPDATE gear_records SET photo_status = 'submitted' WHERE id = :id")->execute([':id' => $gear]);
+        $this->assertSame(404, $this->post('applies', ['applies' => '0'] + $fields, $this->ownerId)['status']);   // locked while under review
+        $this->assertSame(200, $this->post('applies', ['applies' => '0'] + $fields, $this->adminId, 'admin')['status']);
+
+        $this->pdo->prepare("UPDATE gear_records SET photo_status = NULL, status = 'accepted' WHERE id = :id")->execute([':id' => $gear]);
+        $this->assertSame(404, $this->post('applies', $fields, $this->ownerId)['status']);   // locked once accepted
+    }
+
+    public function testGearPhotoIsServedToOwnerAndAdminOnly(): void
+    {
+        $gear = $this->makeGear($this->ownerId);
+        $tmp = $this->payloadDir . '/' . uniqid('gseed_') . '.bin';
+        file_put_contents($tmp, hex2bin('ffd8ffc00011080001000103011100021100031100ffd9'));
+        $saved = inspectionSavePhoto($this->pdo, dirname(__DIR__), 'gear_record', $gear, 'helmet_label', $tmp, [], 'rename');
+        $this->assertTrue($saved['ok'], (string)$saved['error']);
+        $photoId = (string)$saved['photo']['id'];
+
+        $get = fn(?int $uid, string $role = 'user') => $this->request('GET', ['action' => 'photo', 'id' => $photoId], [], $this->session($uid, $role));
+        $this->assertSame(200, $get($this->ownerId)['status']);
+        $this->assertSame(200, $get($this->adminId, 'admin')['status']);
+        $this->assertSame(404, $get($this->otherId)['status']);
+        $this->assertSame(401, $get(null)['status']);
+    }
+
+    public function testUnknownGearRecordIdIsTheSame404(): void
+    {
+        $fields = ['subject_type' => 'gear_record', 'subject_id' => 999999999, 'requirement_key' => 'underwear_label', 'applies' => '1'];
+        $this->assertSame(404, $this->post('applies', $fields, $this->ownerId)['status']);
     }
 
     public function testAdminCanReadAndWriteAnotherUsersSheet(): void
