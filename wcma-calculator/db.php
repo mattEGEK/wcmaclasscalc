@@ -3,6 +3,8 @@
  * Database layer — SQLite via PDO.
  * Define DB_PATH before requiring this file to override (e.g. in tests).
  */
+require_once __DIR__ . '/tech-status.php';
+
 if (!defined('DB_PATH')) {
     define('DB_PATH', __DIR__ . '/data/submissions.db');
 }
@@ -245,6 +247,30 @@ function db_init(PDO $pdo): void {
     if (!$hasActive) {
         $pdo->exec("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
     }
+
+    // Annual tech status columns and car identity on tech_sheets, if migrating an existing DB
+    $techCols = array_column($pdo->query("PRAGMA table_info(tech_sheets)")->fetchAll(), 'name');
+    foreach (['accepted_via' => 'TEXT', 'photo_status' => 'TEXT', 'car_number_norm' => 'TEXT', 'season' => 'INTEGER'] as $col => $type) {
+        if (!in_array($col, $techCols, true)) {
+            $pdo->exec("ALTER TABLE tech_sheets ADD COLUMN {$col} {$type}");
+        }
+    }
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tech_sheets_car ON tech_sheets (user_id, car_number_norm, season)");
+    $unfilled = $pdo->query("
+        SELECT ts.id, ts.car_number, ts.created_at, e.event_date
+        FROM tech_sheets ts LEFT JOIN events e ON e.id = ts.event_id
+        WHERE ts.car_number_norm IS NULL OR ts.season IS NULL
+    ")->fetchAll();
+    if ($unfilled) {
+        $fill = $pdo->prepare("UPDATE tech_sheets SET car_number_norm = :n, season = :s WHERE id = :id");
+        foreach ($unfilled as $row) {
+            $fill->execute([
+                ':n' => techCarNumberNorm((string)$row['car_number']),
+                ':s' => techSeasonFromDate($row['event_date'] ?? $row['created_at']),
+                ':id' => $row['id'],
+            ]);
+        }
+    }
 }
 
 function db_insert_submission(PDO $pdo, array $data): int {
@@ -463,18 +489,21 @@ function db_set_event_active(PDO $pdo, int $id, bool $active): void {
 
 function db_insert_tech_sheet(PDO $pdo, array $data): int {
     $now = date('Y-m-d H:i:s');
+    $identity = db_tech_sheet_identity($pdo, (string)$data['car_number'], (int)$data['event_id']);
     $stmt = $pdo->prepare("
         INSERT INTO tech_sheets (
             submission_id, user_id, event_id, sheet_type,
             entrant_name, driver_name, car_make, car_model, car_colour, car_number,
             class, engine_cc, engine_hp, car_weight,
             checklist_json, driver1_equipment_json, log_book_turned_in,
+            car_number_norm, season,
             status, created_at, updated_at
         ) VALUES (
             :submission_id, :user_id, :event_id, :sheet_type,
             :entrant_name, :driver_name, :car_make, :car_model, :car_colour, :car_number,
             :class, :engine_cc, :engine_hp, :car_weight,
             :checklist_json, :driver1_equipment_json, :log_book_turned_in,
+            :car_number_norm, :season,
             'submitted', :created_at, :updated_at
         )
     ");
@@ -486,6 +515,7 @@ function db_insert_tech_sheet(PDO $pdo, array $data): int {
         ':engine_hp' => $data['engine_hp'] ?? null, ':car_weight' => $data['car_weight'],
         ':checklist_json' => $data['checklist_json'], ':driver1_equipment_json' => $data['driver1_equipment_json'],
         ':log_book_turned_in' => $data['log_book_turned_in'] ?? null,
+        ':car_number_norm' => $identity['car_number_norm'], ':season' => $identity['season'],
         ':created_at' => $now, ':updated_at' => $now,
     ]);
     return (int)$pdo->lastInsertId();
@@ -510,6 +540,7 @@ function db_get_user_tech_sheets(PDO $pdo, int $user_id): array {
 }
 
 function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
+    $identity = db_tech_sheet_identity($pdo, (string)$data['car_number'], (int)$data['event_id']);
     $pdo->prepare("
         UPDATE tech_sheets SET
             event_id = :event_id, sheet_type = :sheet_type,
@@ -517,7 +548,8 @@ function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
             car_make = :car_make, car_model = :car_model, car_colour = :car_colour, car_number = :car_number,
             class = :class, engine_cc = :engine_cc, engine_hp = :engine_hp, car_weight = :car_weight,
             checklist_json = :checklist_json, driver1_equipment_json = :driver1_equipment_json,
-            log_book_turned_in = :log_book_turned_in, updated_at = :updated_at
+            log_book_turned_in = :log_book_turned_in,
+            car_number_norm = :car_number_norm, season = :season, updated_at = :updated_at
         WHERE id = :id
     ")->execute([
         ':event_id' => $data['event_id'], ':sheet_type' => $data['sheet_type'],
@@ -527,6 +559,7 @@ function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
         ':engine_hp' => $data['engine_hp'] ?? null, ':car_weight' => $data['car_weight'],
         ':checklist_json' => $data['checklist_json'], ':driver1_equipment_json' => $data['driver1_equipment_json'],
         ':log_book_turned_in' => $data['log_book_turned_in'] ?? null,
+        ':car_number_norm' => $identity['car_number_norm'], ':season' => $identity['season'],
         ':updated_at' => date('Y-m-d H:i:s'), ':id' => $id,
     ]);
 }
@@ -865,4 +898,72 @@ function db_get_inspection_photos(PDO $pdo, string $subjectType, int $subjectId)
 
 function db_delete_inspection_photo(PDO $pdo, int $id): void {
     $pdo->prepare("DELETE FROM inspection_photos WHERE id = :id")->execute([':id' => $id]);
+}
+
+/** Normalised car number and season (calendar year of the sheet's event) for a tech sheet. */
+function db_tech_sheet_identity(PDO $pdo, string $carNumber, int $eventId): array {
+    $event = db_get_event($pdo, $eventId);
+    return [
+        'car_number_norm' => techCarNumberNorm($carNumber),
+        'season' => techSeasonFromDate($event['event_date'] ?? null),
+    ];
+}
+
+/**
+ * Marks a submitted sheet as accepted in person. The WHERE clause makes this atomic:
+ * returns false if the sheet does not exist or was already accepted.
+ */
+function db_accept_tech_sheet_in_person(PDO $pdo, int $id, int $reviewerUserId, string $signaturePath): bool {
+    $now = date('Y-m-d H:i:s');
+    $stmt = $pdo->prepare("
+        UPDATE tech_sheets SET
+            status = 'teched', accepted_via = 'in_person',
+            reviewed_by_user_id = :reviewer, reviewed_at = :now,
+            tech_signature_path = :sig, tech_signed_at = :now, updated_at = :now
+        WHERE id = :id AND status = 'submitted'
+    ");
+    $stmt->execute([':reviewer' => $reviewerUserId, ':now' => $now, ':sig' => $signaturePath, ':id' => $id]);
+    return $stmt->rowCount() === 1;
+}
+
+/** Returns an accepted sheet to 'submitted' and clears its review fields. False if it was not accepted. */
+function db_revoke_tech_sheet_acceptance(PDO $pdo, int $id): bool {
+    $stmt = $pdo->prepare("
+        UPDATE tech_sheets SET
+            status = 'submitted', accepted_via = NULL,
+            reviewed_by_user_id = NULL, reviewed_at = NULL,
+            tech_signature_path = NULL, tech_signed_at = NULL, updated_at = :now
+        WHERE id = :id AND status = 'teched'
+    ");
+    $stmt->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+    return $stmt->rowCount() === 1;
+}
+
+/** All of one owner's sheets for a car identity (owner + normalised number + season). */
+function db_get_identity_sheets(PDO $pdo, int $userId, string $carNumberNorm, int $season): array {
+    $stmt = $pdo->prepare("SELECT * FROM tech_sheets WHERE user_id = :u AND car_number_norm = :n AND season = :s ORDER BY id ASC");
+    $stmt->execute([':u' => $userId, ':n' => $carNumberNorm, ':s' => $season]);
+    return $stmt->fetchAll();
+}
+
+/** Every tech sheet in a season (used to derive each car's status on a roster). */
+function db_get_season_sheets(PDO $pdo, int $season): array {
+    $stmt = $pdo->prepare("SELECT * FROM tech_sheets WHERE season = :s ORDER BY id ASC");
+    $stmt->execute([':s' => $season]);
+    return $stmt->fetchAll();
+}
+
+/** Sheets for one event (0 = every event), with event name/date, newest event first then by car number. */
+function db_get_event_tech_sheets(PDO $pdo, int $eventId): array {
+    $sql = "SELECT ts.*, e.name AS event_name, e.event_date AS event_date
+            FROM tech_sheets ts LEFT JOIN events e ON e.id = ts.event_id";
+    $params = [];
+    if ($eventId > 0) {
+        $sql .= " WHERE ts.event_id = :e";
+        $params[':e'] = $eventId;
+    }
+    $sql .= " ORDER BY e.event_date DESC, CAST(ts.car_number_norm AS INTEGER) ASC, ts.car_number_norm ASC, ts.id ASC";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
 }
