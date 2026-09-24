@@ -8,6 +8,9 @@ require __DIR__ . '/view_helpers.php';
 require __DIR__ . '/feedback-lib.php';
 require __DIR__ . '/admin-feedback.php';
 require __DIR__ . '/admin-tech-sheets.php';
+require __DIR__ . '/tech-sheet-files.php';
+require __DIR__ . '/tech-review-lib.php';
+require __DIR__ . '/tech-sheet-render.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
 require __DIR__ . '/email-helpers.php';
@@ -169,6 +172,30 @@ switch ($action) {
     case 'tech-sheets':
         requireAuth();
         handleTechSheetsList($pdo);
+        break;
+
+    case 'tech-sheet':
+        requireAuth();
+        handleTechSheetView($pdo, (int)($_GET['id'] ?? 0));
+        break;
+
+    case 'tech-sheet-accept':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleTechSheetAccept($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
+    case 'tech-sheet-revoke':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleTechSheetRevoke($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
+    case 'tech-sheet-sig':
+        requireAuth();
+        handleTechSheetSig($pdo, (int)($_GET['id'] ?? 0), (string)($_GET['which'] ?? ''));
         break;
 
     case 'settings':

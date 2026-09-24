@@ -91,3 +91,115 @@ function renderTechSheetsListPage(array $events, int $eventId, string $filter, a
 </body>
 </html><?php
 }
+
+function handleTechSheetView(PDO $pdo, int $id): void {
+    $sheet = db_get_tech_sheet($pdo, $id);
+    if ($sheet === null) {
+        setFlash('Tech sheet not found.', 'error');
+        header('Location: admin.php?action=tech-sheets');
+        exit;
+    }
+    $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
+    $drivers = db_get_tech_sheet_drivers($pdo, $id);
+    $carStatus = techCarStatus(db_get_identity_sheets($pdo, (int)$sheet['user_id'], (string)$sheet['car_number_norm'], (int)$sheet['season']));
+    $reviewer = !empty($sheet['reviewed_by_user_id']) ? db_find_user_by_id($pdo, (int)$sheet['reviewed_by_user_id']) : null;
+    renderTechSheetViewPage($sheet, $drivers, $event, $carStatus, $reviewer, generateCsrfToken(), getFlash());
+}
+
+function handleTechSheetAccept(PDO $pdo, int $id): void {
+    $user = current_user();
+    $result = techReviewAcceptInPerson($pdo, __DIR__, $id, (int)$user['id'], (string)($_POST['tech_signature'] ?? ''));
+    setFlash($result['ok'] ? 'Sheet accepted (teched in person).' : $result['error'], $result['ok'] ? 'success' : 'error');
+    header('Location: admin.php?action=tech-sheet&id=' . $id);
+    exit;
+}
+
+function handleTechSheetRevoke(PDO $pdo, int $id): void {
+    $result = techReviewRevoke($pdo, __DIR__, $id);
+    setFlash($result['ok'] ? 'Acceptance revoked. The sheet is back to submitted.' : $result['error'], $result['ok'] ? 'success' : 'error');
+    header('Location: admin.php?action=tech-sheet&id=' . $id);
+    exit;
+}
+
+/** Serves a signature PNG to an admin (uploads/ is Deny-from-all, so it cannot be linked directly). */
+function handleTechSheetSig(PDO $pdo, int $id, string $which): void {
+    $columns = ['entrant' => 'entrant_signature_path', 'driver' => 'driver_signature_path', 'tech' => 'tech_signature_path'];
+    $sheet = isset($columns[$which]) ? db_get_tech_sheet($pdo, $id) : null;
+    $path = $sheet[$columns[$which] ?? ''] ?? null;
+    $full = $path ? __DIR__ . '/' . $path : null;
+    if ($full === null || !is_file($full)) { http_response_code(404); exit; }
+
+    header('Content-Type: image/png');
+    header('Content-Length: ' . filesize($full));
+    header('X-Content-Type-Options: nosniff');
+    header('Cache-Control: private, max-age=0, must-revalidate');
+    readfile($full);
+    exit;
+}
+
+function adminTechSheetSigResolver(int $techSheetId): callable {
+    return function (string $which, string $path) use ($techSheetId): ?string {
+        return 'admin.php?action=tech-sheet-sig&id=' . $techSheetId . '&which=' . rawurlencode($which);
+    };
+}
+
+function renderTechSheetViewPage(array $sheet, array $drivers, array $event, array $carStatus, ?array $reviewer, string $csrf, ?array $flash): void {
+    $id = (int)$sheet['id'];
+    $accepted = $sheet['status'] === 'teched';
+    $statusLabel = techCarStatusLabel($carStatus, (int)$sheet['season']);
+    $acceptedLine = '';
+    if ($accepted) {
+        $how = ($sheet['accepted_via'] ?? 'in_person') === 'photos' ? 'remotely' : 'in person';
+        $who = $reviewer ? ' by ' . $reviewer['name'] : '';
+        $when = !empty($sheet['reviewed_at']) ? ' on ' . date('M j, Y g:i A', strtotime($sheet['reviewed_at'])) : '';
+        $acceptedLine = 'Accepted ' . $how . $who . $when . '.';
+    }
+    ?><!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tech Sheet #<?= $id ?> — WCMA Admin</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="css/calculator.css">
+</head>
+<body>
+<div class="container">
+  <?php renderSiteHeader('Tech Sheet #' . $id, '<a href="admin.php?action=tech-sheets&event=' . (int)$sheet['event_id'] . '">← Back to roster</a>' . renderCommonNav('admin')); ?>
+  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+
+  <div class="detail-card">
+    <h2>Tech review</h2>
+    <p>Car #<?= h($sheet['car_number']) ?> — <?= h(trim($sheet['car_make'] . ' ' . $sheet['car_model'])) ?> (<?= h($sheet['entrant_name']) ?>)</p>
+    <p>Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h($statusLabel) ?></strong></p>
+
+    <?php if ($accepted): ?>
+    <p><?= h($acceptedLine) ?></p>
+    <form method="post" action="admin.php?action=tech-sheet-revoke" data-confirm="Revoke this acceptance? The sheet goes back to submitted and the inspector signature is removed.">
+      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+      <input type="hidden" name="id" value="<?= $id ?>">
+      <button type="submit" class="btn btn-secondary">Revoke acceptance</button>
+    </form>
+    <?php else: ?>
+    <p class="form-hint">Accepting records that what the competitor submitted matches the car in front of you. It is not a certification that the vehicle is safe.</p>
+    <form method="post" action="admin.php?action=tech-sheet-accept" id="tech-accept-form">
+      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+      <input type="hidden" name="id" value="<?= $id ?>">
+      <input type="hidden" name="tech_signature" id="tech_signature">
+      <label>Tech representative signature</label>
+      <div class="sig-pad-wrap"><canvas id="tech-sig-canvas"></canvas></div>
+      <div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="tech">Clear</button></div>
+      <button type="submit" class="btn btn-primary" style="margin-top:.75rem">Accept — teched in person</button>
+    </form>
+    <?php endif; ?>
+  </div>
+
+  <?= renderTechSheetHtml($sheet, $drivers, $event, adminTechSheetSigResolver($id), 'assets/wcma-logo.png') ?>
+</div>
+<script src="js/confirm-modal.js"></script>
+<script src="js/form-feedback.js"></script>
+<script src="js/signature-pad.js"></script>
+<script src="js/admin-tech-review.js"></script>
+</body>
+</html><?php
+}
