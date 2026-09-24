@@ -523,11 +523,6 @@ function handleSubmit(PDO $pdo, array $user): void {
         header('Location: account.php');
         exit;
     }
-    if (!pretechSheetEditable($sheet)) {
-        setFlash('This sheet\'s photos are under review, so it cannot be edited right now. Once the review is finished (or the photos are sent back) you can edit it again.', 'error');
-        header('Location: tech-sheets.php?action=view&id=' . $id);
-        exit;
-    }
 
     $eventId = (int)($_POST['event_id'] ?? 0);
     $event = db_get_event($pdo, $eventId);
@@ -593,6 +588,11 @@ function handleUpdate(PDO $pdo, array $user): void {
     if (!$sheet || $sheet['status'] !== 'submitted') {
         setFlash('Tech sheet not found or no longer editable.', 'error');
         header('Location: account.php');
+        exit;
+    }
+    if (!pretechSheetEditable($sheet)) {
+        setFlash('This sheet\'s photos are under review, so it cannot be edited right now. Once the review is finished (or the photos are sent back) you can edit it again.', 'error');
+        header('Location: tech-sheets.php?action=view&id=' . $id);
         exit;
     }
 
