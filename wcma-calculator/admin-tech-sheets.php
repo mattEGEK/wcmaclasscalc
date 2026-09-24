@@ -12,8 +12,6 @@ const TECH_SHEET_FILTERS = [
     'accepted' => 'Accepted',
 ];
 
-const ADMIN_TECH_NAV = '<a href="admin.php">Submissions</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>';
-
 function handleTechSheetsList(PDO $pdo): void {
     $events = db_get_all_events($pdo);
     $eventId = isset($_GET['event']) ? max(0, (int)$_GET['event']) : techDefaultEventId($events, date('Y-m-d'));
@@ -47,7 +45,7 @@ function renderTechSheetsListPage(array $events, int $eventId, string $filter, a
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Tech Sheets', ADMIN_TECH_NAV . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Tech Sheets', renderAdminNav('tech-sheets') . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <form method="get" action="admin.php" class="detail-card" style="margin-bottom:1rem">

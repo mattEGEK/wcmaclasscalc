@@ -53,6 +53,28 @@ function navItem(string $href, string $label, bool $isCurrent): string {
 }
 
 /**
+ * The admin sub-navigation shared by every admin page. $current is one of 'submissions',
+ * 'tech-sheets', 'gear', 'users', 'events', 'settings', 'feedback'; that destination renders as
+ * inert "you are here" text (see navItem()), the others as links.
+ */
+function renderAdminNav(string $current): string {
+    $items = [
+        'submissions' => ['admin.php', 'Submissions'],
+        'tech-sheets' => ['admin.php?action=tech-sheets', 'Tech Sheets'],
+        'gear'        => ['admin.php?action=gear', 'Gear'],
+        'users'       => ['admin.php?action=users', 'Manage Users'],
+        'events'      => ['admin.php?action=events', 'Events'],
+        'settings'    => ['admin.php?action=settings', 'Settings'],
+        'feedback'    => ['admin.php?action=feedback', 'Feedback'],
+    ];
+    $links = [];
+    foreach ($items as $key => [$href, $label]) {
+        $links[] = navItem($href, $label, $key === $current);
+    }
+    return implode(' ', $links);
+}
+
+/**
  * Common cross-page nav links (Calculator / My Cars / Admin / Logout, or
  * Sign In for guests), used alongside each page's own back-link/actions.
  * $current marks which destination is the page already being viewed.

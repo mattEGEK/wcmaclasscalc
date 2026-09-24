@@ -14,6 +14,9 @@ require __DIR__ . '/photo-requirements.php';
 require __DIR__ . '/inspection-lib.php';
 require __DIR__ . '/pretech-lib.php';
 require __DIR__ . '/pretech-email.php';
+require __DIR__ . '/gear-lib.php';
+require __DIR__ . '/gear-email.php';
+require __DIR__ . '/admin-gear.php';
 require __DIR__ . '/tech-sheet-render.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -216,6 +219,44 @@ switch ($action) {
         handleTechSheetPhotosSendBack($pdo, (int)($_POST['id'] ?? 0));
         break;
 
+    case 'gear':
+        requireAuth();
+        handleGearAdminList($pdo);
+        break;
+
+    case 'gear-record':
+        requireAuth();
+        handleGearAdminView($pdo, (int)($_GET['id'] ?? 0));
+        break;
+
+    case 'gear-record-accept':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=gear'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleGearAdminAcceptInPerson($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
+    case 'gear-record-revoke':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=gear'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleGearAdminRevoke($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
+    case 'gear-photos-accept':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=gear'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleGearAdminPhotosAccept($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
+    case 'gear-photos-send-back':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=gear'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleGearAdminPhotosSendBack($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
     case 'settings':
         requireAuth();
         handleSettings($pdo);
@@ -290,7 +331,7 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('WCMA Submissions', '<a href="admin.php?action=tech-sheets">Tech Sheets</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('WCMA Submissions', renderAdminNav('submissions') . renderCommonNav('admin')); ?>
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
@@ -650,7 +691,7 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Manage Users', '<a href="admin.php">Submissions</a> <a href="admin.php?action=tech-sheets">Tech Sheets</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Manage Users', renderAdminNav('users') . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <?php if (!empty($users)): ?>
   <div class="list-toolbar">
@@ -998,7 +1039,7 @@ function renderEventsPage(array $events, string $csrf, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Events', '<a href="admin.php">Submissions</a> <a href="admin.php?action=tech-sheets">Tech Sheets</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Events', renderAdminNav('events') . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">
@@ -1115,7 +1156,7 @@ function renderSettingsPage(array $values, string $csrf, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Settings', '<a href="admin.php">Submissions</a> <a href="admin.php?action=tech-sheets">Tech Sheets</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Settings', renderAdminNav('settings') . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">

@@ -4,8 +4,6 @@
  * Included by admin.php, which provides requireAuth() and the routing.
  */
 
-const FEEDBACK_ADMIN_NAV = '<a href="admin.php">Submissions</a> <a href="admin.php?action=tech-sheets">Tech Sheets</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a>';
-
 function handleFeedbackList(PDO $pdo): void {
     renderFeedbackListPage(db_get_all_feedback($pdo), getFlash());
 }
@@ -74,7 +72,7 @@ function renderFeedbackListPage(array $rows, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Feedback', FEEDBACK_ADMIN_NAV . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Feedback', renderAdminNav('feedback') . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <p class="list-summary"><?= count($rows) ?> item<?= count($rows) === 1 ? '' : 's' ?></p>
   <table class="data-table">
