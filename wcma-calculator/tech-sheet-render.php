@@ -98,7 +98,10 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
     $out .= '<table cellpadding="8" style="width:100%"><tr>';
     $out .= '<td style="width:33%"><div>' . techSheetSignatureImg($sheet['entrant_signature_path'] ?? null, 'entrant', $resolveSignatureSrc) . '</div><p style="font-size:0.8rem">Entrant\'s Signature</p></td>';
     $out .= '<td style="width:33%"><div>' . techSheetSignatureImg($sheet['driver_signature_path'] ?? null, 'driver', $resolveSignatureSrc) . '</div><p style="font-size:0.8rem">Driver\'s Signature</p></td>';
-    $out .= '<td style="width:33%"><div>' . techSheetSignatureImg($sheet['tech_signature_path'] ?? null, 'tech', $resolveSignatureSrc) . '</div><p style="font-size:0.8rem">Tech Representative\'s Signature</p></td>';
+    $techSignatureCell = (($sheet['status'] ?? '') === 'teched' && ($sheet['accepted_via'] ?? null) === 'photos')
+        ? '<span style="color:#555">Accepted remotely (photos reviewed)</span>'
+        : techSheetSignatureImg($sheet['tech_signature_path'] ?? null, 'tech', $resolveSignatureSrc);
+    $out .= '<td style="width:33%"><div>' . $techSignatureCell . '</div><p style="font-size:0.8rem">Tech Representative\'s Signature</p></td>';
     $out .= '</tr></table>';
     $out .= '<p>Vehicle Log Book Turned In: <strong>' . (($sheet['log_book_turned_in'] ?? null) === null ? '—' : ((int)$sheet['log_book_turned_in'] === 1 ? 'Yes' : 'No')) . '</strong></p>';
     $reviewed = ($sheet['status'] ?? 'submitted') === 'teched';

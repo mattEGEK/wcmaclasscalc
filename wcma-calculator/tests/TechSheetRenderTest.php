@@ -108,4 +108,19 @@ final class TechSheetRenderTest extends TestCase
         $this->assertStringContainsString('Submitted — awaiting review', $html);
         $this->assertStringNotContainsString('not a certification', $html);
     }
+
+    public function testRemotelyAcceptedSheetShowsRemoteAcceptanceInTheTechSignatureSlot(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-render.php';
+        $sheet = $this->sampleSheet();
+        $sheet['status'] = 'teched';
+        $sheet['accepted_via'] = 'photos';
+        $sheet['reviewed_at'] = '2026-05-10 09:30:00';
+        $html = renderTechSheetHtml($sheet, [], ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']);
+        $this->assertStringContainsString('Accepted remotely (photos reviewed)', $html);
+
+        $inPerson = $sheet;
+        $inPerson['accepted_via'] = 'in_person';
+        $this->assertStringNotContainsString('Accepted remotely', renderTechSheetHtml($inPerson, [], ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']));
+    }
 }

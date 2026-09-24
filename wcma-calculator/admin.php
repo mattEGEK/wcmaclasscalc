@@ -10,6 +10,10 @@ require __DIR__ . '/admin-feedback.php';
 require __DIR__ . '/admin-tech-sheets.php';
 require __DIR__ . '/tech-sheet-files.php';
 require __DIR__ . '/tech-review-lib.php';
+require __DIR__ . '/photo-requirements.php';
+require __DIR__ . '/inspection-lib.php';
+require __DIR__ . '/pretech-lib.php';
+require __DIR__ . '/pretech-email.php';
 require __DIR__ . '/tech-sheet-render.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -196,6 +200,20 @@ switch ($action) {
     case 'tech-sheet-sig':
         requireAuth();
         handleTechSheetSig($pdo, (int)($_GET['id'] ?? 0), (string)($_GET['which'] ?? ''));
+        break;
+
+    case 'tech-sheet-photos-accept':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleTechSheetPhotosAccept($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
+    case 'tech-sheet-photos-send-back':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleTechSheetPhotosSendBack($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'settings':

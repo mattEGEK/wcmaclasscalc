@@ -8,6 +8,7 @@
 const TECH_SHEET_FILTERS = [
     'all' => 'All sheets',
     'needs_tech' => 'Needs tech at the track',
+    'pending_review' => 'Photos awaiting review',
     'accepted' => 'Accepted',
 ];
 
@@ -103,7 +104,7 @@ function handleTechSheetView(PDO $pdo, int $id): void {
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
     $carStatus = techCarStatus(db_get_identity_sheets($pdo, (int)$sheet['user_id'], (string)$sheet['car_number_norm'], (int)$sheet['season']));
     $reviewer = !empty($sheet['reviewed_by_user_id']) ? db_find_user_by_id($pdo, (int)$sheet['reviewed_by_user_id']) : null;
-    renderTechSheetViewPage($sheet, $drivers, $event, $carStatus, $reviewer, generateCsrfToken(), getFlash());
+    renderTechSheetViewPage($sheet, $drivers, $event, $carStatus, $reviewer, generateCsrfToken(), getFlash(), pretechSnapshot($pdo, $id));
 }
 
 function handleTechSheetAccept(PDO $pdo, int $id): void {
@@ -143,7 +144,7 @@ function adminTechSheetSigResolver(int $techSheetId): callable {
     };
 }
 
-function renderTechSheetViewPage(array $sheet, array $drivers, array $event, array $carStatus, ?array $reviewer, string $csrf, ?array $flash): void {
+function renderTechSheetViewPage(array $sheet, array $drivers, array $event, array $carStatus, ?array $reviewer, string $csrf, ?array $flash, array $snapshot): void {
     $id = (int)$sheet['id'];
     $accepted = $sheet['status'] === 'teched';
     $statusLabel = techCarStatusLabel($carStatus, (int)$sheet['season']);
@@ -195,6 +196,8 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
     <?php endif; ?>
   </div>
 
+  <?php renderPretechReviewCard($sheet, $snapshot, $csrf); ?>
+
   <?= renderTechSheetHtml($sheet, $drivers, $event, adminTechSheetSigResolver($id), 'assets/wcma-logo.png') ?>
 </div>
 <script src="js/confirm-modal.js"></script>
@@ -203,4 +206,110 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
 <script src="js/admin-tech-review.js"></script>
 </body>
 </html><?php
+}
+
+function handleTechSheetPhotosAccept(PDO $pdo, int $id): void {
+    $user = current_user();
+    $result = pretechAccept($pdo, $id, (int)$user['id']);
+    if (!$result['ok']) {
+        setFlash($result['error'], 'error');
+    } else {
+        $sheet = db_get_tech_sheet($pdo, $id);
+        $sent = pretechNotify(
+            $pdo, 'accepted', $sheet, db_get_event($pdo, (int)$sheet['event_id']) ?? [],
+            feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', '')),
+            ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend'
+        );
+        setFlash('Photos accepted: the car is pre-teched.' . ($sent ? ' The competitor and the club were emailed.' : ' The notification email could not be sent.'), $sent ? 'success' : 'error');
+    }
+    header('Location: admin.php?action=tech-sheet&id=' . $id);
+    exit;
+}
+
+function handleTechSheetPhotosSendBack(PDO $pdo, int $id): void {
+    $flagged = isset($_POST['retake']) && is_array($_POST['retake']) ? array_keys($_POST['retake']) : [];
+    $noteInput = isset($_POST['note']) && is_array($_POST['note']) ? $_POST['note'] : [];
+    $notes = [];
+    foreach ($flagged as $key) {
+        $notes[(string)$key] = (string)($noteInput[$key] ?? '');
+    }
+
+    $result = pretechSendBack($pdo, $id, $notes);
+    if (!$result['ok']) {
+        setFlash($result['error'], 'error');
+    } else {
+        $sheet = db_get_tech_sheet($pdo, $id);
+        $sent = pretechNotify(
+            $pdo, 'sent_back', $sheet, db_get_event($pdo, (int)$sheet['event_id']) ?? [],
+            feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', '')),
+            ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend', $result['retakes']
+        );
+        setFlash(count($result['retakes']) . ' ' . (count($result['retakes']) === 1 ? 'photo' : 'photos') . ' sent back for a retake.'
+            . ($sent ? ' The competitor was emailed.' : ' The notification email could not be sent.'), $sent ? 'success' : 'error');
+    }
+    header('Location: admin.php?action=tech-sheet&id=' . $id);
+    exit;
+}
+
+/** The pre-tech photos of a sheet, with accept / send-back controls while they are awaiting review. */
+function renderPretechReviewCard(array $sheet, array $snapshot, string $csrf): void {
+    $photos = array_filter($snapshot['photos'], fn(array $p): bool => $p['file_path'] !== '');
+    $photoStatus = $sheet['photo_status'] ?? null;
+    if ($photoStatus === null && !$photos) return;
+
+    $id = (int)$sheet['id'];
+    $awaiting = $photoStatus === 'submitted' && $sheet['status'] === 'submitted';
+    $statusLabels = [
+        'draft' => 'The competitor has started adding photos (not submitted yet).',
+        'submitted' => 'Submitted: awaiting review.',
+        'needs_changes' => 'Sent back: waiting for the competitor to retake photos.',
+        'accepted' => 'Photos reviewed and accepted.',
+    ];
+    ?>
+  <div class="detail-card" id="pretech-review">
+    <h2>Pre-tech photos</h2>
+    <p><?= h($statusLabels[$photoStatus] ?? 'No photo set yet.') ?> <?= count($photos) ?> <?= count($photos) === 1 ? 'photo' : 'photos' ?> on file.</p>
+    <?php if ($awaiting): ?>
+    <p class="form-hint">Accepting these photos makes the car pre-teched for the season. To send photos back, tick each one, say what is wrong, and use "Send back for retakes".</p>
+    <?php endif; ?>
+
+    <form method="post" action="admin.php?action=tech-sheet-photos-send-back" id="pretech-review-form">
+      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+      <input type="hidden" name="id" value="<?= $id ?>">
+      <?php foreach ($photos as $key => $row):
+          $req = photoRequirementByKey($key);
+          $public = inspectionPublicPhoto($row);
+      ?>
+      <div class="pretech-card" data-key="<?= h($key) ?>">
+        <h3><?= h($req['label'] ?? $key) ?>
+          <span class="pretech-status <?= $row['review_status'] === 'retake' ? 'badge-fail' : ($row['review_status'] === 'accepted' ? 'badge-ok' : 'badge-pending') ?>">
+            <?= h($row['review_status'] === 'retake' ? 'Retake requested' : ($row['review_status'] === 'accepted' ? 'Accepted' : 'Pending')) ?></span></h3>
+        <a href="<?= h($public['url']) ?>" target="_blank" rel="noopener"><img class="pretech-thumb" src="<?= h($public['url']) ?>" alt="<?= h($req['label'] ?? $key) ?>"></a>
+        <?php foreach ($public['typed'] as $name => $value): ?>
+          <p class="form-hint"><?= h(ucfirst((string)$name)) ?>: <strong><?= h((string)$value) ?></strong></p>
+        <?php endforeach; ?>
+        <?php if ($row['review_status'] === 'retake' && !empty($row['reviewer_note'])): ?>
+          <p class="badge-fail">Note sent: <?= h((string)$row['reviewer_note']) ?></p>
+        <?php endif; ?>
+        <?php if ($awaiting): ?>
+          <label><input type="checkbox" name="retake[<?= h($key) ?>]" value="1"> Needs a retake</label>
+          <input type="text" name="note[<?= h($key) ?>]" maxlength="500" placeholder="What is wrong with this photo?">
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+
+      <?php if ($awaiting): ?>
+      <button type="submit" class="btn btn-secondary" id="pretech-sendback-btn">Send back for retakes</button>
+      <?php endif; ?>
+    </form>
+
+    <?php if ($awaiting): ?>
+    <form method="post" action="admin.php?action=tech-sheet-photos-accept" style="margin-top:.75rem">
+      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+      <input type="hidden" name="id" value="<?= $id ?>">
+      <button type="submit" class="btn btn-primary" id="pretech-accept-btn">Accept photos (pre-teched)</button>
+    </form>
+    <?php endif; ?>
+  </div>
+<?php
 }
