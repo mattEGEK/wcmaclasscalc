@@ -7,6 +7,7 @@ require __DIR__ . '/view_helpers.php';
 require __DIR__ . '/tech-sheet-data.php';
 require __DIR__ . '/tech-sheet-render.php';
 require __DIR__ . '/email-helpers.php';
+require __DIR__ . '/tech-sheet-files.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -342,19 +343,6 @@ function renderTechSheetEditForm(array $sheet, array $drivers, array $events, st
     renderTechSheetForm([], $events, $csrf, $sheet, $drivers);
 }
 
-function saveSignatureFile(int $techSheetId, string $field, string $dataUrl): ?string {
-    if (strpos($dataUrl, 'data:image/png;base64,') !== 0) return null;
-    $binary = base64_decode(substr($dataUrl, strlen('data:image/png;base64,')));
-    if ($binary === false) return null;
-    if (substr($binary, 0, 8) !== "\x89PNG\r\n\x1a\n") return null;
-
-    $dir = __DIR__ . '/uploads/tech-sheets/' . $techSheetId;
-    if (!is_dir($dir)) mkdir($dir, 0755, true);
-    $relative = 'uploads/tech-sheets/' . $techSheetId . '/' . $field . '.png';
-    file_put_contents(__DIR__ . '/' . $relative, $binary);
-    return $relative;
-}
-
 function handleTechSheetSignature(PDO $pdo, array $user, int $id, string $which): void {
     $columnMap = [
         'entrant' => 'entrant_signature_path',
@@ -506,10 +494,10 @@ function handleSubmit(PDO $pdo, array $user): void {
 
     $sigPaths = [];
     if (!empty($_POST['entrant_signature'])) {
-        $sigPaths['entrant_signature_path'] = saveSignatureFile($id, 'entrant', $_POST['entrant_signature']);
+        $sigPaths['entrant_signature_path'] = techSheetSaveSignature(__DIR__, $id, 'entrant', $_POST['entrant_signature']);
     }
     if (!empty($_POST['driver_signature'])) {
-        $sigPaths['driver_signature_path'] = saveSignatureFile($id, 'driver', $_POST['driver_signature']);
+        $sigPaths['driver_signature_path'] = techSheetSaveSignature(__DIR__, $id, 'driver', $_POST['driver_signature']);
     }
     if (!empty($sigPaths)) {
         db_update_tech_sheet_signatures($pdo, $id, $sigPaths);
@@ -568,11 +556,11 @@ function handleUpdate(PDO $pdo, array $user): void {
     ]);
 
     if (!empty($_POST['entrant_signature'])) {
-        $path = saveSignatureFile($id, 'entrant', $_POST['entrant_signature']);
+        $path = techSheetSaveSignature(__DIR__, $id, 'entrant', $_POST['entrant_signature']);
         if ($path) db_update_tech_sheet_signatures($pdo, $id, ['entrant_signature_path' => $path]);
     }
     if (!empty($_POST['driver_signature'])) {
-        $path = saveSignatureFile($id, 'driver', $_POST['driver_signature']);
+        $path = techSheetSaveSignature(__DIR__, $id, 'driver', $_POST['driver_signature']);
         if ($path) db_update_tech_sheet_signatures($pdo, $id, ['driver_signature_path' => $path]);
     }
 
