@@ -214,6 +214,25 @@ function db_init(PDO $pdo): void {
         )
     ");
 
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS gear_records (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_user_id       INTEGER NOT NULL,
+            driver_name         TEXT NOT NULL,
+            driver_name_norm    TEXT NOT NULL,
+            licence_no          TEXT,
+            season              INTEGER NOT NULL,
+            photo_status        TEXT,
+            status              TEXT NOT NULL DEFAULT 'open',
+            accepted_via        TEXT,
+            reviewed_by_user_id INTEGER,
+            reviewed_at         DATETIME,
+            created_at          DATETIME NOT NULL,
+            updated_at          DATETIME NOT NULL,
+            UNIQUE (owner_user_id, driver_name_norm, season)
+        )
+    ");
+
     // Add user_id to submissions if migrating an existing DB
     $columns = $pdo->query("PRAGMA table_info(submissions)")->fetchAll();
     $hasUserId = false;
@@ -1048,4 +1067,102 @@ function db_set_all_photos_review_status(PDO $pdo, string $subjectType, int $sub
         UPDATE inspection_photos SET review_status = :st, updated_at = :now
         WHERE subject_type = :t AND subject_id = :s AND file_path != ''
     ")->execute([':st' => $status, ':now' => date('Y-m-d H:i:s'), ':t' => $subjectType, ':s' => $subjectId]);
+}
+
+function db_insert_gear_record(PDO $pdo, int $ownerId, string $driverName, string $driverNameNorm, ?string $licenceNo, int $season): int {
+    $now = date('Y-m-d H:i:s');
+    $pdo->prepare("
+        INSERT INTO gear_records (owner_user_id, driver_name, driver_name_norm, licence_no, season, created_at, updated_at)
+        VALUES (:o, :n, :norm, :l, :s, :now, :now)
+    ")->execute([':o' => $ownerId, ':n' => $driverName, ':norm' => $driverNameNorm, ':l' => $licenceNo, ':s' => $season, ':now' => $now]);
+    return (int)$pdo->lastInsertId();
+}
+
+function db_get_gear_record(PDO $pdo, int $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM gear_records WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_find_gear_record(PDO $pdo, int $ownerId, string $driverNameNorm, int $season): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM gear_records WHERE owner_user_id = :o AND driver_name_norm = :n AND season = :s");
+    $stmt->execute([':o' => $ownerId, ':n' => $driverNameNorm, ':s' => $season]);
+    return $stmt->fetch() ?: null;
+}
+
+/** All of one owner's gear records, newest season first, then by driver name. */
+function db_get_user_gear_records(PDO $pdo, int $ownerId): array {
+    $stmt = $pdo->prepare("SELECT * FROM gear_records WHERE owner_user_id = :o ORDER BY season DESC, driver_name ASC, id ASC");
+    $stmt->execute([':o' => $ownerId]);
+    return $stmt->fetchAll();
+}
+
+/** Every owner's records for a season, with the owner's name and email, by driver name. */
+function db_get_gear_records_for_season(PDO $pdo, int $season): array {
+    $stmt = $pdo->prepare("
+        SELECT g.*, u.name AS owner_name, u.email AS owner_email
+        FROM gear_records g LEFT JOIN users u ON u.id = g.owner_user_id
+        WHERE g.season = :s ORDER BY g.driver_name ASC, g.id ASC
+    ");
+    $stmt->execute([':s' => $season]);
+    return $stmt->fetchAll();
+}
+
+/** First photo activity on a gear record: photo_status NULL -> 'draft'. No-op otherwise or once accepted. */
+function db_mark_gear_photos_draft(PDO $pdo, int $id): void {
+    $pdo->prepare("
+        UPDATE gear_records SET photo_status = 'draft', updated_at = :now
+        WHERE id = :id AND photo_status IS NULL AND status = 'open'
+    ")->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+}
+
+/** Atomic photo_status transition: true only if the record is still open and its status was one of $from. */
+function db_transition_gear_photo_status(PDO $pdo, int $id, array $from, string $to): bool {
+    if (empty($from)) return false;
+    $marks = implode(',', array_fill(0, count($from), '?'));
+    $stmt = $pdo->prepare("
+        UPDATE gear_records SET photo_status = ?, updated_at = ?
+        WHERE id = ? AND status = 'open' AND photo_status IN ($marks)
+    ");
+    $stmt->execute(array_merge([$to, date('Y-m-d H:i:s'), $id], array_values($from)));
+    return $stmt->rowCount() === 1;
+}
+
+/** Remote acceptance after reviewing photos. Atomic; only from a submitted photo set on an open record. */
+function db_accept_gear_by_photos(PDO $pdo, int $id, int $reviewerUserId): bool {
+    $now = date('Y-m-d H:i:s');
+    $stmt = $pdo->prepare("
+        UPDATE gear_records SET
+            status = 'accepted', accepted_via = 'photos', photo_status = 'accepted',
+            reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
+        WHERE id = :id AND status = 'open' AND photo_status = 'submitted'
+    ");
+    $stmt->execute([':reviewer' => $reviewerUserId, ':now' => $now, ':id' => $id]);
+    return $stmt->rowCount() === 1;
+}
+
+/** In-person acceptance at the track: atomic, from any open record. */
+function db_accept_gear_in_person(PDO $pdo, int $id, int $reviewerUserId): bool {
+    $now = date('Y-m-d H:i:s');
+    $stmt = $pdo->prepare("
+        UPDATE gear_records SET
+            status = 'accepted', accepted_via = 'in_person',
+            reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
+        WHERE id = :id AND status = 'open'
+    ");
+    $stmt->execute([':reviewer' => $reviewerUserId, ':now' => $now, ':id' => $id]);
+    return $stmt->rowCount() === 1;
+}
+
+/** Undo an acceptance: back to open; a photo-accepted set returns to the review queue. False if not accepted. */
+function db_revoke_gear_acceptance(PDO $pdo, int $id): bool {
+    $stmt = $pdo->prepare("
+        UPDATE gear_records SET
+            status = 'open', accepted_via = NULL,
+            photo_status = CASE WHEN photo_status = 'accepted' THEN 'submitted' ELSE photo_status END,
+            reviewed_by_user_id = NULL, reviewed_at = NULL, updated_at = :now
+        WHERE id = :id AND status = 'accepted'
+    ");
+    $stmt->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+    return $stmt->rowCount() === 1;
 }
