@@ -8,6 +8,7 @@
     document.addEventListener('submit', function (event) {
         const form = event.target;
         if (!(form instanceof HTMLFormElement)) return;
+        if (event.defaultPrevented) return;
         if (form.dataset.confirm && form.dataset.confirmed !== '1') return;
 
         const btn = form.querySelector('button[type="submit"]');
