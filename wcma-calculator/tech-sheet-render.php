@@ -22,14 +22,13 @@ function techSheetSignatureImg(?string $path, string $which, callable $resolveSr
     return '<img src="' . h($src) . '" alt="Signature" style="max-height:60px;border-bottom:1px solid #333">';
 }
 
-function techSheetEquipmentTable(array $equipment, bool $showTechColumn): string {
+function techSheetEquipmentTable(array $equipment): string {
     $out = '<table cellpadding="4" style="border-collapse:collapse;width:100%;font-size:0.85rem">';
     $out .= '<tr style="background:#f0f1f2"><th style="text-align:left;border:1px solid #ccc;padding:4px">Item</th>';
     $out .= '<th style="border:1px solid #ccc;padding:4px">Confirmed</th>';
-    if ($showTechColumn) $out .= '<th style="border:1px solid #ccc;padding:4px">Tech Rep Approved</th>';
     $out .= '</tr>';
     foreach (TECH_DRIVER_EQUIPMENT_ITEMS as $key => $def) {
-        $item = $equipment[$key] ?? ['competitor_confirmed' => false, 'value' => null, 'tech_approved' => null];
+        $item = $equipment[$key] ?? ['competitor_confirmed' => false, 'value' => null];
         $label = h($def['label']);
         if ($def['has_rating'] && !empty($item['value'])) {
             $label .= ' — <strong>' . h((string)$item['value']) . '</strong>';
@@ -37,10 +36,6 @@ function techSheetEquipmentTable(array $equipment, bool $showTechColumn): string
         $confirmed = !empty($item['competitor_confirmed']) ? '✓' : '—';
         $out .= '<tr><td style="border:1px solid #ccc;padding:4px">' . $label . '</td>';
         $out .= '<td style="text-align:center;border:1px solid #ccc;padding:4px">' . $confirmed . '</td>';
-        if ($showTechColumn) {
-            $techVal = $item['tech_approved'] === null ? '—' : ($item['tech_approved'] ? '✓' : '✗');
-            $out .= '<td style="text-align:center;border:1px solid #ccc;padding:4px">' . $techVal . '</td>';
-        }
         $out .= '</tr>';
     }
     $out .= '</table>';
@@ -58,7 +53,6 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
     };
     $checklist = json_decode($sheet['checklist_json'] ?? '{}', true) ?: [];
     $equipment = json_decode($sheet['driver1_equipment_json'] ?? '{}', true) ?: [];
-    $showTechColumn = ($sheet['status'] ?? 'submitted') === 'teched';
 
     $out = '<div style="font-family:Arial,sans-serif;color:#222;max-width:800px">';
     if ($logoSrc) {
@@ -89,13 +83,13 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
     }
 
     $out .= '<h2 style="border-bottom:2px solid #2c3e50;padding-bottom:4px">Driver Safety Equipment — ' . h($sheet['driver_name']) . '</h2>';
-    $out .= techSheetEquipmentTable($equipment, $showTechColumn);
+    $out .= techSheetEquipmentTable($equipment);
 
     if (($sheet['sheet_type'] ?? 'standard') === 'endurance' && !empty($drivers)) {
         foreach ($drivers as $d) {
             $driverEquipment = json_decode($d['equipment_json'] ?? '{}', true) ?: [];
             $out .= '<h2 style="border-bottom:2px solid #2c3e50;padding-bottom:4px">Driver ' . (int)$d['driver_number'] . ' — ' . h($d['driver_name']) . '</h2>';
-            $out .= techSheetEquipmentTable($driverEquipment, $showTechColumn);
+            $out .= techSheetEquipmentTable($driverEquipment);
         }
     }
 

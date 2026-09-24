@@ -104,7 +104,7 @@ function emptyChecklist(): array {
 function emptyDriverEquipment(): array {
     $out = [];
     foreach (TECH_DRIVER_EQUIPMENT_ITEMS as $key => $def) {
-        $out[$key] = ['competitor_confirmed' => false, 'value' => null, 'tech_approved' => null];
+        $out[$key] = ['competitor_confirmed' => false, 'value' => null];
     }
     return $out;
 }

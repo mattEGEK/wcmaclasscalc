@@ -167,4 +167,12 @@ final class TechSheetDataTest extends TestCase
         ];
         $this->assertNull(validateAdditionalDrivers($drivers));
     }
+
+    public function testEmptyDriverEquipmentHasNoTechApprovalField(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-data.php';
+        foreach (emptyDriverEquipment() as $item) {
+            $this->assertSame(['competitor_confirmed', 'value'], array_keys($item));
+        }
+    }
 }

@@ -35,6 +35,16 @@ final class TechSheetRenderTest extends TestCase
         $this->assertStringContainsString('Spring Sprint', $html);
     }
 
+    public function testReviewedSheetHasNoApprovalWording(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-render.php';
+        $sheet = $this->sampleSheet();
+        $sheet['status'] = 'teched';
+        $html = renderTechSheetHtml($sheet, [], ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']);
+        $this->assertStringNotContainsString('Approved', $html);
+        $this->assertStringContainsString('Reviewed', $html);
+    }
+
     public function testRenderIncludesEveryChecklistItemLabel(): void
     {
         require_once __DIR__ . '/../tech-sheet-render.php';

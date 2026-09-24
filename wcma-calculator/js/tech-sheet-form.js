@@ -14,7 +14,6 @@
             state[key] = {
                 competitor_confirmed: !!existing.competitor_confirmed,
                 value: existing.value != null ? existing.value : null,
-                tech_approved: existing.tech_approved != null ? existing.tech_approved : null,
             };
             const def = TECH_DRIVER_EQUIPMENT_ITEMS[key];
             const row = document.createElement('div');
