@@ -231,7 +231,7 @@ function handleTechSheetPhotosSendBack(PDO $pdo, int $id): void {
     $noteInput = isset($_POST['note']) && is_array($_POST['note']) ? $_POST['note'] : [];
     $notes = [];
     foreach ($flagged as $key) {
-        $notes[(string)$key] = (string)($noteInput[$key] ?? '');
+        $notes[(string)$key] = is_string($noteInput[$key] ?? null) ? $noteInput[$key] : '';
     }
 
     $result = pretechSendBack($pdo, $id, $notes);

@@ -178,7 +178,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
   <?php renderSiteHeader('Tech Sheet #' . $sheet['id'], '<a href="account.php">← Back to My Cars</a>' . renderCommonNav('account')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <div class="detail-card actions no-print">
-    <?php if ($sheet['status'] === 'submitted'): ?>
+    <?php if (pretechSheetEditable($sheet)): ?>
     <a href="tech-sheets.php?action=edit&id=<?= (int)$sheet['id'] ?>" class="btn btn-secondary">Edit</a>
     <?php endif; ?>
     <?php if ($sheet['status'] === 'submitted' && $carStatus['state'] !== 'accepted'): ?>
@@ -244,6 +244,11 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
     }
     if ($sheet['status'] !== 'submitted') {
         setFlash('This tech sheet has already been reviewed and can no longer be edited.', 'error');
+        header('Location: tech-sheets.php?action=view&id=' . $id);
+        exit;
+    }
+    if (!pretechSheetEditable($sheet)) {
+        setFlash('This sheet\'s photos are under review, so it cannot be edited right now. Once the review is finished (or the photos are sent back) you can edit it again.', 'error');
         header('Location: tech-sheets.php?action=view&id=' . $id);
         exit;
     }
@@ -516,6 +521,11 @@ function handleSubmit(PDO $pdo, array $user): void {
     if (!$submission) {
         setFlash('Car not found.', 'error');
         header('Location: account.php');
+        exit;
+    }
+    if (!pretechSheetEditable($sheet)) {
+        setFlash('This sheet\'s photos are under review, so it cannot be edited right now. Once the review is finished (or the photos are sent back) you can edit it again.', 'error');
+        header('Location: tech-sheets.php?action=view&id=' . $id);
         exit;
     }
 

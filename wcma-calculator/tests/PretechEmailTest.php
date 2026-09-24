@@ -54,12 +54,27 @@ final class PretechEmailTest extends TestCase
 
     public function testAcceptedEmailHasDisclaimerAndDecalsInstruction(): void
     {
-        $mail = pretechEmailAccepted($this->sheet(), $this->event(), 'https://x.test/tech-sheets.php?action=view&id=12');
+        $admin = 'https://x.test/admin.php?action=tech-sheet&id=12';
+        $mail = pretechEmailAccepted($this->sheet(), $this->event(), 'https://x.test/tech-sheets.php?action=view&id=12', $admin, false);
         $this->assertStringContainsString('Pre-Tech Accepted', $mail['subject']);
         $this->assertStringContainsString(TECH_ACCEPTANCE_DISCLAIMER, $mail['html']);
         $this->assertStringContainsString(TECH_ACCEPTANCE_DISCLAIMER, $mail['text']);
         $this->assertStringContainsString('decals', $mail['text']);
+        $this->assertStringContainsString('You do not need to be inspected at the track', $mail['text']);
         $this->assertStringContainsString('2026', $mail['text']);
+        $this->assertStringNotContainsString('admin.php', $mail['text']);
+        $this->assertStringNotContainsString('admin.php', $mail['html']);
+
+        $club = pretechEmailAccepted($this->sheet(), $this->event(), 'https://x.test/tech-sheets.php?action=view&id=12', $admin, true);
+        $this->assertSame($mail['subject'], $club['subject']);
+        $this->assertStringContainsString(TECH_ACCEPTANCE_DISCLAIMER, $club['html']);
+        $this->assertStringContainsString(TECH_ACCEPTANCE_DISCLAIMER, $club['text']);
+        $this->assertStringContainsString($admin, $club['text']);
+        $this->assertStringContainsString('admin.php?action=tech-sheet&amp;id=12', $club['html']);
+        $this->assertStringContainsString('Open the review page', $club['html']);
+        $this->assertStringContainsString('No in-person inspection is needed', $club['text']);
+        $this->assertStringNotContainsString('You do not need to be inspected', $club['text']);
+        $this->assertStringNotContainsString('action=view', $club['text']);
     }
 
     public function testNoApprovalWordingOutsideTheDisclaimer(): void
@@ -68,7 +83,8 @@ final class PretechEmailTest extends TestCase
             pretechEmailSubmitted($this->sheet(), $this->event(), 'a', 'b', 3, true),
             pretechEmailSubmitted($this->sheet(), $this->event(), 'a', 'b', 3, false),
             pretechEmailSentBack($this->sheet(), $this->event(), [['label' => 'X', 'note' => 'Y']], 'b'),
-            pretechEmailAccepted($this->sheet(), $this->event(), 'v'),
+            pretechEmailAccepted($this->sheet(), $this->event(), 'v', 'a', false),
+            pretechEmailAccepted($this->sheet(), $this->event(), 'v', 'a', true),
         ];
         foreach ($mails as $mail) {
             $text = str_replace(TECH_ACCEPTANCE_DISCLAIMER, '', $mail['subject'] . "\n" . $mail['text']);
@@ -126,6 +142,30 @@ final class PretechEmailTest extends TestCase
         $this->assertTrue(pretechNotify($pdo, 'accepted', $sheet, $this->event(), 'https://x.test', ['email' => 'club@example.com', 'name' => 'Club'], $this->recorder($log)));
         $this->assertCount(2, $log);
         $this->assertStringContainsString('Accepted', $log[0]['subject']);
+    }
+
+    public function testNotifyAcceptedSendsTheClubWordedCopyToTheClub(): void
+    {
+        [$pdo, $sheet] = $this->notifyFixture();
+        $captured = [];
+        $sendFn = function (array $to, array $message) use (&$captured): bool { $captured[$to[0][0]] = $message; return true; };
+        $this->assertTrue(pretechNotify($pdo, 'accepted', $sheet, $this->event(), 'https://x.test', ['email' => 'club@example.com', 'name' => 'Club'], $sendFn));
+        $this->assertStringContainsString('https://x.test/admin.php?action=tech-sheet&id=12', $captured['club@example.com']['text']);
+        $this->assertStringNotContainsString('admin.php', $captured['jane@example.com']['text']);
+        $this->assertStringContainsString('action=view&id=12', $captured['jane@example.com']['text']);
+    }
+
+    public function testNotifyIsolatesEachMessage(): void
+    {
+        [$pdo, $sheet] = $this->notifyFixture();
+        $calls = [];
+        $sendFn = function (array $to, array $message) use (&$calls): bool {
+            $calls[] = $to[0][0];
+            if (count($calls) === 1) throw new RuntimeException('first fails');
+            return true;
+        };
+        $this->assertFalse(pretechNotify($pdo, 'submitted', $sheet, $this->event(), 'https://x.test', ['email' => 'club@example.com', 'name' => 'Club'], $sendFn));
+        $this->assertCount(2, $calls);
     }
 
     public function testNotifyReportsFailureAndSurvivesExceptions(): void

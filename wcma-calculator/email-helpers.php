@@ -29,8 +29,7 @@ function emailLogoSrc(PHPMailer $mail): ?string {
  */
 function emailSmtpSend(array $to, array $message): bool {
     if (defined('WCMA_MAIL_LOG')) {
-        file_put_contents(WCMA_MAIL_LOG, json_encode(['to' => $to, 'subject' => $message['subject'], 'text' => $message['text']]) . "\n", FILE_APPEND);
-        return true;
+        return file_put_contents(WCMA_MAIL_LOG, json_encode(['to' => $to, 'subject' => $message['subject'], 'text' => $message['text']]) . "\n", FILE_APPEND) !== false;
     }
     try {
         $mail = new PHPMailer(true);

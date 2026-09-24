@@ -207,6 +207,53 @@ final class PretechLibTest extends TestCase
         $this->assertSame($fall, $mode($spring)['sheet_id']);
     }
 
+    public function testSheetEditableOnlyWhenSubmittedAndPhotosNotLocked(): void
+    {
+        foreach ([null, 'draft', 'needs_changes'] as $open) {
+            $this->assertTrue(pretechSheetEditable(['status' => 'submitted', 'photo_status' => $open]), (string)$open);
+        }
+        foreach (['submitted', 'accepted'] as $locked) {
+            $this->assertFalse(pretechSheetEditable(['status' => 'submitted', 'photo_status' => $locked]), $locked);
+        }
+        $this->assertFalse(pretechSheetEditable(['status' => 'teched', 'photo_status' => null]));
+        $this->assertTrue(pretechSheetEditable(['status' => 'submitted']));
+    }
+
+    public function testCapTextAsciiPath(): void
+    {
+        $this->assertSame('abc', pretechCapText('abcdef', 3));
+        $this->assertSame('abc', pretechCapText('abc', 500));
+    }
+
+    public function testSubmitEnforcesPageModeServerSide(): void
+    {
+        $pdo = make_temp_pdo();
+        [$u, $admin, $spring] = $this->fixture($pdo, '42', null, '2026-05-10');
+        [, , $fall] = $this->fixture($pdo, '42', $u, '2026-10-04');
+        $this->addRequiredPhotos($pdo, $spring);
+
+        $held = pretechSubmit($pdo, $fall);
+        $this->assertFalse($held['ok']);
+        $this->assertStringContainsString('on another of your tech sheets', $held['error']);
+
+        $this->assertTrue(pretechSubmit($pdo, $spring)['ok']);   // the holder still submits
+        $this->assertTrue(pretechAccept($pdo, $spring, $admin)['ok']);
+
+        $done = pretechSubmit($pdo, $fall);
+        $this->assertFalse($done['ok']);
+        $this->assertStringContainsString('already been teched for the season', $done['error']);
+    }
+
+    public function testSubmitRefusedWhenCarAcceptedInPersonElsewhere(): void
+    {
+        $pdo = make_temp_pdo();
+        [$u, $admin, $spring] = $this->fixture($pdo, '42', null, '2026-05-10');
+        [, , $fall] = $this->fixture($pdo, '42', $u, '2026-10-04');
+        $this->addRequiredPhotos($pdo, $fall);
+        db_accept_tech_sheet_in_person($pdo, $spring, $admin, 'sig.png');
+        $this->assertStringContainsString('already been teched for the season', pretechSubmit($pdo, $fall)['error']);
+    }
+
     public function testOwnerWritesLockOnSubmittedAndAcceptedPhotoStatus(): void
     {
         $owner = ['id' => 5, 'role' => 'user'];

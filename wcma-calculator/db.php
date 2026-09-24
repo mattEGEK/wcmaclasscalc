@@ -1015,7 +1015,7 @@ function db_set_conditional_photo_applies(PDO $pdo, string $subjectType, int $su
         if (!$existing) {
             $now = date('Y-m-d H:i:s');
             $pdo->prepare("
-                INSERT INTO inspection_photos
+                INSERT OR IGNORE INTO inspection_photos
                     (subject_type, subject_id, requirement_key, requirement_version, file_path, applies, created_at, updated_at)
                 VALUES (:t, :s, :k, :v, '', 1, :now, :now)
             ")->execute([':t' => $subjectType, ':s' => $subjectId, ':k' => $requirementKey, ':v' => $requirementVersion, ':now' => $now]);

@@ -23,6 +23,17 @@ function pretechSnapshot(PDO $pdo, int $sheetId): array {
     ];
 }
 
+/** Caps text at $max characters (bytes when mbstring is unavailable). */
+function pretechCapText(string $s, int $max): string {
+    return function_exists('mb_substr') ? mb_substr($s, 0, $max) : substr($s, 0, $max);
+}
+
+/** The owner may edit a sheet only while it is unreviewed and its photos are not under or past review. */
+function pretechSheetEditable(array $sheet): bool {
+    return ($sheet['status'] ?? '') === 'submitted'
+        && !in_array($sheet['photo_status'] ?? null, ['submitted', 'accepted'], true);
+}
+
 function pretechPlural(int $n, string $singular, string $plural): string {
     return $n === 1 ? $singular : $plural;
 }
@@ -34,6 +45,11 @@ function pretechSubmit(PDO $pdo, int $sheetId): array {
     $sheet = db_get_tech_sheet($pdo, $sheetId);
     if ($sheet === null) return $fail('Tech sheet not found.');
     if ($sheet['status'] === 'teched') return $fail('This car has already been teched.');
+
+    $identity = db_get_identity_sheets($pdo, (int)$sheet['user_id'], (string)$sheet['car_number_norm'], (int)$sheet['season']);
+    $mode = pretechPageMode($sheet, $identity)['mode'];
+    if ($mode === 'car_accepted') return $fail('This car has already been teched for the season, so no photos are needed.');
+    if ($mode === 'held_elsewhere') return $fail('Your pre-tech photos for this car are on another of your tech sheets.');
 
     $photoStatus = $sheet['photo_status'] ?? null;
     if ($photoStatus === 'submitted') return $fail('These photos have already been submitted for review.');
@@ -58,10 +74,19 @@ function pretechSubmit(PDO $pdo, int $sheetId): array {
 
 /** Inspector accepts a submitted photo set remotely. @return array{ok: bool, error: ?string} */
 function pretechAccept(PDO $pdo, int $sheetId, int $reviewerUserId): array {
-    if (!db_accept_tech_sheet_by_photos($pdo, $sheetId, $reviewerUserId)) {
-        return ['ok' => false, 'error' => 'These photos are not awaiting review.'];
+    $owns = !$pdo->inTransaction();
+    if ($owns) $pdo->beginTransaction();
+    try {
+        if (!db_accept_tech_sheet_by_photos($pdo, $sheetId, $reviewerUserId)) {
+            if ($owns) $pdo->rollBack();
+            return ['ok' => false, 'error' => 'These photos are not awaiting review.'];
+        }
+        db_set_all_photos_review_status($pdo, 'tech_sheet', $sheetId, 'accepted');
+        if ($owns) $pdo->commit();
+    } catch (Throwable $e) {
+        if ($owns && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
     }
-    db_set_all_photos_review_status($pdo, 'tech_sheet', $sheetId, 'accepted');
     return ['ok' => true, 'error' => null];
 }
 
@@ -84,17 +109,26 @@ function pretechSendBack(PDO $pdo, int $sheetId, array $notes): array {
     $retakes = [];
     foreach ($notes as $key => $note) {
         if (!isset($photos[$key]) || $photos[$key]['file_path'] === '') continue;
-        $note = substr(trim((string)$note), 0, 500);
+        $note = pretechCapText(trim((string)$note), 500);
         if ($note === '') return $fail('Add a note for every photo you send back.');
         $retakes[$key] = $note;
     }
     if (!$retakes) return $fail('Choose at least one photo to retake and say what is wrong.');
 
-    if (!db_transition_tech_sheet_photo_status($pdo, $sheetId, ['submitted'], 'needs_changes')) {
-        return $fail('These photos are not awaiting review.');
-    }
-    foreach ($retakes as $key => $note) {
-        db_set_inspection_photo_review($pdo, (int)$photos[$key]['id'], 'retake', $note);
+    $owns = !$pdo->inTransaction();
+    if ($owns) $pdo->beginTransaction();
+    try {
+        if (!db_transition_tech_sheet_photo_status($pdo, $sheetId, ['submitted'], 'needs_changes')) {
+            if ($owns) $pdo->rollBack();
+            return $fail('These photos are not awaiting review.');
+        }
+        foreach ($retakes as $key => $note) {
+            db_set_inspection_photo_review($pdo, (int)$photos[$key]['id'], 'retake', $note);
+        }
+        if ($owns) $pdo->commit();
+    } catch (Throwable $e) {
+        if ($owns && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
     }
     return ['ok' => true, 'error' => null, 'retakes' => $retakes];
 }

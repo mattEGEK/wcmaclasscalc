@@ -81,18 +81,24 @@ function pretechEmailSentBack(array $sheet, array $event, array $retakes, string
 }
 
 /** @return array{subject: string, html: string, text: string} */
-function pretechEmailAccepted(array $sheet, array $event, string $viewUrl): array {
+function pretechEmailAccepted(array $sheet, array $event, string $viewUrl, string $adminUrl, bool $forClub): array {
     $car = pretechEmailCarLine($sheet, $event);
     $season = (int)($sheet['season'] ?? date('Y'));
-    $lines = [
-        'The pre-tech photos for ' . $car . ' were reviewed and accepted. This car is pre-teched for ' . $season . '.',
-        'You do not need to be inspected at the track: just collect your decals at the event.',
-        TECH_ACCEPTANCE_DISCLAIMER,
-        'Your tech sheet:', $viewUrl,
-    ];
-    $html = pretechEmailPara($lines[0]) . pretechEmailPara($lines[1])
+    $accepted = 'The pre-tech photos for ' . $car . ' were reviewed and accepted. This car is pre-teched for ' . $season . '.';
+    if ($forClub) {
+        $note = 'No in-person inspection is needed; the competitor will collect their decals at the event.';
+        $lines = [$accepted . ' ' . $note, TECH_ACCEPTANCE_DISCLAIMER, 'Open the review page:', $adminUrl];
+        $link = pretechEmailLink($adminUrl, 'Open the review page');
+        $first = pretechEmailPara($accepted . ' ' . $note);
+    } else {
+        $note = 'You do not need to be inspected at the track: just collect your decals at the event.';
+        $lines = [$accepted, $note, TECH_ACCEPTANCE_DISCLAIMER, 'Your tech sheet:', $viewUrl];
+        $link = pretechEmailLink($viewUrl, 'View your tech sheet');
+        $first = pretechEmailPara($accepted) . pretechEmailPara($note);
+    }
+    $html = $first
         . '<p style="font-size:0.85rem;color:#555">' . h(TECH_ACCEPTANCE_DISCLAIMER) . '</p>'
-        . pretechEmailLink($viewUrl, 'View your tech sheet');
+        . $link;
 
     return [
         'subject' => 'WCMA Pre-Tech Accepted — Car #' . $sheet['car_number'] . ' — ' . ($event['name'] ?? ''),
@@ -138,9 +144,8 @@ function pretechNotify(PDO $pdo, string $kind, array $sheet, array $event, strin
                 if ($competitor) $messages[] = [$competitor, pretechEmailSentBack($sheet, $event, $list, $pageUrl)];
                 break;
             case 'accepted':
-                $mail = pretechEmailAccepted($sheet, $event, $viewUrl);
-                if ($competitor) $messages[] = [$competitor, $mail];
-                $messages[] = [$clubTo, $mail];
+                if ($competitor) $messages[] = [$competitor, pretechEmailAccepted($sheet, $event, $viewUrl, $adminUrl, false)];
+                $messages[] = [$clubTo, pretechEmailAccepted($sheet, $event, $viewUrl, $adminUrl, true)];
                 break;
             default:
                 return false;
@@ -148,7 +153,12 @@ function pretechNotify(PDO $pdo, string $kind, array $sheet, array $event, strin
 
         $allSent = true;
         foreach ($messages as [$to, $message]) {
-            if (!$sendFn($to, $message)) $allSent = false;
+            try {
+                if (!$sendFn($to, $message)) $allSent = false;
+            } catch (Throwable $e) {
+                error_log('Pre-tech notification send error: ' . $e->getMessage());
+                $allSent = false;
+            }
         }
         return $allSent;
     } catch (Throwable $e) {
