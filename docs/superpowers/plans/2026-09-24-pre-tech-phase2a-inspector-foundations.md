@@ -1892,6 +1892,7 @@ async function drawSignature(page) {
     await admin.goto(BASE + '/admin.php?action=tech-sheet&id=1');
     await admin.click('text=Accept — teched in person');
     assert.ok(await admin.locator('.sig-pad-wrap.field-error').count() > 0, 'empty signature flagged');
+    assert.ok(await admin.locator('#tech-accept-form button[type="submit"]').isEnabled(), 'Accept stays usable after an empty-signature attempt');
     assert.match(admin.url(), /action=tech-sheet&id=1/);
     console.log('accept without signature: blocked client-side');
 
