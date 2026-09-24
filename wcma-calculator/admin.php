@@ -7,6 +7,7 @@ require __DIR__ . '/config.php';
 require __DIR__ . '/view_helpers.php';
 require __DIR__ . '/feedback-lib.php';
 require __DIR__ . '/admin-feedback.php';
+require __DIR__ . '/admin-tech-sheets.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
 require __DIR__ . '/email-helpers.php';
@@ -165,6 +166,11 @@ switch ($action) {
         handleEventSetActive($pdo, (int)($_POST['id'] ?? 0), true);
         break;
 
+    case 'tech-sheets':
+        requireAuth();
+        handleTechSheetsList($pdo);
+        break;
+
     case 'settings':
         requireAuth();
         handleSettings($pdo);
@@ -239,7 +245,7 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('WCMA Submissions', '<a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('WCMA Submissions', '<a href="admin.php?action=tech-sheets">Tech Sheets</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
@@ -599,7 +605,7 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Manage Users', '<a href="admin.php">Submissions</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Manage Users', '<a href="admin.php">Submissions</a> <a href="admin.php?action=tech-sheets">Tech Sheets</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <?php if (!empty($users)): ?>
   <div class="list-toolbar">
@@ -947,7 +953,7 @@ function renderEventsPage(array $events, string $csrf, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Events', '<a href="admin.php">Submissions</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Events', '<a href="admin.php">Submissions</a> <a href="admin.php?action=tech-sheets">Tech Sheets</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=settings">Settings</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">
@@ -1064,7 +1070,7 @@ function renderSettingsPage(array $values, string $csrf, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Settings', '<a href="admin.php">Submissions</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Settings', '<a href="admin.php">Submissions</a> <a href="admin.php?action=tech-sheets">Tech Sheets</a> <a href="admin.php?action=users">Manage Users</a> <a href="admin.php?action=events">Events</a> <a href="admin.php?action=feedback">Feedback</a>' . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">
