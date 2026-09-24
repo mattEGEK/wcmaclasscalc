@@ -2,3 +2,5 @@
 data/*.db
 data/*.db-*
 config.php
+uploads/*
+!uploads/.htaccess
