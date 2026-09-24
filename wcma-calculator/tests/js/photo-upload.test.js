@@ -58,3 +58,27 @@ test('remove posts the id and csrf token', async () => {
     assert.strictEqual(calls[0].init.body.get('id'), '9');
     assert.strictEqual(calls[0].init.body.get('csrf_token'), 'tok123');
 });
+
+const baseOpts = { file: { name: 'x.jpg' }, subjectType: 'tech_sheet', subjectId: 1, requirementKey: 'front_34' };
+
+test('upload rejects with a friendly message when the network request fails', async () => {
+    const fetchFn = async () => { throw new TypeError('Failed to fetch'); };
+    const resizeFn = async () => new Blob(['x']);
+    const client = createClient({ fetchFn, resizeFn, csrfToken: 't' });
+    await assert.rejects(client.upload(baseOpts), { message: 'Upload failed. Check your connection and try again.' });
+});
+
+test('upload rejects with the generic message when the JSON body is null', async () => {
+    const { client } = makeClient({ ok: true, json: async () => null });
+    await assert.rejects(client.upload(baseOpts), { message: 'Upload failed. Please try again.' });
+});
+
+test('upload does not send typed entries whose value is undefined or null', async () => {
+    const { calls, client } = makeClient(okResponse({ ok: true, photo: { id: 1 } }));
+    await client.upload({ ...baseOpts, typed: { a: undefined, b: null, c: '0', d: '' } });
+    const body = calls[0].init.body;
+    assert.strictEqual(body.has('typed[a]'), false);
+    assert.strictEqual(body.has('typed[b]'), false);
+    assert.strictEqual(body.get('typed[c]'), '0');
+    assert.strictEqual(body.get('typed[d]'), '');
+});

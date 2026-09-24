@@ -5,6 +5,7 @@
     'use strict';
 
     const GENERIC_ERROR = 'Upload failed. Please try again.';
+    const NETWORK_ERROR = 'Upload failed. Check your connection and try again.';
 
     function createClient(deps) {
         const fetchFn = deps.fetchFn;
@@ -13,18 +14,23 @@
         const endpoint = deps.endpoint || 'inspection.php';
 
         async function post(action, formData) {
-            const res = await fetchFn(endpoint + '?action=' + action, {
-                method: 'POST',
-                body: formData,
-                credentials: 'same-origin',
-            });
+            let res;
+            try {
+                res = await fetchFn(endpoint + '?action=' + action, {
+                    method: 'POST',
+                    body: formData,
+                    credentials: 'same-origin',
+                });
+            } catch (e) {
+                throw new Error(NETWORK_ERROR);
+            }
             let data;
             try {
                 data = await res.json();
             } catch (e) {
                 throw new Error(GENERIC_ERROR);
             }
-            if (!res.ok || !data.ok) throw new Error(data.error || GENERIC_ERROR);
+            if (!res.ok || !data || !data.ok) throw new Error((data && data.error) || GENERIC_ERROR);
             return data;
         }
 
@@ -37,6 +43,7 @@
             form.append('requirement_key', opts.requirementKey);
             const typed = opts.typed || {};
             Object.keys(typed).forEach(function (name) {
+                if (typed[name] === undefined || typed[name] === null) return;
                 form.append('typed[' + name + ']', typed[name]);
             });
             form.append('photo', blob, opts.requirementKey + '.jpg');
