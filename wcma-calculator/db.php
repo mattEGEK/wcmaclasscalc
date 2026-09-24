@@ -931,6 +931,7 @@ function db_revoke_tech_sheet_acceptance(PDO $pdo, int $id): bool {
     $stmt = $pdo->prepare("
         UPDATE tech_sheets SET
             status = 'submitted', accepted_via = NULL,
+            photo_status = CASE WHEN photo_status = 'accepted' THEN 'submitted' ELSE photo_status END,
             reviewed_by_user_id = NULL, reviewed_at = NULL,
             tech_signature_path = NULL, tech_signed_at = NULL, updated_at = :now
         WHERE id = :id AND status = 'teched'
@@ -966,4 +967,85 @@ function db_get_event_tech_sheets(PDO $pdo, int $eventId): array {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     return $stmt->fetchAll();
+}
+
+/** First photo activity on a sheet: photo_status NULL -> 'draft'. No-op otherwise (or once the sheet is teched). */
+function db_mark_tech_sheet_photos_draft(PDO $pdo, int $id): void {
+    $pdo->prepare("
+        UPDATE tech_sheets SET photo_status = 'draft', updated_at = :now
+        WHERE id = :id AND photo_status IS NULL AND status = 'submitted'
+    ")->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+}
+
+/** Atomic photo_status transition: true only if the sheet is not teched and its status was one of $from. */
+function db_transition_tech_sheet_photo_status(PDO $pdo, int $id, array $from, string $to): bool {
+    if (empty($from)) return false;
+    $marks = implode(',', array_fill(0, count($from), '?'));
+    $stmt = $pdo->prepare("
+        UPDATE tech_sheets SET photo_status = ?, updated_at = ?
+        WHERE id = ? AND status = 'submitted' AND photo_status IN ($marks)
+    ");
+    $stmt->execute(array_merge([$to, date('Y-m-d H:i:s'), $id], array_values($from)));
+    return $stmt->rowCount() === 1;
+}
+
+/** Remote acceptance after reviewing photos. Atomic; only from a submitted photo set on a not-yet-teched sheet. */
+function db_accept_tech_sheet_by_photos(PDO $pdo, int $id, int $reviewerUserId): bool {
+    $now = date('Y-m-d H:i:s');
+    $stmt = $pdo->prepare("
+        UPDATE tech_sheets SET
+            status = 'teched', accepted_via = 'photos', photo_status = 'accepted',
+            reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
+        WHERE id = :id AND status = 'submitted' AND photo_status = 'submitted'
+    ");
+    $stmt->execute([':reviewer' => $reviewerUserId, ':now' => $now, ':id' => $id]);
+    return $stmt->rowCount() === 1;
+}
+
+/**
+ * Marks a conditional photo as applying (placeholder row with no file yet) or not applying
+ * (row removed). Returns the removed row's file_path so the caller can delete the file.
+ */
+function db_set_conditional_photo_applies(PDO $pdo, string $subjectType, int $subjectId, string $requirementKey, int $requirementVersion, bool $applies): ?string {
+    $find = $pdo->prepare("SELECT id, file_path FROM inspection_photos WHERE subject_type = :t AND subject_id = :s AND requirement_key = :k");
+    $find->execute([':t' => $subjectType, ':s' => $subjectId, ':k' => $requirementKey]);
+    $existing = $find->fetch();
+
+    if ($applies) {
+        if (!$existing) {
+            $now = date('Y-m-d H:i:s');
+            $pdo->prepare("
+                INSERT INTO inspection_photos
+                    (subject_type, subject_id, requirement_key, requirement_version, file_path, applies, created_at, updated_at)
+                VALUES (:t, :s, :k, :v, '', 1, :now, :now)
+            ")->execute([':t' => $subjectType, ':s' => $subjectId, ':k' => $requirementKey, ':v' => $requirementVersion, ':now' => $now]);
+        }
+        return null;
+    }
+
+    if (!$existing) return null;
+    $pdo->prepare("DELETE FROM inspection_photos WHERE id = :id")->execute([':id' => $existing['id']]);
+    return $existing['file_path'] !== '' ? $existing['file_path'] : null;
+}
+
+/** Edit the typed details of an existing photo; any change puts the photo back to 'pending' review. */
+function db_update_inspection_photo_typed(PDO $pdo, int $photoId, ?string $typedJson): void {
+    $pdo->prepare("
+        UPDATE inspection_photos SET typed_value = :tv, review_status = 'pending', reviewer_note = NULL, updated_at = :now
+        WHERE id = :id
+    ")->execute([':tv' => $typedJson, ':now' => date('Y-m-d H:i:s'), ':id' => $photoId]);
+}
+
+function db_set_inspection_photo_review(PDO $pdo, int $photoId, string $status, ?string $note): void {
+    $pdo->prepare("
+        UPDATE inspection_photos SET review_status = :st, reviewer_note = :note, updated_at = :now WHERE id = :id
+    ")->execute([':st' => $status, ':note' => $note, ':now' => date('Y-m-d H:i:s'), ':id' => $photoId]);
+}
+
+/** Sets review_status on every photo that has a file (placeholder rows are left alone). */
+function db_set_all_photos_review_status(PDO $pdo, string $subjectType, int $subjectId, string $status): void {
+    $pdo->prepare("
+        UPDATE inspection_photos SET review_status = :st, updated_at = :now
+        WHERE subject_type = :t AND subject_id = :s AND file_path != ''
+    ")->execute([':st' => $status, ':now' => date('Y-m-d H:i:s'), ':t' => $subjectType, ':s' => $subjectId]);
 }
