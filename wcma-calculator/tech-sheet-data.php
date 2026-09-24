@@ -89,6 +89,8 @@ const TECH_DRIVER_EQUIPMENT_ITEMS = [
     'head_neck_restraints' => ['label' => 'Head & Neck Restraints', 'has_rating' => false, 'optional' => false],
 ];
 
+const TECH_ACCEPTANCE_DISCLAIMER = 'Acceptance confirms that what you submitted matches what was reviewed. It is not a certification that the vehicle or equipment is safe.';
+
 /** Every checklist item key, mapped to null (unanswered) — the shape a fresh form starts from. */
 function emptyChecklist(): array {
     $out = [];

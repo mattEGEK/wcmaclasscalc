@@ -143,6 +143,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
     }
     $event = db_get_event($pdo, (int)$sheet['event_id']);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
+    $carStatus = techCarStatusForSheet($sheet, db_get_user_tech_sheets($pdo, (int)$user['id']));
     $csrf = generateCsrfToken();
     $flash = getFlash();
     ?><!DOCTYPE html>
@@ -169,6 +170,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
     </form>
     <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
   </div>
+  <p class="no-print">Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h(techCarStatusLabel($carStatus, (int)$sheet['season'])) ?></strong></p>
   <?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?>
 </div>
 <script src="js/form-feedback.js"></script>

@@ -75,4 +75,37 @@ final class TechSheetRenderTest extends TestCase
         $html = renderTechSheetHtml($sheet, $drivers, ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']);
         $this->assertStringContainsString('Co-Driver A', $html);
     }
+
+    public function testAcceptedSheetShowsHowAndWhenAndTheDisclaimer(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-render.php';
+        $sheet = $this->sampleSheet();
+        $sheet['status'] = 'teched';
+        $sheet['accepted_via'] = 'in_person';
+        $sheet['reviewed_at'] = '2026-05-10 09:30:00';
+        $html = renderTechSheetHtml($sheet, [], ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']);
+        $this->assertStringContainsString('Reviewed in person on May 10, 2026', $html);
+        $this->assertStringContainsString('It is not a certification that the vehicle or equipment is safe.', $html);
+
+        $sheet['accepted_via'] = 'photos';
+        $remote = renderTechSheetHtml($sheet, [], ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']);
+        $this->assertStringContainsString('Reviewed remotely on May 10, 2026', $remote);
+    }
+
+    public function testLegacyAcceptedSheetWithoutViaIsInPerson(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-render.php';
+        $sheet = $this->sampleSheet();
+        $sheet['status'] = 'teched';
+        $html = renderTechSheetHtml($sheet, [], ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']);
+        $this->assertStringContainsString('Reviewed in person', $html);
+    }
+
+    public function testSubmittedSheetShowsNoDisclaimer(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-render.php';
+        $html = renderTechSheetHtml($this->sampleSheet(), [], ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']);
+        $this->assertStringContainsString('Submitted — awaiting review', $html);
+        $this->assertStringNotContainsString('not a certification', $html);
+    }
 }

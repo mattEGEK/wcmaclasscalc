@@ -101,7 +101,18 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
     $out .= '<td style="width:33%"><div>' . techSheetSignatureImg($sheet['tech_signature_path'] ?? null, 'tech', $resolveSignatureSrc) . '</div><p style="font-size:0.8rem">Tech Representative\'s Signature</p></td>';
     $out .= '</tr></table>';
     $out .= '<p>Vehicle Log Book Turned In: <strong>' . (($sheet['log_book_turned_in'] ?? null) === null ? '—' : ((int)$sheet['log_book_turned_in'] === 1 ? 'Yes' : 'No')) . '</strong></p>';
-    $out .= '<p style="font-weight:bold;color:' . (($sheet['status'] ?? 'submitted') === 'teched' ? '#27ae60' : '#f39c12') . '">Status: ' . h(($sheet['status'] ?? 'submitted') === 'teched' ? 'Reviewed' : 'Submitted — awaiting review') . '</p>';
+    $reviewed = ($sheet['status'] ?? 'submitted') === 'teched';
+    if ($reviewed) {
+        $how = ($sheet['accepted_via'] ?? 'in_person') === 'photos' ? 'remotely' : 'in person';
+        $when = !empty($sheet['reviewed_at']) ? ' on ' . date('F j, Y', strtotime($sheet['reviewed_at'])) : '';
+        $statusText = 'Reviewed ' . $how . $when;
+    } else {
+        $statusText = 'Submitted — awaiting review';
+    }
+    $out .= '<p style="font-weight:bold;color:' . ($reviewed ? '#27ae60' : '#f39c12') . '">Status: ' . h($statusText) . '</p>';
+    if ($reviewed) {
+        $out .= '<p style="font-size:0.8rem;color:#555">' . h(TECH_ACCEPTANCE_DISCLAIMER) . '</p>';
+    }
     $out .= '</div>';
 
     return $out;

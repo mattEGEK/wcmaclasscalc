@@ -89,13 +89,17 @@ function handleAccountList(PDO $pdo, array $user): void {
     }
 
     $carGroups = buildCarTechSheetGroups($submissions, $techSheets, $activeEvents, $eventNames);
+    $carStatuses = [];
+    foreach ($techSheets as $ts) {
+        $carStatuses[(int)$ts['id']] = techCarStatusForSheet($ts, $techSheets);
+    }
 
     $csrf = generateCsrfToken();
     $flash = getFlash();
-    renderAccountListPage($drafts, $carGroups, $totalCount, $csrf, $flash);
+    renderAccountListPage($drafts, $carGroups, $totalCount, $csrf, $flash, $carStatuses);
 }
 
-function renderAccountListPage(array $drafts, array $carGroups, int $count, string $csrf, ?array $flash): void {
+function renderAccountListPage(array $drafts, array $carGroups, int $count, string $csrf, ?array $flash, array $carStatuses): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -146,7 +150,9 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
             <a href="tech-sheets.php?action=new&submission_id=<?= (int)$s['id'] ?>">Submit now</a>
           <?php else: ?>
             Tech sheet (<?= h(ucfirst($sheet['sheet_type'])) ?>) for <strong><?= $eventLabel ?></strong>:
-            <span class="<?= $sheet['status'] === 'teched' ? 'badge-ok' : 'badge-pending' ?>"><?= $sheet['status'] === 'teched' ? 'submitted, reviewed' : 'submitted' ?></span> —
+            <span class="badge-pending">submitted</span>
+            <?php $cs = $carStatuses[(int)$sheet['id']] ?? ['state' => 'none', 'via' => null, 'sheet_id' => null]; ?>
+            <span class="<?= h(techCarStatusBadgeClass($cs['state'])) ?>"><?= h(techCarStatusLabel($cs, (int)($sheet['season'] ?? date('Y')))) ?></span> —
             <a href="tech-sheets.php?action=view&id=<?= (int)$sheet['id'] ?>">View</a>
           <?php endif; ?>
         </li>
@@ -165,7 +171,9 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
     <?php foreach ($carGroups['orphanSheets'] as $ts): ?>
     <li class="car-card-tech-line">
       Tech sheet (<?= h(ucfirst($ts['sheet_type'])) ?>): <?= h(trim($ts['car_make'] . ' ' . $ts['car_model'] . ' #' . $ts['car_number'])) ?> —
-      <span class="<?= $ts['status'] === 'teched' ? 'badge-ok' : 'badge-pending' ?>"><?= $ts['status'] === 'teched' ? 'submitted, reviewed' : 'submitted' ?></span> —
+      <?php $cs = $carStatuses[(int)$ts['id']] ?? ['state' => 'none', 'via' => null, 'sheet_id' => null]; ?>
+      <span class="badge-pending">submitted</span>
+      <span class="<?= h(techCarStatusBadgeClass($cs['state'])) ?>"><?= h(techCarStatusLabel($cs, (int)($ts['season'] ?? date('Y')))) ?></span> —
       <a href="tech-sheets.php?action=view&id=<?= (int)$ts['id'] ?>">View</a>
     </li>
     <?php endforeach; ?>
