@@ -1166,3 +1166,17 @@ function db_revoke_gear_acceptance(PDO $pdo, int $id): bool {
     $stmt->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
     return $stmt->rowCount() === 1;
 }
+
+/** Additional drivers for many sheets at once: sheet id => rows ordered by driver number. Sheets with none are absent. */
+function db_get_drivers_for_sheets(PDO $pdo, array $sheetIds): array {
+    $ids = array_values(array_unique(array_map('intval', $sheetIds)));
+    if (!$ids) return [];
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("SELECT * FROM tech_sheet_drivers WHERE tech_sheet_id IN ($marks) ORDER BY tech_sheet_id ASC, driver_number ASC");
+    $stmt->execute($ids);
+    $map = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $map[(int)$row['tech_sheet_id']][] = $row;
+    }
+    return $map;
+}

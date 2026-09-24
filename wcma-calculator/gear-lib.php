@@ -257,3 +257,70 @@ function gearRevoke(PDO $pdo, int $id): array {
     }
     return ['ok' => true, 'error' => null];
 }
+
+/**
+ * Each driver on a sheet (driver 1, then the additional drivers) matched to the sheet owner's
+ * gear record for the sheet's season, by normalised name. $ownerGear may hold any owner's and any
+ * season's records: only the owner's, same-season records are considered.
+ *
+ * @return array<int, array{driver_number: int, name: string, name_norm: string, gear: ?array, status: array{state: string, via: ?string}}>
+ */
+function gearLinksForSheet(array $sheet, array $drivers, array $ownerGear): array {
+    $season = (int)($sheet['season'] ?? 0) ?: gearSeasonNow();
+    $ownerId = (int)($sheet['user_id'] ?? 0);
+
+    $byName = [];
+    foreach ($ownerGear as $g) {
+        if ((int)$g['owner_user_id'] === $ownerId && (int)$g['season'] === $season) {
+            $byName[$g['driver_name_norm']] = $g;
+        }
+    }
+
+    $entries = [[1, (string)($sheet['driver_name'] ?? '')]];
+    foreach ($drivers as $d) {
+        $entries[] = [(int)$d['driver_number'], (string)$d['driver_name']];
+    }
+
+    $links = [];
+    foreach ($entries as [$number, $rawName]) {
+        $name = trim((string)preg_replace('/\s+/', ' ', $rawName));
+        if ($name === '') continue;
+        $norm = gearNameNorm($name);
+        $gear = $byName[$norm] ?? null;
+        $links[] = [
+            'driver_number' => $number,
+            'name' => $name,
+            'name_norm' => $norm,
+            'gear' => $gear,
+            'status' => $gear !== null ? gearStatus($gear) : ['state' => 'none', 'via' => null],
+        ];
+    }
+    return $links;
+}
+
+/** Distinct gear-record driver names for a season, sorted case-insensitively: suggestions for the sheet form. */
+function gearNameSuggestions(array $ownerGear, int $season): array {
+    $names = [];
+    foreach ($ownerGear as $g) {
+        if ((int)$g['season'] === $season) $names[$g['driver_name']] = true;
+    }
+    $names = array_keys($names);
+    usort($names, fn(string $a, string $b): int => strcasecmp($a, $b) ?: strcmp($a, $b));
+    return $names;
+}
+
+/**
+ * Adds `gear_links` to each roster row. $driversBySheet is db_get_drivers_for_sheets(); $seasonGear
+ * is every owner's gear records for the season(s) on the roster.
+ */
+function gearAttachToRoster(array $rows, array $driversBySheet, array $seasonGear): array {
+    $byOwner = [];
+    foreach ($seasonGear as $g) {
+        $byOwner[(int)$g['owner_user_id']][] = $g;
+    }
+    foreach ($rows as $i => $row) {
+        $sheet = $row['sheet'];
+        $rows[$i]['gear_links'] = gearLinksForSheet($sheet, $driversBySheet[(int)$sheet['id']] ?? [], $byOwner[(int)$sheet['user_id']] ?? []);
+    }
+    return $rows;
+}
