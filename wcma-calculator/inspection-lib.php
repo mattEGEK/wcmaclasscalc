@@ -9,7 +9,11 @@
 const INSPECTION_MAX_BYTES = 2 * 1024 * 1024;
 const INSPECTION_MAX_EDGE = 4000;
 
-/** Which requirement scope each subject type stores photos for. */
+/**
+ * Which requirement scope each subject type stores photos for.
+ * Adding a key here REQUIRES a matching loader branch in inspectionLoadSubject()
+ * (inspection.php); without one the endpoint returns 404 for that type.
+ */
 const INSPECTION_SUBJECT_SCOPE = ['tech_sheet' => 'car'];
 
 /**
@@ -85,14 +89,22 @@ function inspectionSavePhoto(
     $dir = dirname($absolute);
     if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) return $fail('Could not store the photo.');
 
+    $priorPath = (db_get_inspection_photos($pdo, $subjectType, $subjectId)[$requirementKey] ?? null)['file_path'] ?? null;
+
     $mover = $mover ?? 'move_uploaded_file';
     if (!$mover($tmpPath, $absolute)) return $fail('Could not store the photo.');
 
-    $previous = db_upsert_inspection_photo($pdo, [
-        'subject_type' => $subjectType, 'subject_id' => $subjectId, 'requirement_key' => $requirementKey,
-        'requirement_version' => PHOTO_REQUIREMENTS_VERSION, 'file_path' => $relative,
-        'typed_value' => $typed ? json_encode($typed) : null,
-    ]);
+    try {
+        $previous = db_upsert_inspection_photo($pdo, [
+            'subject_type' => $subjectType, 'subject_id' => $subjectId, 'requirement_key' => $requirementKey,
+            'requirement_version' => PHOTO_REQUIREMENTS_VERSION, 'file_path' => $relative,
+            'typed_value' => $typed ? json_encode($typed) : null,
+        ]);
+    } catch (Throwable $e) {
+        // Don't leave an orphan file; if a row already pointed at this same path, the file is still referenced.
+        if ($priorPath !== $relative && is_file($absolute)) unlink($absolute);
+        throw $e;
+    }
     if ($previous !== null && $previous !== '' && $previous !== $relative && is_file($baseDir . '/' . $previous)) {
         unlink($baseDir . '/' . $previous);
     }

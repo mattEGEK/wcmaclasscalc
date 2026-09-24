@@ -3,7 +3,7 @@
 require __DIR__ . '/session_bootstrap.php';
 require __DIR__ . '/db.php';
 require __DIR__ . '/view_helpers.php';
-require __DIR__ . '/photo-requirements.php';
+require_once __DIR__ . '/photo-requirements.php';
 require __DIR__ . '/inspection-lib.php';
 
 $pdo = db_connect();
@@ -19,7 +19,11 @@ function inspectionJson(int $status, array $body): void {
 /** The subject row if it exists and the user may access it, else null (never reveals which). */
 function inspectionLoadSubject(PDO $pdo, array $user, string $type, int $id, bool $forWrite): ?array {
     if (!isset(INSPECTION_SUBJECT_SCOPE[$type])) return null;
-    $sheet = db_get_tech_sheet($pdo, $id);
+    // Explicit dispatch: a type added to INSPECTION_SUBJECT_SCOPE without a branch here is a 404.
+    $sheet = match ($type) {
+        'tech_sheet' => db_get_tech_sheet($pdo, $id),
+        default => null,
+    };
     if (!$sheet || !inspectionCanAccess($user, $sheet, $forWrite)) return null;
     return $sheet;
 }
@@ -80,7 +84,7 @@ if ($action === 'photo') {
     header('Content-Type: ' . ($types[$ext] ?? 'application/octet-stream'));
     header('Content-Length: ' . filesize($abs));
     header('X-Content-Type-Options: nosniff');
-    header('Cache-Control: private, max-age=300');
+    header('Cache-Control: private, max-age=0, must-revalidate');
     readfile($abs);
     exit;
 }

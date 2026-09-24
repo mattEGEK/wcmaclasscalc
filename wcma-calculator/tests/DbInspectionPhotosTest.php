@@ -60,6 +60,30 @@ final class DbInspectionPhotosTest extends TestCase
         $this->assertSame([], db_get_inspection_photos($pdo, 'gear_record', 7));
     }
 
+    public function testUpsertFailureRollsBackAndLeavesNoOpenTransaction(): void
+    {
+        $pdo = make_temp_pdo();
+        $pdo->exec("CREATE TRIGGER fail_insert BEFORE INSERT ON inspection_photos BEGIN SELECT RAISE(ABORT, 'boom'); END");
+        try {
+            db_upsert_inspection_photo($pdo, $this->photo());
+            $this->fail('Expected the upsert to throw');
+        } catch (PDOException $e) {
+            $this->assertStringContainsString('boom', $e->getMessage());
+        }
+        $this->assertFalse($pdo->inTransaction());
+        $this->assertSame([], db_get_inspection_photos($pdo, 'tech_sheet', 7));
+    }
+
+    public function testUpsertInsideCallerTransactionDoesNotNest(): void
+    {
+        $pdo = make_temp_pdo();
+        $pdo->beginTransaction();
+        $this->assertNull(db_upsert_inspection_photo($pdo, $this->photo()));
+        $this->assertTrue($pdo->inTransaction());
+        $pdo->rollBack();
+        $this->assertSame([], db_get_inspection_photos($pdo, 'tech_sheet', 7));
+    }
+
     public function testDelete(): void
     {
         $pdo = make_temp_pdo();

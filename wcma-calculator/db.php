@@ -799,6 +799,24 @@ function db_count_recent_feedback_by_ip_hash(PDO $pdo, string $ipHash, string $s
  * stale file, or null for a first upload.
  */
 function db_upsert_inspection_photo(PDO $pdo, array $d): ?string {
+    // The read-then-write must be atomic: two concurrent uploads for one key would
+    // otherwise both see "no row" and the second INSERT would hit the UNIQUE constraint.
+    // BEGIN IMMEDIATE takes the write lock up front. Don't nest inside a caller's transaction.
+    if ($pdo->inTransaction()) {
+        return db_upsert_inspection_photo_unlocked($pdo, $d);
+    }
+    $pdo->exec('BEGIN IMMEDIATE');
+    try {
+        $previous = db_upsert_inspection_photo_unlocked($pdo, $d);
+        $pdo->exec('COMMIT');
+        return $previous;
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->exec('ROLLBACK');
+        throw $e;
+    }
+}
+
+function db_upsert_inspection_photo_unlocked(PDO $pdo, array $d): ?string {
     $now = date('Y-m-d H:i:s');
     $stmt = $pdo->prepare("SELECT id, file_path FROM inspection_photos WHERE subject_type = :t AND subject_id = :s AND requirement_key = :k");
     $stmt->execute([':t' => $d['subject_type'], ':s' => $d['subject_id'], ':k' => $d['requirement_key']]);

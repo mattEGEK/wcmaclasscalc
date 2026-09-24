@@ -145,6 +145,22 @@ final class InspectionLibTest extends TestCase
         $this->assertCount(1, db_get_inspection_photos($pdo, 'tech_sheet', 7));
     }
 
+    public function testSavePhotoLeavesNoOrphanFileWhenUpsertFails(): void
+    {
+        $pdo = make_temp_pdo();
+        $pdo->exec("CREATE TRIGGER fail_insert BEFORE INSERT ON inspection_photos BEGIN SELECT RAISE(ABORT, 'boom'); END");
+
+        try {
+            inspectionSavePhoto($pdo, $this->dir, 'tech_sheet', 7, 'front_34', $this->tmpFile($this->jpeg()), [], 'rename');
+            $this->fail('Expected the upsert to throw');
+        } catch (PDOException $e) {
+            $this->assertStringContainsString('boom', $e->getMessage());
+        }
+
+        $this->assertFileDoesNotExist($this->dir . '/uploads/inspection/tech_sheet/7/front_34.jpg');
+        $this->assertSame([], db_get_inspection_photos($pdo, 'tech_sheet', 7));
+    }
+
     public function testDeletePhotoRemovesFileAndRow(): void
     {
         $pdo = make_temp_pdo();
