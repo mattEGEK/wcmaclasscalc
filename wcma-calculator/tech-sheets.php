@@ -148,7 +148,7 @@ function handleNew(PDO $pdo, array $user, int $carId, int $eventId = 0): void {
     $declaration = db_get_car_current_declaration($pdo, $carId);
     if (!$declaration) {
         setFlash('Declare a class for this car before submitting a tech sheet.', 'error');
-        header('Location: car-classing.html?car=' . $carId);
+        header('Location: calculator.php?car=' . $carId);
         exit;
     }
 

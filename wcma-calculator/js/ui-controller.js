@@ -80,7 +80,7 @@ async function showSaveNudgeIfNeeded() {
     if (sessionStorage.getItem(NUDGE_DISMISS_KEY) === '1') return;
     if (container.querySelector('.pre-submit-nudge') || container.querySelector('.post-submit-nudge')) return;
 
-    const redirect = encodeURIComponent('car-classing.html');
+    const redirect = encodeURIComponent('calculator.php');
     const box = document.createElement('div');
     box.className = 'pre-submit-nudge account-nudge-box';
 
@@ -1196,7 +1196,7 @@ async function saveConfiguration() {
 
         const token = await getAccountCsrfToken();
         if (!token) {
-            window.location.href = 'auth.php?action=login&redirect=' + encodeURIComponent('car-classing.html');
+            window.location.href = 'auth.php?action=login&redirect=' + encodeURIComponent('calculator.php');
             return;
         }
 
@@ -1346,7 +1346,7 @@ async function deleteConfiguration(draftId) {
 async function showLoadModal() {
     const token = await getAccountCsrfToken();
     if (!token) {
-        window.location.href = 'auth.php?action=login&redirect=' + encodeURIComponent('car-classing.html');
+        window.location.href = 'auth.php?action=login&redirect=' + encodeURIComponent('calculator.php');
         return;
     }
 
@@ -1779,7 +1779,7 @@ function initialize() {
         if (draftIdParam) {
             getAccountCsrfToken().then(token => {
                 if (!token) {
-                    const back = encodeURIComponent('car-classing.html?draft=' + draftIdParam);
+                    const back = encodeURIComponent('calculator.php?draft=' + draftIdParam);
                     window.location.href = 'auth.php?action=login&redirect=' + back;
                     return;
                 }

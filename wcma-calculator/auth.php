@@ -29,11 +29,10 @@ function renderAuthPage(string $title, string $bodyHtml): void {
  */
 function safeRedirectTarget(?string $raw): string {
     $raw = trim((string)$raw);
-    if ($raw === '') return 'car-classing.html';
-    if (preg_match('/^(car-classing\.html(\?draft=\d+)?|account\.php|admin\.php)$/', $raw)) {
+    if (preg_match('/^(index\.php|calculator\.php(\?(car|draft)=\d+|\?restore=1)?|profile\.php|account\.php|admin\.php)$/', $raw)) {
         return $raw;
     }
-    return 'car-classing.html';
+    return 'index.php';
 }
 
 /**
@@ -408,7 +407,7 @@ function handleResetPassword(PDO $pdo): void {
 
             $user = db_find_user_by_id($pdo, $reset['user_id']);
             login_user($user);
-            header('Location: car-classing.html');
+            header('Location: calculator.php');
             exit;
         }
     }

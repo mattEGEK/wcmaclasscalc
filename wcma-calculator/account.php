@@ -143,7 +143,7 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
 
   <h2>My Cars</h2>
   <?php if (empty($carGroups)): ?>
-  <p class="empty-row">No cars yet. <a href="car-classing.html">Declare your class</a> to add your first car.</p>
+  <p class="empty-row">No cars yet. <a href="calculator.php">Declare your class</a> to add your first car.</p>
   <?php else: ?>
     <?php foreach ($carGroups as $group): $car = $group['car']; $d = $group['declaration']; ?>
     <div class="car-card">
@@ -159,7 +159,7 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
       <?php endif; ?>
       <div class="car-card-actions">
         <?php if ($d): ?><a href="account.php?action=view&id=<?= (int)$d['id'] ?>">View declaration</a><?php endif; ?>
-        <a href="car-classing.html?car=<?= (int)$car['id'] ?>"><?= $d ? 'Re-declare class' : 'Declare class' ?></a>
+        <a href="calculator.php?car=<?= (int)$car['id'] ?>"><?= $d ? 'Re-declare class' : 'Declare class' ?></a>
         <form method="post" action="account.php?action=archive-car" style="display:inline"
               data-confirm="Archive <?= h(carDisplayName($car)) ?>? It will be hidden, and its history is kept.">
           <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
@@ -216,7 +216,7 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
         <td data-sort-value="<?= h($d['updated_at']) ?>"><?= h(date('M j, Y H:i', strtotime($d['updated_at']))) ?></td>
         <td><?= h($d['label'] ?: 'Untitled') ?></td>
         <td class="actions">
-          <a href="car-classing.html?draft=<?= (int)$d['id'] ?>">Edit</a>
+          <a href="calculator.php?draft=<?= (int)$d['id'] ?>">Edit</a>
           <form method="post" action="account.php?action=draft-delete" style="display:inline"
                 data-confirm="Delete this draft?">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">

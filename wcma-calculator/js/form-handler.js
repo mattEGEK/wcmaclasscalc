@@ -296,8 +296,8 @@ export function showFormMessage(message, type = 'success') {
 /**
  * After a successful anonymous submission, append an account-creation nudge
  * below the success message. Checks session-status.php itself rather than
- * relying on state from car-classing.html's separate inline script, since
- * this module has no access to that script's scope.
+ * relying on the hub layout's server-rendered nav state, since this module
+ * has no access to that.
  *
  * Builds the link via DOM methods (never innerHTML with interpolated data)
  * since the submitted email is user-controlled input.
