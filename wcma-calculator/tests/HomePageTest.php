@@ -75,6 +75,7 @@ final class HomePageTest extends TestCase
         $noCars = renderHomeHtml($this->vm(['cars' => [], 'readiness' => ['events' => [], 'untagged' => []]]));
         $this->assertStringContainsString('Start by declaring your class', $noCars);
         $this->assertStringContainsString('href="calculator.php"', $noCars);
+        $this->assertStringNotContainsString('<div class="hub-card"><h3>Garage</h3><div class="hub-card">', $noCars);
         $noEvents = renderHomeHtml($this->vm(['readiness' => ['events' => [], 'untagged' => []]]));
         $this->assertStringContainsString('No upcoming events yet.', $noEvents);
     }

@@ -191,7 +191,7 @@ function renderHomeHtml(array $vm): string
     $out .= '<h2>At a glance</h2><div class="hub-grid-2">';
     $out .= '<div class="hub-card"><h3>Garage</h3>';
     if (!$vm['cars']) {
-        $out .= '<div class="hub-card"><p>Start by declaring your class</p><a class="hub-btn" href="calculator.php">Declare your class</a></div>';
+        $out .= '<p>Start by declaring your class</p><a class="hub-btn" href="calculator.php">Declare your class</a>';
     } else {
         foreach ($vm['garage'] as $g) {
             $car = $g['car'];
