@@ -2,6 +2,11 @@
 require __DIR__ . '/../db.php';
 require __DIR__ . '/../feedback-lib.php';
 
+if (!function_exists('current_user')) {
+    function current_user(): ?array { return $GLOBALS['TEST_CURRENT_USER'] ?? null; }
+}
+require_once __DIR__ . '/../roles.php';
+
 function make_temp_pdo(): PDO {
     $path = sys_get_temp_dir() . '/wcma_test_' . uniqid() . '.db';
     if (!defined('DB_PATH')) {

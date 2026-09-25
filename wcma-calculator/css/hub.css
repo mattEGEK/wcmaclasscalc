@@ -1,0 +1,181 @@
+/* wcma-calculator/css/hub.css — WCMA Hub design system. Loaded after calculator.css. */
+:root {
+  --hub-red: #d2151e; --hub-red-ink: #a80f16; --hub-ink: #111317; --hub-ink-2: #555b64;
+  --hub-line: #e4e6ea; --hub-paper: #f2f3f5; --hub-card: #ffffff;
+  --hub-ok: #2fae5f; --hub-ok-ink: #17703a; --hub-ok-bg: #e9f6ee;
+  --hub-warn: #f0a400; --hub-warn-ink: #7d5500; --hub-warn-bg: #fdf3dc;
+  --hub-todo: #e2323a; --hub-todo-bg: #fdecec;
+  --hub-radius: 10px; --hub-tap: 44px;
+  --hub-font: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --hub-font-narrow: 'Archivo Narrow', 'Archivo', system-ui, sans-serif;
+}
+body.hub { font-family: var(--hub-font); font-size: 18px; line-height: 1.5; color: var(--hub-ink); background: var(--hub-paper); margin: 0; }
+body.hub .container { max-width: 1180px; }
+.hub-wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.hub-main { padding-top: 24px; padding-bottom: 48px; }
+.hub-skip { position: absolute; left: -9999px; }
+.hub-skip:focus { left: 16px; top: 8px; background: #fff; padding: 8px 12px; z-index: 10; }
+body.hub :focus-visible { outline: 3px solid var(--hub-red); outline-offset: 2px; }
+body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.15; }
+
+/* Header */
+.hub-header { background: var(--hub-card); }
+.hub-header-row { display: flex; align-items: center; gap: 24px; padding: 12px 24px; }
+.hub-logo { display: inline-flex; }
+.hub-logo img { height: 38px; display: block; }
+
+/* Navigation */
+.hub-nav ul { display: flex; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.hub-nav a, .hub-nav-current {
+  min-height: var(--hub-tap);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  font-weight: 600;
+  color: var(--hub-ink);
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+}
+.hub-nav-current { border-bottom-color: var(--hub-red); }
+.hub-nav-staff { border-left: 1px solid var(--hub-line); margin-left: 8px; padding-left: 8px; }
+.hub-nav-staff a, .hub-nav-staff .hub-nav-current { color: var(--hub-ink-2); }
+
+/* Account and menu */
+.hub-account { margin-left: auto; font-size: 16px; }
+.hub-menu-btn { display: none; }
+
+/* Stripe */
+.hub-stripe { height: 6px; background: repeating-linear-gradient(90deg, var(--hub-red) 0 60px, var(--hub-ink) 60px 64px); }
+
+/* Sub-navigation */
+.hub-subnav { background: var(--hub-card); border-bottom: 1px solid var(--hub-line); font-size: 16px; padding: 8px 0; }
+.hub-subnav a { color: var(--hub-red-ink); }
+
+/* Footer */
+.hub-footer { margin-top: 48px; padding: 24px 0; border-top: 1px solid var(--hub-line); }
+.hub-footer a { color: var(--hub-ink-2); margin-right: 24px; }
+
+/* Buttons */
+.hub-btn {
+  min-height: var(--hub-tap);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border-radius: 8px;
+  background: var(--hub-red);
+  color: #fff;
+  font-weight: 700;
+  font-size: 17px;
+  text-decoration: none;
+  border: 0;
+  cursor: pointer;
+}
+.hub-btn--secondary { background: #fff; color: var(--hub-ink); border: 2px solid var(--hub-ink); }
+.hub-btn--link { background: transparent; color: var(--hub-red-ink); text-decoration: underline; padding: 0 4px; }
+
+/* Cards */
+.hub-card {
+  background: var(--hub-card);
+  border-radius: var(--hub-radius);
+  box-shadow: 0 1px 2px rgba(0,0,0,.06);
+  padding: 18px 20px;
+  margin-bottom: 18px;
+}
+
+/* Plates and badges */
+.hub-plate {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  border: 4px solid var(--hub-ink);
+  font-family: var(--hub-font-narrow);
+  font-weight: 700;
+  font-size: 22px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+}
+.hub-plate--lg { width: 84px; height: 84px; font-size: 40px; border-width: 5px; }
+.hub-class {
+  display: inline-block;
+  background: var(--hub-ink);
+  color: #fff;
+  font-family: var(--hub-font-narrow);
+  font-weight: 700;
+  font-size: 15px;
+  padding: 2px 10px;
+  border-radius: 4px;
+}
+
+/* Status */
+.hub-status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 16px; }
+.hub-status::before { content: ""; width: 11px; height: 11px; border-radius: 50%; }
+.hub-status--ok::before { background: var(--hub-ok); }
+.hub-status--ok { color: var(--hub-ok-ink); }
+.hub-status--warn::before { background: var(--hub-warn); }
+.hub-status--warn { color: var(--hub-warn-ink); }
+.hub-status--todo::before { background: var(--hub-todo); }
+.hub-status--todo { color: var(--hub-todo); }
+.hub-status--info::before { background: var(--hub-ink-2); }
+.hub-status--info { color: var(--hub-ink-2); }
+
+/* To-do list */
+.hub-todo { background: var(--hub-card); border: 2px solid var(--hub-ink); border-radius: var(--hub-radius); }
+.hub-todo-item { display: flex; gap: 18px; align-items: center; padding: 20px 22px; border-top: 1px solid var(--hub-line); }
+.hub-todo-item:first-child { border-top: 0; }
+.hub-todo-n {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: var(--hub-red);
+  color: #fff;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.hub-todo-item--optional .hub-todo-n { background: var(--hub-paper); color: var(--hub-ink-2); border: 2px solid var(--hub-line); }
+.hub-todo-txt strong { display: block; font-size: 20px; }
+.hub-todo-txt span { color: var(--hub-ink-2); font-size: 17px; }
+.hub-todo-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+
+/* Home sections */
+.hub-done { background: var(--hub-card); border-radius: var(--hub-radius); padding: 14px 20px; }
+.hub-done summary { font-weight: 700; color: var(--hub-ok-ink); cursor: pointer; }
+.hub-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.hub-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--hub-line); }
+.hub-line:first-of-type { border-top: 0; }
+
+/* Landing */
+.hub-hero { background: var(--hub-ink); color: #fff; padding: 28px 0; }
+.hub-hero h1 { font-family: var(--hub-font-narrow); font-size: 36px; }
+
+/* Phone */
+@media (max-width: 700px) {
+  .hub-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--hub-tap);
+    border: 2px solid var(--hub-ink);
+    border-radius: 8px;
+    background: #fff;
+    font-weight: 700;
+    margin-left: auto;
+  }
+  #hub-nav-list {
+    display: none;
+    flex-basis: 100%;
+  }
+  #hub-nav-list.is-open {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+  .hub-header-row { flex-wrap: wrap; }
+  .hub-account { flex-basis: 100%; margin-left: 0; }
+  .hub-todo-item { flex-wrap: wrap; }
+  .hub-todo-actions { width: 100%; }
+  .hub-todo-actions .hub-btn { flex: 1; }
+  .hub-grid-2 { grid-template-columns: 1fr; }
+  .hub-wrap { padding: 0 16px; }
+}
