@@ -60,22 +60,6 @@ final class DbTechStatusTest extends TestCase
         $this->assertSame(2027, (int)$row['season']);
     }
 
-    public function testMigrationBackfillsExistingRows(): void
-    {
-        $pdo = make_temp_pdo();
-        [$u, $s, $spring] = $this->fixture($pdo);
-        $id = db_insert_tech_sheet($pdo, $this->sheet($u, $s, $spring, '042'));
-        $pdo->exec("UPDATE tech_sheets SET car_number_norm = NULL, season = NULL WHERE id = $id");
-
-        db_init($pdo);   // idempotent; backfills rows that predate the columns
-
-        $row = db_get_tech_sheet($pdo, $id);
-        $this->assertSame('42', $row['car_number_norm']);
-        $this->assertSame(2026, (int)$row['season']);
-        $this->assertNull($row['accepted_via']);
-        $this->assertNull($row['photo_status']);
-    }
-
     public function testAcceptInPersonOnlyFromSubmittedAndOnlyOnce(): void
     {
         $pdo = make_temp_pdo();

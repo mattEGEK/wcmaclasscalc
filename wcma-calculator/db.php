@@ -61,7 +61,8 @@ function db_init(PDO $pdo): void {
             car_image_path          TEXT,
             email_sent              INTEGER DEFAULT 0,
             last_emailed_at         DATETIME,
-            email_send_count        INTEGER NOT NULL DEFAULT 0
+            email_send_count        INTEGER NOT NULL DEFAULT 0,
+            user_id                 INTEGER
         )
     ");
 
@@ -80,9 +81,10 @@ function db_init(PDO $pdo): void {
             password_hash TEXT,
             google_id     TEXT UNIQUE,
             name          TEXT NOT NULL,
-            role          TEXT NOT NULL DEFAULT 'user',
+            role          TEXT NOT NULL DEFAULT 'user', -- 'user' | 'inspector' | 'admin'
             created_at    DATETIME NOT NULL,
-            active        INTEGER NOT NULL DEFAULT 1
+            active        INTEGER NOT NULL DEFAULT 1,
+            reminder_emails INTEGER NOT NULL DEFAULT 0
         )
     ");
 
@@ -152,6 +154,11 @@ function db_init(PDO $pdo): void {
             email_sent              INTEGER DEFAULT 0,
             email_send_count        INTEGER NOT NULL DEFAULT 0,
             last_emailed_at         DATETIME,
+
+            accepted_via            TEXT,
+            photo_status            TEXT,
+            car_number_norm         TEXT,
+            season                  INTEGER,
 
             created_at              DATETIME NOT NULL,
             updated_at              DATETIME NOT NULL
@@ -233,63 +240,60 @@ function db_init(PDO $pdo): void {
         )
     ");
 
-    // Add user_id to submissions if migrating an existing DB
-    $columns = $pdo->query("PRAGMA table_info(submissions)")->fetchAll();
-    $hasUserId = false;
-    foreach ($columns as $col) {
-        if ($col['name'] === 'user_id') { $hasUserId = true; break; }
-    }
-    if (!$hasUserId) {
-        $pdo->exec("ALTER TABLE submissions ADD COLUMN user_id INTEGER");
-    }
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS cars (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_user_id   INTEGER NOT NULL,
+            car_number      TEXT NOT NULL,
+            car_number_norm TEXT NOT NULL,
+            year            TEXT,
+            make            TEXT NOT NULL,
+            model           TEXT NOT NULL,
+            colour          TEXT,
+            engine_cc       TEXT,
+            archived_at     DATETIME,
+            created_at      DATETIME NOT NULL,
+            updated_at      DATETIME NOT NULL
+        )
+    ");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_cars_owner ON cars (owner_user_id)");
 
-    // Add email-history tracking columns if migrating an existing DB
-    $hasLastEmailedAt = false;
-    $hasEmailSendCount = false;
-    foreach ($columns as $col) {
-        if ($col['name'] === 'last_emailed_at') { $hasLastEmailedAt = true; }
-        if ($col['name'] === 'email_send_count') { $hasEmailSendCount = true; }
-    }
-    if (!$hasLastEmailedAt) {
-        $pdo->exec("ALTER TABLE submissions ADD COLUMN last_emailed_at DATETIME");
-    }
-    if (!$hasEmailSendCount) {
-        $pdo->exec("ALTER TABLE submissions ADD COLUMN email_send_count INTEGER NOT NULL DEFAULT 0");
-    }
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS drivers (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_user_id INTEGER NOT NULL,
+            user_id       INTEGER UNIQUE,
+            name          TEXT NOT NULL,
+            name_norm     TEXT NOT NULL,
+            licence_no    TEXT,
+            created_at    DATETIME NOT NULL,
+            updated_at    DATETIME NOT NULL,
+            UNIQUE (owner_user_id, name_norm)
+        )
+    ");
 
-    // Add active flag to users if migrating an existing DB
-    $userColumns = $pdo->query("PRAGMA table_info(users)")->fetchAll();
-    $hasActive = false;
-    foreach ($userColumns as $col) {
-        if ($col['name'] === 'active') { $hasActive = true; break; }
-    }
-    if (!$hasActive) {
-        $pdo->exec("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
-    }
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS event_plans (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL,
+            event_id   INTEGER NOT NULL,
+            car_id     INTEGER NOT NULL,
+            created_at DATETIME NOT NULL,
+            UNIQUE (event_id, car_id)
+        )
+    ");
 
-    // Annual tech status columns and car identity on tech_sheets, if migrating an existing DB
-    $techCols = array_column($pdo->query("PRAGMA table_info(tech_sheets)")->fetchAll(), 'name');
-    foreach (['accepted_via' => 'TEXT', 'photo_status' => 'TEXT', 'car_number_norm' => 'TEXT', 'season' => 'INTEGER'] as $col => $type) {
-        if (!in_array($col, $techCols, true)) {
-            $pdo->exec("ALTER TABLE tech_sheets ADD COLUMN {$col} {$type}");
-        }
-    }
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS season_links (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            label      TEXT NOT NULL,
+            url        TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            active     INTEGER NOT NULL DEFAULT 1
+        )
+    ");
+
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tech_sheets_car ON tech_sheets (user_id, car_number_norm, season)");
-    $unfilled = $pdo->query("
-        SELECT ts.id, ts.car_number, ts.created_at, e.event_date
-        FROM tech_sheets ts LEFT JOIN events e ON e.id = ts.event_id
-        WHERE ts.car_number_norm IS NULL OR ts.season IS NULL
-    ")->fetchAll();
-    if ($unfilled) {
-        $fill = $pdo->prepare("UPDATE tech_sheets SET car_number_norm = :n, season = :s WHERE id = :id");
-        foreach ($unfilled as $row) {
-            $fill->execute([
-                ':n' => techCarNumberNorm((string)$row['car_number']),
-                ':s' => techSeasonFromDate($row['event_date'] ?? $row['created_at']),
-                ':id' => $row['id'],
-            ]);
-        }
-    }
 }
 
 function db_insert_submission(PDO $pdo, array $data): int {
@@ -653,7 +657,9 @@ function db_create_user(PDO $pdo, array $data): int {
         ':role'          => $role,
         ':created_at'    => date('Y-m-d H:i:s'),
     ]);
-    return (int)$pdo->lastInsertId();
+    $id = (int)$pdo->lastInsertId();
+    db_create_driver($pdo, $id, (string)$data['name'], null, $id);   // the account holder's own driver profile
+    return $id;
 }
 
 function db_find_user_by_email(PDO $pdo, string $email): ?array {
@@ -699,6 +705,125 @@ function db_count_active_admins(PDO $pdo): int {
 function db_link_google_id(PDO $pdo, int $user_id, string $google_id): void {
     $pdo->prepare("UPDATE users SET google_id = :google_id WHERE id = :id")
         ->execute([':google_id' => $google_id, ':id' => $user_id]);
+}
+
+// ── Cars ──────────────────────────────────────────────────────────────────────
+
+const DB_CAR_FIELDS = ['car_number', 'year', 'make', 'model', 'colour', 'engine_cc'];
+
+function db_create_car(PDO $pdo, int $ownerId, array $d): int {
+    $now = date('Y-m-d H:i:s');
+    $pdo->prepare("
+        INSERT INTO cars (owner_user_id, car_number, car_number_norm, year, make, model, colour, engine_cc, created_at, updated_at)
+        VALUES (:o, :n, :norm, :y, :make, :model, :colour, :cc, :now, :now)
+    ")->execute([
+        ':o' => $ownerId, ':n' => (string)$d['car_number'], ':norm' => techCarNumberNorm((string)$d['car_number']),
+        ':y' => $d['year'] ?? null, ':make' => (string)$d['make'], ':model' => (string)$d['model'],
+        ':colour' => $d['colour'] ?? null, ':cc' => $d['engine_cc'] ?? null, ':now' => $now,
+    ]);
+    return (int)$pdo->lastInsertId();
+}
+
+function db_get_car(PDO $pdo, int $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM cars WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_get_user_car(PDO $pdo, int $ownerId, int $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM cars WHERE id = :id AND owner_user_id = :o");
+    $stmt->execute([':id' => $id, ':o' => $ownerId]);
+    return $stmt->fetch() ?: null;
+}
+
+/** One owner's cars, numeric numbers first in numeric order, then the rest alphabetically. */
+function db_get_user_cars(PDO $pdo, int $ownerId, bool $includeArchived = false): array {
+    $sql = "SELECT * FROM cars WHERE owner_user_id = :o" . ($includeArchived ? "" : " AND archived_at IS NULL")
+         . " ORDER BY (car_number_norm GLOB '[0-9]*') DESC, CAST(car_number_norm AS INTEGER) ASC, car_number_norm ASC, id ASC";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([':o' => $ownerId]);
+    return $stmt->fetchAll();
+}
+
+/** Applies only the keys in DB_CAR_FIELDS; a new car_number recomputes car_number_norm. */
+function db_update_car(PDO $pdo, int $id, array $d): void {
+    $sets = [];
+    $params = [':id' => $id, ':now' => date('Y-m-d H:i:s')];
+    foreach (DB_CAR_FIELDS as $field) {
+        if (!array_key_exists($field, $d)) continue;
+        $sets[] = "{$field} = :{$field}";
+        $params[':' . $field] = $d[$field];
+    }
+    if (array_key_exists('car_number', $d)) {
+        $sets[] = 'car_number_norm = :norm';
+        $params[':norm'] = techCarNumberNorm((string)$d['car_number']);
+    }
+    if (!$sets) return;
+    $pdo->prepare("UPDATE cars SET " . implode(', ', $sets) . ", updated_at = :now WHERE id = :id")->execute($params);
+}
+
+/** Archives one of the owner's active cars. False if it is not theirs or is already archived. */
+function db_archive_car(PDO $pdo, int $ownerId, int $id): bool {
+    $stmt = $pdo->prepare("UPDATE cars SET archived_at = :now, updated_at = :now WHERE id = :id AND owner_user_id = :o AND archived_at IS NULL");
+    $stmt->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id, ':o' => $ownerId]);
+    return $stmt->rowCount() === 1;
+}
+
+// ── Drivers ───────────────────────────────────────────────────────────────────
+
+/** Collapse whitespace, trim, lowercase: a driver's identity within the account that manages them. */
+function db_driver_name_norm(string $name): string {
+    return strtolower(trim((string)preg_replace('/\s+/', ' ', $name)));
+}
+
+function db_create_driver(PDO $pdo, int $ownerId, string $name, ?string $licenceNo = null, ?int $userId = null): int {
+    $name = trim((string)preg_replace('/\s+/', ' ', $name));
+    $now = date('Y-m-d H:i:s');
+    $pdo->prepare("
+        INSERT INTO drivers (owner_user_id, user_id, name, name_norm, licence_no, created_at, updated_at)
+        VALUES (:o, :u, :n, :norm, :l, :now, :now)
+    ")->execute([':o' => $ownerId, ':u' => $userId, ':n' => $name, ':norm' => db_driver_name_norm($name), ':l' => $licenceNo, ':now' => $now]);
+    return (int)$pdo->lastInsertId();
+}
+
+function db_get_driver(PDO $pdo, int $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM drivers WHERE id = :id");
+    $stmt->execute([':id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_find_driver(PDO $pdo, int $ownerId, string $name): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM drivers WHERE owner_user_id = :o AND name_norm = :n");
+    $stmt->execute([':o' => $ownerId, ':n' => db_driver_name_norm($name)]);
+    return $stmt->fetch() ?: null;
+}
+
+/** The owner's driver profile with this (normalised) name, created if missing. Null for a blank name. */
+function db_find_or_create_driver(PDO $pdo, int $ownerId, string $name): ?int {
+    if (db_driver_name_norm($name) === '') return null;
+    $existing = db_find_driver($pdo, $ownerId, $name);
+    return $existing !== null ? (int)$existing['id'] : db_create_driver($pdo, $ownerId, $name);
+}
+
+function db_get_self_driver(PDO $pdo, int $userId): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM drivers WHERE user_id = :u");
+    $stmt->execute([':u' => $userId]);
+    return $stmt->fetch() ?: null;
+}
+
+/** The owner's own profile first, then the drivers they manage by name. */
+function db_get_user_drivers(PDO $pdo, int $ownerId): array {
+    $stmt = $pdo->prepare("
+        SELECT * FROM drivers WHERE owner_user_id = :o
+        ORDER BY (user_id IS NOT NULL AND user_id = owner_user_id) DESC, name_norm ASC, id ASC
+    ");
+    $stmt->execute([':o' => $ownerId]);
+    return $stmt->fetchAll();
+}
+
+function db_update_driver_licence(PDO $pdo, int $id, ?string $licenceNo): void {
+    $pdo->prepare("UPDATE drivers SET licence_no = :l, updated_at = :now WHERE id = :id")
+        ->execute([':l' => $licenceNo, ':now' => date('Y-m-d H:i:s'), ':id' => $id]);
 }
 
 // ── Password resets ──────────────────────────────────────────────────────────
