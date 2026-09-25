@@ -22,11 +22,14 @@ function renderGearListPage(array $records, int $season, string $csrf, ?array $f
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My Drivers — WCMA Calculator</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('My Drivers', renderCommonNav('gear')); ?>
+  <?php renderSiteHeader('My Drivers', '', 'drivers'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card">
@@ -109,11 +112,14 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gear pre-tech — WCMA Calculator</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Gear pre-tech', '<a href="gear.php">← Back to My Drivers</a>' . renderCommonNav('gear')); ?>
+  <?php renderSiteHeader('Gear pre-tech', '<a href="gear.php">← Back to My Drivers</a>', 'drivers'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card">

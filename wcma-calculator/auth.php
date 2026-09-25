@@ -17,30 +17,9 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 function renderAuthPage(string $title, string $bodyHtml): void {
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= h($title) ?> — WCMA Calculator</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="css/calculator.css">
-</head>
-<body>
-<div class="container auth-page">
-  <div class="auth-box">
-    <a href="car-classing.html" class="logo-home-link">
-      <img src="https://www.wcma.ca/wp-content/uploads/WCMA-Logo.png" alt="WCMA Logo" class="wcma-logo-sm auth-logo">
-    </a>
-    <nav class="account-nav auth-nav"><?= renderCommonNav('auth') ?></nav>
-    <h1><?= h($title) ?></h1>
-    <?= $bodyHtml ?>
-  </div>
-</div>
-<script src="js/auth.js" defer></script>
-<script src="js/feedback.js" defer></script>
-</body>
-</html><?php
+    renderPageStart($title, 'signin');
+    echo '<div class="hub-card auth-box"><h1>' . h($title) . '</h1>' . $bodyHtml . '</div>';
+    renderPageEnd(['scripts' => '<script src="js/auth.js" defer></script>']);
 }
 
 /**

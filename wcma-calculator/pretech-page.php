@@ -91,11 +91,14 @@ function renderPretechPage(array $sheet, array $event, array $mode, array $snaps
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Get pre-teched — WCMA Calculator</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Get pre-teched', '<a href="tech-sheets.php?action=view&amp;id=' . $id . '">← Back to tech sheet</a>' . renderCommonNav('account')); ?>
+  <?php renderSiteHeader('Get pre-teched', '<a href="tech-sheets.php?action=view&amp;id=' . $id . '">← Back to tech sheet</a>', 'garage'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card">

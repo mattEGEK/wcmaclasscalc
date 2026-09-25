@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/roles.php';
+require_once __DIR__ . '/layout.php';
 
 function generateCsrfToken(): string {
     if (!isset($_SESSION['csrf_token'])) {
@@ -27,18 +28,23 @@ function h(string $s): string {
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
 
-function renderSiteHeader(string $title, string $navHtml = ''): void {
+/**
+ * Header for pages not yet rebuilt on renderPageStart(): the hub header and stripe, an optional
+ * sub-navigation bar (back links, admin tabs), then the page title.
+ */
+function renderSiteHeader(string $title, string $subnavHtml = '', string $section = ''): void {
+    $user = current_user();
     ?>
-<header class="page-header">
-  <div class="header-content">
-    <a href="car-classing.html" class="logo-home-link">
-      <img src="https://www.wcma.ca/wp-content/uploads/WCMA-Logo.png" alt="WCMA Logo" class="wcma-logo-sm">
-    </a>
-    <h1><?= h($title) ?></h1>
-  </div>
-  <nav><?= $navHtml ?></nav>
-  <script src="js/feedback.js" defer></script>
-</header>
+<header class="hub-header"><div class="hub-wrap hub-header-row">
+  <a href="index.php" class="hub-logo"><img src="assets/wcma-logo.png" alt="WCMA — home"></a>
+  <?= hubNavHtml($user, $section) ?>
+  <?= hubAccountHtml($user) ?>
+</div></header>
+<div class="hub-stripe" aria-hidden="true"></div>
+<?php if ($subnavHtml !== ''): ?><div class="hub-subnav"><?= $subnavHtml ?></div><?php endif; ?>
+<h1 class="hub-page-title"><?= h($title) ?></h1>
+<script src="js/nav.js" defer></script>
+<script src="js/feedback.js" defer></script>
 <?php
 }
 
@@ -75,33 +81,6 @@ function renderAdminNav(string $current, string $role = 'admin'): string {
         $links[] = navItem($href, $label, $key === $current);
     }
     return implode(' ', $links);
-}
-
-/**
- * Common cross-page nav links (Calculator / My Cars / Admin / Logout, or
- * Sign In for guests), used alongside each page's own back-link/actions.
- * $current marks which destination is the page already being viewed.
- */
-function renderCommonNav(string $current = ''): string {
-    $user = current_user();
-    $links = [];
-
-    $links[] = navItem('car-classing.html', 'Calculator', $current === 'calculator');
-
-    if ($user !== null) {
-        $links[] = navItem('account.php', 'My Cars', $current === 'account');
-        $links[] = navItem('gear.php', 'My Drivers', $current === 'gear');
-        if (is_inspector()) {
-            $links[] = navItem('admin.php', is_admin() ? 'Admin' : 'Inspector', $current === 'admin');
-        }
-        $links[] = '<a href="auth.php?action=logout">Logout</a>';
-    } else {
-        $links[] = navItem('auth.php?action=login', 'Sign In', $current === 'auth');
-    }
-
-    $links[] = '<a href="#" data-feedback-open>Feedback</a>';
-
-    return implode('', $links);
 }
 
 /**

@@ -350,11 +350,14 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Submissions — WCMA Admin</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('WCMA Submissions', renderAdminNav('submissions', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('WCMA Submissions', renderAdminNav('submissions', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
@@ -515,11 +518,14 @@ function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $fl
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Submission #<?= (int)$s['id'] ?> — WCMA Admin</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Submission #' . $s['id'] . ' — ' . $s['name'], '<a href="admin.php">← Back to list</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Submission #' . $s['id'] . ' — ' . $s['name'], '<a href="admin.php">← Back to list</a>', 'staff'); ?>
   <div class="detail-layout">
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>" style="grid-column:1/-1"><?= h($flash['message']) ?></div>
@@ -724,15 +730,18 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Manage Users — WCMA Admin</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 <style>
   .btn-role { background: none; border: 1px solid var(--secondary-color); color: var(--secondary-color); border-radius: var(--border-radius); padding: .3rem .7rem; cursor: pointer; font-size: .8rem; font-family: inherit; }
   .btn-role:hover { background: #f0f7ff; }
 </style>
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Manage Users', renderAdminNav('users', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Manage Users', renderAdminNav('users', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <?php if (!empty($users)): ?>
   <div class="list-toolbar">
@@ -1102,11 +1111,14 @@ function renderEventsPage(array $events, string $csrf, ?array $flash): void {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Events — WCMA Admin</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Events', renderAdminNav('events', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Events', renderAdminNav('events', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">
@@ -1219,11 +1231,14 @@ function renderSettingsPage(array $values, string $csrf, ?array $flash): void {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Settings — WCMA Admin</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Settings', renderAdminNav('settings', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Settings', renderAdminNav('settings', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">

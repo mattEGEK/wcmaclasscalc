@@ -125,12 +125,15 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>My Cars — WCMA Calculator</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 <meta name="csrf-token" content="<?= h($csrf) ?>">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('My Cars', renderCommonNav('account')); ?>
+  <?php renderSiteHeader('My Cars', '', 'garage'); ?>
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
@@ -273,11 +276,14 @@ function renderAccountViewPage(array $s, string $csrf, ?array $flash): void {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Class Declaration — <?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Class Declaration — ' . trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model']), '<a href="account.php">← Back to My Cars</a>' . renderCommonNav('account')); ?>
+  <?php renderSiteHeader('Class Declaration — ' . trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model']), '<a href="account.php">← Back to My Cars</a>', 'garage'); ?>
   <div class="detail-layout">
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>" style="grid-column:1/-1"><?= h($flash['message']) ?></div><?php endif; ?>
   <div class="detail-card">

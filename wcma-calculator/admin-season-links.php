@@ -38,11 +38,14 @@ function renderSeasonLinksPage(array $links, string $csrf, ?array $flash): void 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Season Links — WCMA Admin</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Season Links', renderAdminNav('season-links', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Season Links', renderAdminNav('season-links', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <div class="detail-card">
     <p>These links are shown to competitors as "This season on MotorsportReg". MotorsportReg gives each season's waiver and licences new web addresses, so update them at the start of every season.</p>

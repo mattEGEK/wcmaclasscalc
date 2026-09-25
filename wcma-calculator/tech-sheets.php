@@ -182,11 +182,14 @@ function handleView(PDO $pdo, array $user, int $id): void {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tech Sheet #<?= (int)$sheet['id'] ?> — WCMA Calculator</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Tech Sheet #' . $sheet['id'], '<a href="account.php">← Back to My Cars</a>' . renderCommonNav('account')); ?>
+  <?php renderSiteHeader('Tech Sheet #' . $sheet['id'], '<a href="account.php">← Back to My Cars</a>', 'garage'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <div class="detail-card actions no-print">
     <?php if (pretechSheetEditable($sheet)): ?>
@@ -309,12 +312,15 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= h($pageTitle) ?> — WCMA Calculator</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 <meta name="csrf-token" content="<?= h($csrf) ?>">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader($pageTitle, '<a href="account.php">← Back to My Cars</a>' . renderCommonNav('account')); ?>
+  <?php renderSiteHeader($pageTitle, '<a href="account.php">← Back to My Cars</a>', 'garage'); ?>
 
   <form id="tech-sheet-form" method="post" action="<?= h($formAction) ?>">
     <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">

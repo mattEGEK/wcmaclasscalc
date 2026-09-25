@@ -44,11 +44,14 @@ function renderTechSheetsListPage(array $events, int $eventId, string $filter, a
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tech Sheets — WCMA Admin</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Tech Sheets', renderAdminNav('tech-sheets', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Tech Sheets', renderAdminNav('tech-sheets', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <form method="get" action="admin.php" class="detail-card" style="margin-bottom:1rem">
@@ -173,11 +176,14 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tech Sheet #<?= $id ?> — WCMA Admin</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Tech Sheet #' . $id, '<a href="admin.php?action=tech-sheets&amp;event=' . (int)$sheet['event_id'] . '">← Back to roster</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Tech Sheet #' . $id, '<a href="admin.php?action=tech-sheets&amp;event=' . (int)$sheet['event_id'] . '">← Back to roster</a>', 'staff'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card">

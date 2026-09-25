@@ -68,11 +68,14 @@ function renderFeedbackListPage(array $rows, ?array $flash): void {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Feedback — WCMA Admin</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Feedback', renderAdminNav('feedback', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Feedback', renderAdminNav('feedback', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <p class="list-summary"><?= count($rows) ?> item<?= count($rows) === 1 ? '' : 's' ?></p>
   <table class="data-table">
@@ -110,11 +113,14 @@ function renderFeedbackViewPage(array $f, string $csrf, ?array $flash, bool $git
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Feedback #<?= (int)$f['id'] ?> — WCMA Admin</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
 <link rel="stylesheet" href="css/calculator.css">
+<link rel="stylesheet" href="css/hub.css">
 </head>
-<body>
+<body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Feedback #' . (int)$f['id'], '<a href="admin.php?action=feedback">← Back to list</a>' . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Feedback #' . (int)$f['id'], '<a href="admin.php?action=feedback">← Back to list</a>', 'staff'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">
