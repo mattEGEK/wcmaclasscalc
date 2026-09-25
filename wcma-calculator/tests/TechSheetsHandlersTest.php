@@ -55,4 +55,10 @@ final class TechSheetsHandlersTest extends TestCase
             $body
         );
     }
+
+    public function testSubmittingASheetTagsTheEventAndNewCanPreselectIt(): void
+    {
+        $this->assertStringContainsString('db_tag_event(', $this->body('handleSubmit'));
+        $this->assertStringContainsString('$eventId', $this->body('handleNew'));
+    }
 }
