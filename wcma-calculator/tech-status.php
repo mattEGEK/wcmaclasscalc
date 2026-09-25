@@ -102,14 +102,35 @@ function techBuildRoster(array $eventSheets, array $seasonSheets): array {
     return $rows;
 }
 
-/** $filter: 'all' | 'needs_tech' (car not accepted) | 'accepted' | 'pending_review'. Unknown values mean 'all'. */
+/** True when any linked driver's gear is not accepted (a driver without a gear record counts as not accepted). */
+function techGearLinksNeedGear(array $links): bool {
+    foreach ($links as $l) {
+        if (($l['status']['state'] ?? 'none') !== 'accepted') return true;
+    }
+    return false;
+}
+
+/** True when any linked driver's gear photos are awaiting review. */
+function techGearLinksPending(array $links): bool {
+    foreach ($links as $l) {
+        if (($l['status']['state'] ?? 'none') === 'pending_review') return true;
+    }
+    return false;
+}
+
+/**
+ * $filter: 'all' | 'needs_tech' (car or any driver's gear not accepted) | 'accepted' (car and all gear
+ * accepted) | 'pending_review' (car or gear photos awaiting review). Unknown values mean 'all'. Rows
+ * without a `gear_links` key are judged on the car alone.
+ */
 function techRosterFilter(array $rows, string $filter): array {
     if (!in_array($filter, ['needs_tech', 'accepted', 'pending_review'], true)) return $rows;
     return array_values(array_filter($rows, function (array $r) use ($filter): bool {
         $state = $r['status']['state'];
-        if ($filter === 'pending_review') return $state === 'pending_review';
-        $accepted = $state === 'accepted';
-        return $filter === 'accepted' ? $accepted : !$accepted;
+        $links = $r['gear_links'] ?? [];
+        if ($filter === 'pending_review') return $state === 'pending_review' || techGearLinksPending($links);
+        $done = $state === 'accepted' && !techGearLinksNeedGear($links);
+        return $filter === 'accepted' ? $done : !$done;
     }));
 }
 

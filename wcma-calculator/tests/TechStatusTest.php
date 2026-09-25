@@ -178,4 +178,49 @@ final class TechStatusTest extends TestCase
         $this->assertSame([1], array_map(fn($r) => $r['sheet']['id'], techRosterFilter($rows, 'pending_review')));
         $this->assertSame([1, 2, 3], array_map(fn($r) => $r['sheet']['id'], techRosterFilter($rows, 'needs_tech')));
     }
+
+    private function rosterRow(string $carState, ?array $gearStates): array {
+        $row = ['sheet' => ['id' => 1], 'status' => ['state' => $carState, 'via' => null]];
+        if ($gearStates !== null) {
+            $row['gear_links'] = array_map(fn(string $s): array => ['status' => ['state' => $s, 'via' => null]], $gearStates);
+        }
+        return $row;
+    }
+
+    public function testGearHelpers(): void
+    {
+        $this->assertFalse(techGearLinksNeedGear([]));
+        $this->assertFalse(techGearLinksNeedGear([['status' => ['state' => 'accepted']]]));
+        $this->assertTrue(techGearLinksNeedGear([['status' => ['state' => 'accepted']], ['status' => ['state' => 'none']]]));
+        $this->assertTrue(techGearLinksNeedGear([['status' => ['state' => 'pending_review']]]));
+        $this->assertTrue(techGearLinksPending([['status' => ['state' => 'accepted']], ['status' => ['state' => 'pending_review']]]));
+        $this->assertFalse(techGearLinksPending([['status' => ['state' => 'none']]]));
+        $this->assertFalse(techGearLinksPending([]));
+    }
+
+    public function testRosterFilterCountsUnfinishedGearAsNeedingTech(): void
+    {
+        $rows = [
+            $this->rosterRow('accepted', ['accepted']),              // 0: car and gear done
+            $this->rosterRow('accepted', ['accepted', 'none']),      // 1: car done, a driver has no gear record
+            $this->rosterRow('none', ['accepted']),                  // 2: gear done, car not
+            $this->rosterRow('accepted', ['pending_review']),        // 3: car done, gear photos awaiting review
+            $this->rosterRow('pending_review', ['accepted']),        // 4: car photos awaiting review
+        ];
+        $ids = fn(string $f): array => array_keys(array_filter($rows, fn($r) => in_array($r, techRosterFilter($rows, $f), true)));
+
+        $this->assertSame([0], $ids('accepted'));
+        $this->assertSame([1, 2, 3, 4], $ids('needs_tech'));
+        $this->assertSame([3, 4], $ids('pending_review'));
+        $this->assertSame([0, 1, 2, 3, 4], $ids('all'));
+        $this->assertSame([0, 1, 2, 3, 4], $ids('bogus'));
+    }
+
+    public function testRosterFilterWithoutGearLinksKeepsThePhaseTwoBehaviour(): void
+    {
+        $rows = [$this->rosterRow('accepted', null), $this->rosterRow('none', null), $this->rosterRow('pending_review', null)];
+        $this->assertCount(1, techRosterFilter($rows, 'accepted'));
+        $this->assertCount(2, techRosterFilter($rows, 'needs_tech'));
+        $this->assertCount(1, techRosterFilter($rows, 'pending_review'));
+    }
 }
