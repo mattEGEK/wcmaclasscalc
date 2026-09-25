@@ -2095,3 +2095,6 @@ textarea.error {
 /* ── Gear chips (per-driver gear status on sheets and the roster) ───────── */
 .gear-chips { list-style: none; margin: 0.25rem 0 0; padding: 0; }
 .gear-chip { margin: 0.15rem 0; font-size: 0.85rem; }
+
+.gear-inline-form { display: inline; margin-left: 0.4rem; }
+.gear-inline-form .btn { padding: 0.15rem 0.5rem; font-size: 0.8rem; }
