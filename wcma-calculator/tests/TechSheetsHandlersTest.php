@@ -28,4 +28,21 @@ final class TechSheetsHandlersTest extends TestCase
             $this->assertStringNotContainsString('pretechSheetEditable(', $this->body($fn), $fn);
         }
     }
+
+    public function testNewSheetsStartFromACarAndItsCurrentDeclaration(): void
+    {
+        foreach (['handleNew', 'handleSubmit'] as $fn) {
+            $body = $this->body($fn);
+            $this->assertStringContainsString('db_get_user_car(', $body, $fn);
+            $this->assertStringContainsString('db_get_car_current_declaration(', $body, $fn);
+            $this->assertStringNotContainsString('submission_id=', $body, $fn);
+        }
+    }
+
+    public function testSubmitAndUpdateWriteDetailsBackToTheCar(): void
+    {
+        foreach (['handleSubmit', 'handleUpdate'] as $fn) {
+            $this->assertStringContainsString('carsApplySheetDetails(', $this->body($fn), $fn);
+        }
+    }
 }

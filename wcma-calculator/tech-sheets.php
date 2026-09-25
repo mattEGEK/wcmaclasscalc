@@ -16,6 +16,7 @@ require __DIR__ . '/pretech-email.php';
 require __DIR__ . '/pretech-page.php';
 require __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-chips.php';
+require __DIR__ . '/cars-lib.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -79,7 +80,7 @@ $action = $_GET['action'] ?? 'new';
 switch ($action) {
     case 'new':
         $user = requireTechSheetLogin();
-        handleNew($pdo, $user, (int)($_GET['submission_id'] ?? 0));
+        handleNew($pdo, $user, (int)($_GET['car_id'] ?? 0));
         break;
 
     case 'submit':
@@ -135,11 +136,17 @@ switch ($action) {
         exit;
 }
 
-function handleNew(PDO $pdo, array $user, int $submissionId): void {
-    $submission = db_get_user_submission($pdo, $user['id'], $submissionId);
-    if (!$submission) {
+function handleNew(PDO $pdo, array $user, int $carId): void {
+    $car = db_get_user_car($pdo, (int)$user['id'], $carId);
+    if (!$car || $car['archived_at'] !== null) {
         setFlash('Car not found.', 'error');
         header('Location: account.php');
+        exit;
+    }
+    $declaration = db_get_car_current_declaration($pdo, $carId);
+    if (!$declaration) {
+        setFlash('Declare a class for this car before submitting a tech sheet.', 'error');
+        header('Location: car-classing.html?car=' . $carId);
         exit;
     }
 
@@ -151,8 +158,7 @@ function handleNew(PDO $pdo, array $user, int $submissionId): void {
     }
 
     $gearNames = gearNameSuggestions(db_get_user_gear_records($pdo, (int)$user['id']), gearSeasonNow());
-    $csrf = generateCsrfToken();
-    renderTechSheetForm($submission, $events, $csrf, null, [], $gearNames);
+    renderTechSheetForm($declaration, $events, generateCsrfToken(), null, [], $gearNames, $car);
 }
 
 function handleView(PDO $pdo, array $user, int $id): void {
@@ -267,18 +273,18 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
     renderTechSheetEditForm($sheet, $drivers, $events, $csrf, $gearNames);
 }
 
-function renderTechSheetForm(array $submission, array $events, string $csrf, ?array $existingSheet = null, array $existingDrivers = [], array $gearNames = []): void {
+function renderTechSheetForm(array $submission, array $events, string $csrf, ?array $existingSheet = null, array $existingDrivers = [], array $gearNames = [], ?array $car = null): void {
     $isEdit = $existingSheet !== null;
     $formAction = $isEdit ? 'tech-sheets.php?action=update' : 'tech-sheets.php?action=submit';
     $pageTitle = $isEdit ? 'Edit Tech Sheet' : 'Submit Tech Sheet';
     $entrantName = $isEdit ? $existingSheet['entrant_name'] : $submission['name'];
     $driverName = $isEdit ? $existingSheet['driver_name'] : $submission['name'];
-    $carNumber = $isEdit ? $existingSheet['car_number'] : '';
-    $carColour = $isEdit ? $existingSheet['car_colour'] : '';
-    $engineCc = $isEdit ? $existingSheet['engine_cc'] : '';
+    $carNumber = $isEdit ? $existingSheet['car_number'] : (string)($car['car_number'] ?? '');
+    $carColour = $isEdit ? $existingSheet['car_colour'] : (string)($car['colour'] ?? '');
+    $engineCc = $isEdit ? $existingSheet['engine_cc'] : (string)($car['engine_cc'] ?? '');
     $engineHp = $isEdit ? $existingSheet['engine_hp'] : ($submission['dyno_hp'] ?: $submission['declared_hp']);
-    $carMake = $isEdit ? $existingSheet['car_make'] : $submission['make'];
-    $carModel = $isEdit ? $existingSheet['car_model'] : $submission['model'];
+    $carMake = $isEdit ? $existingSheet['car_make'] : (string)($car['make'] ?? $submission['make']);
+    $carModel = $isEdit ? $existingSheet['car_model'] : (string)($car['model'] ?? $submission['model']);
     $carClass = $isEdit ? $existingSheet['class'] : ($submission['calculated_class'] ?? '');
     $carWeight = $isEdit ? (int)$existingSheet['car_weight'] : (int)$submission['competition_weight'];
     $selectedEventId = $isEdit ? (int)$existingSheet['event_id'] : null;
@@ -314,7 +320,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     <?php if ($isEdit): ?>
     <input type="hidden" name="tech_sheet_id" value="<?= (int)$existingSheet['id'] ?>">
     <?php else: ?>
-    <input type="hidden" name="submission_id" value="<?= (int)$submission['id'] ?>">
+    <input type="hidden" name="car_id" value="<?= (int)($car['id'] ?? 0) ?>">
     <?php endif; ?>
     <input type="hidden" name="checklist_json" id="checklist_json">
     <input type="hidden" name="driver1_equipment_json" id="driver1_equipment_json">
@@ -527,10 +533,11 @@ function sendTechSheetConfirmationEmail(array $sheet, array $drivers, array $eve
 }
 
 function handleSubmit(PDO $pdo, array $user): void {
-    $submissionId = (int)($_POST['submission_id'] ?? 0);
-    $submission = db_get_user_submission($pdo, $user['id'], $submissionId);
+    $carId = (int)($_POST['car_id'] ?? 0);
+    $car = db_get_user_car($pdo, (int)$user['id'], $carId);
+    $submission = ($car && $car['archived_at'] === null) ? db_get_car_current_declaration($pdo, $carId) : null;
     if (!$submission) {
-        setFlash('Car not found.', 'error');
+        setFlash('Car not found, or it has no class declaration yet.', 'error');
         header('Location: account.php');
         exit;
     }
@@ -539,7 +546,7 @@ function handleSubmit(PDO $pdo, array $user): void {
     $event = db_get_event($pdo, $eventId);
     if (!$event || (int)$event['active'] !== 1) {
         setFlash('Please choose a valid event.', 'error');
-        header('Location: tech-sheets.php?action=new&submission_id=' . $submissionId);
+        header('Location: tech-sheets.php?action=new&car_id=' . $carId);
         exit;
     }
 
@@ -547,7 +554,7 @@ function handleSubmit(PDO $pdo, array $user): void {
     $driverRows = validateTechSheetPost($parsed);
     if ($driverRows === null) {
         setFlash('Please complete every required field, including all driver equipment checklists, before submitting.', 'error');
-        header('Location: tech-sheets.php?action=new&submission_id=' . $submissionId);
+        header('Location: tech-sheets.php?action=new&car_id=' . $carId);
         // Residual risk (I3): a validation failure here loses the filled-in form,
         // since real re-population from $_POST wasn't built in this fix wave.
         // The C2 client-side validation added alongside this makes hitting this
@@ -559,13 +566,15 @@ function handleSubmit(PDO $pdo, array $user): void {
     $id = db_insert_tech_sheet($pdo, [
         'submission_id' => $submission['id'], 'user_id' => $user['id'], 'event_id' => $eventId, 'sheet_type' => $parsed['sheet_type'],
         'entrant_name' => $parsed['entrant_name'], 'driver_name' => $parsed['driver_name'],
-        'car_make' => $submission['make'], 'car_model' => $submission['model'], 'car_colour' => $parsed['car_colour'],
+        'car_make' => $car['make'], 'car_model' => $car['model'], 'car_colour' => $parsed['car_colour'],
         'car_number' => $parsed['car_number'], 'class' => $submission['calculated_class'] ?? '',
         'engine_cc' => $parsed['engine_cc'], 'engine_hp' => $parsed['engine_hp'],
         'car_weight' => (int)$submission['competition_weight'],
         'checklist_json' => json_encode($parsed['checklist']), 'driver1_equipment_json' => json_encode($parsed['equipment']),
         'log_book_turned_in' => (int)$parsed['log_book'],
     ]);
+
+    carsApplySheetDetails($pdo, $carId, $parsed['car_number'], $parsed['car_colour'], $parsed['engine_cc']);
 
     $sigPaths = [];
     if (!empty($_POST['entrant_signature'])) {
@@ -634,6 +643,8 @@ function handleUpdate(PDO $pdo, array $user): void {
         'checklist_json' => json_encode($parsed['checklist']), 'driver1_equipment_json' => json_encode($parsed['equipment']),
         'log_book_turned_in' => (int)$parsed['log_book'],
     ]);
+
+    carsApplySheetDetails($pdo, (int)$sheet['car_id'], $parsed['car_number'], $parsed['car_colour'], $parsed['engine_cc']);
 
     if (!empty($_POST['entrant_signature'])) {
         $path = techSheetSaveSignature(__DIR__, $id, 'entrant', $_POST['entrant_signature']);
