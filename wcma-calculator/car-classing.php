@@ -18,10 +18,18 @@ require __DIR__ . '/session_bootstrap.php';
 require __DIR__ . '/config.php';
 require __DIR__ . '/email-helpers.php';
 require __DIR__ . '/submission-email-render.php';
+require __DIR__ . '/cars-lib.php';
+require __DIR__ . '/email-copy.php';
 
 $current_user = current_user();
 
 header('Content-Type: application/json');
+
+if ($current_user === null) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Sign in or create a free account to submit your class declaration.']);
+    exit;
+}
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 $pdo = db_connect();
@@ -176,6 +184,16 @@ if (!empty($errors)) {
     exit;
 }
 
+$car = carsResolveForDeclaration($pdo, (int)$current_user['id'], $_POST);
+if (!$car['ok']) {
+    foreach ($attachments as $attachment) {
+        if (file_exists($attachment['path'])) unlink($attachment['path']);
+    }
+    http_response_code(400);
+    echo json_encode(['success' => false, 'errors' => [$car['error']]]);
+    exit;
+}
+
 // ── Persist to database ───────────────────────────────────────────────────────
 $submission_id = db_insert_submission($pdo, [
     ':submitted_at'           => date('Y-m-d H:i:s'),
@@ -205,7 +223,8 @@ $submission_id = db_insert_submission($pdo, [
     ':base_ratio'             => (float)$base_ratio,
     ':modified_ratio'         => (float)$modified_ratio,
     ':calculated_class'       => $calculated_class ?: null,
-    ':user_id'                => $current_user['id'] ?? null,
+    ':user_id'                => (int)$current_user['id'],
+    ':car_id'                 => $car['car_id'],
 ]);
 
 // Move uploaded files to uploads/{submission_id}/
@@ -313,7 +332,7 @@ try {
 if ($mail_sent) {
     echo json_encode([
         'success' => true,
-        'message' => 'Form submitted successfully! A confirmation has been sent to ' . htmlspecialchars($email) . '.'
+        'message' => COPY_DECLARATION_RECEIVED . ' A confirmation has been sent to ' . htmlspecialchars($email) . '.'
     ]);
 } else {
     http_response_code(500);
