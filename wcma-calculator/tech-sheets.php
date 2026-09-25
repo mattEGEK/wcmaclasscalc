@@ -14,6 +14,8 @@ require __DIR__ . '/inspection-lib.php';
 require __DIR__ . '/pretech-lib.php';
 require __DIR__ . '/pretech-email.php';
 require __DIR__ . '/pretech-page.php';
+require __DIR__ . '/gear-lib.php';
+require __DIR__ . '/gear-chips.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -148,8 +150,9 @@ function handleNew(PDO $pdo, array $user, int $submissionId): void {
         exit;
     }
 
+    $gearNames = gearNameSuggestions(db_get_user_gear_records($pdo, (int)$user['id']), gearSeasonNow());
     $csrf = generateCsrfToken();
-    renderTechSheetForm($submission, $events, $csrf);
+    renderTechSheetForm($submission, $events, $csrf, null, [], $gearNames);
 }
 
 function handleView(PDO $pdo, array $user, int $id): void {
@@ -162,6 +165,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
     $event = db_get_event($pdo, (int)$sheet['event_id']);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
     $carStatus = techCarStatusForSheet($sheet, db_get_user_tech_sheets($pdo, (int)$user['id']));
+    $gearLinks = gearLinksForSheet($sheet, $drivers, db_get_user_gear_records($pdo, (int)$user['id']));
     $csrf = generateCsrfToken();
     $flash = getFlash();
     ?><!DOCTYPE html>
@@ -192,6 +196,9 @@ function handleView(PDO $pdo, array $user, int $id): void {
     <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
   </div>
   <p class="no-print">Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h(techCarStatusLabel($carStatus, (int)($sheet['season'] ?? date('Y')))) ?></strong></p>
+  <?php if ($gearLinks): ?>
+  <div class="no-print"><p><strong>Driver gear</strong></p><?= renderGearChips($gearLinks, 'owner') ?></div>
+  <?php endif; ?>
   <?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?>
 </div>
 <script src="js/form-feedback.js"></script>
@@ -255,11 +262,12 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
 
     $events = db_get_active_events($pdo);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
+    $gearNames = gearNameSuggestions(db_get_user_gear_records($pdo, (int)$user['id']), (int)($sheet['season'] ?? 0) ?: gearSeasonNow());
     $csrf = generateCsrfToken();
-    renderTechSheetEditForm($sheet, $drivers, $events, $csrf);
+    renderTechSheetEditForm($sheet, $drivers, $events, $csrf, $gearNames);
 }
 
-function renderTechSheetForm(array $submission, array $events, string $csrf, ?array $existingSheet = null, array $existingDrivers = []): void {
+function renderTechSheetForm(array $submission, array $events, string $csrf, ?array $existingSheet = null, array $existingDrivers = [], array $gearNames = []): void {
     $isEdit = $existingSheet !== null;
     $formAction = $isEdit ? 'tech-sheets.php?action=update' : 'tech-sheets.php?action=submit';
     $pageTitle = $isEdit ? 'Edit Tech Sheet' : 'Submit Tech Sheet';
@@ -313,6 +321,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     <input type="hidden" name="drivers_json" id="drivers_json">
     <input type="hidden" name="entrant_signature" id="entrant_signature">
     <input type="hidden" name="driver_signature" id="driver_signature">
+    <datalist id="gear-names"><?php foreach ($gearNames as $gearName): ?><option value="<?= h($gearName) ?>"><?php endforeach; ?></datalist>
 
     <div class="detail-card">
       <h2>Event &amp; Sheet Type</h2>
@@ -333,12 +342,13 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
       <h2>Vehicle &amp; Entrant</h2>
       <div class="tech-sheet-header-grid">
         <div><label for="entrant_name">Entrant</label><input type="text" id="entrant_name" name="entrant_name" required value="<?= h((string)$entrantName) ?>"></div>
-        <div><label for="driver_name">Driver/Team Name</label><input type="text" id="driver_name" name="driver_name" required value="<?= h((string)$driverName) ?>"></div>
+        <div><label for="driver_name">Driver/Team Name</label><input type="text" id="driver_name" name="driver_name" required list="gear-names" value="<?= h((string)$driverName) ?>"></div>
         <div><label for="car_number">Car Number</label><input type="text" id="car_number" name="car_number" required value="<?= h((string)$carNumber) ?>"></div>
         <div><label for="car_colour">Car Colour</label><input type="text" id="car_colour" name="car_colour" required value="<?= h((string)$carColour) ?>"></div>
         <div><label for="engine_cc">Engine CC</label><input type="text" id="engine_cc" name="engine_cc" value="<?= h((string)$engineCc) ?>"></div>
         <div><label for="engine_hp">Engine HP</label><input type="text" id="engine_hp" name="engine_hp" value="<?= h((string)$engineHp) ?>"></div>
       </div>
+      <?php if ($gearNames): ?><p class="form-hint">Pick a driver from your My Drivers list so their gear status links to this sheet.</p><?php endif; ?>
       <input type="hidden" name="car_make" value="<?= h((string)$carMake) ?>">
       <input type="hidden" name="car_model" value="<?= h((string)$carModel) ?>">
       <input type="hidden" name="class" value="<?= h((string)$carClass) ?>">
@@ -403,8 +413,8 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 </html><?php
 }
 
-function renderTechSheetEditForm(array $sheet, array $drivers, array $events, string $csrf): void {
-    renderTechSheetForm([], $events, $csrf, $sheet, $drivers);
+function renderTechSheetEditForm(array $sheet, array $drivers, array $events, string $csrf, array $gearNames = []): void {
+    renderTechSheetForm([], $events, $csrf, $sheet, $drivers, $gearNames);
 }
 
 function handleTechSheetSignature(PDO $pdo, array $user, int $id, string $which): void {

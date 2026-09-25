@@ -3,6 +3,8 @@ require __DIR__ . '/session_bootstrap.php';
 require __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
 require __DIR__ . '/view_helpers.php';
+require __DIR__ . '/gear-lib.php';
+require __DIR__ . '/gear-chips.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -94,12 +96,19 @@ function handleAccountList(PDO $pdo, array $user): void {
         $carStatuses[(int)$ts['id']] = techCarStatusForSheet($ts, $techSheets);
     }
 
+    $ownerGear = db_get_user_gear_records($pdo, (int)$user['id']);
+    $driversBySheet = db_get_drivers_for_sheets($pdo, array_map(fn(array $ts): int => (int)$ts['id'], $techSheets));
+    $gearLinks = [];
+    foreach ($techSheets as $ts) {
+        $gearLinks[(int)$ts['id']] = gearLinksForSheet($ts, $driversBySheet[(int)$ts['id']] ?? [], $ownerGear);
+    }
+
     $csrf = generateCsrfToken();
     $flash = getFlash();
-    renderAccountListPage($drafts, $carGroups, $totalCount, $csrf, $flash, $carStatuses);
+    renderAccountListPage($drafts, $carGroups, $totalCount, $csrf, $flash, $carStatuses, $gearLinks);
 }
 
-function renderAccountListPage(array $drafts, array $carGroups, int $count, string $csrf, ?array $flash, array $carStatuses): void {
+function renderAccountListPage(array $drafts, array $carGroups, int $count, string $csrf, ?array $flash, array $carStatuses, array $gearLinks = []): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -154,6 +163,7 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
             <?php $cs = $carStatuses[(int)$sheet['id']] ?? ['state' => 'none', 'via' => null, 'sheet_id' => null]; ?>
             <span class="<?= h(techCarStatusBadgeClass($cs['state'])) ?>"><?= h(techCarStatusLabel($cs, (int)($sheet['season'] ?? date('Y')))) ?></span> —
             <a href="tech-sheets.php?action=view&id=<?= (int)$sheet['id'] ?>">View</a>
+            <?= renderGearChips($gearLinks[(int)$sheet['id']] ?? [], 'owner') ?>
           <?php endif; ?>
         </li>
         <?php endforeach; ?>
@@ -175,6 +185,7 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
       <span class="badge-pending">submitted</span>
       <span class="<?= h(techCarStatusBadgeClass($cs['state'])) ?>"><?= h(techCarStatusLabel($cs, (int)($ts['season'] ?? date('Y')))) ?></span> —
       <a href="tech-sheets.php?action=view&id=<?= (int)$ts['id'] ?>">View</a>
+      <?= renderGearChips($gearLinks[(int)$ts['id']] ?? [], 'owner') ?>
     </li>
     <?php endforeach; ?>
   </ul>

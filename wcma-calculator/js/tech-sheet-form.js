@@ -140,6 +140,7 @@
         nameInput.type = 'text';
         nameInput.placeholder = 'Driver ' + number + ' Name';
         nameInput.required = true;
+        nameInput.setAttribute('list', 'gear-names');
         if (existingDriver && existingDriver.driver_name) nameInput.value = existingDriver.driver_name;
         fieldsWrap.appendChild(nameInput);
         const equipContainer = document.createElement('div');
