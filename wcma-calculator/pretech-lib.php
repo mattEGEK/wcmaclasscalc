@@ -46,7 +46,7 @@ function pretechSubmit(PDO $pdo, int $sheetId): array {
     if ($sheet === null) return $fail('Tech sheet not found.');
     if ($sheet['status'] === 'teched') return $fail('This car has already been teched.');
 
-    $identity = db_get_identity_sheets($pdo, (int)$sheet['user_id'], (string)$sheet['car_number_norm'], (int)$sheet['season']);
+    $identity = db_get_identity_sheets($pdo, (int)$sheet['car_id'], (int)$sheet['season']);
     $mode = pretechPageMode($sheet, $identity)['mode'];
     if ($mode === 'car_accepted') return $fail('This car has already been teched for the season, so no photos are needed.');
     if ($mode === 'held_elsewhere') return $fail('Your pre-tech photos for this car are on another of your tech sheets.');

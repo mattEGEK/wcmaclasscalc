@@ -20,7 +20,7 @@ final class DbTechStatusTest extends TestCase
         $spring = db_create_event($pdo, 'Spring Sprint', '2026-05-10', null);
         $fall = db_create_event($pdo, 'Fall Finale', '2026-10-04', null);
         $next = db_create_event($pdo, 'Next Year Opener', '2027-04-18', null);
-        return [$userId, $subId, $spring, $fall, $next];
+        return [$userId, $subId, $spring, $fall, $next, fn(string $n): int => db_insert_submission($pdo, test_declaration_data($pdo, $userId, $n))];
     }
 
     private function sheet(int $userId, int $subId, int $eventId, string $number = '42'): array {
@@ -103,27 +103,28 @@ final class DbTechStatusTest extends TestCase
     public function testIdentityAndSeasonQueries(): void
     {
         $pdo = make_temp_pdo();
-        [$u, $s, $spring, $fall, $next] = $this->fixture($pdo);
+        [$u, $s, $spring, $fall, $next, $subFor] = $this->fixture($pdo);
+        $s7 = $subFor('7');
         $a = db_insert_tech_sheet($pdo, $this->sheet($u, $s, $spring, '42'));
         $b = db_insert_tech_sheet($pdo, $this->sheet($u, $s, $fall, '042'));
-        $c = db_insert_tech_sheet($pdo, $this->sheet($u, $s, $fall, '7'));
+        $c = db_insert_tech_sheet($pdo, $this->sheet($u, $s7, $fall, '7'));
         $d = db_insert_tech_sheet($pdo, $this->sheet($u, $s, $next, '42'));
+        $car42 = (int)db_get_submission($pdo, $s)['car_id'];
 
         $ids = fn(array $rows) => array_map(fn($r) => (int)$r['id'], $rows);
-
-        $this->assertEqualsCanonicalizing([$a, $b], $ids(db_get_identity_sheets($pdo, $u, '42', 2026)));
-        $this->assertSame([$d], $ids(db_get_identity_sheets($pdo, $u, '42', 2027)));
-        $this->assertSame([], db_get_identity_sheets($pdo, $u + 1, '42', 2026));
+        $this->assertEqualsCanonicalizing([$a, $b], $ids(db_get_identity_sheets($pdo, $car42, 2026)));
+        $this->assertSame([$d], $ids(db_get_identity_sheets($pdo, $car42, 2027)));
+        $this->assertSame([], db_get_identity_sheets($pdo, $car42 + 999, 2026));
         $this->assertEqualsCanonicalizing([$a, $b, $c], $ids(db_get_season_sheets($pdo, 2026)));
     }
 
     public function testEventTechSheetsIncludeEventInfoAndOrderByCarNumber(): void
     {
         $pdo = make_temp_pdo();
-        [$u, $s, $spring, $fall] = $this->fixture($pdo);
-        $n10 = db_insert_tech_sheet($pdo, $this->sheet($u, $s, $fall, '10'));
-        $n9  = db_insert_tech_sheet($pdo, $this->sheet($u, $s, $fall, '9'));
-        db_insert_tech_sheet($pdo, $this->sheet($u, $s, $spring, '1'));
+        [$u, $s, $spring, $fall, , $subFor] = $this->fixture($pdo);
+        $n10 = db_insert_tech_sheet($pdo, $this->sheet($u, $subFor('10'), $fall, '10'));
+        $n9  = db_insert_tech_sheet($pdo, $this->sheet($u, $subFor('9'), $fall, '9'));
+        db_insert_tech_sheet($pdo, $this->sheet($u, $subFor('1'), $spring, '1'));
 
         $rows = db_get_event_tech_sheets($pdo, $fall);
         $this->assertSame([$n9, $n10], array_map(fn($r) => (int)$r['id'], $rows));

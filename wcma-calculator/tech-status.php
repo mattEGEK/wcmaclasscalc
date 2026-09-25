@@ -2,7 +2,7 @@
 // wcma-calculator/tech-status.php
 //
 // Pure functions (no DB, no HTML) for a car's annual tech status. A car is
-// identified by owner + normalised car number + season (calendar year); its
+// identified by its car record (car_id) + season (calendar year); its
 // status is derived from all of that car's tech sheets in the season. Any
 // accepted sheet accepts the car for the year.
 
@@ -23,11 +23,7 @@ function techSeasonFromDate(?string $eventDate): int {
 
 /** Groups sheets that belong to the same car in the same season. */
 function techCarKey(array $sheet): string {
-    $norm = $sheet['car_number_norm'] ?? null;
-    if ($norm === null || $norm === '') {
-        $norm = techCarNumberNorm((string)($sheet['car_number'] ?? ''));
-    }
-    return (int)$sheet['user_id'] . '|' . $norm . '|' . (int)($sheet['season'] ?? 0);
+    return (int)($sheet['car_id'] ?? 0) . '|' . (int)($sheet['season'] ?? 0);
 }
 
 /**

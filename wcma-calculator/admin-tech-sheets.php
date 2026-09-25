@@ -104,7 +104,7 @@ function handleTechSheetView(PDO $pdo, int $id): void {
     }
     $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
-    $carStatus = techCarStatus(db_get_identity_sheets($pdo, (int)$sheet['user_id'], (string)$sheet['car_number_norm'], (int)$sheet['season']));
+    $carStatus = techCarStatus(db_get_identity_sheets($pdo, (int)$sheet['car_id'], (int)$sheet['season']));
     $reviewer = !empty($sheet['reviewed_by_user_id']) ? db_find_user_by_id($pdo, (int)$sheet['reviewed_by_user_id']) : null;
     $gearLinks = gearLinksForSheet($sheet, $drivers, db_get_user_gear_records($pdo, (int)$sheet['user_id']));
     renderTechSheetViewPage($sheet, $drivers, $event, $carStatus, $reviewer, generateCsrfToken(), getFlash(), pretechSnapshot($pdo, $id), $gearLinks);

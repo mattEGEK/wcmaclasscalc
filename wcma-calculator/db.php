@@ -127,12 +127,14 @@ function db_init(PDO $pdo): void {
         CREATE TABLE IF NOT EXISTS tech_sheets (
             id                      INTEGER PRIMARY KEY AUTOINCREMENT,
             submission_id           INTEGER NOT NULL,
+            car_id                  INTEGER NOT NULL,
             user_id                 INTEGER NOT NULL,
             event_id                INTEGER NOT NULL,
             sheet_type              TEXT NOT NULL,
 
             entrant_name            TEXT NOT NULL,
             driver_name             TEXT NOT NULL,
+            driver_id               INTEGER,
             car_make                TEXT NOT NULL,
             car_model               TEXT NOT NULL,
             car_colour              TEXT NOT NULL,
@@ -205,6 +207,7 @@ function db_init(PDO $pdo): void {
             tech_sheet_id    INTEGER NOT NULL,
             driver_number    INTEGER NOT NULL,
             driver_name      TEXT NOT NULL,
+            driver_id        INTEGER,
             equipment_json   TEXT NOT NULL
         )
     ");
@@ -299,7 +302,7 @@ function db_init(PDO $pdo): void {
         )
     ");
 
-    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tech_sheets_car ON tech_sheets (user_id, car_number_norm, season)");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tech_sheets_car ON tech_sheets (car_id, season)");
 }
 
 function db_insert_submission(PDO $pdo, array $data): int {
@@ -555,17 +558,22 @@ function db_set_event_active(PDO $pdo, int $id, bool $active): void {
 function db_insert_tech_sheet(PDO $pdo, array $data): int {
     $now = date('Y-m-d H:i:s');
     $identity = db_tech_sheet_identity($pdo, (string)$data['car_number'], (int)$data['event_id']);
+    $submission = db_get_submission($pdo, (int)$data['submission_id']);
+    if ($submission === null) {
+        throw new InvalidArgumentException('A tech sheet needs an existing class declaration.');
+    }
+    $driverId = db_find_or_create_driver($pdo, (int)$data['user_id'], (string)$data['driver_name']);
     $stmt = $pdo->prepare("
         INSERT INTO tech_sheets (
-            submission_id, user_id, event_id, sheet_type,
-            entrant_name, driver_name, car_make, car_model, car_colour, car_number,
+            submission_id, car_id, user_id, event_id, sheet_type,
+            entrant_name, driver_name, driver_id, car_make, car_model, car_colour, car_number,
             class, engine_cc, engine_hp, car_weight,
             checklist_json, driver1_equipment_json, log_book_turned_in,
             car_number_norm, season,
             status, created_at, updated_at
         ) VALUES (
-            :submission_id, :user_id, :event_id, :sheet_type,
-            :entrant_name, :driver_name, :car_make, :car_model, :car_colour, :car_number,
+            :submission_id, :car_id, :user_id, :event_id, :sheet_type,
+            :entrant_name, :driver_name, :driver_id, :car_make, :car_model, :car_colour, :car_number,
             :class, :engine_cc, :engine_hp, :car_weight,
             :checklist_json, :driver1_equipment_json, :log_book_turned_in,
             :car_number_norm, :season,
@@ -573,8 +581,9 @@ function db_insert_tech_sheet(PDO $pdo, array $data): int {
         )
     ");
     $stmt->execute([
-        ':submission_id' => $data['submission_id'], ':user_id' => $data['user_id'], ':event_id' => $data['event_id'],
+        ':submission_id' => $data['submission_id'], ':car_id' => (int)$submission['car_id'], ':user_id' => $data['user_id'], ':event_id' => $data['event_id'],
         ':sheet_type' => $data['sheet_type'], ':entrant_name' => $data['entrant_name'], ':driver_name' => $data['driver_name'],
+        ':driver_id' => $driverId,
         ':car_make' => $data['car_make'], ':car_model' => $data['car_model'], ':car_colour' => $data['car_colour'],
         ':car_number' => $data['car_number'], ':class' => $data['class'], ':engine_cc' => $data['engine_cc'] ?? null,
         ':engine_hp' => $data['engine_hp'] ?? null, ':car_weight' => $data['car_weight'],
@@ -606,10 +615,12 @@ function db_get_user_tech_sheets(PDO $pdo, int $user_id): array {
 
 function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
     $identity = db_tech_sheet_identity($pdo, (string)$data['car_number'], (int)$data['event_id']);
+    $owner = (int)(db_get_tech_sheet($pdo, $id)['user_id'] ?? 0);
+    $driverId = db_find_or_create_driver($pdo, $owner, (string)$data['driver_name']);
     $pdo->prepare("
         UPDATE tech_sheets SET
             event_id = :event_id, sheet_type = :sheet_type,
-            entrant_name = :entrant_name, driver_name = :driver_name,
+            entrant_name = :entrant_name, driver_name = :driver_name, driver_id = :driver_id,
             car_make = :car_make, car_model = :car_model, car_colour = :car_colour, car_number = :car_number,
             class = :class, engine_cc = :engine_cc, engine_hp = :engine_hp, car_weight = :car_weight,
             checklist_json = :checklist_json, driver1_equipment_json = :driver1_equipment_json,
@@ -618,7 +629,7 @@ function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
         WHERE id = :id
     ")->execute([
         ':event_id' => $data['event_id'], ':sheet_type' => $data['sheet_type'],
-        ':entrant_name' => $data['entrant_name'], ':driver_name' => $data['driver_name'],
+        ':entrant_name' => $data['entrant_name'], ':driver_name' => $data['driver_name'], ':driver_id' => $driverId,
         ':car_make' => $data['car_make'], ':car_model' => $data['car_model'], ':car_colour' => $data['car_colour'],
         ':car_number' => $data['car_number'], ':class' => $data['class'], ':engine_cc' => $data['engine_cc'] ?? null,
         ':engine_hp' => $data['engine_hp'] ?? null, ':car_weight' => $data['car_weight'],
@@ -659,12 +670,14 @@ function db_update_email_sent_tech_sheet(PDO $pdo, int $id, int $sent): void {
 }
 
 function db_add_tech_sheet_driver(PDO $pdo, int $tech_sheet_id, int $driver_number, string $driver_name, string $equipment_json): int {
+    $owner = (int)(db_get_tech_sheet($pdo, $tech_sheet_id)['user_id'] ?? 0);
     $pdo->prepare("
-        INSERT INTO tech_sheet_drivers (tech_sheet_id, driver_number, driver_name, equipment_json)
-        VALUES (:tech_sheet_id, :driver_number, :driver_name, :equipment_json)
+        INSERT INTO tech_sheet_drivers (tech_sheet_id, driver_number, driver_name, driver_id, equipment_json)
+        VALUES (:tech_sheet_id, :driver_number, :driver_name, :driver_id, :equipment_json)
     ")->execute([
-        ':tech_sheet_id' => $tech_sheet_id, ':driver_number' => $driver_number,
-        ':driver_name' => $driver_name, ':equipment_json' => $equipment_json,
+        ':tech_sheet_id' => $tech_sheet_id, ':driver_number' => $driver_number, ':driver_name' => $driver_name,
+        ':driver_id' => $owner > 0 ? db_find_or_create_driver($pdo, $owner, $driver_name) : null,
+        ':equipment_json' => $equipment_json,
     ]);
     return (int)$pdo->lastInsertId();
 }
@@ -1126,10 +1139,10 @@ function db_revoke_tech_sheet_acceptance(PDO $pdo, int $id): bool {
     return $stmt->rowCount() === 1;
 }
 
-/** All of one owner's sheets for a car identity (owner + normalised number + season). */
-function db_get_identity_sheets(PDO $pdo, int $userId, string $carNumberNorm, int $season): array {
-    $stmt = $pdo->prepare("SELECT * FROM tech_sheets WHERE user_id = :u AND car_number_norm = :n AND season = :s ORDER BY id ASC");
-    $stmt->execute([':u' => $userId, ':n' => $carNumberNorm, ':s' => $season]);
+/** All sheets for one car in one season. */
+function db_get_identity_sheets(PDO $pdo, int $carId, int $season): array {
+    $stmt = $pdo->prepare("SELECT * FROM tech_sheets WHERE car_id = :c AND season = :s ORDER BY id ASC");
+    $stmt->execute([':c' => $carId, ':s' => $season]);
     return $stmt->fetchAll();
 }
 

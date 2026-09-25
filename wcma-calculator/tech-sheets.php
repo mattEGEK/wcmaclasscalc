@@ -214,7 +214,7 @@ function handlePretech(PDO $pdo, array $user, int $id): void {
         exit;
     }
     $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
-    $identity = db_get_identity_sheets($pdo, (int)$user['id'], (string)$sheet['car_number_norm'], (int)$sheet['season']);
+    $identity = db_get_identity_sheets($pdo, (int)$sheet['car_id'], (int)$sheet['season']);
     renderPretechPage($sheet, $event, pretechPageMode($sheet, $identity), pretechSnapshot($pdo, $id), generateCsrfToken(), getFlash());
 }
 

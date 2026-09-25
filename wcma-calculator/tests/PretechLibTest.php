@@ -192,7 +192,8 @@ final class PretechLibTest extends TestCase
         [$u, $admin, $spring] = $this->fixture($pdo, '42', null, '2026-05-10');
         [, , $fall] = $this->fixture($pdo, '42', $u, '2026-10-04');
 
-        $sheets = fn() => db_get_identity_sheets($pdo, $u, '42', 2026);
+        $carId = (int)db_get_tech_sheet($pdo, $spring)['car_id'];
+        $sheets = fn() => db_get_identity_sheets($pdo, $carId, 2026);
         $mode = fn(int $id) => pretechPageMode(db_get_tech_sheet($pdo, $id), $sheets());
 
         $this->assertSame(['mode' => 'this_sheet', 'sheet_id' => null], $mode($spring));

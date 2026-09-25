@@ -8,7 +8,7 @@ final class TechStatusTest extends TestCase
 {
     private function sheet(int $id, array $o = []): array {
         return array_merge([
-            'id' => $id, 'user_id' => 5, 'car_number' => '42', 'car_number_norm' => '42', 'season' => 2026,
+            'id' => $id, 'user_id' => 5, 'car_id' => 500, 'car_number' => '42', 'car_number_norm' => '42', 'season' => 2026,
             'event_id' => 10, 'status' => 'submitted', 'accepted_via' => null, 'photo_status' => null,
         ], $o);
     }
@@ -32,13 +32,11 @@ final class TechStatusTest extends TestCase
         $this->assertSame((int)date('Y'), techSeasonFromDate('garbage'));
     }
 
-    public function testCarKeyUsesStoredIdentityOrDerivesIt(): void
+    public function testCarKeyIsCarAndSeason(): void
     {
-        $this->assertSame('5|42|2026', techCarKey($this->sheet(1)));
-        $legacy = ['id' => 2, 'user_id' => 5, 'car_number' => ' 042 ', 'season' => 2026];
-        $this->assertSame('5|42|2026', techCarKey($legacy));
-        $otherOwner = $this->sheet(3, ['user_id' => 6]);
-        $this->assertNotSame(techCarKey($this->sheet(1)), techCarKey($otherOwner));
+        $this->assertSame('500|2026', techCarKey($this->sheet(1)));
+        $this->assertSame('500|2027', techCarKey($this->sheet(2, ['season' => 2027])));
+        $this->assertNotSame(techCarKey($this->sheet(1)), techCarKey($this->sheet(3, ['car_id' => 501])));
     }
 
     public function testNoSheetsOrNoAcceptanceMeansNone(): void
@@ -113,12 +111,12 @@ final class TechStatusTest extends TestCase
     {
         $mine = $this->sheet(1);
         $sameCarLater = $this->sheet(2, ['event_id' => 11, 'status' => 'teched', 'accepted_via' => 'in_person']);
-        $otherCar = $this->sheet(3, ['car_number' => '7', 'car_number_norm' => '7', 'status' => 'teched']);
+        $otherCar = $this->sheet(3, ['car_id' => 501, 'car_number' => '7', 'car_number_norm' => '7', 'status' => 'teched']);
         $lastYear = $this->sheet(4, ['season' => 2025, 'status' => 'teched']);
 
         $owner = [$mine, $sameCarLater, $otherCar, $lastYear];
         $this->assertSame('accepted', techCarStatusForSheet($mine, $owner)['state']);
-        $this->assertSame('none', techCarStatusForSheet($this->sheet(5, ['car_number_norm' => '99', 'car_number' => '99']), $owner)['state']);
+        $this->assertSame('none', techCarStatusForSheet($this->sheet(5, ['car_id' => 599, 'car_number_norm' => '99', 'car_number' => '99']), $owner)['state']);
         $this->assertSame('none', techCarStatusForSheet($this->sheet(6, ['season' => 2027]), $owner)['state']);
     }
 
@@ -126,12 +124,12 @@ final class TechStatusTest extends TestCase
     {
         $eventSheets = [
             $this->sheet(1),
-            $this->sheet(2, ['user_id' => 6, 'car_number' => '7', 'car_number_norm' => '7']),
-            $this->sheet(3, ['user_id' => 7, 'car_number' => '9', 'car_number_norm' => '9']),
+            $this->sheet(2, ['user_id' => 6, 'car_id' => 502, 'car_number' => '7', 'car_number_norm' => '7']),
+            $this->sheet(3, ['user_id' => 7, 'car_id' => 503, 'car_number' => '9', 'car_number_norm' => '9']),
         ];
         $seasonSheets = array_merge($eventSheets, [
             $this->sheet(20, ['event_id' => 11, 'status' => 'teched', 'accepted_via' => 'in_person']),          // accepts car 42 (owner 5)
-            $this->sheet(21, ['user_id' => 7, 'car_number' => '9', 'car_number_norm' => '9', 'event_id' => 11, 'photo_status' => 'submitted']),
+            $this->sheet(21, ['user_id' => 7, 'car_id' => 503, 'car_number' => '9', 'car_number_norm' => '9', 'event_id' => 11, 'photo_status' => 'submitted']),
         ]);
 
         $rows = techBuildRoster($eventSheets, $seasonSheets);
