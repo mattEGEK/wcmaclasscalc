@@ -48,7 +48,7 @@ function renderTechSheetsListPage(array $events, int $eventId, string $filter, a
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Tech Sheets', renderAdminNav('tech-sheets') . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Tech Sheets', renderAdminNav('tech-sheets', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <form method="get" action="admin.php" class="detail-card" style="margin-bottom:1rem">

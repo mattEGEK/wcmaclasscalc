@@ -22,7 +22,7 @@ final class AdminGearCopyTest extends TestCase
     {
         $admin = $this->src('admin.php');
         foreach (['gear', 'gear-record', 'gear-record-accept', 'gear-record-revoke', 'gear-photos-accept', 'gear-photos-send-back'] as $route) {
-            $this->assertMatchesRegularExpression("/case '" . preg_quote($route, '/') . "':\\s+requireAuth\\(\\);/", $admin, $route);
+            $this->assertMatchesRegularExpression("/case '" . preg_quote($route, '/') . "':\\s+requireAuth\\(\\\$minRole\\);/", $admin, $route);
         }
         foreach (['gear-record-accept', 'gear-record-revoke', 'gear-photos-accept', 'gear-photos-send-back'] as $route) {
             $this->assertMatchesRegularExpression("/case '" . preg_quote($route, '/') . "':.*?validateCsrfToken/s", $admin, $route);

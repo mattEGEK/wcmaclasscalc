@@ -9,11 +9,22 @@ final class AdminNavTest extends TestCase
     public function testEveryAdminDestinationIsListedOnce(): void
     {
         $html = renderAdminNav('users');
-        foreach (['Submissions', 'Tech Sheets', 'Gear', 'Manage Users', 'Events', 'Settings', 'Feedback'] as $label) {
+        foreach (['Submissions', 'Tech Sheets', 'Gear', 'Manage Users', 'Events', 'Settings', 'Feedback', 'Season Links'] as $label) {
             $this->assertSame(1, substr_count($html, '>' . $label . '<'), $label);
         }
-        foreach (['admin.php"', 'action=tech-sheets"', 'action=gear"', 'action=events"', 'action=settings"', 'action=feedback"'] as $href) {
+        foreach (['admin.php"', 'action=tech-sheets"', 'action=gear"', 'action=events"', 'action=settings"', 'action=feedback"', 'action=season-links"'] as $href) {
             $this->assertStringContainsString($href, $html, $href);
+        }
+    }
+
+    public function testInspectorsDoNotSeeBackOfficeDestinations(): void
+    {
+        $html = renderAdminNav('gear', 'inspector');
+        foreach (['Submissions', 'Tech Sheets'] as $label) {
+            $this->assertStringContainsString('>' . $label . '<', $html, $label);
+        }
+        foreach (['Manage Users', 'Events', 'Settings', 'Feedback', 'Season Links'] as $label) {
+            $this->assertStringNotContainsString('>' . $label . '<', $html, $label);
         }
     }
 

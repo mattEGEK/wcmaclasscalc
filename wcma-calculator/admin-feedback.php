@@ -72,7 +72,7 @@ function renderFeedbackListPage(array $rows, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Feedback', renderAdminNav('feedback') . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Feedback', renderAdminNav('feedback', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <p class="list-summary"><?= count($rows) ?> item<?= count($rows) === 1 ? '' : 's' ?></p>
   <table class="data-table">

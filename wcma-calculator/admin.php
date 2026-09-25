@@ -38,20 +38,21 @@ define('TECH_EMAIL', db_get_setting($pdo, 'tech_sheet_recipient_email', config_d
 define('TECH_NAME',  db_get_setting($pdo, 'tech_sheet_recipient_name', config_default('TECH_SHEET_RECIPIENT_NAME', 'WCMA Classing')));
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
-function requireAuth(): void {
+function requireAuth(string $min = 'admin'): void {
     if (current_user() === null) {
         header('Location: auth.php?action=login');
         exit;
     }
-    if (!is_admin()) {
-        setFlash('You are not authorized to view the admin panel.', 'error');
-        header('Location: car-classing.html');
+    if (!user_has_role(current_user(), $min)) {
+        setFlash('You are not authorized to view that page.', 'error');
+        header('Location: ' . (is_inspector() ? 'admin.php' : 'car-classing.html'));
         exit;
     }
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
 $action = $_GET['action'] ?? 'list';
+$minRole = adminActionMinRole($action);
 $ip     = $_SERVER['REMOTE_ADDR'];
 
 switch ($action) {
@@ -64,245 +65,245 @@ switch ($action) {
         exit;
 
     case 'list':
-        requireAuth();
+        requireAuth($minRole);
         handleList($pdo);
         break;
 
     case 'view':
-        requireAuth();
+        requireAuth($minRole);
         handleView($pdo, (int)($_GET['id'] ?? 0));
         break;
 
     case 'file':
-        requireAuth();
+        requireAuth($minRole);
         handleFile($pdo, (int)($_GET['id'] ?? 0), $_GET['field'] ?? '');
         break;
 
     case 'resend':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleResend($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'update-contact':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleUpdateContact($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'delete':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleDelete($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'bulk-delete':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleBulkDelete($pdo, array_map('intval', $_POST['ids'] ?? []));
         break;
 
     case 'export':
-        requireAuth();
+        requireAuth($minRole);
         handleExport($pdo, $_GET['sort'] ?? 'submitted_at', $_GET['dir'] ?? 'desc');
         break;
 
     case 'users':
-        requireAuth();
+        requireAuth($minRole);
         handleUsersList($pdo);
         break;
 
-    case 'promote':
-        requireAuth();
+    case 'set-role':
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleSetRole($pdo, (int)($_POST['id'] ?? 0), 'admin');
+        handleSetRole($pdo, (int)($_POST['id'] ?? 0), (string)($_POST['role'] ?? ''));
         break;
 
-    case 'demote':
-        requireAuth();
+    case 'set-name':
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleSetRole($pdo, (int)($_POST['id'] ?? 0), 'user');
+        handleSetName($pdo, (int)($_POST['id'] ?? 0), (string)($_POST['name'] ?? ''));
         break;
 
     case 'deactivate':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleSetActive($pdo, (int)($_POST['id'] ?? 0), false);
         break;
 
     case 'activate':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleSetActive($pdo, (int)($_POST['id'] ?? 0), true);
         break;
 
     case 'events':
-        requireAuth();
+        requireAuth($minRole);
         handleEventsList($pdo);
         break;
 
     case 'event-create':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleEventCreate($pdo);
         break;
 
     case 'event-update':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleEventUpdate($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'event-deactivate':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleEventSetActive($pdo, (int)($_POST['id'] ?? 0), false);
         break;
 
     case 'event-activate':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleEventSetActive($pdo, (int)($_POST['id'] ?? 0), true);
         break;
 
     case 'tech-sheets':
-        requireAuth();
+        requireAuth($minRole);
         handleTechSheetsList($pdo);
         break;
 
     case 'tech-sheet':
-        requireAuth();
+        requireAuth($minRole);
         handleTechSheetView($pdo, (int)($_GET['id'] ?? 0));
         break;
 
     case 'tech-sheet-accept':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleTechSheetAccept($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'tech-sheet-revoke':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleTechSheetRevoke($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'tech-sheet-sig':
-        requireAuth();
+        requireAuth($minRole);
         handleTechSheetSig($pdo, (int)($_GET['id'] ?? 0), (string)($_GET['which'] ?? ''));
         break;
 
     case 'tech-sheet-photos-accept':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleTechSheetPhotosAccept($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'tech-sheet-photos-send-back':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleTechSheetPhotosSendBack($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'gear':
-        requireAuth();
+        requireAuth($minRole);
         handleGearAdminList($pdo);
         break;
 
     case 'gear-record':
-        requireAuth();
+        requireAuth($minRole);
         handleGearAdminView($pdo, is_scalar($_GET['id'] ?? null) ? (int)$_GET['id'] : 0);
         break;
 
     case 'gear-record-accept':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=gear'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleGearAdminAcceptInPerson($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'gear-record-revoke':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=gear'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleGearAdminRevoke($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'gear-photos-accept':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=gear'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleGearAdminPhotosAccept($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'gear-photos-send-back':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=gear'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleGearAdminPhotosSendBack($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'gear-create-accept':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleGearCreateAccept($pdo);
         break;
 
     case 'settings':
-        requireAuth();
+        requireAuth($minRole);
         handleSettings($pdo);
         break;
 
     case 'settings-update':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=settings'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleSettingsUpdate($pdo);
         break;
 
     case 'feedback':
-        requireAuth();
+        requireAuth($minRole);
         handleFeedbackList($pdo);
         break;
 
     case 'feedback-view':
-        requireAuth();
+        requireAuth($minRole);
         handleFeedbackView($pdo, (int)($_GET['id'] ?? 0));
         break;
 
     case 'feedback-status':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=feedback'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleFeedbackStatus($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'feedback-retry':
-        requireAuth();
+        requireAuth($minRole);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=feedback'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleFeedbackRetry($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     default:
-        requireAuth();
+        requireAuth($minRole);
         handleList($pdo);
 }
 
@@ -339,7 +340,7 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('WCMA Submissions', renderAdminNav('submissions') . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('WCMA Submissions', renderAdminNav('submissions', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
   <?php if ($flash): ?>
   <div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div>
   <?php endif; ?>
@@ -358,17 +359,19 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
       <option value="sent">Email sent</option>
       <option value="failed">Email failed</option>
     </select>
+    <?php if (is_admin()): ?>
     <form method="post" action="admin.php?action=bulk-delete" id="bulk-delete-form" style="display:inline">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <button type="submit" id="bulk-delete-btn" class="btn btn-danger" disabled data-confirm-template="Permanently delete {n} selected submission(s) and their files?">Delete Selected</button>
     </form>
+    <?php endif; ?>
     <a href="admin.php?action=export&sort=<?= h($sort) ?>&dir=<?= h($dir) ?>" class="btn btn-secondary">Export CSV</a>
   </div>
   <?php endif; ?>
   <table class="data-table" id="submissions-table">
     <thead>
       <tr>
-        <th><input type="checkbox" id="submissions-select-all" aria-label="Select all submissions"></th>
+        <th><?php if (is_admin()): ?><input type="checkbox" id="submissions-select-all" aria-label="Select all submissions"><?php endif; ?></th>
         <th><?= sortLink('submitted_at', 'Submitted', $sort, $dir, $flip) ?></th>
         <th><?= sortLink('name', 'Name', $sort, $dir, $flip) ?></th>
         <th>Vehicle</th>
@@ -384,7 +387,7 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
       <tr><td colspan="9" class="empty">No submissions yet.</td></tr>
     <?php else: foreach ($submissions as $s): ?>
       <tr data-class="<?= h($s['calculated_class'] ?? '') ?>" data-status="<?= $s['email_sent'] ? 'sent' : 'failed' ?>">
-        <td><input type="checkbox" class="submission-select" form="bulk-delete-form" name="ids[]" value="<?= (int)$s['id'] ?>" aria-label="Select submission from <?= h($s['name']) ?>"></td>
+        <td><?php if (is_admin()): ?><input type="checkbox" class="submission-select" form="bulk-delete-form" name="ids[]" value="<?= (int)$s['id'] ?>" aria-label="Select submission from <?= h($s['name']) ?>"><?php endif; ?></td>
         <td><?= h(date('M j, Y H:i', strtotime($s['submitted_at']))) ?></td>
         <td><?= h($s['name']) ?></td>
         <td><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></td>
@@ -397,12 +400,14 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
         </td>
         <td class="actions">
           <a href="admin.php?action=view&id=<?= (int)$s['id'] ?>">View</a>
+          <?php if (is_admin()): ?>
           <form method="post" action="admin.php?action=delete" style="display:inline"
                 data-confirm="Permanently delete this submission and its files?">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
             <button type="submit" class="link-button">Delete</button>
           </form>
+          <?php endif; ?>
         </td>
       </tr>
     <?php endforeach; endif; ?>
@@ -539,7 +544,7 @@ function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $fl
     </div>
 
     <div class="detail-card">
-      <h2>Contact &amp; Vehicle <button type="button" class="link-button no-print" id="edit-contact-toggle">Edit</button></h2>
+      <h2>Contact &amp; Vehicle <?php if (is_admin()): ?><button type="button" class="link-button no-print" id="edit-contact-toggle">Edit</button><?php endif; ?></h2>
       <table class="detail-table" id="contact-view">
         <tr><td>Name</td><td><?= h($s['name']) ?></td></tr>
         <tr><td>Email</td><td><?= h($s['email']) ?></td></tr>
@@ -554,6 +559,7 @@ function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $fl
         <tr><td>Submitted</td><td><?= h(date('F j, Y \a\t g:i A', strtotime($s['submitted_at']))) ?></td></tr>
         <tr><td>Email Sent</td><td><?= $s['email_sent'] ? '✓ Yes' : '⚠ Failed' ?></td></tr>
       </table>
+      <?php if (is_admin()): ?>
       <form method="post" action="admin.php?action=update-contact" id="contact-edit" class="edit-form" hidden>
         <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
         <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
@@ -574,6 +580,7 @@ function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $fl
           <button type="button" class="btn btn-secondary" id="edit-contact-cancel">Cancel</button>
         </div>
       </form>
+      <?php endif; ?>
     </div>
   </div>
 
@@ -652,17 +659,29 @@ function handleUsersList(PDO $pdo): void {
 }
 
 function handleSetRole(PDO $pdo, int $id, string $role): void {
-    if ($role === 'user' && db_count_admins($pdo) <= 1) {
-        $target = db_find_user_by_id($pdo, $id);
-        if ($target && $target['role'] === 'admin') {
-            setFlash('Cannot demote the last remaining admin.', 'error');
-            header('Location: admin.php?action=users');
-            exit;
-        }
+    $target = db_find_user_by_id($pdo, $id);
+    if ($target === null || !isset(ROLE_LEVELS[$role])) {
+        setFlash('Choose a valid user and role.', 'error');
+    } elseif ($target['role'] === 'admin' && $role !== 'admin' && db_count_admins($pdo) <= 1) {
+        setFlash('Cannot change the role of the last remaining admin.', 'error');
+    } elseif ($role !== 'user' && !userHasFirstAndLastName((string)$target['name'])) {
+        setFlash('Add a first and last name for this account before giving it the ' . $role . ' role. Review emails name the inspector.', 'error');
+    } else {
+        db_set_user_role($pdo, $id, $role);
+        setFlash('Role updated. They will see the change the next time they sign in.', 'success');
     }
+    header('Location: admin.php?action=users');
+    exit;
+}
 
-    db_set_user_role($pdo, $id, $role);
-    setFlash('User role updated.', 'success');
+function handleSetName(PDO $pdo, int $id, string $name): void {
+    $name = trim((string)preg_replace('/\s+/', ' ', $name));
+    if (db_find_user_by_id($pdo, $id) === null || $name === '' || mb_strlen($name, 'UTF-8') > 100) {
+        setFlash('Enter a name of 100 characters or fewer.', 'error');
+    } else {
+        db_set_user_name($pdo, $id, $name);
+        setFlash('Name updated.', 'success');
+    }
     header('Location: admin.php?action=users');
     exit;
 }
@@ -699,7 +718,7 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Manage Users', renderAdminNav('users') . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Manage Users', renderAdminNav('users', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <?php if (!empty($users)): ?>
   <div class="list-toolbar">
@@ -707,6 +726,7 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
     <select id="users-role-filter" class="table-filter" aria-label="Filter by role">
       <option value="">All roles</option>
       <option value="admin">Admin</option>
+      <option value="inspector">Inspector</option>
       <option value="user">User</option>
     </select>
   </div>
@@ -726,26 +746,31 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
     <?php foreach ($users as $u): ?>
       <tr id="user-<?= (int)$u['id'] ?>" data-role="<?= h($u['role']) ?>">
         <td><?= h($u['email']) ?></td>
-        <td><?= h($u['name']) ?></td>
+        <td><?= h($u['name']) ?><?php if ($u['role'] !== 'user' && !userHasFirstAndLastName((string)$u['name'])): ?> <span class="badge-fail">Needs first &amp; last name</span><?php endif; ?></td>
         <td class="<?= $u['role'] === 'admin' ? 'badge-admin' : '' ?>"><?= h($u['role']) ?></td>
         <td><?= h(trim(($u['password_hash'] ? 'Password ' : '') . ($u['google_id'] ? 'Google' : ''))) ?></td>
         <td><?= (int)($submissionCounts[(int)$u['id']] ?? 0) ?></td>
         <td class="<?= $u['active'] ? 'badge-ok' : 'badge-fail' ?>"><?= $u['active'] ? 'Active' : 'Inactive' ?></td>
         <td data-sort-value="<?= h($u['created_at']) ?>"><?= h(date('M j, Y', strtotime($u['created_at']))) ?></td>
         <td>
-          <?php if ($u['role'] === 'admin'): ?>
-          <form method="post" action="admin.php?action=demote" style="display:inline" data-confirm="Remove admin access for <?= h($u['email']) ?>?">
+          <form method="post" action="admin.php?action=set-role" style="display:inline">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-            <button type="submit" class="btn-role">Demote</button>
+            <label class="visually-hidden" for="role-<?= (int)$u['id'] ?>">Role for <?= h($u['email']) ?></label>
+            <select id="role-<?= (int)$u['id'] ?>" name="role">
+              <?php foreach (array_keys(ROLE_LEVELS) as $r): ?>
+              <option value="<?= h($r) ?>"<?= $u['role'] === $r ? ' selected' : '' ?>><?= h(ucfirst($r)) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <button type="submit" class="btn-role">Save role</button>
           </form>
-          <?php else: ?>
-          <form method="post" action="admin.php?action=promote" style="display:inline" data-confirm="Grant admin access to <?= h($u['email']) ?>?">
+          <form method="post" action="admin.php?action=set-name" style="display:inline">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-            <button type="submit" class="btn-role">Promote</button>
+            <label class="visually-hidden" for="name-<?= (int)$u['id'] ?>">Name for <?= h($u['email']) ?></label>
+            <input type="text" id="name-<?= (int)$u['id'] ?>" name="name" value="<?= h($u['name']) ?>" maxlength="100" required>
+            <button type="submit" class="btn-role">Save name</button>
           </form>
-          <?php endif; ?>
           <?php if ($u['active']): ?>
           <form method="post" action="admin.php?action=deactivate" style="display:inline" data-confirm="Deactivate <?= h($u['email']) ?>? They won't be able to sign in until reactivated.">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
@@ -1047,7 +1072,7 @@ function renderEventsPage(array $events, string $csrf, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Events', renderAdminNav('events') . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Events', renderAdminNav('events', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">
@@ -1164,7 +1189,7 @@ function renderSettingsPage(array $values, string $csrf, ?array $flash): void {
 </head>
 <body>
 <div class="container">
-  <?php renderSiteHeader('Settings', renderAdminNav('settings') . renderCommonNav('admin')); ?>
+  <?php renderSiteHeader('Settings', renderAdminNav('settings', (string)(current_user()['role'] ?? 'user')) . renderCommonNav('admin')); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">

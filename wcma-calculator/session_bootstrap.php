@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/roles.php';
+
 if (session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params([
         'lifetime' => 0,
@@ -22,8 +24,12 @@ function current_user(): ?array {
 }
 
 function is_admin(): bool {
-    $user = current_user();
-    return $user !== null && $user['role'] === 'admin';
+    return user_has_role(current_user(), 'admin');
+}
+
+/** Inspectors and admins: classing, car tech and gear. */
+function is_inspector(): bool {
+    return user_has_role(current_user(), 'inspector');
 }
 
 function login_user(array $user): void {

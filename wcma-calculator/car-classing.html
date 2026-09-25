@@ -352,10 +352,10 @@
             submissionsLink.appendChild(document.createTextNode(')'));
             nav.appendChild(submissionsLink);
 
-            if (data.role === 'admin') {
+            if (data.role === 'admin' || data.role === 'inspector') {
               var adminLink = document.createElement('a');
               adminLink.href = 'admin.php';
-              adminLink.textContent = 'Admin';
+              adminLink.textContent = data.role === 'admin' ? 'Admin' : 'Inspector';
               nav.appendChild(adminLink);
             }
 

@@ -6,6 +6,8 @@
 // unit-testable (same pattern as feedback-lib.php). Callers must have loaded
 // db.php and photo-requirements.php.
 
+require_once __DIR__ . '/roles.php';
+
 const INSPECTION_MAX_BYTES = 2 * 1024 * 1024;
 const INSPECTION_MAX_EDGE = 4000;
 
@@ -53,10 +55,10 @@ function inspectionPhotoRelativePath(string $subjectType, int $subjectId, string
 /**
  * Owners may read their own sheet's photos. They may write until the sheet is accepted
  * ('teched') or its photo set is under/after review (photo_status 'submitted' or 'accepted'),
- * when it locks. Admins may always read and write.
+ * when it locks. Inspectors and admins may always read and write.
  */
 function inspectionCanAccess(array $user, array $sheet, bool $forWrite): bool {
-    if (($user['role'] ?? '') === 'admin') return true;
+    if (user_has_role($user, 'inspector')) return true;
     if ((int)$user['id'] !== (int)$sheet['user_id']) return false;
     if (!$forWrite) return true;
     return ($sheet['status'] ?? '') !== 'teched'

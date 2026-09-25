@@ -1,0 +1,41 @@
+<?php
+// wcma-calculator/tests/RolesTest.php
+require_once __DIR__ . '/../roles.php';
+
+use PHPUnit\Framework\TestCase;
+
+final class RolesTest extends TestCase
+{
+    public function testRoleHierarchy(): void
+    {
+        $this->assertFalse(user_has_role(null, 'user'));
+        $this->assertTrue(user_has_role(['role' => 'user'], 'user'));
+        $this->assertFalse(user_has_role(['role' => 'user'], 'inspector'));
+        $this->assertTrue(user_has_role(['role' => 'inspector'], 'inspector'));
+        $this->assertFalse(user_has_role(['role' => 'inspector'], 'admin'));
+        $this->assertTrue(user_has_role(['role' => 'admin'], 'inspector'));
+        $this->assertFalse(user_has_role(['role' => 'bogus'], 'user'));
+    }
+
+    public function testInspectorsGetEventDayWorkAndAdminsKeepTheBackOffice(): void
+    {
+        foreach (['list', 'view', 'file', 'resend', 'export', 'tech-sheets', 'tech-sheet', 'tech-sheet-accept',
+                  'tech-sheet-revoke', 'tech-sheet-sig', 'tech-sheet-photos-accept', 'tech-sheet-photos-send-back',
+                  'gear', 'gear-record', 'gear-record-accept', 'gear-record-revoke', 'gear-photos-accept',
+                  'gear-photos-send-back', 'gear-create-accept'] as $action) {
+            $this->assertSame('inspector', adminActionMinRole($action), $action);
+        }
+        foreach (['update-contact', 'delete', 'bulk-delete', 'users', 'set-role', 'set-name', 'deactivate', 'activate',
+                  'events', 'event-create', 'settings', 'settings-update', 'feedback', 'season-links', 'anything-new'] as $action) {
+            $this->assertSame('admin', adminActionMinRole($action), $action);
+        }
+    }
+
+    public function testFirstAndLastName(): void
+    {
+        $this->assertTrue(userHasFirstAndLastName('Ivy Inspector'));
+        $this->assertTrue(userHasFirstAndLastName('  Mary  Ann Smith '));
+        $this->assertFalse(userHasFirstAndLastName('Ivy'));
+        $this->assertFalse(userHasFirstAndLastName('   '));
+    }
+}

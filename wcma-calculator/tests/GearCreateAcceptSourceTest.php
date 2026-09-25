@@ -23,7 +23,7 @@ final class GearCreateAcceptSourceTest extends TestCase
     public function testRouteIsAdminOnlyPostOnlyAndCsrfChecked(): void
     {
         $admin = $this->src('admin.php');
-        $this->assertMatchesRegularExpression("/case 'gear-create-accept':\\s+requireAuth\\(\\);/", $admin);
+        $this->assertMatchesRegularExpression("/case 'gear-create-accept':\\s+requireAuth\\(\\\$minRole\\);/", $admin);
         $this->assertMatchesRegularExpression("/case 'gear-create-accept':.{0,300}?REQUEST_METHOD.{0,300}?validateCsrfToken.{0,300}?handleGearCreateAccept\\(\\\$pdo\\);/s", $admin);
     }
 

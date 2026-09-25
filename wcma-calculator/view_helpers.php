@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/roles.php';
+
 function generateCsrfToken(): string {
     if (!isset($_SESSION['csrf_token'])) {
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -53,22 +55,23 @@ function navItem(string $href, string $label, bool $isCurrent): string {
 }
 
 /**
- * The admin sub-navigation shared by every admin page. $current is one of 'submissions',
- * 'tech-sheets', 'gear', 'users', 'events', 'settings', 'feedback'; that destination renders as
- * inert "you are here" text (see navItem()), the others as links.
+ * The staff sub-navigation shared by every admin page. $current marks the page being viewed
+ * (inert "you are here" text, see navItem()). Inspectors see only the event-day destinations.
  */
-function renderAdminNav(string $current): string {
+function renderAdminNav(string $current, string $role = 'admin'): string {
     $items = [
-        'submissions' => ['admin.php', 'Submissions'],
-        'tech-sheets' => ['admin.php?action=tech-sheets', 'Tech Sheets'],
-        'gear'        => ['admin.php?action=gear', 'Gear'],
-        'users'       => ['admin.php?action=users', 'Manage Users'],
-        'events'      => ['admin.php?action=events', 'Events'],
-        'settings'    => ['admin.php?action=settings', 'Settings'],
-        'feedback'    => ['admin.php?action=feedback', 'Feedback'],
+        'submissions'  => ['admin.php', 'Submissions', 'inspector'],
+        'tech-sheets'  => ['admin.php?action=tech-sheets', 'Tech Sheets', 'inspector'],
+        'gear'         => ['admin.php?action=gear', 'Gear', 'inspector'],
+        'users'        => ['admin.php?action=users', 'Manage Users', 'admin'],
+        'events'       => ['admin.php?action=events', 'Events', 'admin'],
+        'season-links' => ['admin.php?action=season-links', 'Season Links', 'admin'],
+        'settings'     => ['admin.php?action=settings', 'Settings', 'admin'],
+        'feedback'     => ['admin.php?action=feedback', 'Feedback', 'admin'],
     ];
     $links = [];
-    foreach ($items as $key => [$href, $label]) {
+    foreach ($items as $key => [$href, $label, $min]) {
+        if (!user_has_role(['role' => $role], $min)) continue;
         $links[] = navItem($href, $label, $key === $current);
     }
     return implode(' ', $links);
@@ -88,8 +91,8 @@ function renderCommonNav(string $current = ''): string {
     if ($user !== null) {
         $links[] = navItem('account.php', 'My Cars', $current === 'account');
         $links[] = navItem('gear.php', 'My Drivers', $current === 'gear');
-        if (is_admin()) {
-            $links[] = navItem('admin.php', 'Admin', $current === 'admin');
+        if (is_inspector()) {
+            $links[] = navItem('admin.php', is_admin() ? 'Admin' : 'Inspector', $current === 'admin');
         }
         $links[] = '<a href="auth.php?action=logout">Logout</a>';
     } else {

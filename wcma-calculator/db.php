@@ -741,6 +741,14 @@ function db_set_user_role(PDO $pdo, int $id, string $role): void {
         ->execute([':role' => $role, ':id' => $id]);
 }
 
+/** Renames the account and its self driver profile (the profile is left alone if the new name collides). */
+function db_set_user_name(PDO $pdo, int $id, string $name): void {
+    $now = date('Y-m-d H:i:s');
+    $pdo->prepare("UPDATE users SET name = :n WHERE id = :id")->execute([':n' => $name, ':id' => $id]);
+    $pdo->prepare("UPDATE OR IGNORE drivers SET name = :n, name_norm = :norm, updated_at = :now WHERE user_id = :id")
+        ->execute([':n' => $name, ':norm' => db_driver_name_norm($name), ':now' => $now, ':id' => $id]);
+}
+
 function db_count_admins(PDO $pdo): int {
     return (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
 }
