@@ -832,6 +832,10 @@ function db_set_user_name(PDO $pdo, int $id, string $name): void {
         ->execute([':n' => $name, ':norm' => db_driver_name_norm($name), ':now' => $now, ':id' => $id]);
 }
 
+function db_set_user_password(PDO $pdo, int $id, string $hash): void {
+    $pdo->prepare("UPDATE users SET password_hash = :h WHERE id = :id")->execute([':h' => $hash, ':id' => $id]);
+}
+
 function db_count_admins(PDO $pdo): int {
     return (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role = 'admin'")->fetchColumn();
 }
