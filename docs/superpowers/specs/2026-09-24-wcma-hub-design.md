@@ -123,7 +123,7 @@ Car numbers are **not** unique across owners. Numbers are reserved on MSR, and t
 
 | Table | Change |
 |---|---|
-| `submissions` (class declarations) | + `car_id`, `review_status` (`submitted` \| `accepted` \| `needs_changes` \| `superseded`), `reviewer_note`, `reviewed_by_user_id`, `reviewed_at`, `accepted_via` (`review` \| `legacy`) |
+| `submissions` (class declarations) | + `car_id`, `review_status` (`submitted` \| `accepted` \| `needs_changes` \| `superseded`), `reviewer_note`, `reviewed_by_user_id`, `reviewed_at` |
 | `tech_sheets` | + `car_id`. Car identity fields stay as a **snapshot** taken at submit (a sheet is a signed record), filled from the car. |
 | `tech_sheet_drivers` | + `driver_id` |
 | `gear_records` | + `driver_id`. Uniqueness becomes `(driver_id, season)`. |
@@ -134,19 +134,21 @@ Car numbers are **not** unique across owners. Numbers are reserved on MSR, and t
 - **Car tech status** is derived per `(car_id, season)` instead of per owner + normalized number + year. The status precedence in `tech-status.php` is unchanged; only the grouping key changes.
 - **A car's class** is its newest non-superseded declaration, together with its `review_status`. If that declaration isn't accepted and an earlier accepted one exists, both are shown ("GT3 · With an inspector — Accepted: GT2").
 - **Deleting:** a declaration can be deleted individually. A car is **archived**, never deleted, so its tech history survives. Archived cars are hidden from Home and pickers.
-- **Self driver profile:** every account has exactly one driver with `user_id = owner_user_id = account id`. It's created on first sign-in (and by the migration for existing accounts).
+- **Self driver profile:** every account has exactly one driver with `user_id = owner_user_id = account id`. It's created when the account is created.
 
-### Migration (phase 1)
+### Database reset (phase 1)
 
-It runs from `db_init`, is idempotent, and runs inside one transaction per step. A CLI **dry run** (`php migrate-hub.php --dry-run`) prints counts and ambiguous cases before the real run.
+The app is not live, so there is **no data migration**. Phase 1 rewrites the schema in `db_init` to the new model and ships a one-off CLI reset (`php reset-hub-db.php --confirm`). The reset:
+- deletes the SQLite file and the `uploads/` contents (except `.htaccess`)
+- recreates the schema
+- re-creates the bootstrap admin from `BOOTSTRAP_ADMIN_EMAIL`.
 
-1. **Cars.** For each user, group their submissions into cars. Submissions whose tech sheets share a normalized car number become one car. A submission with no sheets becomes its own car. The car record takes year/make/model from the group's newest submission, and number/colour/engine from its newest sheet. If there's no number, it gets a placeholder `?` and is flagged in the dry run.
-2. `tech_sheets.car_id` comes from its submission's car.
-3. **Drivers.** Create a self profile per user. Each distinct `name_norm` across the user's `gear_records` and `tech_sheet_drivers` becomes a managed profile, except that a name matching the user's own `name` maps to the self profile. Then set `gear_records.driver_id` and `tech_sheet_drivers.driver_id`.
-4. **Anonymous submissions** whose email matches an account are attached to it and grouped as in step 1. The rest stay `user_id NULL` and are visible to inspectors and admins only.
-5. **Declaration review status:** each car's newest 2026 declaration → `submitted` (it enters the review queue). All other declarations → `accepted` with `accepted_via = 'legacy'`, except older declarations of the same car, which become `superseded`.
+The CLI refuses to run without `--confirm`. A matching seed script (`php seed-hub-db.php`) loads test accounts, cars, drivers, events and plans for local testing and the e2e harnesses.
 
-**Known risk:** step 1 can split one real car into two. The fallback is an admin **Merge cars** tool. It moves declarations, sheets and plans onto the surviving car and archives the other.
+Because the schema starts clean:
+- `submissions.user_id` and `submissions.car_id` are `NOT NULL`. There are no anonymous declarations.
+- `gear_records` drops `owner_user_id`/`driver_name`/`driver_name_norm` in favour of `driver_id`.
+- Existing `ALTER TABLE` upgrade shims for these tables are removed.
 
 ---
 
@@ -270,7 +272,7 @@ Chosen direction: layout from option C, visual identity from option B. Files are
 
 - **Every review email** (accepted or sent back) names the reviewing inspector by **first and last name**: "Reviewed by: {first} {last}".
   - Names come from the reviewer's account name. Admin → Users requires a first and last name on an account before it can be given the `inspector` or `admin` role, and flags any existing staff account missing one.
-- Acceptance emails keep the existing `TECH_ACCEPTANCE_DISCLAIMER` line below the body (from the pre-tech spec's terminology rule).
+- The headlines above **replace** the old acceptance disclaimer: `TECH_ACCEPTANCE_DISCLAIMER` and its uses are removed. This supersedes the disclaimer requirement in `2026-09-23-digital-tech-inspection-design.md`. The rest of its terminology rule (reviewed / accepted / pre-teched, never approved / passed / safe) still applies.
 - **The competitor responds by re-declaring** (calculator pre-filled from the queried declaration). This creates a new `submitted` declaration, and the previous one becomes `superseded`.
 - **Not blocking:** tech sheets stay submittable. The roster shows declaration status.
 
@@ -285,7 +287,7 @@ Chosen direction: layout from option C, visual identity from option B. Files are
 
 ### Admin section (`admin.php`, back office)
 
-Users & roles · Events (with tagged-car counts) · Season links · Settings · Feedback · Merge cars.
+Users & roles · Events (with tagged-car counts) · Season links · Settings · Feedback.
 
 ---
 
@@ -322,7 +324,7 @@ Each phase gets its own implementation plan and ships on its own. The app is not
 
 | Phase | Delivers |
 |---|---|
-| **1. Core model** | New tables and columns, the `inspector` role, `require_role()`, the migration with dry run. Existing pages switched to `car_id`/`driver_id` with minimal UI change. Admin: role dropdown, Season links editor, Merge cars. Declarations get `review_status` (review UI lands in phase 4; until then new declarations are stored as `submitted`). |
+| **1. Core model** | New tables and columns, the `inspector` role, `require_role()`, the reset and seed scripts. Existing pages switched to `car_id`/`driver_id` with minimal UI change. Admin: role dropdown, Season links editor. Declarations get `review_status` (review UI lands in phase 4; until then new declarations are stored as `submitted`). |
 | **2. Shell and Home** | `layout.php`, `hub.css`, public landing page, signed-in Home with `buildReadiness`, event tagging and "I'll do it at the track". `calculator.php` with car binding, the which-car step and sign-in-to-submit. `profile.php`. |
 | **3. Garage and Drivers** | `garage.php`, `drivers.php` (old URLs redirect). Tech sheet form picks cars and driver profiles. |
 | **4. Inspector** | `inspect.php`: roster, unified review queue with declaration review and emails, classing, gear. Admin trimmed to back office. |
@@ -332,11 +334,10 @@ Each phase gets its own implementation plan and ships on its own. The app is not
 
 ## 9. Testing and error handling
 
-- **Unit tests (PHPUnit)** for the pure functions: `buildReadiness`, migration car grouping and driver matching, declaration status and supersede rules, `reminderDue`, car number normalization (existing).
-- **Migration:** tested against a fixture DB with the production schema's shape, covering shared numbers, sheetless submissions, anonymous submissions, and names matching the account holder. It must be idempotent (running it twice gives no changes).
+- **Unit tests (PHPUnit)** for the pure functions: `buildReadiness`, declaration status and supersede rules, `reminderDue`, car number normalization (existing).
+- **Reset/seed:** the reset refuses to run without `--confirm`, and after it runs, seeding produces a schema that the full PHPUnit suite passes against.
 - **End-to-end:** one Playwright harness per phase, following the existing `scratch/tech*-e2e.js` pattern.
 - **Calculator regression:** an e2e check that changing weight, HP and each modifier still updates ratio and class live.
 - **Errors:**
-  - Migration steps are transactional, and a failed step rolls back and logs.
   - A failed email never blocks the action it follows (existing pattern), and the flash message says the email could not be sent.
   - An authorization failure redirects to sign-in (anonymous) or shows a 403 page inside the layout (signed in).
