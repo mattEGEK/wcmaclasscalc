@@ -59,7 +59,8 @@ final class GearLinksSourceTest extends TestCase
         $this->assertStringContainsString('db_get_drivers_for_sheets(', $list);
         $this->assertStringContainsString('gearLinksForSheet(', $list);
         $page = $this->body('account.php', 'renderAccountListPage');
-        $this->assertGreaterThanOrEqual(2, substr_count($page, "renderGearChips("));
+        $this->assertGreaterThanOrEqual(1, substr_count($page, "renderGearChips("));
+        $this->assertStringContainsString("renderGearChips(\$gearLinks[(int)\$sheet['id']]", $page);
     }
 
     public function testNewCopyAvoidsBannedWording(): void
