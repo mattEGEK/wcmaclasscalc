@@ -197,7 +197,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
   </div>
   <p class="no-print">Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h(techCarStatusLabel($carStatus, (int)($sheet['season'] ?? date('Y')))) ?></strong></p>
   <?php if ($gearLinks): ?>
-  <div class="no-print"><p><strong>Driver gear</strong></p><?= renderGearChips($gearLinks, 'owner') ?></div>
+  <div class="no-print"><p><strong>Driver gear</strong></p><?= renderGearChips($gearLinks, 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0)]) ?></div>
   <?php endif; ?>
   <?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?>
 </div>

@@ -33,7 +33,7 @@ final class GearLinksSourceTest extends TestCase
         $view = $this->body('tech-sheets.php', 'handleView');
         $this->assertStringContainsString('db_get_user_gear_records($pdo, (int)$user[\'id\'])', $view);
         $this->assertStringContainsString('gearLinksForSheet(', $view);
-        $this->assertStringContainsString("renderGearChips(\$gearLinks, 'owner')", $view);
+        $this->assertStringContainsString("renderGearChips(\$gearLinks, 'owner', [", $view);
     }
 
     public function testSheetFormGetsNameSuggestionsFromTheUsersOwnRecords(): void
@@ -80,7 +80,7 @@ final class GearLinksSourceTest extends TestCase
 
         $page = $this->body('admin-tech-sheets.php', 'renderTechSheetsListPage');
         $this->assertStringContainsString('<th>Gear</th>', $page);
-        $this->assertStringContainsString("renderGearChips(\$row['gear_links'] ?? [], 'admin')", $page);
+        $this->assertStringContainsString("renderGearChips(\$row['gear_links'] ?? [], 'admin', [", $page);
         $this->assertStringContainsString('colspan="9"', $page);
     }
 
@@ -90,7 +90,7 @@ final class GearLinksSourceTest extends TestCase
         $this->assertStringContainsString("db_get_user_gear_records(\$pdo, (int)\$sheet['user_id'])", $view);
         $this->assertStringContainsString('gearLinksForSheet(', $view);
         $page = $this->body('admin-tech-sheets.php', 'renderTechSheetViewPage');
-        $this->assertStringContainsString("renderGearChips(\$gearLinks, 'admin')", $page);
+        $this->assertStringContainsString("renderGearChips(\$gearLinks, 'admin', [", $page);
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed)\b/i', $this->src('admin-tech-sheets.php'));
     }
 }

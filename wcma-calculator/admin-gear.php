@@ -260,3 +260,27 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
   </div>
 <?php
 }
+
+/** Inspector one-tap: a driver on a sheet has no gear record, so create it under the sheet owner's account and accept it in person. */
+function handleGearCreateAccept(PDO $pdo): void {
+    $sheetId = is_scalar($_POST['sheet_id'] ?? null) ? (int)$_POST['sheet_id'] : 0;
+    $driverNumber = is_scalar($_POST['driver_number'] ?? null) ? (int)$_POST['driver_number'] : 0;
+    $sheet = $sheetId > 0 ? db_get_tech_sheet($pdo, $sheetId) : null;
+    if ($sheet === null) {
+        setFlash('Tech sheet not found.', 'error');
+        header('Location: admin.php?action=tech-sheets');
+        exit;
+    }
+
+    $user = current_user();
+    $result = gearCreateAndAcceptInPerson($pdo, $sheet, db_get_tech_sheet_drivers($pdo, $sheetId), $driverNumber, (int)$user['id']);
+    setFlash($result['ok'] ? 'Gear accepted (teched in person).' : $result['error'], $result['ok'] ? 'success' : 'error');
+
+    if (($_POST['back'] ?? '') === 'sheet') {
+        header('Location: admin.php?action=tech-sheet&id=' . $sheetId);
+    } else {
+        $filter = is_string($_POST['filter'] ?? null) && isset(TECH_SHEET_FILTERS[$_POST['filter']]) ? $_POST['filter'] : 'all';
+        header('Location: admin.php?action=tech-sheets&event=' . (int)$sheet['event_id'] . '&filter=' . rawurlencode($filter));
+    }
+    exit;
+}

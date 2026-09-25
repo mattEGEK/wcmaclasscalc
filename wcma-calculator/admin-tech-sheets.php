@@ -33,10 +33,10 @@ function handleTechSheetsList(PDO $pdo): void {
         'needs_tech' => count(techRosterFilter($rows, 'needs_tech')),
         'accepted' => count(techRosterFilter($rows, 'accepted')),
     ];
-    renderTechSheetsListPage($events, $eventId, $filter, techRosterFilter($rows, $filter), $counts, getFlash());
+    renderTechSheetsListPage($events, $eventId, $filter, techRosterFilter($rows, $filter), $counts, getFlash(), generateCsrfToken());
 }
 
-function renderTechSheetsListPage(array $events, int $eventId, string $filter, array $rows, array $counts, ?array $flash): void {
+function renderTechSheetsListPage(array $events, int $eventId, string $filter, array $rows, array $counts, ?array $flash, string $csrf = ''): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -83,7 +83,7 @@ function renderTechSheetsListPage(array $events, int $eventId, string $filter, a
         <td><?= h($s['class']) ?></td>
         <td><?= h($s['event_name'] ?? '—') ?></td>
         <td class="<?= h(techCarStatusBadgeClass($st['state'])) ?>"><?= h(techCarStatusLabel($st, (int)$s['season'])) ?></td>
-        <td><?= renderGearChips($row['gear_links'] ?? [], 'admin') ?></td>
+        <td><?= renderGearChips($row['gear_links'] ?? [], 'admin', ['sheet_season' => (int)$s['season'], 'csrf' => $csrf, 'sheet_id' => (int)$s['id'], 'hidden' => ['back' => 'roster', 'filter' => $filter]]) ?></td>
         <td><?= $s['status'] === 'teched' ? 'Reviewed' : 'Submitted ' . h(date('M j', strtotime($s['created_at']))) ?></td>
         <td class="actions"><a href="admin.php?action=tech-sheet&id=<?= (int)$s['id'] ?>"><?= $s['status'] === 'teched' ? 'View' : 'Review' ?></a></td>
       </tr>
@@ -176,7 +176,7 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
     <h2>Tech review</h2>
     <p>Car #<?= h($sheet['car_number']) ?> — <?= h(trim($sheet['car_make'] . ' ' . $sheet['car_model'])) ?> (<?= h($sheet['entrant_name']) ?>)</p>
     <p>Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h($statusLabel) ?></strong></p>
-    <?php if ($gearLinks): ?><p>Driver gear:</p><?= renderGearChips($gearLinks, 'admin') ?><?php endif; ?>
+    <?php if ($gearLinks): ?><p>Driver gear:</p><?= renderGearChips($gearLinks, 'admin', ['sheet_season' => (int)($sheet['season'] ?? 0), 'csrf' => $csrf, 'sheet_id' => $id, 'hidden' => ['back' => 'sheet']]) ?><?php endif; ?>
 
     <?php if ($accepted): ?>
     <p><?= h($acceptedLine) ?></p>

@@ -258,6 +258,13 @@ switch ($action) {
         handleGearAdminPhotosSendBack($pdo, (int)($_POST['id'] ?? 0));
         break;
 
+    case 'gear-create-accept':
+        requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleGearCreateAccept($pdo);
+        break;
+
     case 'settings':
         requireAuth();
         handleSettings($pdo);

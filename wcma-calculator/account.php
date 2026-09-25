@@ -163,7 +163,7 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
             <?php $cs = $carStatuses[(int)$sheet['id']] ?? ['state' => 'none', 'via' => null, 'sheet_id' => null]; ?>
             <span class="<?= h(techCarStatusBadgeClass($cs['state'])) ?>"><?= h(techCarStatusLabel($cs, (int)($sheet['season'] ?? date('Y')))) ?></span> —
             <a href="tech-sheets.php?action=view&id=<?= (int)$sheet['id'] ?>">View</a>
-            <?= renderGearChips($gearLinks[(int)$sheet['id']] ?? [], 'owner') ?>
+            <?= renderGearChips($gearLinks[(int)$sheet['id']] ?? [], 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0)]) ?>
           <?php endif; ?>
         </li>
         <?php endforeach; ?>
@@ -185,7 +185,7 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
       <span class="badge-pending">submitted</span>
       <span class="<?= h(techCarStatusBadgeClass($cs['state'])) ?>"><?= h(techCarStatusLabel($cs, (int)($ts['season'] ?? date('Y')))) ?></span> —
       <a href="tech-sheets.php?action=view&id=<?= (int)$ts['id'] ?>">View</a>
-      <?= renderGearChips($gearLinks[(int)$ts['id']] ?? [], 'owner') ?>
+      <?= renderGearChips($gearLinks[(int)$ts['id']] ?? [], 'owner', ['sheet_season' => (int)($ts['season'] ?? 0)]) ?>
     </li>
     <?php endforeach; ?>
   </ul>
