@@ -53,6 +53,18 @@ final class GearChipsTest extends TestCase
         $this->assertStringNotContainsString('gear.php', $html);
     }
 
+    public function testUnknownAudienceGetsAdminRenderingWithNoCompetitorLinks(): void
+    {
+        $html = renderGearChips([
+            $this->link('Jane Racer', $this->gear(4)),
+            $this->link('Sam Coach', null),
+        ], 'bogus');
+
+        $this->assertStringNotContainsString('gear.php', $html);
+        $this->assertStringNotContainsString('Add gear record', $html);
+        $this->assertStringContainsString('admin.php?action=gear-record&amp;id=4', $html);
+    }
+
     public function testNamesAreEscapedInTextAndInTheUrl(): void
     {
         $html = renderGearChips([$this->link('<b>"Al" & Co', null)], 'owner');

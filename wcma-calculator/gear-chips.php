@@ -18,7 +18,7 @@ function renderGearChips(array $links, string $audience): string {
         $gear = $l['gear'];
         if ($gear === null) {
             $html .= '<li class="gear-chip">' . $name . ': <span class="badge-pending">No gear record</span>';
-            if ($audience !== 'admin') {
+            if ($audience === 'owner') {
                 $html .= ' <a href="gear.php?name=' . h(rawurlencode($l['name'])) . '">Add gear record</a>';
             }
             $html .= '</li>';
@@ -26,9 +26,9 @@ function renderGearChips(array $links, string $audience): string {
         }
         $label = gearStatusLabel($l['status'], (int)$gear['season']);
         $class = gearStatusBadgeClass($l['status']['state']);
-        $href = $audience === 'admin'
-            ? 'admin.php?action=gear-record&amp;id=' . (int)$gear['id']
-            : 'gear.php?action=pretech&amp;id=' . (int)$gear['id'];
+        $href = $audience === 'owner'
+            ? 'gear.php?action=pretech&amp;id=' . (int)$gear['id']
+            : 'admin.php?action=gear-record&amp;id=' . (int)$gear['id'];
         $html .= '<li class="gear-chip">' . $name . ': <a class="' . h($class) . '" href="' . $href . '">' . h($label) . '</a></li>';
     }
     return $html . '</ul>';

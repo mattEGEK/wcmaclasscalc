@@ -7,9 +7,9 @@
 
 const TECH_SHEET_FILTERS = [
     'all' => 'All sheets',
-    'needs_tech' => 'Needs tech at the track',
+    'needs_tech' => 'Needs tech at the track (car or gear)',
     'pending_review' => 'Photos awaiting review',
-    'accepted' => 'Accepted',
+    'accepted' => 'Accepted (car and gear)',
 ];
 
 function handleTechSheetsList(PDO $pdo): void {
