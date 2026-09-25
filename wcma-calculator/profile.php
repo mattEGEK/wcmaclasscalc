@@ -34,6 +34,14 @@ function profileValidatePassword(string $new, string $confirm): ?string {
     return null;
 }
 
+/**
+ * Check if a user can change their password.
+ * Google-only accounts (google_id set, no password_hash) cannot set a password.
+ */
+function profileCanChangePassword(array $userRow): bool {
+    return !empty($userRow['password_hash']) || empty($userRow['google_id']);
+}
+
 // ── Main logic ─────────────────────────────────────────────────────────────────
 
 $pdo = db_connect();
@@ -51,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'name') {
-        $validation = profileValidateName($_POST['name'] ?? '');
+        $validation = profileValidateName((string)($_POST['name'] ?? ''));
         if ($validation['ok']) {
             db_set_user_name($pdo, (int)$user['id'], $validation['name']);
             $_SESSION['user_name'] = $validation['name'];
@@ -65,11 +73,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'password') {
         $userRow = db_find_user_by_id($pdo, (int)$user['id']);
+
+        // Guard: Google-only accounts cannot set a password
+        if (!profileCanChangePassword($userRow)) {
+            setFlash('You sign in with Google.', 'error');
+            header('Location: profile.php');
+            exit;
+        }
+
         $error = null;
 
         // If the account has a password, require verification of current password
         if (!empty($userRow['password_hash'])) {
-            $currentPassword = $_POST['current_password'] ?? '';
+            $currentPassword = (string)($_POST['current_password'] ?? '');
             if (!password_verify($currentPassword, (string)$userRow['password_hash'])) {
                 $error = 'Current password is incorrect.';
             }
@@ -77,11 +93,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Validate new password
         if ($error === null) {
-            $error = profileValidatePassword($_POST['new_password'] ?? '', $_POST['confirm_password'] ?? '');
+            $newPassword = (string)($_POST['new_password'] ?? '');
+            $confirmPassword = (string)($_POST['confirm_password'] ?? '');
+            $error = profileValidatePassword($newPassword, $confirmPassword);
         }
 
         if ($error === null) {
-            $hash = password_hash($_POST['new_password'], PASSWORD_BCRYPT);
+            $newPassword = (string)($_POST['new_password'] ?? '');
+            $hash = password_hash($newPassword, PASSWORD_BCRYPT);
             db_set_user_password($pdo, (int)$user['id'], $hash);
             setFlash('Password updated.', 'success');
         } else {
@@ -123,7 +142,7 @@ renderPageStart('Profile', '', ['flash' => $flash]);
 
 <div class="hub-card">
     <h2>Password</h2>
-    <?php if ($userRow['google_id'] !== null && empty($userRow['password_hash'])): ?>
+    <?php if (!profileCanChangePassword($userRow)): ?>
         <p>You sign in with Google.</p>
     <?php else: ?>
         <form method="post" action="profile.php">
