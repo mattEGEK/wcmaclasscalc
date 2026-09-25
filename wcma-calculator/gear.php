@@ -83,6 +83,11 @@ switch ($action) {
         handleGearPretechSubmit($pdo, $user, (int)($_POST['id'] ?? 0));
         break;
 
+    case 'start':
+        $user = requireGearLogin();
+        handleGearStart($pdo, $user, (int)($_GET['driver_id'] ?? 0));
+        break;
+
     default:
         header('Location: gear.php');
         exit;
@@ -125,6 +130,27 @@ function handleGearPretechSubmit(PDO $pdo, array $user, int $id): void {
             ['email' => GEAR_CLUB_EMAIL, 'name' => GEAR_CLUB_NAME], 'emailSmtpSend'
         );
         setFlash('Photos submitted for review.' . ($sent ? ' We emailed you a confirmation.' : ' The confirmation email could not be sent.'), $sent ? 'success' : 'error');
+    }
+    header('Location: gear.php?action=pretech&id=' . $id);
+    exit;
+}
+
+/** Opens this season's gear photos for one of the user's drivers, creating the season's record if needed. */
+function handleGearStart(PDO $pdo, array $user, int $driverId): void {
+    $driver = db_get_driver($pdo, $driverId);
+    if ($driver === null || (int)$driver['owner_user_id'] !== (int)$user['id']) {
+        setFlash('Driver not found.', 'error');
+        header('Location: gear.php');
+        exit;
+    }
+    $season = gearSeasonNow();
+    $gear = db_get_gear_record_for_driver($pdo, $driverId, $season);
+    if ($gear === null) {
+        $r = gearCreate($pdo, (int)$user['id'], (string)$driver['name'], '', $season);
+        if (!$r['ok']) { setFlash((string)$r['error'], 'error'); header('Location: gear.php'); exit; }
+        $id = (int)$r['id'];
+    } else {
+        $id = (int)$gear['id'];
     }
     header('Location: gear.php?action=pretech&id=' . $id);
     exit;

@@ -132,3 +132,48 @@ function buildReadiness(array $in): array {
     }
     return ['events' => $events, 'untagged' => $untagged];
 }
+
+/** Gathers buildReadiness() input for one user from the database. Callers must have loaded db.php. */
+function loadReadinessInputs(PDO $pdo, int $userId, string $today): array {
+    $cars = [];
+    foreach (db_get_user_cars($pdo, $userId) as $c) $cars[(int)$c['id']] = $c;
+
+    $sheets = db_get_user_tech_sheets($pdo, $userId);
+    $sheetDrivers = [];
+    foreach (db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $sheets)) as $sheetId => $rows) {
+        $sheetDrivers[(int)$sheetId] = array_values(array_filter(array_map(fn(array $r): int => (int)($r['driver_id'] ?? 0), $rows)));
+    }
+
+    $drivers = [];
+    foreach (db_get_user_drivers($pdo, $userId) as $d) $drivers[(int)$d['id']] = $d;
+    $self = db_get_self_driver($pdo, $userId);
+
+    $events = db_get_active_events($pdo);
+    $seasons = array_values(array_unique(array_map(fn(array $e): int => techSeasonFromDate((string)$e['event_date']), $events)));
+    $gear = [];
+    foreach (array_keys($drivers) as $did) {
+        foreach ($seasons as $season) {
+            $g = db_get_gear_record_for_driver($pdo, $did, $season);
+            if ($g !== null) $gear["$did:$season"] = $g;
+        }
+    }
+
+    $atTrack = [];
+    foreach ($seasons as $season) {
+        $atTrack = array_merge($atTrack, db_get_at_track_keys($pdo, array_keys($cars), array_keys($drivers), $season));
+    }
+
+    return [
+        'today' => $today,
+        'cars' => $cars,
+        'events' => $events,
+        'plans' => array_map(fn(array $p): array => ['event_id' => (int)$p['event_id'], 'car_id' => (int)$p['car_id']], db_get_user_event_plans($pdo, $userId)),
+        'declarations' => db_get_user_current_declarations($pdo, $userId),
+        'sheets' => $sheets,
+        'sheetDrivers' => $sheetDrivers,
+        'drivers' => $drivers,
+        'selfDriverId' => $self !== null ? (int)$self['id'] : 0,
+        'gear' => $gear,
+        'atTrack' => array_values(array_unique($atTrack)),
+    ];
+}
