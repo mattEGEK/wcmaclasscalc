@@ -1,3 +1,9 @@
-<Files "phpunit.phar">
-Deny from all
-</Files>
+<FilesMatch "^(autopull\.sh|git-autopull\.log|CLAUDE\.md|README\.md|phpunit\.xml|reset-hub-db\.php|seed-hub-db\.php|hub-db-tools\.php)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
