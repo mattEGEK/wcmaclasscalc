@@ -324,3 +324,62 @@ function gearAttachToRoster(array $rows, array $driversBySheet, array $seasonGea
     }
     return $rows;
 }
+
+/**
+ * Inspector shortcut for a driver on a sheet who has no gear record yet: creates the record under
+ * the SHEET OWNER's account for the sheet's season and accepts it in person, in one transaction.
+ * An existing record for that owner/name/season is accepted instead of duplicated. Current season
+ * only. The name always comes from the sheet, so no arbitrary name can be created.
+ *
+ * @param array $sheet    a tech_sheets row (user_id, season, driver_name)
+ * @param array $drivers  db_get_tech_sheet_drivers() rows (driver_number, driver_name)
+ * @return array{ok: bool, error: ?string, id: ?int}
+ */
+function gearCreateAndAcceptInPerson(PDO $pdo, array $sheet, array $drivers, int $driverNumber, int $reviewerUserId): array {
+    $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'id' => null];
+
+    $name = null;
+    if ($driverNumber === 1) {
+        $name = (string)($sheet['driver_name'] ?? '');
+    } else {
+        foreach ($drivers as $d) {
+            if ((int)$d['driver_number'] === $driverNumber) {
+                $name = (string)$d['driver_name'];
+                break;
+            }
+        }
+    }
+    $name = trim((string)preg_replace('/\s+/', ' ', (string)$name));
+    if ($name === '') return $fail('That driver is not on this sheet.');
+
+    $season = (int)($sheet['season'] ?? 0) ?: gearSeasonNow();
+    if ($season !== gearSeasonNow()) return $fail('Gear can only be added for the current season.');
+
+    $ownerId = (int)($sheet['user_id'] ?? 0);
+
+    $own = !$pdo->inTransaction();
+    if ($own) $pdo->beginTransaction();
+    try {
+        $existing = db_find_gear_record($pdo, $ownerId, gearNameNorm($name), $season);
+        if ($existing !== null) {
+            $id = (int)$existing['id'];
+        } else {
+            $created = gearCreate($pdo, $ownerId, $name, '', $season);
+            if (!$created['ok']) {
+                if ($own) $pdo->rollBack();
+                return $fail((string)$created['error']);
+            }
+            $id = (int)$created['id'];
+        }
+        $accepted = gearAcceptInPerson($pdo, $id, $reviewerUserId);
+        if (!$accepted['ok']) {
+            if ($own) $pdo->rollBack();
+            return $fail((string)$accepted['error']);
+        }
+        if ($own) $pdo->commit();
+    } catch (Throwable $e) {
+        if ($own && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+    return ['ok' => true, 'error' => null, 'id' => $id];
+}
