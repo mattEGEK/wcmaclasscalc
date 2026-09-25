@@ -62,9 +62,15 @@ function db_init(PDO $pdo): void {
             email_sent              INTEGER DEFAULT 0,
             last_emailed_at         DATETIME,
             email_send_count        INTEGER NOT NULL DEFAULT 0,
-            user_id                 INTEGER
+            user_id                 INTEGER NOT NULL,
+            car_id                  INTEGER NOT NULL,
+            review_status           TEXT NOT NULL DEFAULT 'submitted',
+            reviewer_note           TEXT,
+            reviewed_by_user_id     INTEGER,
+            reviewed_at             DATETIME
         )
     ");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_submissions_car ON submissions (car_id)");
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS login_attempts (
@@ -297,30 +303,43 @@ function db_init(PDO $pdo): void {
 }
 
 function db_insert_submission(PDO $pdo, array $data): int {
-    $data[':user_id'] = $data[':user_id'] ?? null;
-    $stmt = $pdo->prepare("
-        INSERT INTO submissions (
-            submitted_at, name, email, year, make, model, comments,
-            competition_weight, declared_hp, dyno_hp,
-            chassis_display, body_mods_display, transmission_display,
-            drivetrain_display, tires_display, brake_suspension,
-            chassis_value, body_mods_value, transmission_value,
-            drivetrain_value, tires_value, brake_suspension_value,
-            weight_factor, modification_factor, base_ratio, modified_ratio,
-            calculated_class, email_sent, user_id
-        ) VALUES (
-            :submitted_at, :name, :email, :year, :make, :model, :comments,
-            :competition_weight, :declared_hp, :dyno_hp,
-            :chassis_display, :body_mods_display, :transmission_display,
-            :drivetrain_display, :tires_display, :brake_suspension,
-            :chassis_value, :body_mods_value, :transmission_value,
-            :drivetrain_value, :tires_value, :brake_suspension_value,
-            :weight_factor, :modification_factor, :base_ratio, :modified_ratio,
-            :calculated_class, 0, :user_id
-        )
-    ");
-    $stmt->execute($data);
-    return (int)$pdo->lastInsertId();
+    if (empty($data[':user_id']) || empty($data[':car_id'])) {
+        throw new InvalidArgumentException('A class declaration needs :user_id and :car_id.');
+    }
+    $own = !$pdo->inTransaction();
+    if ($own) $pdo->beginTransaction();
+    try {
+        $pdo->prepare("
+            INSERT INTO submissions (
+                submitted_at, name, email, year, make, model, comments,
+                competition_weight, declared_hp, dyno_hp,
+                chassis_display, body_mods_display, transmission_display,
+                drivetrain_display, tires_display, brake_suspension,
+                chassis_value, body_mods_value, transmission_value,
+                drivetrain_value, tires_value, brake_suspension_value,
+                weight_factor, modification_factor, base_ratio, modified_ratio,
+                calculated_class, email_sent, user_id, car_id, review_status
+            ) VALUES (
+                :submitted_at, :name, :email, :year, :make, :model, :comments,
+                :competition_weight, :declared_hp, :dyno_hp,
+                :chassis_display, :body_mods_display, :transmission_display,
+                :drivetrain_display, :tires_display, :brake_suspension,
+                :chassis_value, :body_mods_value, :transmission_value,
+                :drivetrain_value, :tires_value, :brake_suspension_value,
+                :weight_factor, :modification_factor, :base_ratio, :modified_ratio,
+                :calculated_class, 0, :user_id, :car_id, 'submitted'
+            )
+        ")->execute($data);
+        $id = (int)$pdo->lastInsertId();
+        // Only one current declaration per car: the new one replaces the rest.
+        $pdo->prepare("UPDATE submissions SET review_status = 'superseded' WHERE car_id = :c AND id != :id AND review_status != 'superseded'")
+            ->execute([':c' => $data[':car_id'], ':id' => $id]);
+        if ($own) $pdo->commit();
+    } catch (Throwable $e) {
+        if ($own && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
+    return $id;
 }
 
 function db_update_submission_files(PDO $pdo, int $id, ?string $dyno_chart, ?string $dyno_table, ?string $car_image): void {
@@ -390,10 +409,33 @@ function db_get_user_submission(PDO $pdo, int $user_id, int $id): ?array {
     return $stmt->fetch() ?: null;
 }
 
-function db_link_submissions_by_email(PDO $pdo, int $user_id, string $email): int {
-    $stmt = $pdo->prepare("UPDATE submissions SET user_id = :user_id WHERE user_id IS NULL AND email = :email COLLATE NOCASE");
-    $stmt->execute([':user_id' => $user_id, ':email' => $email]);
-    return $stmt->rowCount();
+function db_get_car_current_declaration(PDO $pdo, int $carId): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM submissions WHERE car_id = :c AND review_status != 'superseded' ORDER BY submitted_at DESC, id DESC LIMIT 1");
+    $stmt->execute([':c' => $carId]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_get_car_declarations(PDO $pdo, int $carId): array {
+    $stmt = $pdo->prepare("SELECT * FROM submissions WHERE car_id = :c ORDER BY submitted_at DESC, id DESC");
+    $stmt->execute([':c' => $carId]);
+    return $stmt->fetchAll();
+}
+
+/** car_id => that car's current (newest non-superseded) declaration, for all of one user's cars. */
+function db_get_user_current_declarations(PDO $pdo, int $userId): array {
+    $stmt = $pdo->prepare("SELECT * FROM submissions WHERE user_id = :u AND review_status != 'superseded' ORDER BY submitted_at DESC, id DESC");
+    $stmt->execute([':u' => $userId]);
+    $map = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $map[(int)$row['car_id']] ??= $row;
+    }
+    return $map;
+}
+
+function db_count_tech_sheets_for_submission(PDO $pdo, int $submissionId): int {
+    $stmt = $pdo->prepare("SELECT COUNT(*) FROM tech_sheets WHERE submission_id = :s");
+    $stmt->execute([':s' => $submissionId]);
+    return (int)$stmt->fetchColumn();
 }
 
 function db_delete_submission(PDO $pdo, int $id): void {

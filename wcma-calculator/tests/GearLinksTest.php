@@ -110,7 +110,7 @@ final class GearLinksTest extends TestCase
             ':chassis_value' => 0, ':body_mods_value' => 0, ':transmission_value' => 0,
             ':drivetrain_value' => 0, ':tires_value' => 0, ':brake_suspension_value' => 0,
             ':weight_factor' => 0, ':modification_factor' => 0, ':base_ratio' => 14.67, ':modified_ratio' => 14.67,
-            ':calculated_class' => 'IT1', ':user_id' => $userId,
+            ':calculated_class' => 'IT1', ':user_id' => $userId, ':car_id' => test_make_car($pdo, $userId),
         ]);
         $eventId = db_create_event($pdo, 'Spring Sprint', '2026-05-10', null);
         $sheetOf = fn(string $number): int => db_insert_tech_sheet($pdo, [
