@@ -178,4 +178,8 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
   .hub-todo-actions .hub-btn { flex: 1; }
   .hub-grid-2 { grid-template-columns: 1fr; }
   .hub-wrap { padding: 0 16px; }
+  /* contain: layout keeps the row/cell layout box (still computed via internal table
+     layout, since thead/tbody/tr/td keep their table display types) from leaking its
+     unclipped intrinsic width into the document's scrollWidth despite overflow-x: auto. */
+  body.hub table { display: block; max-width: 100%; overflow-x: auto; contain: layout; }
 }

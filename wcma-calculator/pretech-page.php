@@ -147,6 +147,7 @@ function renderPretechPage(array $sheet, array $event, array $mode, array $snaps
 <?php endif; ?>
 </div>
 <script src="js/form-feedback.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }

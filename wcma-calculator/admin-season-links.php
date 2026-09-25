@@ -95,6 +95,7 @@ function renderSeasonLinksPage(array $links, string $csrf, ?array $flash): void 
 </div>
 <script src="js/confirm-modal.js"></script>
 <script src="js/form-feedback.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }

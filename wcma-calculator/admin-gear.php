@@ -77,6 +77,7 @@ function renderGearAdminListPage(array $records, int $season, string $filter, ar
     </tbody>
   </table>
 </div>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }
@@ -209,6 +210,7 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
 </div>
 <script src="js/confirm-modal.js"></script>
 <script src="js/form-feedback.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }

@@ -448,6 +448,7 @@ function renderListPage(array $submissions, string $sort, string $dir, string $c
   WcmaTableTools.enableFilter(document.getElementById('submissions-status-filter'), document.getElementById('submissions-table'), 'status');
   WcmaTableTools.enableBulkSelect(document.getElementById('submissions-select-all'), document.getElementById('submissions-table'), document.getElementById('bulk-delete-btn'));
 </script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }
@@ -666,6 +667,7 @@ function renderDetailPage(array $s, ?array $linkedUser, string $csrf, ?array $fl
   cancel.addEventListener('click', function () { view.hidden = false; edit.hidden = true; });
 })();
 </script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }
@@ -822,6 +824,7 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
   WcmaTableTools.enableSort(document.getElementById('users-table'));
   WcmaTableTools.enableFilter(document.getElementById('users-role-filter'), document.getElementById('users-table'), 'role');
 </script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }
@@ -1170,6 +1173,7 @@ function renderEventsPage(array $events, string $csrf, ?array $flash): void {
 </div>
 <script src="js/confirm-modal.js"></script>
 <script src="js/form-feedback.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }
@@ -1268,6 +1272,7 @@ function renderSettingsPage(array $values, string $csrf, ?array $flash): void {
   </div>
 </div>
 <script src="js/form-feedback.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }

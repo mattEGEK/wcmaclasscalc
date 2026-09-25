@@ -100,6 +100,7 @@ function renderFeedbackListPage(array $rows, ?array $flash): void {
   </table>
 </div>
 <script src="js/form-feedback.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }
@@ -170,6 +171,7 @@ function renderFeedbackViewPage(array $f, string $csrf, ?array $flash, bool $git
   </div>
 </div>
 <script src="js/form-feedback.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }

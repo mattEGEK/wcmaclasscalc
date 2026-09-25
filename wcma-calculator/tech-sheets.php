@@ -213,6 +213,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
   <?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?>
 </div>
 <script src="js/form-feedback.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }
@@ -424,6 +425,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 <script src="js/tech-sheet-checklist.js"></script>
 <script src="js/signature-pad.js"></script>
 <script src="js/tech-sheet-form.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }

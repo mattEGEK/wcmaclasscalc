@@ -44,4 +44,20 @@ final class HeaderAdoptionTest extends TestCase
         $this->assertStringContainsString('← Back', $html);
         $this->assertStringContainsString('<h1 class="hub-page-title">My Cars</h1>', $html);
     }
+
+    public function testEveryPageThatCallsRenderSiteHeaderAlsoCallsRenderSiteFooterBeforeEveryBody(): void
+    {
+        $checked = 0;
+        foreach (glob(__DIR__ . '/../*.php') as $f) {
+            $base = basename($f);
+            if ($base === 'layout.php' || $base === 'view_helpers.php') continue;
+            $src = file_get_contents($f);
+            if (strpos($src, 'renderSiteHeader(') === false) continue;
+            $checked++;
+            $bodyCloseCount = substr_count($src, '</body>');
+            $footerCallCount = substr_count($src, 'renderSiteFooter()');
+            $this->assertGreaterThanOrEqual($bodyCloseCount, $footerCallCount, $base);
+        }
+        $this->assertGreaterThan(0, $checked);
+    }
 }

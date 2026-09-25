@@ -78,6 +78,7 @@ function renderGearListPage(array $records, int $season, string $csrf, ?array $f
   <?php endif; ?>
 </div>
 <script src="js/form-feedback.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }
@@ -163,6 +164,7 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
 <?php endif; ?>
 </div>
 <script src="js/form-feedback.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }

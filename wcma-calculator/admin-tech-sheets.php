@@ -94,6 +94,7 @@ function renderTechSheetsListPage(array $events, int $eventId, string $filter, a
     </tbody>
   </table>
 </div>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }
@@ -222,6 +223,7 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
 <script src="js/form-feedback.js"></script>
 <script src="js/signature-pad.js"></script>
 <script src="js/admin-tech-review.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }

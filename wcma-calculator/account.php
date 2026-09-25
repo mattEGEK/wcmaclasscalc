@@ -238,6 +238,7 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
   WcmaTableTools.enableSearch(document.getElementById('my-drafts-search'), document.getElementById('my-drafts-table'));
   WcmaTableTools.enableSort(document.getElementById('my-drafts-table'));
 </script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }
@@ -337,6 +338,7 @@ function renderAccountViewPage(array $s, string $csrf, ?array $flash): void {
 </div>
 <script src="js/confirm-modal.js"></script>
 <script src="js/form-feedback.js"></script>
+<?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }

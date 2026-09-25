@@ -49,6 +49,14 @@ function renderSiteHeader(string $title, string $subnavHtml = '', string $sectio
 }
 
 /**
+ * Footer for pages built on renderSiteHeader(): call immediately before </body> so those
+ * pages get the same hub footer that renderPageEnd() gives pages built on renderPageStart().
+ */
+function renderSiteFooter(): void {
+    echo hubFooterHtml();
+}
+
+/**
  * A single nav destination: a link, or (when $isCurrent) inert "you are
  * here" text rendered in the same position, so the set of destinations
  * stays identical across every page.
