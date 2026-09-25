@@ -220,7 +220,7 @@ Chosen direction: layout from option C, visual identity from option B. Files are
 
 - **You** first: name, licence number (free text, with "Licences are managed on MotorsportReg" and a link), and this season's gear status with **Add photos / View**.
 - **Co-drivers you manage:** same row shape; **Add a co-driver** (name, optional licence).
-- Seasons roll over automatically. A driver with no gear record for the current season shows "Needs gear tech", and the gear record is created the first time photos are added or an inspector accepts in person. The manual **Renew** step is removed.
+- **Gear is checked every season; the driver profile is not re-entered.** The profile (name, licence) persists across seasons. The gear check does not. From January 1, every driver shows **"Needs gear tech {season}"** on Drivers, and on Home for their first tagged event, until that season's gear is accepted (photos or in person). The season's gear record is created the first time photos are added or an inspector accepts in person. The manual **Renew** step, which existed only to create the new season's record, is removed. The annual obligation itself is unchanged.
 
 ### Class Calculator (`calculator.php`)
 
@@ -255,7 +255,22 @@ Chosen direction: layout from option C, visual identity from option B. Files are
 ### Declaration review workflow
 
 - **Inspector actions:** **Accept**, or **Send back** with a required note (→ `needs_changes`). Each emails the competitor through the existing email helpers.
-- **Acceptance email footer:** "Acceptance confirms that what you submitted matches what was reviewed. It is not a certification that the vehicle is eligible or safe."
+- Email wording is set in **Competitor emails** below.
+
+### Competitor emails (binding copy)
+
+| Trigger | Headline |
+|---|---|
+| Class declaration submitted | "Class declaration received. An inspector will review and respond." |
+| Tech sheet submitted | "Tech sheet received. An inspector will review and respond." |
+| Class declaration accepted | "The scrutineer has reviewed & accepted your class declaration." |
+| Tech sheet accepted (in person or via car pre-tech photos) | "The scrutineer has reviewed & accepted your tech sheet." |
+| Gear accepted (in person or via photos) | "The scrutineer has reviewed & accepted your gear." |
+| Sent back (declaration or photos) | Existing wording, plus the inspector's note |
+
+- **Every review email** (accepted or sent back) names the reviewing inspector by **first and last name**: "Reviewed by: {first} {last}".
+  - Names come from the reviewer's account name. Admin → Users requires a first and last name on an account before it can be given the `inspector` or `admin` role, and flags any existing staff account missing one.
+- Acceptance emails keep the existing `TECH_ACCEPTANCE_DISCLAIMER` line below the body (from the pre-tech spec's terminology rule).
 - **The competitor responds by re-declaring** (calculator pre-filled from the queried declaration). This creates a new `submitted` declaration, and the previous one becomes `superseded`.
 - **Not blocking:** tech sheets stay submittable. The roster shows declaration status.
 
@@ -303,7 +318,7 @@ Users & roles · Events (with tagged-car counts) · Season links · Settings · 
 
 ## 8. Phasing
 
-Each phase gets its own implementation plan and ships on its own.
+Each phase gets its own implementation plan and ships on its own. The app is not live yet, so interim states between phases (for example, declarations stored as `submitted` before the phase 4 review UI exists) are acceptable.
 
 | Phase | Delivers |
 |---|---|
