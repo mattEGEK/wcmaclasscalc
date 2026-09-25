@@ -39,9 +39,10 @@ function gearEmailSubmitted(array $gear, string $adminUrl, string $pageUrl, int 
  * @param array<int, array{label: string, note: string}> $retakes
  * @return array{subject: string, html: string, text: string}
  */
-function gearEmailSentBack(array $gear, array $retakes, string $pageUrl): array {
+function gearEmailSentBack(array $gear, array $retakes, string $pageUrl, ?array $reviewer = null): array {
     $driver = gearEmailDriverLine($gear);
     $intro = 'An inspector reviewed the gear pre-tech photos for ' . $driver . ' and needs the following photos retaken:';
+    $byLine = reviewedByLine($reviewer);
 
     $html = pretechEmailPara($intro) . '<ul>';
     $text = $intro . "\n\n";
@@ -49,8 +50,11 @@ function gearEmailSentBack(array $gear, array $retakes, string $pageUrl): array 
         $html .= '<li><strong>' . h($r['label']) . '</strong>: ' . h($r['note']) . '</li>';
         $text .= '- ' . $r['label'] . ': ' . $r['note'] . "\n";
     }
-    $html .= '</ul>' . pretechEmailPara('Retake them and submit again. The photos that were not flagged do not need to be redone.')
+    $html .= '</ul>';
+    if ($byLine !== '') $html .= pretechEmailPara($byLine);
+    $html .= pretechEmailPara('Retake them and submit again. The photos that were not flagged do not need to be redone.')
         . pretechEmailLink($pageUrl, 'Open your gear page');
+    if ($byLine !== '') $text .= "\n" . $byLine . "\n";
     $text .= "\nRetake them and submit again. The photos that were not flagged do not need to be redone.\n" . $pageUrl . "\n";
 
     return [
@@ -70,8 +74,9 @@ function gearEmailAccepted(array $gear, string $pageUrl, string $adminUrl, bool 
         : 'The gear pre-tech photos for ' . $driver . ' were reviewed and accepted. This driver\'s gear is pre-teched for ' . $season . '.';
 
     if ($forClub) {
-        $lines = array_values(array_filter([$what, 'No gear check is needed at the track.', $byLine, 'Review page:', $adminUrl]));
-        $body = pretechEmailPara($what) . pretechEmailPara('No gear check is needed at the track.');
+        $trackNote = $via === 'in_person' ? 'The gear was checked in person at the track.' : 'No gear check is needed at the track.';
+        $lines = array_values(array_filter([$what, $trackNote, $byLine, 'Review page:', $adminUrl]));
+        $body = pretechEmailPara($what) . pretechEmailPara($trackNote);
         $link = pretechEmailLink($adminUrl, 'Open the review page');
     } else {
         $note = 'You do not need your gear checked at the track: just collect your decals at the event.';
@@ -97,8 +102,9 @@ function gearEmailAccepted(array $gear, string $pageUrl, string $adminUrl, bool 
  * @param array{email: string, name: string} $club recipient for club copies
  * @param callable $sendFn function(array $to, array $message): bool; $to is a list of [email, name]
  * @param array<string,string> $retakes requirement key => note (sent_back only)
+ * @param ?array $reviewer acting reviewer for the sent_back "Reviewed by" line (sent_back only)
  */
-function gearNotify(PDO $pdo, string $kind, array $gear, string $baseUrl, array $club, callable $sendFn, array $retakes = []): bool {
+function gearNotify(PDO $pdo, string $kind, array $gear, string $baseUrl, array $club, callable $sendFn, array $retakes = [], ?array $reviewer = null): bool {
     try {
         $base = rtrim($baseUrl, '/');
         $id = (int)$gear['id'];
@@ -122,7 +128,7 @@ function gearNotify(PDO $pdo, string $kind, array $gear, string $baseUrl, array 
                     $req = photoRequirementByKey((string)$key);
                     $list[] = ['label' => $req['label'] ?? (string)$key, 'note' => (string)$note];
                 }
-                if ($ownerTo) $messages[] = [$ownerTo, gearEmailSentBack($gear, $list, $pageUrl)];
+                if ($ownerTo) $messages[] = [$ownerTo, gearEmailSentBack($gear, $list, $pageUrl, $reviewer)];
                 break;
             case 'accepted':
             case 'accepted_in_person':

@@ -40,16 +40,9 @@ define('TECH_EMAIL', db_get_setting($pdo, 'tech_sheet_recipient_email', config_d
 define('TECH_NAME',  db_get_setting($pdo, 'tech_sheet_recipient_name', config_default('TECH_SHEET_RECIPIENT_NAME', 'WCMA Classing')));
 
 // ── Auth helpers ──────────────────────────────────────────────────────────────
+/** Thin wrapper over require_role() (roles.php / session_bootstrap.php) so the router is unchanged. */
 function requireAuth(string $min = 'admin'): void {
-    if (current_user() === null) {
-        header('Location: auth.php?action=login');
-        exit;
-    }
-    if (!user_has_role(current_user(), $min)) {
-        setFlash('You are not authorized to view that page.', 'error');
-        header('Location: ' . (is_inspector() ? 'admin.php' : 'car-classing.html'));
-        exit;
-    }
+    require_role($min);
 }
 
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -949,6 +942,12 @@ function handleDelete(PDO $pdo, int $id): void {
         exit;
     }
 
+    if (db_count_tech_sheets_for_submission($pdo, $id) > 0) {
+        setFlash('This declaration is on a submitted tech sheet, so it cannot be deleted.', 'error');
+        header('Location: admin.php');
+        exit;
+    }
+
     // Delete uploaded files
     $upload_dir = __DIR__ . '/uploads/' . $id;
     if (is_dir($upload_dir)) {
@@ -972,7 +971,17 @@ function handleBulkDelete(PDO $pdo, array $ids): void {
         exit;
     }
 
+    $skipped = 0;
+    $deletable = [];
     foreach ($ids as $id) {
+        if (db_count_tech_sheets_for_submission($pdo, $id) > 0) {
+            $skipped++;
+            continue;
+        }
+        $deletable[] = $id;
+    }
+
+    foreach ($deletable as $id) {
         $upload_dir = __DIR__ . '/uploads/' . $id;
         if (is_dir($upload_dir)) {
             foreach (glob($upload_dir . '/*') as $file) {
@@ -982,8 +991,12 @@ function handleBulkDelete(PDO $pdo, array $ids): void {
         }
     }
 
-    $deleted = db_delete_submissions($pdo, $ids);
-    setFlash("Deleted {$deleted} submission(s).", 'success');
+    $deleted = db_delete_submissions($pdo, $deletable);
+    $message = "Deleted {$deleted} submission(s).";
+    if ($skipped > 0) {
+        $message .= " {$skipped} skipped (on a submitted tech sheet).";
+    }
+    setFlash($message, 'success');
     header('Location: admin.php');
     exit;
 }

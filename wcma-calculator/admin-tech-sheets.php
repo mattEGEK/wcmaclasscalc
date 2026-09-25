@@ -254,7 +254,8 @@ function handleTechSheetPhotosSendBack(PDO $pdo, int $id): void {
         $sent = pretechNotify(
             $pdo, 'sent_back', $sheet, db_get_event($pdo, (int)$sheet['event_id']) ?? [],
             feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', '')),
-            ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend', $result['retakes']
+            ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend', $result['retakes'],
+            db_find_user_by_id($pdo, (int)current_user()['id'])
         );
         setFlash(count($result['retakes']) . ' ' . (count($result['retakes']) === 1 ? 'photo' : 'photos') . ' sent back for a retake.'
             . ($sent ? ' The competitor was emailed.' : ' The notification email could not be sent.'), $sent ? 'success' : 'error');

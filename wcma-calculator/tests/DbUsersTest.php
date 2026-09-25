@@ -71,6 +71,27 @@ final class DbUsersTest extends TestCase
         $this->assertSame($id, $user['id']);
     }
 
+    public function testCreateUserIsAtomicWithItsSelfDriver(): void
+    {
+        $pdo = make_temp_pdo();
+        $id = db_create_user($pdo, ['email' => 'atomic@example.com', 'name' => 'Atomic User', 'password_hash' => 'x', 'google_id' => null]);
+
+        $this->assertNotNull(db_get_self_driver($pdo, $id));
+        $this->assertFalse($pdo->inTransaction());
+    }
+
+    public function testCreateUserDoesNotCommitInsideACallersTransaction(): void
+    {
+        $pdo = make_temp_pdo();
+
+        $pdo->beginTransaction();
+        $id = db_create_user($pdo, ['email' => 'nested@example.com', 'name' => 'Nested User', 'password_hash' => 'x', 'google_id' => null]);
+        $this->assertTrue($pdo->inTransaction());
+        $pdo->rollBack();
+
+        $this->assertNull(db_find_user_by_id($pdo, $id));
+    }
+
     public function testGetAllUsersOrderedByCreatedAt(): void
     {
         $pdo = make_temp_pdo();

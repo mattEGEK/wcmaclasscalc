@@ -51,4 +51,23 @@ final class DbTechSheetCarTest extends TestCase
         $this->assertSame([$b], $ids(db_get_identity_sheets($pdo, test_make_car($pdo, $u, '7'), 2026)));
         $this->assertSame([$c], $ids(db_get_identity_sheets($pdo, test_make_car($pdo, $u, '42'), 2027)));
     }
+
+    public function testLatestTechSheetIdIsNewestByCreatedAtThenId(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = db_create_user($pdo, ['email' => 'r@example.com', 'name' => 'Jordan Lee', 'password_hash' => 'x', 'google_id' => null]);
+        $sub = db_insert_submission($pdo, test_declaration_data($pdo, $u, '42'));
+        $event = db_create_event($pdo, 'Fall Sprint', '2026-10-11', null);
+        $carId = test_make_car($pdo, $u, '42');
+
+        $this->assertNull(db_get_car_latest_tech_sheet_id($pdo, $carId));
+
+        $a = db_insert_tech_sheet($pdo, $this->sheetData($u, $sub, $event));
+        $this->assertSame($a, db_get_car_latest_tech_sheet_id($pdo, $carId));
+
+        $b = db_insert_tech_sheet($pdo, $this->sheetData($u, $sub, $event));
+        $this->assertSame($b, db_get_car_latest_tech_sheet_id($pdo, $carId));
+
+        $this->assertNull(db_get_car_latest_tech_sheet_id($pdo, $carId + 999));
+    }
 }

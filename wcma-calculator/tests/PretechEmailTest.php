@@ -52,6 +52,21 @@ final class PretechEmailTest extends TestCase
         $this->assertStringContainsString('https://x.test/tech-sheets.php?action=pretech&amp;id=12', $mail['html']);
     }
 
+    public function testSentBackNamesTheReviewerWhenGivenAndOmitsItWhenNot(): void
+    {
+        $withReviewer = pretechEmailSentBack($this->sheet(), $this->event(), [
+            ['label' => 'X', 'note' => 'Y'],
+        ], 'https://x.test/page', ['name' => 'Ivy Inspector']);
+        $this->assertStringContainsString('Reviewed by: Ivy Inspector', $withReviewer['text']);
+        $this->assertStringContainsString('Reviewed by: Ivy Inspector', $withReviewer['html']);
+
+        $withoutReviewer = pretechEmailSentBack($this->sheet(), $this->event(), [
+            ['label' => 'X', 'note' => 'Y'],
+        ], 'https://x.test/page');
+        $this->assertStringNotContainsString('Reviewed by:', $withoutReviewer['text']);
+        $this->assertStringNotContainsString('Reviewed by:', $withoutReviewer['html']);
+    }
+
     public function testAcceptedEmailLeadsWithTheScrutineerLineAndNamesTheReviewer(): void
     {
         $admin = 'https://x.test/admin.php?action=tech-sheet&id=12';
@@ -135,6 +150,19 @@ final class PretechEmailTest extends TestCase
         $this->assertStringContainsString('Harness date stamp', $captured[0][1]['text']);
         $this->assertStringContainsString('Date not readable', $captured[0][1]['text']);
         $this->assertStringContainsString('https://x.test/tech-sheets.php?action=pretech&id=12', $captured[0][1]['text']);
+    }
+
+    public function testNotifySentBackNamesTheGivenReviewer(): void
+    {
+        [$pdo, $sheet] = $this->notifyFixture();
+        $captured = [];
+        $sendFn = function (array $to, array $message) use (&$captured): bool { $captured[] = $message; return true; };
+
+        $ok = pretechNotify($pdo, 'sent_back', $sheet, $this->event(), 'https://x.test', ['email' => 'club@example.com', 'name' => 'Club'], $sendFn,
+            ['harness_date' => 'Date not readable'], ['name' => 'Ivy Inspector']);
+
+        $this->assertTrue($ok);
+        $this->assertStringContainsString('Reviewed by: Ivy Inspector', $captured[0]['text']);
     }
 
     public function testNotifyAcceptedGoesToBoth(): void

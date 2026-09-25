@@ -59,9 +59,10 @@ function pretechEmailSubmitted(array $sheet, array $event, string $adminUrl, str
  * @param array<int, array{label: string, note: string}> $retakes
  * @return array{subject: string, html: string, text: string}
  */
-function pretechEmailSentBack(array $sheet, array $event, array $retakes, string $pageUrl): array {
+function pretechEmailSentBack(array $sheet, array $event, array $retakes, string $pageUrl, ?array $reviewer = null): array {
     $car = pretechEmailCarLine($sheet, $event);
     $intro = 'An inspector reviewed your pre-tech photos for ' . $car . ' and needs the following photos retaken:';
+    $byLine = reviewedByLine($reviewer);
 
     $html = pretechEmailPara($intro) . '<ul>';
     $text = $intro . "\n\n";
@@ -69,8 +70,11 @@ function pretechEmailSentBack(array $sheet, array $event, array $retakes, string
         $html .= '<li><strong>' . h($r['label']) . '</strong>: ' . h($r['note']) . '</li>';
         $text .= '- ' . $r['label'] . ': ' . $r['note'] . "\n";
     }
-    $html .= '</ul>' . pretechEmailPara('Retake them and submit again. The photos that were not flagged do not need to be redone.')
+    $html .= '</ul>';
+    if ($byLine !== '') $html .= pretechEmailPara($byLine);
+    $html .= pretechEmailPara('Retake them and submit again. The photos that were not flagged do not need to be redone.')
         . pretechEmailLink($pageUrl, 'Open your pre-tech page');
+    if ($byLine !== '') $text .= "\n" . $byLine . "\n";
     $text .= "\nRetake them and submit again. The photos that were not flagged do not need to be redone.\n" . $pageUrl . "\n";
 
     return [
@@ -118,8 +122,9 @@ function pretechEmailAccepted(array $sheet, array $event, string $viewUrl, strin
  * @param array{email: string, name: string} $club recipient for club copies
  * @param callable $sendFn function(array $to, array $message): bool; $to is a list of [email, name]
  * @param array<string,string> $retakes requirement key => note (sent_back only)
+ * @param ?array $reviewer acting reviewer for the sent_back "Reviewed by" line (sent_back only)
  */
-function pretechNotify(PDO $pdo, string $kind, array $sheet, array $event, string $baseUrl, array $club, callable $sendFn, array $retakes = []): bool {
+function pretechNotify(PDO $pdo, string $kind, array $sheet, array $event, string $baseUrl, array $club, callable $sendFn, array $retakes = [], ?array $reviewer = null): bool {
     try {
         $base = rtrim($baseUrl, '/');
         $id = (int)$sheet['id'];
@@ -144,7 +149,7 @@ function pretechNotify(PDO $pdo, string $kind, array $sheet, array $event, strin
                     $req = photoRequirementByKey((string)$key);
                     $list[] = ['label' => $req['label'] ?? (string)$key, 'note' => (string)$note];
                 }
-                if ($competitor) $messages[] = [$competitor, pretechEmailSentBack($sheet, $event, $list, $pageUrl)];
+                if ($competitor) $messages[] = [$competitor, pretechEmailSentBack($sheet, $event, $list, $pageUrl, $reviewer)];
                 break;
             case 'accepted':
             case 'accepted_in_person':

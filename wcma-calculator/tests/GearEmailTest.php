@@ -44,6 +44,21 @@ final class GearEmailTest extends TestCase
         $this->assertStringContainsString('https://x.test/gear.php?action=pretech&amp;id=4', $mail['html']);
     }
 
+    public function testSentBackNamesTheReviewerWhenGivenAndOmitsItWhenNot(): void
+    {
+        $withReviewer = gearEmailSentBack($this->gear(), [
+            ['label' => 'X', 'note' => 'Y'],
+        ], 'https://x.test/page', ['name' => 'Ivy Inspector']);
+        $this->assertStringContainsString('Reviewed by: Ivy Inspector', $withReviewer['text']);
+        $this->assertStringContainsString('Reviewed by: Ivy Inspector', $withReviewer['html']);
+
+        $withoutReviewer = gearEmailSentBack($this->gear(), [
+            ['label' => 'X', 'note' => 'Y'],
+        ], 'https://x.test/page');
+        $this->assertStringNotContainsString('Reviewed by:', $withoutReviewer['text']);
+        $this->assertStringNotContainsString('Reviewed by:', $withoutReviewer['html']);
+    }
+
     public function testAcceptedOwnerAndClubCopies(): void
     {
         $ivy = ['name' => 'Ivy Inspector'];
@@ -62,6 +77,17 @@ final class GearEmailTest extends TestCase
         $this->assertStringNotContainsString('admin.php', $owner['html']);
         $this->assertStringContainsString('admin.php?action=gear-record&id=4', $club['text']);
         $this->assertStringNotContainsString('You do not need', $club['text']);
+    }
+
+    public function testAcceptedClubCopyIsViaAwareAboutTheTrackCheck(): void
+    {
+        $photos = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/admin.php?action=gear-record&id=4', true);
+        $this->assertStringContainsString('No gear check is needed at the track.', $photos['text']);
+        $this->assertStringNotContainsString('checked in person at the track', $photos['text']);
+
+        $inPerson = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/admin.php?action=gear-record&id=4', true, null, 'in_person');
+        $this->assertStringContainsString('The gear was checked in person at the track.', $inPerson['text']);
+        $this->assertStringNotContainsString('No gear check is needed', $inPerson['text']);
     }
 
     public function testNoBannedWordingOutsideTheDisclaimer(): void
@@ -114,6 +140,19 @@ final class GearEmailTest extends TestCase
         $this->assertStringContainsString('Helmet certification label', $captured[0][1]['text']);
         $this->assertStringContainsString('Date not readable', $captured[0][1]['text']);
         $this->assertStringContainsString('https://x.test/gear.php?action=pretech&id=4', $captured[0][1]['text']);
+    }
+
+    public function testNotifySentBackNamesTheGivenReviewer(): void
+    {
+        [$pdo, $gear] = $this->fixture();
+        $captured = [];
+        $sendFn = function (array $to, array $message) use (&$captured): bool { $captured[] = $message; return true; };
+
+        $ok = gearNotify($pdo, 'sent_back', $gear, 'https://x.test', ['email' => 'club@example.com', 'name' => 'Club'], $sendFn,
+            ['helmet_label' => 'Date not readable'], ['name' => 'Ivy Inspector']);
+
+        $this->assertTrue($ok);
+        $this->assertStringContainsString('Reviewed by: Ivy Inspector', $captured[0]['text']);
     }
 
     public function testNotifyIsolatesEachMessageAndReportsFailure(): void

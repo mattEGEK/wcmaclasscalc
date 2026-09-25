@@ -32,6 +32,25 @@ function is_inspector(): bool {
     return user_has_role(current_user(), 'inspector');
 }
 
+/**
+ * Gates a page to signed-in users with at least $min role. Signed out goes to the login page;
+ * signed in but under-privileged gets a 403. Either way this does not return. On success it
+ * returns the current user, same as current_user().
+ */
+function require_role(string $min): array {
+    $user = current_user();
+    switch (roleGateOutcome($user, $min)) {
+        case 'login':
+            header('Location: auth.php?action=login');
+            exit;
+        case 'forbidden':
+            http_response_code(403);
+            echo 'You do not have access to this page.';
+            exit;
+    }
+    return $user;
+}
+
 function login_user(array $user): void {
     session_regenerate_id(true);
     $_SESSION['user_id']   = $user['id'];

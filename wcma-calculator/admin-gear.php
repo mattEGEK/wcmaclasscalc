@@ -139,7 +139,11 @@ function handleGearAdminPhotosSendBack(PDO $pdo, int $id): void {
     if (!$r['ok']) {
         setFlash($r['error'], 'error');
     } else {
-        $sent = gearNotify($pdo, 'sent_back', db_get_gear_record($pdo, $id), gearAdminBaseUrl(), ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend', $r['retakes']);
+        $sent = gearNotify(
+            $pdo, 'sent_back', db_get_gear_record($pdo, $id), gearAdminBaseUrl(),
+            ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend', $r['retakes'],
+            db_find_user_by_id($pdo, (int)current_user()['id'])
+        );
         $n = count($r['retakes']);
         setFlash($n . ' ' . ($n === 1 ? 'photo' : 'photos') . ' sent back for a retake.' . ($sent ? ' The account holder was emailed.' : ' The notification email could not be sent.'), $sent ? 'success' : 'error');
     }

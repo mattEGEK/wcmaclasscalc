@@ -21,6 +21,12 @@ function user_has_role(?array $user, string $min): bool {
     return $have !== null && $have >= (ROLE_LEVELS[$min] ?? PHP_INT_MAX);
 }
 
+/** Pure decision behind require_role(): 'login' (send to sign in), 'forbidden' (403), or 'ok'. */
+function roleGateOutcome(?array $user, string $min): string {
+    if ($user === null) return 'login';
+    return user_has_role($user, $min) ? 'ok' : 'forbidden';
+}
+
 function adminActionMinRole(string $action): string {
     return in_array($action, ADMIN_INSPECTOR_ACTIONS, true) ? 'inspector' : 'admin';
 }

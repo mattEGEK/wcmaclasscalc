@@ -31,6 +31,16 @@ final class RolesTest extends TestCase
         }
     }
 
+    public function testRoleGateOutcome(): void
+    {
+        $this->assertSame('login', roleGateOutcome(null, 'user'));
+        $this->assertSame('login', roleGateOutcome(null, 'admin'));
+        $this->assertSame('forbidden', roleGateOutcome(['role' => 'inspector'], 'admin'));
+        $this->assertSame('forbidden', roleGateOutcome(['role' => 'user'], 'inspector'));
+        $this->assertSame('ok', roleGateOutcome(['role' => 'inspector'], 'inspector'));
+        $this->assertSame('ok', roleGateOutcome(['role' => 'admin'], 'inspector'));
+    }
+
     public function testFirstAndLastName(): void
     {
         $this->assertTrue(userHasFirstAndLastName('Ivy Inspector'));

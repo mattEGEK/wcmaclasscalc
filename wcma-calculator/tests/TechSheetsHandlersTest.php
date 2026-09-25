@@ -45,4 +45,14 @@ final class TechSheetsHandlersTest extends TestCase
             $this->assertStringContainsString('carsApplySheetDetails(', $this->body($fn), $fn);
         }
     }
+
+    public function testUpdateOnlyWritesBackWhenEditingTheCarsNewestSheet(): void
+    {
+        $body = $this->body('handleUpdate');
+        $this->assertStringContainsString('db_get_car_latest_tech_sheet_id(', $body);
+        $this->assertMatchesRegularExpression(
+            '/if \(db_get_car_latest_tech_sheet_id\(.*?===\s*\$id\)\s*\{\s*carsApplySheetDetails\(/s',
+            $body
+        );
+    }
 }

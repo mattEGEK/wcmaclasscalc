@@ -645,7 +645,11 @@ function handleUpdate(PDO $pdo, array $user): void {
         'log_book_turned_in' => (int)$parsed['log_book'],
     ]);
 
-    carsApplySheetDetails($pdo, (int)$sheet['car_id'], $parsed['car_number'], $parsed['car_colour'], $parsed['engine_cc']);
+    // Only the car's newest sheet writes its details back to the car — an edit to an older sheet
+    // must not overwrite what the newest sheet already put there.
+    if (db_get_car_latest_tech_sheet_id($pdo, (int)$sheet['car_id']) === $id) {
+        carsApplySheetDetails($pdo, (int)$sheet['car_id'], $parsed['car_number'], $parsed['car_colour'], $parsed['engine_cc']);
+    }
 
     if (!empty($_POST['entrant_signature'])) {
         $path = techSheetSaveSignature(__DIR__, $id, 'entrant', $_POST['entrant_signature']);

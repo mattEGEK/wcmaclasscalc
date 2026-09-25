@@ -598,6 +598,14 @@ function db_get_tech_sheet(PDO $pdo, int $id): ?array {
     return $stmt->fetch() ?: null;
 }
 
+/** The id of a car's newest tech sheet (by created_at, then id), or null if it has none. */
+function db_get_car_latest_tech_sheet_id(PDO $pdo, int $carId): ?int {
+    $stmt = $pdo->prepare("SELECT id FROM tech_sheets WHERE car_id = :c ORDER BY created_at DESC, id DESC LIMIT 1");
+    $stmt->execute([':c' => $carId]);
+    $id = $stmt->fetchColumn();
+    return $id === false ? null : (int)$id;
+}
+
 function db_get_user_tech_sheet(PDO $pdo, int $user_id, int $id): ?array {
     $stmt = $pdo->prepare("SELECT * FROM tech_sheets WHERE id = :id AND user_id = :user_id");
     $stmt->execute([':id' => $id, ':user_id' => $user_id]);
@@ -696,21 +704,29 @@ function db_replace_tech_sheet_drivers(PDO $pdo, int $tech_sheet_id, array $driv
 // ── Users ─────────────────────────────────────────────────────────────────────
 
 function db_create_user(PDO $pdo, array $data): int {
-    $role = (strtolower($data['email']) === strtolower(BOOTSTRAP_ADMIN_EMAIL)) ? 'admin' : 'user';
-    $stmt = $pdo->prepare("
-        INSERT INTO users (email, password_hash, google_id, name, role, created_at)
-        VALUES (:email, :password_hash, :google_id, :name, :role, :created_at)
-    ");
-    $stmt->execute([
-        ':email'         => $data['email'],
-        ':password_hash' => $data['password_hash'] ?? null,
-        ':google_id'     => $data['google_id'] ?? null,
-        ':name'          => $data['name'],
-        ':role'          => $role,
-        ':created_at'    => date('Y-m-d H:i:s'),
-    ]);
-    $id = (int)$pdo->lastInsertId();
-    db_create_driver($pdo, $id, (string)$data['name'], null, $id);   // the account holder's own driver profile
+    $own = !$pdo->inTransaction();
+    if ($own) $pdo->beginTransaction();
+    try {
+        $role = (strtolower($data['email']) === strtolower(BOOTSTRAP_ADMIN_EMAIL)) ? 'admin' : 'user';
+        $stmt = $pdo->prepare("
+            INSERT INTO users (email, password_hash, google_id, name, role, created_at)
+            VALUES (:email, :password_hash, :google_id, :name, :role, :created_at)
+        ");
+        $stmt->execute([
+            ':email'         => $data['email'],
+            ':password_hash' => $data['password_hash'] ?? null,
+            ':google_id'     => $data['google_id'] ?? null,
+            ':name'          => $data['name'],
+            ':role'          => $role,
+            ':created_at'    => date('Y-m-d H:i:s'),
+        ]);
+        $id = (int)$pdo->lastInsertId();
+        db_create_driver($pdo, $id, (string)$data['name'], null, $id);   // the account holder's own driver profile
+        if ($own) $pdo->commit();
+    } catch (Throwable $e) {
+        if ($own && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
+    }
     return $id;
 }
 
