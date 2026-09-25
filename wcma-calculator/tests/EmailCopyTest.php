@@ -36,4 +36,31 @@ final class EmailCopyTest extends TestCase
             $this->assertStringNotContainsString('is not a certification', file_get_contents($file), basename($file));
         }
     }
+
+    public function testEmailCopyIsOnlyEverIncludedOnce(): void
+    {
+        // email-copy.php declares top-level functions/consts. Any plain
+        // require/include of it (instead of require_once/include_once)
+        // risks a fatal "Cannot redeclare" error if another already-loaded
+        // file also pulled it in. Every *.php file in the project must use
+        // the "_once" form when referencing email-copy.php.
+        $checkedAnyInclude = false;
+        foreach (glob(__DIR__ . '/../*.php') as $file) {
+            foreach (file($file) as $line) {
+                if (strpos($line, 'email-copy.php') === false) {
+                    continue;
+                }
+                if (preg_match('/\b(require|include)(_once)?\b/', $line) !== 1) {
+                    continue;
+                }
+                $checkedAnyInclude = true;
+                $usesOnce = preg_match('/\b(require|include)_once\b/', $line) === 1;
+                $this->assertTrue(
+                    $usesOnce,
+                    basename($file) . ' must use require_once/include_once for email-copy.php: ' . trim($line)
+                );
+            }
+        }
+        $this->assertTrue($checkedAnyInclude, 'expected to find at least one include of email-copy.php to check');
+    }
 }

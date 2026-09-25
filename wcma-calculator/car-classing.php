@@ -19,7 +19,7 @@ require __DIR__ . '/config.php';
 require __DIR__ . '/email-helpers.php';
 require __DIR__ . '/submission-email-render.php';
 require __DIR__ . '/cars-lib.php';
-require __DIR__ . '/email-copy.php';
+require_once __DIR__ . '/email-copy.php';
 
 $current_user = current_user();
 
@@ -335,10 +335,9 @@ if ($mail_sent) {
         'message' => COPY_DECLARATION_RECEIVED . ' A confirmation has been sent to ' . htmlspecialchars($email) . '.'
     ]);
 } else {
-    http_response_code(500);
     echo json_encode([
-        'success' => false,
-        'message' => 'Failed to send email. Error: ' . htmlspecialchars($last_error)
+        'success' => true,
+        'message' => COPY_DECLARATION_RECEIVED . ' The confirmation email could not be sent.'
     ]);
 }
 

@@ -17,7 +17,7 @@ require __DIR__ . '/pretech-page.php';
 require __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-chips.php';
 require __DIR__ . '/cars-lib.php';
-require __DIR__ . '/email-copy.php';
+require_once __DIR__ . '/email-copy.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
