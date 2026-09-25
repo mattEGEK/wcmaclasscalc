@@ -104,7 +104,9 @@ function buildReadiness(array $in): array {
 
             if ($once("car_tech:$carId")) {
                 $status = techCarStatus($seasonSheets);
-                $latest = $seasonSheets ? (int)end($seasonSheets)['id'] : null;
+                $byId = $seasonSheets;
+                usort($byId, fn(array $a, array $b): int => (int)$a['id'] <=> (int)$b['id']);
+                $latest = $byId ? (int)end($byId)['id'] : null;
                 $items[] = readinessTech('car_tech', 'car', $carId, $status, $season, isset($atTrack["car:$carId"]), [
                     'label' => "Car tech for $n", 'doneLabel' => "Car tech $season for $n: %s", 'pendingLabel' => "Car tech photos for $n are with an inspector",
                     'retakeLabel' => "Retake photos for $n", 'atTrackLabel' => "Car tech for $n: you'll bring it to tech at the track",

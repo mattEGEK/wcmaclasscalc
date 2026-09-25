@@ -116,6 +116,44 @@ final class ReadinessTest extends TestCase
         $this->assertSame([10, 11], array_map(fn($e) => (int)$e['id'], $r['untagged']));
     }
 
+    public function testCarTechAddPhotosUsesTheHighestSheetIdRegardlessOfInputOrder(): void
+    {
+        $older = ['id' => 70, 'car_id' => 3, 'event_id' => 10, 'season' => 2026, 'status' => 'submitted', 'photo_status' => null, 'accepted_via' => null, 'driver_id' => 5];
+        $newer = ['id' => 71, 'car_id' => 3, 'event_id' => 10, 'season' => 2026, 'status' => 'submitted', 'photo_status' => null, 'accepted_via' => null, 'driver_id' => 5];
+        // Passed newest-first, as db_get_user_tech_sheets() (created_at DESC) would.
+        $r = buildReadiness($this->world(['sheets' => [$newer, $older]]));
+        $carTech = $this->items($r)['car_tech:3'];
+        $this->assertSame('tech-sheets.php?action=pretech&id=71', $carTech['action']['url']);
+    }
+
+    public function testTwoCarsTaggedToTheSameEventEachGetTheirOwnItemsAndShareTheSelfDriverGearItem(): void
+    {
+        $r = buildReadiness($this->world([
+            'cars' => [
+                3 => ['id' => 3, 'car_number' => '42', 'year' => '2004', 'make' => 'Honda', 'model' => 'S2000'],
+                4 => ['id' => 4, 'car_number' => '7', 'year' => '2010', 'make' => 'Mazda', 'model' => 'MX-5'],
+            ],
+            'plans' => [['event_id' => 10, 'car_id' => 3], ['event_id' => 10, 'car_id' => 4], ['event_id' => 11, 'car_id' => 3], ['event_id' => 11, 'car_id' => 4]],
+            'declarations' => [
+                3 => ['review_status' => 'accepted', 'submitted_at' => '2026-04-02 10:00:00', 'calculated_class' => 'GT3'],
+                4 => ['review_status' => 'accepted', 'submitted_at' => '2026-04-02 10:00:00', 'calculated_class' => 'GT2'],
+            ],
+        ]));
+        $kinds = array_map(fn($i) => $i['kind'] . ':' . $i['subject_id'], $r['events'][0]['items']);
+        $this->assertSame(
+            ['declaration:3', 'tech_sheet:3', 'car_tech:3', 'gear:5', 'declaration:4', 'tech_sheet:4', 'car_tech:4'],
+            $kinds
+        );
+        $this->assertSame(1, count(array_filter($kinds, fn($k) => $k === 'gear:5')));
+    }
+
+    public function testNeedsChangesDeclarationFromAnEarlierSeasonIsStillTheNeedsChangesTodo(): void
+    {
+        $r = buildReadiness($this->world(['declarations' => [3 => ['review_status' => 'needs_changes', 'submitted_at' => '2025-05-01', 'calculated_class' => 'GT3']]]));
+        $item = $this->items($r)['declaration:3'];
+        $this->assertSame(['todo', 'Your class declaration for #42 needs changes', 'calculator.php?car=3'], [$item['state'], $item['label'], $item['action']['url']]);
+    }
+
     public function testNoBannedWording(): void
     {
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', file_get_contents(__DIR__ . '/../readiness-lib.php'));
