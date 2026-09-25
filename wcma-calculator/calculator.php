@@ -329,8 +329,9 @@ renderPageStart('Class Calculator', 'calculator', ['bodyClass' => 'calculator-pa
 <div id="account-nudge"></div>
 <?php
 renderPageEnd(['scripts' =>
-    '<script type="module" src="js/calculator.js?v=1.4"></script>'
-    . '<script type="module" src="js/form-handler.js?v=1.4"></script>'
-    . '<script type="module" src="js/ui-controller.js?v=1.5"></script>'
+    '<script src="js/declaration-state.js?v=1"></script>'
+    . '<script type="module" src="js/calculator.js?v=1.4"></script>'
+    . '<script type="module" src="js/form-handler.js?v=1.5"></script>'
+    . '<script type="module" src="js/ui-controller.js?v=1.6"></script>'
     . '<script src="js/car-picker.js"></script>'
 ]);

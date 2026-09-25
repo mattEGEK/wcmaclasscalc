@@ -347,9 +347,11 @@ export function clearFormMessage() {
  * Handle form submission
  * @param {HTMLFormElement} form - Form element to submit
  * @param {Function} onSubmitCallback - Callback function called before submission
+ * @param {Object} stashData - Form data to stash in sessionStorage if the user turns out to be
+ *   signed out (401), so it can be restored after they sign in.
  * @returns {Promise} Promise that resolves when submission is complete
  */
-export async function handleFormSubmit(form, onSubmitCallback = null) {
+export async function handleFormSubmit(form, onSubmitCallback = null, stashData = null) {
     console.log('=== Form Submission Started ===');
     console.log('Form action:', form.action);
     console.log('Form method:', form.method);
@@ -496,6 +498,19 @@ export async function handleFormSubmit(form, onSubmitCallback = null) {
             // Optionally reset form after successful submission (commented out for testing)
             // form.reset();
             return result;
+        } else if (response.status === 401) {
+            console.warn('Submission requires sign-in (401).');
+            if (stashData && window.WcmaDeclarationState) {
+                window.WcmaDeclarationState.stashForm(sessionStorage, stashData);
+            }
+            const signInMsg = 'Sign in or create a free account to submit your class declaration. Your entries will be kept.';
+            showFormMessage(signInMsg, 'error');
+            if (window.WcmaDeclarationState) {
+                setTimeout(() => {
+                    window.location.href = window.WcmaDeclarationState.signInUrlForRestore();
+                }, 1500);
+            }
+            throw new Error(signInMsg);
         } else {
             // Handle server-side validation errors
             console.error('Submission failed. Response:', result);

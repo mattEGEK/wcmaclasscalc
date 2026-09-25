@@ -67,7 +67,8 @@ function db_init(PDO $pdo): void {
             review_status           TEXT NOT NULL DEFAULT 'submitted',
             reviewer_note           TEXT,
             reviewed_by_user_id     INTEGER,
-            reviewed_at             DATETIME
+            reviewed_at             DATETIME,
+            form_data               TEXT
         )
     ");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_submissions_car ON submissions (car_id)");
@@ -320,6 +321,7 @@ function db_insert_submission(PDO $pdo, array $data): int {
     $own = !$pdo->inTransaction();
     if ($own) $pdo->beginTransaction();
     try {
+        $data[':form_data'] ??= null;
         $pdo->prepare("
             INSERT INTO submissions (
                 submitted_at, name, email, year, make, model, comments,
@@ -329,7 +331,7 @@ function db_insert_submission(PDO $pdo, array $data): int {
                 chassis_value, body_mods_value, transmission_value,
                 drivetrain_value, tires_value, brake_suspension_value,
                 weight_factor, modification_factor, base_ratio, modified_ratio,
-                calculated_class, email_sent, user_id, car_id, review_status
+                calculated_class, email_sent, user_id, car_id, review_status, form_data
             ) VALUES (
                 :submitted_at, :name, :email, :year, :make, :model, :comments,
                 :competition_weight, :declared_hp, :dyno_hp,
@@ -338,7 +340,7 @@ function db_insert_submission(PDO $pdo, array $data): int {
                 :chassis_value, :body_mods_value, :transmission_value,
                 :drivetrain_value, :tires_value, :brake_suspension_value,
                 :weight_factor, :modification_factor, :base_ratio, :modified_ratio,
-                :calculated_class, 0, :user_id, :car_id, 'submitted'
+                :calculated_class, 0, :user_id, :car_id, 'submitted', :form_data
             )
         ")->execute($data);
         $id = (int)$pdo->lastInsertId();
@@ -424,6 +426,15 @@ function db_get_car_current_declaration(PDO $pdo, int $carId): ?array {
     $stmt = $pdo->prepare("SELECT * FROM submissions WHERE car_id = :c AND review_status != 'superseded' ORDER BY submitted_at DESC, id DESC LIMIT 1");
     $stmt->execute([':c' => $carId]);
     return $stmt->fetch() ?: null;
+}
+
+/** The calculator inputs of a car's current declaration, for pre-filling a re-declaration. */
+function db_get_car_declaration_form(PDO $pdo, int $userId, int $carId): ?array {
+    if (db_get_user_car($pdo, $userId, $carId) === null) return null;
+    $decl = db_get_car_current_declaration($pdo, $carId);
+    if ($decl === null || $decl['form_data'] === null) return null;
+    $data = json_decode((string)$decl['form_data'], true);
+    return is_array($data) ? $data : null;
 }
 
 function db_get_car_declarations(PDO $pdo, int $carId): array {

@@ -1265,6 +1265,15 @@ async function loadConfiguration(draftId) {
         return;
     }
 
+    applyFormData(data, 'Configuration loaded successfully!');
+}
+
+/**
+ * Populate all form fields from a saved/loaded/declared form-data object, recalculate, and
+ * show a message. Shared by "Load Saved", pre-fill from a car's declaration, and restoring a
+ * signed-out visitor's stashed entries after sign-in.
+ */
+function applyFormData(data, message) {
     // Populate all form fields (basic fields first)
     if (document.getElementById('name')) document.getElementById('name').value = data.name || '';
     if (document.getElementById('email')) document.getElementById('email').value = data.email || '';
@@ -1309,7 +1318,7 @@ async function loadConfiguration(draftId) {
         updateFormData();
         handleCalculationUpdate();
         closeLoadModal();
-        showMessage('Configuration loaded successfully!', 'success');
+        showMessage(message, 'success');
         markFormClean();
         hideSaveNudge();
     }, 100);
@@ -1570,9 +1579,20 @@ function initializeEventListeners() {
         hiddenResults.value = JSON.stringify(results);
         form.appendChild(hiddenResults);
 
+        // The full form state, so a signed-out visitor's entries can be stashed and restored
+        // after sign-in, and so a signed-in re-declaration can pre-fill next time.
+        const allFormData = getAllFormDataForSave();
+        const existingFormData = form.querySelector('input[name="form_data"]');
+        if (existingFormData) existingFormData.remove();
+        const hiddenFormData = document.createElement('input');
+        hiddenFormData.type = 'hidden';
+        hiddenFormData.name = 'form_data';
+        hiddenFormData.value = JSON.stringify(allFormData);
+        form.appendChild(hiddenFormData);
+
         try {
             console.log('Calling handleFormSubmit...');
-            await handleFormSubmit(form);
+            await handleFormSubmit(form, null, allFormData);
             console.log('Form submission completed successfully');
             markFormClean();
             hideSaveNudge();
@@ -1775,7 +1795,8 @@ function initialize() {
         updateResultsDisplay();
 
         // If arriving from a "My Cars" draft Edit link, load that draft
-        const draftIdParam = new URLSearchParams(window.location.search).get('draft');
+        const params = new URLSearchParams(window.location.search);
+        const draftIdParam = params.get('draft');
         if (draftIdParam) {
             getAccountCsrfToken().then(token => {
                 if (!token) {
@@ -1785,6 +1806,27 @@ function initialize() {
                 }
                 loadConfiguration(draftIdParam);
             });
+        }
+
+        // Re-declaring for a known car: pre-fill from that car's current declaration.
+        const carIdParam = params.get('car');
+        if (carIdParam) {
+            fetch(`cars.php?action=declaration&car_id=${encodeURIComponent(carIdParam)}`, { credentials: 'same-origin' })
+                .then(res => res.json())
+                .then(result => {
+                    if (result && result.form_data) {
+                        applyFormData(result.form_data, 'Loaded your current class declaration for this car. Change anything that is different and submit.');
+                    }
+                })
+                .catch(e => console.error('Error loading car declaration:', e));
+        }
+
+        // Coming back from sign-in after a guest's submission was stashed: restore their entries.
+        if (params.get('restore') === '1' && window.WcmaDeclarationState) {
+            const data = window.WcmaDeclarationState.takeStashedForm(sessionStorage);
+            if (data) {
+                applyFormData(data, 'Your entries are back. Check them and submit.');
+            }
         }
     };
     

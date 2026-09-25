@@ -225,6 +225,7 @@ $submission_id = db_insert_submission($pdo, [
     ':calculated_class'       => $calculated_class ?: null,
     ':user_id'                => (int)$current_user['id'],
     ':car_id'                 => $car['car_id'],
+    ':form_data'              => (is_array(json_decode($_POST['form_data'] ?? '', true)) ? $_POST['form_data'] : null),
 ]);
 
 // Move uploaded files to uploads/{submission_id}/

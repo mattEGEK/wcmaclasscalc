@@ -16,6 +16,12 @@ if ($user === null) {
 
 $pdo = db_connect();
 db_init($pdo);
+
+if (($_GET['action'] ?? 'list') === 'declaration') {
+    echo json_encode(['success' => true, 'form_data' => db_get_car_declaration_form($pdo, (int)$user['id'], (int)($_GET['car_id'] ?? 0))]);
+    exit;
+}
+
 $current = db_get_user_current_declarations($pdo, (int)$user['id']);
 $cars = array_map(
     fn(array $c): array => carsPublicShape($c, $current[(int)$c['id']] ?? null),
