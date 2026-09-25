@@ -11,17 +11,21 @@ final class DbGearTest extends TestCase
     }
 
     private function gear(PDO $pdo, int $owner, string $name = 'Jane Racer', int $season = 2026): int {
-        return db_insert_gear_record($pdo, $owner, $name, strtolower($name), null, $season);
+        return db_insert_gear_record($pdo, db_find_or_create_driver($pdo, $owner, $name), $season);
     }
 
     public function testInsertGetAndFind(): void
     {
         $pdo = make_temp_pdo();
         [$owner] = $this->users($pdo);
-        $id = db_insert_gear_record($pdo, $owner, 'Jane Racer', 'jane racer', 'WCMA-123', 2026);
+        $driverId = db_create_driver($pdo, $owner, 'Jane Racer', 'WCMA-123');
+        $id = db_insert_gear_record($pdo, $driverId, 2026);
 
         $row = db_get_gear_record($pdo, $id);
+        $this->assertSame($driverId, (int)$row['driver_id']);
+        $this->assertSame($owner, (int)$row['owner_user_id']);
         $this->assertSame('Jane Racer', $row['driver_name']);
+        $this->assertSame('jane racer', $row['driver_name_norm']);
         $this->assertSame('WCMA-123', $row['licence_no']);
         $this->assertSame(2026, (int)$row['season']);
         $this->assertSame('open', $row['status']);

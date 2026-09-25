@@ -233,10 +233,7 @@ function db_init(PDO $pdo): void {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS gear_records (
             id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            owner_user_id       INTEGER NOT NULL,
-            driver_name         TEXT NOT NULL,
-            driver_name_norm    TEXT NOT NULL,
-            licence_no          TEXT,
+            driver_id           INTEGER NOT NULL,
             season              INTEGER NOT NULL,
             photo_status        TEXT,
             status              TEXT NOT NULL DEFAULT 'open',
@@ -245,7 +242,7 @@ function db_init(PDO $pdo): void {
             reviewed_at         DATETIME,
             created_at          DATETIME NOT NULL,
             updated_at          DATETIME NOT NULL,
-            UNIQUE (owner_user_id, driver_name_norm, season)
+            UNIQUE (driver_id, season)
         )
     ");
 
@@ -1249,30 +1246,34 @@ function db_set_all_photos_review_status(PDO $pdo, string $subjectType, int $sub
     ")->execute([':st' => $status, ':now' => date('Y-m-d H:i:s'), ':t' => $subjectType, ':s' => $subjectId]);
 }
 
-function db_insert_gear_record(PDO $pdo, int $ownerId, string $driverName, string $driverNameNorm, ?string $licenceNo, int $season): int {
+/** Gear rows carry their driver's identity under the column names every consumer already uses. */
+const DB_GEAR_SELECT = "
+    SELECT g.*, d.owner_user_id AS owner_user_id, d.name AS driver_name,
+           d.name_norm AS driver_name_norm, d.licence_no AS licence_no
+    FROM gear_records g JOIN drivers d ON d.id = g.driver_id";
+
+function db_insert_gear_record(PDO $pdo, int $driverId, int $season): int {
     $now = date('Y-m-d H:i:s');
-    $pdo->prepare("
-        INSERT INTO gear_records (owner_user_id, driver_name, driver_name_norm, licence_no, season, created_at, updated_at)
-        VALUES (:o, :n, :norm, :l, :s, :now, :now)
-    ")->execute([':o' => $ownerId, ':n' => $driverName, ':norm' => $driverNameNorm, ':l' => $licenceNo, ':s' => $season, ':now' => $now]);
+    $pdo->prepare("INSERT INTO gear_records (driver_id, season, created_at, updated_at) VALUES (:d, :s, :now, :now)")
+        ->execute([':d' => $driverId, ':s' => $season, ':now' => $now]);
     return (int)$pdo->lastInsertId();
 }
 
 function db_get_gear_record(PDO $pdo, int $id): ?array {
-    $stmt = $pdo->prepare("SELECT * FROM gear_records WHERE id = :id");
+    $stmt = $pdo->prepare(DB_GEAR_SELECT . " WHERE g.id = :id");
     $stmt->execute([':id' => $id]);
     return $stmt->fetch() ?: null;
 }
 
 function db_find_gear_record(PDO $pdo, int $ownerId, string $driverNameNorm, int $season): ?array {
-    $stmt = $pdo->prepare("SELECT * FROM gear_records WHERE owner_user_id = :o AND driver_name_norm = :n AND season = :s");
+    $stmt = $pdo->prepare(DB_GEAR_SELECT . " WHERE d.owner_user_id = :o AND d.name_norm = :n AND g.season = :s");
     $stmt->execute([':o' => $ownerId, ':n' => $driverNameNorm, ':s' => $season]);
     return $stmt->fetch() ?: null;
 }
 
 /** All of one owner's gear records, newest season first, then by driver name. */
 function db_get_user_gear_records(PDO $pdo, int $ownerId): array {
-    $stmt = $pdo->prepare("SELECT * FROM gear_records WHERE owner_user_id = :o ORDER BY season DESC, driver_name ASC, id ASC");
+    $stmt = $pdo->prepare(DB_GEAR_SELECT . " WHERE d.owner_user_id = :o ORDER BY g.season DESC, d.name ASC, g.id ASC");
     $stmt->execute([':o' => $ownerId]);
     return $stmt->fetchAll();
 }
@@ -1280,9 +1281,10 @@ function db_get_user_gear_records(PDO $pdo, int $ownerId): array {
 /** Every owner's records for a season, with the owner's name and email, by driver name. */
 function db_get_gear_records_for_season(PDO $pdo, int $season): array {
     $stmt = $pdo->prepare("
-        SELECT g.*, u.name AS owner_name, u.email AS owner_email
-        FROM gear_records g LEFT JOIN users u ON u.id = g.owner_user_id
-        WHERE g.season = :s ORDER BY g.driver_name ASC, g.id ASC
+        SELECT g.*, d.owner_user_id AS owner_user_id, d.name AS driver_name, d.name_norm AS driver_name_norm,
+               d.licence_no AS licence_no, u.name AS owner_name, u.email AS owner_email
+        FROM gear_records g JOIN drivers d ON d.id = g.driver_id LEFT JOIN users u ON u.id = d.owner_user_id
+        WHERE g.season = :s ORDER BY d.name ASC, g.id ASC
     ");
     $stmt->execute([':s' => $season]);
     return $stmt->fetchAll();

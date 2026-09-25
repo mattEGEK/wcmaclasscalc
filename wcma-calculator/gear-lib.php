@@ -8,9 +8,8 @@ require_once __DIR__ . '/inspection-lib.php';
 require_once __DIR__ . '/pretech-lib.php';   // pretechPlural(), pretechCapText()
 require_once __DIR__ . '/tech-status.php';   // techCarStatusBadgeClass()
 
-/** Collapse whitespace, trim, lowercase: the identity of a driver name within an owner and season. */
 function gearNameNorm(string $name): string {
-    return strtolower(trim((string)preg_replace('/\s+/', ' ', $name)));
+    return db_driver_name_norm($name);
 }
 
 function gearSeasonNow(): int {
@@ -98,7 +97,9 @@ function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $
         return $fail('You already have a gear record for ' . $name . ' this season.');
     }
     try {
-        $id = db_insert_gear_record($pdo, $ownerId, $name, $norm, $licence !== '' ? $licence : null, $season);
+        $driverId = db_find_or_create_driver($pdo, $ownerId, $name);
+        if ($licence !== '') db_update_driver_licence($pdo, (int)$driverId, $licence);
+        $id = db_insert_gear_record($pdo, (int)$driverId, $season);
     } catch (PDOException $e) {
         return $fail('You already have a gear record for ' . $name . ' this season.');   // lost a race with a duplicate request
     }
