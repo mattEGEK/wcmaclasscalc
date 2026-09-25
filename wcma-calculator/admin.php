@@ -18,6 +18,8 @@ require __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-email.php';
 require __DIR__ . '/gear-chips.php';
 require __DIR__ . '/admin-gear.php';
+require __DIR__ . '/season-links-lib.php';
+require __DIR__ . '/admin-season-links.php';
 require __DIR__ . '/tech-sheet-render.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -300,6 +302,25 @@ switch ($action) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=feedback'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleFeedbackRetry($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
+    case 'season-links':
+        requireAuth($minRole);
+        handleSeasonLinksList($pdo);
+        break;
+
+    case 'season-link-save':
+        requireAuth($minRole);
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=season-links'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleSeasonLinkSave($pdo, (int)($_POST['id'] ?? 0));
+        break;
+
+    case 'season-link-delete':
+        requireAuth($minRole);
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=season-links'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleSeasonLinkDelete($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     default:

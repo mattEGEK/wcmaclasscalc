@@ -1370,3 +1370,24 @@ function db_get_drivers_for_sheets(PDO $pdo, array $sheetIds): array {
     }
     return $map;
 }
+
+// ── Season links ──────────────────────────────────────────────────────────────
+
+function db_get_season_links(PDO $pdo, bool $activeOnly = false): array {
+    return $pdo->query("SELECT * FROM season_links" . ($activeOnly ? " WHERE active = 1" : "") . " ORDER BY sort_order ASC, id ASC")->fetchAll();
+}
+
+function db_create_season_link(PDO $pdo, string $label, string $url, int $sortOrder): int {
+    $pdo->prepare("INSERT INTO season_links (label, url, sort_order) VALUES (:l, :u, :s)")
+        ->execute([':l' => $label, ':u' => $url, ':s' => $sortOrder]);
+    return (int)$pdo->lastInsertId();
+}
+
+function db_update_season_link(PDO $pdo, int $id, string $label, string $url, int $sortOrder, bool $active): void {
+    $pdo->prepare("UPDATE season_links SET label = :l, url = :u, sort_order = :s, active = :a WHERE id = :id")
+        ->execute([':l' => $label, ':u' => $url, ':s' => $sortOrder, ':a' => $active ? 1 : 0, ':id' => $id]);
+}
+
+function db_delete_season_link(PDO $pdo, int $id): void {
+    $pdo->prepare("DELETE FROM season_links WHERE id = :id")->execute([':id' => $id]);
+}
