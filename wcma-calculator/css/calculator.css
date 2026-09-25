@@ -2091,3 +2091,7 @@ textarea.error {
 #gear-add-form label { display: block; margin: 0.5rem 0 0.15rem; font-size: 0.9rem; }
 #gear-add-form input[type="text"] { width: 100%; max-width: 420px; }
 #gear-table td.actions a { white-space: nowrap; }
+
+/* ── Gear chips (per-driver gear status on sheets and the roster) ───────── */
+.gear-chips { list-style: none; margin: 0.25rem 0 0; padding: 0; }
+.gear-chip { margin: 0.15rem 0; font-size: 0.85rem; }

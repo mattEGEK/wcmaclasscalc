@@ -46,6 +46,17 @@ final class GearPageTest extends TestCase
         return (string)ob_get_clean();
     }
 
+    public function testAddFormCanBePrefilledFromTheQueryAndEscapesIt(): void
+    {
+        ob_start();
+        renderGearListPage([], 2026, 'csrf-token-1', null, 'Sam "<Coach>"');
+        $html = (string)ob_get_clean();
+        $this->assertStringContainsString('name="driver_name" maxlength="100" required value="Sam &quot;&lt;Coach&gt;&quot;"', $html);
+
+        $plain = $this->renderList([]);
+        $this->assertStringContainsString('name="driver_name" maxlength="100" required value=""', $plain);
+    }
+
     private function renderPretech(array $gear, array $snapshot, ?array $flash = null): string {
         ob_start();
         renderGearPretechPage($gear, $snapshot, 'csrf-token-1', $flash);

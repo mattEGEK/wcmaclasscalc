@@ -6,7 +6,7 @@
 // loaded photo-requirements.php, inspection-lib.php, pretech-page.php (pretechRenderCard),
 // gear-lib.php and view_helpers.php.
 
-function renderGearListPage(array $records, int $season, string $csrf, ?array $flash): void {
+function renderGearListPage(array $records, int $season, string $csrf, ?array $flash, ?string $prefillName = null): void {
     $current = array_values(array_filter($records, fn(array $g): bool => (int)$g['season'] === $season));
     $currentNames = array_map(fn(array $g): string => $g['driver_name_norm'], $current);
     $renewable = [];
@@ -38,7 +38,7 @@ function renderGearListPage(array $records, int $season, string $csrf, ?array $f
     <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
     <h3>Add a driver</h3>
     <label for="gear-driver-name">Driver name</label>
-    <input type="text" id="gear-driver-name" name="driver_name" maxlength="100" required>
+    <input type="text" id="gear-driver-name" name="driver_name" maxlength="100" required value="<?= h((string)$prefillName) ?>">
     <label for="gear-licence">WCMA licence number (optional)</label>
     <input type="text" id="gear-licence" name="licence_no" maxlength="40">
     <button type="submit" class="btn btn-primary" style="margin-top:.75rem">Add driver</button>

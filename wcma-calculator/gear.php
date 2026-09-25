@@ -89,7 +89,8 @@ switch ($action) {
 }
 
 function handleGearList(PDO $pdo, array $user): void {
-    renderGearListPage(db_get_user_gear_records($pdo, (int)$user['id']), gearSeasonNow(), generateCsrfToken(), getFlash());
+    $prefill = is_string($_GET['name'] ?? null) ? mb_substr(trim($_GET['name']), 0, 100) : null;
+    renderGearListPage(db_get_user_gear_records($pdo, (int)$user['id']), gearSeasonNow(), generateCsrfToken(), getFlash(), $prefill);
 }
 
 function handleGearAdd(PDO $pdo, array $user): void {
