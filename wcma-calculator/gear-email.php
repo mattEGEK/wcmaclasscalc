@@ -4,7 +4,8 @@
 // Emails for the driver gear pre-tech workflow: pure renderers (branded like the car pre-tech
 // emails, logo via cid:wcma-logo, photos never embedded) and a notifier with an injectable send
 // function. Callers must have loaded db.php first.
-require_once __DIR__ . '/pretech-email.php';   // pretechEmailWrap/Para/Link, view_helpers, photo-requirements, disclaimer
+require_once __DIR__ . '/pretech-email.php';   // pretechEmailWrap/Para/Link, view_helpers, photo-requirements
+require_once __DIR__ . '/email-copy.php';
 
 function gearEmailDriverLine(array $gear): string {
     return $gear['driver_name'] . ' — ' . (int)($gear['season'] ?? date('Y'));
@@ -60,33 +61,29 @@ function gearEmailSentBack(array $gear, array $retakes, string $pageUrl): array 
 }
 
 /** @return array{subject: string, html: string, text: string} */
-function gearEmailAccepted(array $gear, string $pageUrl, string $adminUrl, bool $forClub): array {
+function gearEmailAccepted(array $gear, string $pageUrl, string $adminUrl, bool $forClub, ?array $reviewer = null, string $via = 'photos'): array {
     $driver = gearEmailDriverLine($gear);
     $season = (int)($gear['season'] ?? date('Y'));
+    $byLine = reviewedByLine($reviewer);
+    $what = $via === 'in_person'
+        ? $driver . '\'s gear was checked in person and is teched for ' . $season . '.'
+        : 'The gear pre-tech photos for ' . $driver . ' were reviewed and accepted. This driver\'s gear is pre-teched for ' . $season . '.';
 
     if ($forClub) {
-        $lines = [
-            'The gear pre-tech photos for ' . $driver . ' were reviewed and accepted. This driver\'s gear is pre-teched for ' . $season . '.',
-            'No gear check is needed at the track.',
-            TECH_ACCEPTANCE_DISCLAIMER,
-            'Review page:', $adminUrl,
-        ];
+        $lines = array_values(array_filter([$what, 'No gear check is needed at the track.', $byLine, 'Review page:', $adminUrl]));
+        $body = pretechEmailPara($what) . pretechEmailPara('No gear check is needed at the track.');
         $link = pretechEmailLink($adminUrl, 'Open the review page');
     } else {
-        $lines = [
-            'The gear pre-tech photos for ' . $driver . ' were reviewed and accepted. This driver\'s gear is pre-teched for ' . $season . '.',
-            'You do not need your gear checked at the track: just collect your decals at the event.',
-            TECH_ACCEPTANCE_DISCLAIMER,
-            'Your gear page:', $pageUrl,
-        ];
+        $note = 'You do not need your gear checked at the track: just collect your decals at the event.';
+        $lines = array_values(array_filter([COPY_GEAR_ACCEPTED, $byLine, $what, $note, 'Your gear page:', $pageUrl]));
+        $body = pretechEmailPara(COPY_GEAR_ACCEPTED) . pretechEmailPara($what) . pretechEmailPara($note);
         $link = pretechEmailLink($pageUrl, 'View your gear page');
     }
-    $html = pretechEmailPara($lines[0]) . pretechEmailPara($lines[1])
-        . '<p style="font-size:0.85rem;color:#555">' . h(TECH_ACCEPTANCE_DISCLAIMER) . '</p>' . $link;
+    if ($byLine !== '') $body .= pretechEmailPara($byLine);
 
     return [
-        'subject' => 'WCMA Gear Pre-Tech Accepted — ' . $driver,
-        'html' => pretechEmailWrap('GEAR PRE-TECH ACCEPTED', $html),
+        'subject' => 'WCMA Gear Accepted — ' . $driver,
+        'html' => pretechEmailWrap('GEAR ACCEPTED', $body . $link),
         'text' => implode("\n\n", $lines) . "\n",
     ];
 }
@@ -128,8 +125,11 @@ function gearNotify(PDO $pdo, string $kind, array $gear, string $baseUrl, array 
                 if ($ownerTo) $messages[] = [$ownerTo, gearEmailSentBack($gear, $list, $pageUrl)];
                 break;
             case 'accepted':
-                if ($ownerTo) $messages[] = [$ownerTo, gearEmailAccepted($gear, $pageUrl, $adminUrl, false)];
-                $messages[] = [$clubTo, gearEmailAccepted($gear, $pageUrl, $adminUrl, true)];
+            case 'accepted_in_person':
+                $reviewer = !empty($gear['reviewed_by_user_id']) ? db_find_user_by_id($pdo, (int)$gear['reviewed_by_user_id']) : null;
+                $via = $kind === 'accepted_in_person' ? 'in_person' : 'photos';
+                if ($ownerTo) $messages[] = [$ownerTo, gearEmailAccepted($gear, $pageUrl, $adminUrl, false, $reviewer, $via)];
+                $messages[] = [$clubTo, gearEmailAccepted($gear, $pageUrl, $adminUrl, true, $reviewer, $via)];
                 break;
             default:
                 return false;

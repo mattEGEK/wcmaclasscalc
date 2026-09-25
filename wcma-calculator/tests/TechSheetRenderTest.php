@@ -84,7 +84,7 @@ final class TechSheetRenderTest extends TestCase
         $this->assertStringContainsString('Co-Driver A', $html);
     }
 
-    public function testAcceptedSheetShowsHowAndWhenAndTheDisclaimer(): void
+    public function testAcceptedSheetShowsHowAndWhen(): void
     {
         require_once __DIR__ . '/../tech-sheet-render.php';
         $sheet = $this->sampleSheet();
@@ -93,7 +93,6 @@ final class TechSheetRenderTest extends TestCase
         $sheet['reviewed_at'] = '2026-05-10 09:30:00';
         $html = renderTechSheetHtml($sheet, [], ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']);
         $this->assertStringContainsString('Reviewed in person on May 10, 2026', $html);
-        $this->assertStringContainsString('It is not a certification that the vehicle or equipment is safe.', $html);
 
         $sheet['accepted_via'] = 'photos';
         $remote = renderTechSheetHtml($sheet, [], ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']);

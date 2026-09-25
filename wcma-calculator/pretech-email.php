@@ -6,7 +6,7 @@
 // function. Callers must have loaded db.php first.
 require_once __DIR__ . '/view_helpers.php';        // h()
 require_once __DIR__ . '/photo-requirements.php';  // photoRequirementByKey()
-require_once __DIR__ . '/tech-sheet-data.php';     // TECH_ACCEPTANCE_DISCLAIMER
+require_once __DIR__ . '/email-copy.php';
 
 function pretechEmailCarLine(array $sheet, array $event): string {
     $when = !empty($event['event_date']) ? ', ' . date('F j, Y', strtotime($event['event_date'])) : '';
@@ -81,28 +81,31 @@ function pretechEmailSentBack(array $sheet, array $event, array $retakes, string
 }
 
 /** @return array{subject: string, html: string, text: string} */
-function pretechEmailAccepted(array $sheet, array $event, string $viewUrl, string $adminUrl, bool $forClub): array {
+function pretechEmailAccepted(array $sheet, array $event, string $viewUrl, string $adminUrl, bool $forClub, ?array $reviewer = null, string $via = 'photos'): array {
     $car = pretechEmailCarLine($sheet, $event);
     $season = (int)($sheet['season'] ?? date('Y'));
-    $accepted = 'The pre-tech photos for ' . $car . ' were reviewed and accepted. This car is pre-teched for ' . $season . '.';
+    $byLine = reviewedByLine($reviewer);
+    $inPerson = $via === 'in_person';
+    $what = $inPerson
+        ? $car . ' was inspected in person and is teched for ' . $season . '.'
+        : 'The pre-tech photos for ' . $car . ' were reviewed and accepted. This car is pre-teched for ' . $season . '.';
+
     if ($forClub) {
-        $note = 'No in-person inspection is needed; the competitor will collect their decals at the event.';
-        $lines = [$accepted . ' ' . $note, TECH_ACCEPTANCE_DISCLAIMER, 'Open the review page:', $adminUrl];
+        $note = $inPerson ? 'The competitor collects their decals at the event.' : 'No in-person inspection is needed; the competitor will collect their decals at the event.';
+        $lines = array_values(array_filter([$what . ' ' . $note, $byLine, 'Open the review page:', $adminUrl]));
         $link = pretechEmailLink($adminUrl, 'Open the review page');
-        $first = pretechEmailPara($accepted . ' ' . $note);
+        $body = pretechEmailPara($what . ' ' . $note);
     } else {
-        $note = 'You do not need to be inspected at the track: just collect your decals at the event.';
-        $lines = [$accepted, $note, TECH_ACCEPTANCE_DISCLAIMER, 'Your tech sheet:', $viewUrl];
+        $note = $inPerson ? 'Collect your decals at the event.' : 'You do not need to be inspected at the track: just collect your decals at the event.';
+        $lines = array_values(array_filter([COPY_TECH_SHEET_ACCEPTED, $byLine, $what, $note, 'Your tech sheet:', $viewUrl]));
         $link = pretechEmailLink($viewUrl, 'View your tech sheet');
-        $first = pretechEmailPara($accepted) . pretechEmailPara($note);
+        $body = pretechEmailPara(COPY_TECH_SHEET_ACCEPTED) . pretechEmailPara($what) . pretechEmailPara($note);
     }
-    $html = $first
-        . '<p style="font-size:0.85rem;color:#555">' . h(TECH_ACCEPTANCE_DISCLAIMER) . '</p>'
-        . $link;
+    if ($byLine !== '') $body .= pretechEmailPara($byLine);
 
     return [
-        'subject' => 'WCMA Pre-Tech Accepted — Car #' . $sheet['car_number'] . ' — ' . ($event['name'] ?? ''),
-        'html' => pretechEmailWrap('PRE-TECH ACCEPTED', $html),
+        'subject' => ($inPerson ? 'WCMA Tech Sheet Accepted' : 'WCMA Pre-Tech Accepted') . ' — Car #' . $sheet['car_number'] . ' — ' . ($event['name'] ?? ''),
+        'html' => pretechEmailWrap($inPerson ? 'TECH SHEET ACCEPTED' : 'PRE-TECH ACCEPTED', $body . $link),
         'text' => implode("\n\n", $lines) . "\n",
     ];
 }
@@ -144,8 +147,11 @@ function pretechNotify(PDO $pdo, string $kind, array $sheet, array $event, strin
                 if ($competitor) $messages[] = [$competitor, pretechEmailSentBack($sheet, $event, $list, $pageUrl)];
                 break;
             case 'accepted':
-                if ($competitor) $messages[] = [$competitor, pretechEmailAccepted($sheet, $event, $viewUrl, $adminUrl, false)];
-                $messages[] = [$clubTo, pretechEmailAccepted($sheet, $event, $viewUrl, $adminUrl, true)];
+            case 'accepted_in_person':
+                $reviewer = !empty($sheet['reviewed_by_user_id']) ? db_find_user_by_id($pdo, (int)$sheet['reviewed_by_user_id']) : null;
+                $via = $kind === 'accepted_in_person' ? 'in_person' : 'photos';
+                if ($competitor) $messages[] = [$competitor, pretechEmailAccepted($sheet, $event, $viewUrl, $adminUrl, false, $reviewer, $via)];
+                $messages[] = [$clubTo, pretechEmailAccepted($sheet, $event, $viewUrl, $adminUrl, true, $reviewer, $via)];
                 break;
             default:
                 return false;

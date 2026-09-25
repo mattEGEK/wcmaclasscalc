@@ -86,6 +86,15 @@ final class SubmissionEmailRenderTest extends TestCase
         }
     }
 
+    public function testOptionalHeadlineLeadsTheEmail(): void
+    {
+        $html = renderSubmissionEmailHtml($this->sample(), null, false, 'Class declaration received. An inspector will review and respond.');
+        $this->assertStringContainsString('Class declaration received. An inspector will review and respond.', $html);
+        $this->assertLessThan(strpos($html, 'CLASS DECLARATION</h1>'), strpos($html, 'Class declaration received'));
+        $this->assertStringStartsWith('Class declaration received.', renderSubmissionEmailText($this->sample(), false, 'Class declaration received. An inspector will review and respond.'));
+        $this->assertStringNotContainsString('received', renderSubmissionEmailHtml($this->sample()));
+    }
+
     public function testBrakeLabelsMatchJavascriptTable(): void
     {
         $js = file_get_contents(__DIR__ . '/../js/modifiers.js');

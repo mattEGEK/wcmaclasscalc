@@ -97,7 +97,12 @@ function gearAdminBaseUrl(): string {
 function handleGearAdminAcceptInPerson(PDO $pdo, int $id): void {
     $user = current_user();
     $r = gearAcceptInPerson($pdo, $id, (int)$user['id']);
-    setFlash($r['ok'] ? 'Gear accepted (teched in person).' : $r['error'], $r['ok'] ? 'success' : 'error');
+    if ($r['ok']) {
+        $sent = gearNotify($pdo, 'accepted_in_person', db_get_gear_record($pdo, $id), gearAdminBaseUrl(), ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend');
+        setFlash('Gear accepted (teched in person).' . ($sent ? ' The driver\'s account holder was emailed.' : ' The email could not be sent.'), $sent ? 'success' : 'error');
+    } else {
+        setFlash($r['error'], 'error');
+    }
     header('Location: admin.php?action=gear-record&id=' . $id);
     exit;
 }
@@ -274,7 +279,12 @@ function handleGearCreateAccept(PDO $pdo): void {
 
     $user = current_user();
     $result = gearCreateAndAcceptInPerson($pdo, $sheet, db_get_tech_sheet_drivers($pdo, $sheetId), $driverNumber, (int)$user['id']);
-    setFlash($result['ok'] ? 'Gear accepted (teched in person).' : $result['error'], $result['ok'] ? 'success' : 'error');
+    if ($result['ok']) {
+        $sent = gearNotify($pdo, 'accepted_in_person', db_get_gear_record($pdo, (int)$result['id']), gearAdminBaseUrl(), ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend');
+        setFlash('Gear accepted (teched in person).' . ($sent ? ' The driver\'s account holder was emailed.' : ' The email could not be sent.'), $sent ? 'success' : 'error');
+    } else {
+        setFlash($result['error'], 'error');
+    }
 
     if (($_POST['back'] ?? '') === 'sheet') {
         header('Location: admin.php?action=tech-sheet&id=' . $sheetId);

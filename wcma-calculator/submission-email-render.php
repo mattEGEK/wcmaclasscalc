@@ -96,13 +96,14 @@ function submissionEmailSectionTable(array $rows): string {
  * @param array       $s        Submission row (DB column names)
  * @param string|null $logoSrc  <img src> for the WCMA logo (see emailLogoSrc())
  */
-function renderSubmissionEmailHtml(array $s, ?string $logoSrc = null, bool $isResend = false): string {
+function renderSubmissionEmailHtml(array $s, ?string $logoSrc = null, bool $isResend = false, ?string $headline = null): string {
     $sections = submissionEmailSections($s);
     $brake = submissionBrakeDescriptions($s['brake_suspension'] ?? []);
     $factors = $sections['factors'];
     if ($brake) $factors[] = ['Brake & Suspension', implode("\n", $brake)];
 
     $out = '<div style="font-family:Arial,sans-serif;color:#222;max-width:800px">';
+    if ($headline !== null) $out .= '<p style="font-size:1.1rem;font-weight:bold">' . h($headline) . '</p>';
     if ($logoSrc) {
         $out .= '<div style="text-align:center;margin-bottom:0.5rem"><img src="' . h($logoSrc) . '" alt="WCMA Logo" style="max-height:70px"></div>';
     }
@@ -127,11 +128,11 @@ function renderSubmissionEmailHtml(array $s, ?string $logoSrc = null, bool $isRe
 }
 
 /** Plain-text alternative to renderSubmissionEmailHtml(). */
-function renderSubmissionEmailText(array $s, bool $isResend = false): string {
+function renderSubmissionEmailText(array $s, bool $isResend = false, ?string $headline = null): string {
     $sections = submissionEmailSections($s);
     $brake = submissionBrakeDescriptions($s['brake_suspension'] ?? []);
 
-    $t = "WCMA CLASS DECLARATION\n" . submissionEmailSubmittedLine($s, $isResend) . "\n";
+    $t = ($headline !== null ? $headline . "\n\n" : '') . "WCMA CLASS DECLARATION\n" . submissionEmailSubmittedLine($s, $isResend) . "\n";
     if (!empty($s['calculated_class'])) $t .= "Calculated Class: {$s['calculated_class']}\n";
 
     $block = static function (string $title, array $rows): string {

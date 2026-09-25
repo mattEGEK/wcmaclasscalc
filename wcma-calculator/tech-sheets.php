@@ -17,6 +17,7 @@ require __DIR__ . '/pretech-page.php';
 require __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-chips.php';
 require __DIR__ . '/cars-lib.php';
+require __DIR__ . '/email-copy.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -517,13 +518,13 @@ function sendTechSheetConfirmationEmail(array $sheet, array $drivers, array $eve
         $mail = buildTechSheetMailer();
         // Built before rendering: the resolvers below attach embedded images
         // (CIDs) directly to this $mail instance as they resolve each src.
-        $bodyHtml = '<html><body>' . renderTechSheetHtml($sheet, $drivers, $event, techSheetSignatureResolverEmail($mail), emailLogoSrc($mail)) . '</body></html>';
+        $bodyHtml = techSheetReceivedEmailHtml(renderTechSheetHtml($sheet, $drivers, $event, techSheetSignatureResolverEmail($mail), emailLogoSrc($mail)));
         $mail->addAddress($recipientEmail, $entrantName);
         $mail->addAddress(TECH_SHEET_EMAIL, TECH_SHEET_EMAIL_NAME);
         $mail->Subject = 'WCMA Tech Sheet — ' . $entrantName . ' — ' . ($event['name'] ?? '');
         $mail->isHTML(true);
         $mail->Body = $bodyHtml;
-        $mail->AltBody = 'Your tech sheet for ' . ($event['name'] ?? '') . ' is available online at tech-sheets.php?action=view&id=' . $sheet['id'];
+        $mail->AltBody = COPY_TECH_SHEET_RECEIVED . "\n\n" . 'Your tech sheet for ' . ($event['name'] ?? '') . ' is available online at tech-sheets.php?action=view&id=' . $sheet['id'];
         $mail->send();
         return true;
     } catch (Exception $e) {

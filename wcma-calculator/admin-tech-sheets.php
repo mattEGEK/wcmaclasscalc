@@ -113,7 +113,15 @@ function handleTechSheetView(PDO $pdo, int $id): void {
 function handleTechSheetAccept(PDO $pdo, int $id): void {
     $user = current_user();
     $result = techReviewAcceptInPerson($pdo, __DIR__, $id, (int)$user['id'], (string)($_POST['tech_signature'] ?? ''));
-    setFlash($result['ok'] ? 'Sheet accepted (teched in person).' : $result['error'], $result['ok'] ? 'success' : 'error');
+    if ($result['ok']) {
+        $sheet = db_get_tech_sheet($pdo, $id);
+        $sent = pretechNotify($pdo, 'accepted_in_person', $sheet, db_get_event($pdo, (int)$sheet['event_id']) ?? [],
+            feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', '')),
+            ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend');
+        setFlash('Sheet accepted (teched in person).' . ($sent ? ' The competitor was emailed.' : ' The email could not be sent.'), $sent ? 'success' : 'error');
+    } else {
+        setFlash($result['error'], 'error');
+    }
     header('Location: admin.php?action=tech-sheet&id=' . $id);
     exit;
 }
@@ -186,7 +194,7 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
       <button type="submit" class="btn btn-secondary">Revoke acceptance</button>
     </form>
     <?php else: ?>
-    <p class="form-hint">Accepting records that what the competitor submitted matches the car in front of you. <?= h(TECH_ACCEPTANCE_DISCLAIMER) ?></p>
+    <p class="form-hint">Accepting records that what the competitor submitted matches the car in front of you.</p>
     <form method="post" action="admin.php?action=tech-sheet-accept" id="tech-accept-form">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">

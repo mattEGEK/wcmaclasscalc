@@ -52,29 +52,31 @@ final class PretechEmailTest extends TestCase
         $this->assertStringContainsString('https://x.test/tech-sheets.php?action=pretech&amp;id=12', $mail['html']);
     }
 
-    public function testAcceptedEmailHasDisclaimerAndDecalsInstruction(): void
+    public function testAcceptedEmailLeadsWithTheScrutineerLineAndNamesTheReviewer(): void
     {
         $admin = 'https://x.test/admin.php?action=tech-sheet&id=12';
-        $mail = pretechEmailAccepted($this->sheet(), $this->event(), 'https://x.test/tech-sheets.php?action=view&id=12', $admin, false);
-        $this->assertStringContainsString('Pre-Tech Accepted', $mail['subject']);
-        $this->assertStringContainsString(TECH_ACCEPTANCE_DISCLAIMER, $mail['html']);
-        $this->assertStringContainsString(TECH_ACCEPTANCE_DISCLAIMER, $mail['text']);
-        $this->assertStringContainsString('decals', $mail['text']);
-        $this->assertStringContainsString('You do not need to be inspected at the track', $mail['text']);
-        $this->assertStringContainsString('2026', $mail['text']);
-        $this->assertStringNotContainsString('admin.php', $mail['text']);
-        $this->assertStringNotContainsString('admin.php', $mail['html']);
+        $view = 'https://x.test/tech-sheets.php?action=view&id=12';
+        $ivy = ['name' => 'Ivy Inspector'];
 
-        $club = pretechEmailAccepted($this->sheet(), $this->event(), 'https://x.test/tech-sheets.php?action=view&id=12', $admin, true);
-        $this->assertSame($mail['subject'], $club['subject']);
-        $this->assertStringContainsString(TECH_ACCEPTANCE_DISCLAIMER, $club['html']);
-        $this->assertStringContainsString(TECH_ACCEPTANCE_DISCLAIMER, $club['text']);
+        $mail = pretechEmailAccepted($this->sheet(), $this->event(), $view, $admin, false, $ivy);
+        $this->assertStringStartsWith(COPY_TECH_SHEET_ACCEPTED, $mail['text']);
+        $this->assertStringContainsString(h(COPY_TECH_SHEET_ACCEPTED), $mail['html']);
+        $this->assertStringContainsString('Reviewed by: Ivy Inspector', $mail['text']);
+        $this->assertStringContainsString('Reviewed by: Ivy Inspector', $mail['html']);
+        $this->assertStringContainsString('decals', $mail['text']);
+        $this->assertStringContainsString('2026', $mail['text']);
+        $this->assertStringNotContainsString('admin.php', $mail['text'] . $mail['html']);
+
+        $club = pretechEmailAccepted($this->sheet(), $this->event(), $view, $admin, true, $ivy);
+        $this->assertStringContainsString('Reviewed by: Ivy Inspector', $club['text']);
         $this->assertStringContainsString($admin, $club['text']);
-        $this->assertStringContainsString('admin.php?action=tech-sheet&amp;id=12', $club['html']);
-        $this->assertStringContainsString('Open the review page', $club['html']);
         $this->assertStringContainsString('No in-person inspection is needed', $club['text']);
-        $this->assertStringNotContainsString('You do not need to be inspected', $club['text']);
-        $this->assertStringNotContainsString('action=view', $club['text']);
+
+        $inPerson = pretechEmailAccepted($this->sheet(), $this->event(), $view, $admin, false, $ivy, 'in_person');
+        $this->assertStringStartsWith(COPY_TECH_SHEET_ACCEPTED, $inPerson['text']);
+        $this->assertStringContainsString('inspected in person', $inPerson['text']);
+        $this->assertStringNotContainsString('photos', $inPerson['text']);
+        $this->assertStringContainsString('Tech Sheet Accepted', $inPerson['subject']);
     }
 
     public function testNoApprovalWordingOutsideTheDisclaimer(): void
@@ -87,7 +89,7 @@ final class PretechEmailTest extends TestCase
             pretechEmailAccepted($this->sheet(), $this->event(), 'v', 'a', true),
         ];
         foreach ($mails as $mail) {
-            $text = str_replace(TECH_ACCEPTANCE_DISCLAIMER, '', $mail['subject'] . "\n" . $mail['text']);
+            $text = $mail['subject'] . "\n" . $mail['text'];
             $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', $text);
         }
     }

@@ -4,11 +4,11 @@ use PHPUnit\Framework\TestCase;
 
 final class AdminTechCopyTest extends TestCase
 {
-    public function testAdminTechPageOnlyUsesTheVerbatimDisclaimer(): void {
+    public function testAdminTechPageHasNoCertificationOrSafetyWording(): void {
         $src = file_get_contents(__DIR__ . '/../admin-tech-sheets.php');
         $this->assertStringNotContainsString('is not a certification', $src);
+        $this->assertStringNotContainsString('TECH_ACCEPTANCE_DISCLAIMER', $src);
         $this->assertDoesNotMatchRegularExpression('/\bsafe\b/i', $src);
-        $this->assertStringContainsString('TECH_ACCEPTANCE_DISCLAIMER', $src);
     }
 
     public function testPhotoReviewCardHasNoBannedWording(): void

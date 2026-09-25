@@ -310,8 +310,8 @@ try {
     $mail2->addAddress($email, $name);
     $mail2->Subject = 'Your WCMA Classing Calculator Submission';
     $mail2->isHTML(true);
-    $mail2->Body    = renderSubmissionEmailHtml($submission_for_email, emailLogoSrc($mail2));
-    $mail2->AltBody = $email_body_text;
+    $mail2->Body    = renderSubmissionEmailHtml($submission_for_email, emailLogoSrc($mail2), false, COPY_DECLARATION_RECEIVED);
+    $mail2->AltBody = renderSubmissionEmailText($submission_for_email, false, COPY_DECLARATION_RECEIVED);
     foreach ($attachments as $att) {
         $mail2->addAttachment($att['path'], $att['name']);
     }

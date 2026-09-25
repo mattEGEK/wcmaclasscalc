@@ -46,15 +46,17 @@ final class GearEmailTest extends TestCase
 
     public function testAcceptedOwnerAndClubCopies(): void
     {
-        $owner = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/admin.php?action=gear-record&id=4', false);
-        $club = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/admin.php?action=gear-record&id=4', true);
+        $ivy = ['name' => 'Ivy Inspector'];
+        $owner = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/admin.php?action=gear-record&id=4', false, $ivy);
+        $club = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/admin.php?action=gear-record&id=4', true, $ivy);
 
         foreach ([$owner, $club] as $mail) {
-            $this->assertStringContainsString('Gear Pre-Tech Accepted', $mail['subject']);
-            $this->assertStringContainsString(TECH_ACCEPTANCE_DISCLAIMER, $mail['html']);
-            $this->assertStringContainsString(TECH_ACCEPTANCE_DISCLAIMER, $mail['text']);
+            $this->assertStringContainsString('Gear Accepted', $mail['subject']);
+            $this->assertStringContainsString('Reviewed by: Ivy Inspector', $mail['text']);
+            $this->assertStringContainsString('Reviewed by: Ivy Inspector', $mail['html']);
             $this->assertStringContainsString('2026', $mail['text']);
         }
+        $this->assertStringStartsWith(COPY_GEAR_ACCEPTED, $owner['text']);
         $this->assertStringContainsString('decals', $owner['text']);
         $this->assertStringNotContainsString('admin.php', $owner['text']);
         $this->assertStringNotContainsString('admin.php', $owner['html']);
@@ -70,7 +72,7 @@ final class GearEmailTest extends TestCase
             gearEmailAccepted($this->gear(), 'b', 'a', true), gearEmailAccepted($this->gear(), 'b', 'a', false),
         ];
         foreach ($mails as $mail) {
-            $text = str_replace(TECH_ACCEPTANCE_DISCLAIMER, '', $mail['subject'] . "\n" . $mail['text']);
+            $text = $mail['subject'] . "\n" . $mail['text'];
             $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', $text);
         }
     }

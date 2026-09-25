@@ -113,9 +113,6 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
         $statusText = 'Submitted — awaiting review';
     }
     $out .= '<p style="font-weight:bold;color:' . ($reviewed ? '#27ae60' : '#f39c12') . '">Status: ' . h($statusText) . '</p>';
-    if ($reviewed) {
-        $out .= '<p style="font-size:0.8rem;color:#555">' . h(TECH_ACCEPTANCE_DISCLAIMER) . '</p>';
-    }
     $out .= '</div>';
 
     return $out;
