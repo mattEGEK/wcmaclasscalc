@@ -342,12 +342,13 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
       <h2>Vehicle &amp; Entrant</h2>
       <div class="tech-sheet-header-grid">
         <div><label for="entrant_name">Entrant</label><input type="text" id="entrant_name" name="entrant_name" required value="<?= h((string)$entrantName) ?>"></div>
-        <div><label for="driver_name">Driver/Team Name</label><input type="text" id="driver_name" name="driver_name" required list="gear-names" value="<?= h((string)$driverName) ?>"></div>
+        <div><label for="driver_name">Driver name (Driver 1)</label><input type="text" id="driver_name" name="driver_name" required list="gear-names" value="<?= h((string)$driverName) ?>"></div>
         <div><label for="car_number">Car Number</label><input type="text" id="car_number" name="car_number" required value="<?= h((string)$carNumber) ?>"></div>
         <div><label for="car_colour">Car Colour</label><input type="text" id="car_colour" name="car_colour" required value="<?= h((string)$carColour) ?>"></div>
         <div><label for="engine_cc">Engine CC</label><input type="text" id="engine_cc" name="engine_cc" value="<?= h((string)$engineCc) ?>"></div>
         <div><label for="engine_hp">Engine HP</label><input type="text" id="engine_hp" name="engine_hp" value="<?= h((string)$engineHp) ?>"></div>
       </div>
+      <p class="form-hint">Driver 1 is the person driving. If you race as a team, put the team name in Entrant.</p>
       <?php if ($gearNames): ?><p class="form-hint">Pick a driver from your My Drivers list so their gear status links to this sheet.</p><?php endif; ?>
       <input type="hidden" name="car_make" value="<?= h((string)$carMake) ?>">
       <input type="hidden" name="car_model" value="<?= h((string)$carModel) ?>">

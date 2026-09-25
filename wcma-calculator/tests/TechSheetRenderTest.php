@@ -35,6 +35,14 @@ final class TechSheetRenderTest extends TestCase
         $this->assertStringContainsString('Spring Sprint', $html);
     }
 
+    public function testHeaderLabelsTheFirstDriverAsDriverOne(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-render.php';
+        $html = renderTechSheetHtml($this->sampleSheet(), [], ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']);
+        $this->assertStringContainsString('<strong>Driver 1:</strong> Jane Racer', $html);
+        $this->assertStringNotContainsString('Driver/Team', $html);
+    }
+
     public function testReviewedSheetHasNoApprovalWording(): void
     {
         require_once __DIR__ . '/../tech-sheet-render.php';
