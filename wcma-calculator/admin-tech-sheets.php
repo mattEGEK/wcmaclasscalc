@@ -20,10 +20,13 @@ function handleTechSheetsList(PDO $pdo): void {
 
     $eventSheets = db_get_event_tech_sheets($pdo, $eventId);
     $seasonSheets = [];
+    $seasonGear = [];
     foreach (array_unique(array_map(fn(array $s): int => (int)$s['season'], $eventSheets)) as $season) {
         $seasonSheets = array_merge($seasonSheets, db_get_season_sheets($pdo, $season));
+        $seasonGear = array_merge($seasonGear, db_get_gear_records_for_season($pdo, $season));
     }
-    $rows = techBuildRoster($eventSheets, $seasonSheets);
+    $driversBySheet = db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $eventSheets));
+    $rows = gearAttachToRoster(techBuildRoster($eventSheets, $seasonSheets), $driversBySheet, $seasonGear);
 
     $counts = [
         'all' => count($rows),
@@ -64,14 +67,14 @@ function renderTechSheetsListPage(array $events, int $eventId, string $filter, a
       <?php endforeach; ?>
     </select>
     <button type="submit" class="btn btn-primary">Apply</button>
-    <p class="form-hint" style="margin-top:.5rem"><?= (int)$counts['all'] ?> sheets: <?= (int)$counts['accepted'] ?> accepted, <?= (int)$counts['needs_tech'] ?> still need tech at the track.</p>
+    <p class="form-hint" style="margin-top:.5rem"><?= (int)$counts['all'] ?> sheets: <?= (int)$counts['accepted'] ?> fully accepted (car and gear), <?= (int)$counts['needs_tech'] ?> still need tech at the track (car or gear).</p>
   </form>
 
   <table class="data-table" id="tech-sheets-table">
-    <thead><tr><th>Car #</th><th>Vehicle</th><th>Entrant</th><th>Class</th><th>Event</th><th>Car status</th><th>Sheet</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Car #</th><th>Vehicle</th><th>Entrant</th><th>Class</th><th>Event</th><th>Car status</th><th>Gear</th><th>Sheet</th><th>Actions</th></tr></thead>
     <tbody>
     <?php if (empty($rows)): ?>
-      <tr><td colspan="8" class="empty-row">No tech sheets match.</td></tr>
+      <tr><td colspan="9" class="empty-row">No tech sheets match.</td></tr>
     <?php else: foreach ($rows as $row): $s = $row['sheet']; $st = $row['status']; ?>
       <tr>
         <td><?= h($s['car_number']) ?></td>
@@ -80,6 +83,7 @@ function renderTechSheetsListPage(array $events, int $eventId, string $filter, a
         <td><?= h($s['class']) ?></td>
         <td><?= h($s['event_name'] ?? '—') ?></td>
         <td class="<?= h(techCarStatusBadgeClass($st['state'])) ?>"><?= h(techCarStatusLabel($st, (int)$s['season'])) ?></td>
+        <td><?= renderGearChips($row['gear_links'] ?? [], 'admin') ?></td>
         <td><?= $s['status'] === 'teched' ? 'Reviewed' : 'Submitted ' . h(date('M j', strtotime($s['created_at']))) ?></td>
         <td class="actions"><a href="admin.php?action=tech-sheet&id=<?= (int)$s['id'] ?>"><?= $s['status'] === 'teched' ? 'View' : 'Review' ?></a></td>
       </tr>
@@ -102,7 +106,8 @@ function handleTechSheetView(PDO $pdo, int $id): void {
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
     $carStatus = techCarStatus(db_get_identity_sheets($pdo, (int)$sheet['user_id'], (string)$sheet['car_number_norm'], (int)$sheet['season']));
     $reviewer = !empty($sheet['reviewed_by_user_id']) ? db_find_user_by_id($pdo, (int)$sheet['reviewed_by_user_id']) : null;
-    renderTechSheetViewPage($sheet, $drivers, $event, $carStatus, $reviewer, generateCsrfToken(), getFlash(), pretechSnapshot($pdo, $id));
+    $gearLinks = gearLinksForSheet($sheet, $drivers, db_get_user_gear_records($pdo, (int)$sheet['user_id']));
+    renderTechSheetViewPage($sheet, $drivers, $event, $carStatus, $reviewer, generateCsrfToken(), getFlash(), pretechSnapshot($pdo, $id), $gearLinks);
 }
 
 function handleTechSheetAccept(PDO $pdo, int $id): void {
@@ -142,7 +147,7 @@ function adminTechSheetSigResolver(int $techSheetId): callable {
     };
 }
 
-function renderTechSheetViewPage(array $sheet, array $drivers, array $event, array $carStatus, ?array $reviewer, string $csrf, ?array $flash, array $snapshot): void {
+function renderTechSheetViewPage(array $sheet, array $drivers, array $event, array $carStatus, ?array $reviewer, string $csrf, ?array $flash, array $snapshot, array $gearLinks = []): void {
     $id = (int)$sheet['id'];
     $accepted = $sheet['status'] === 'teched';
     $statusLabel = techCarStatusLabel($carStatus, (int)$sheet['season']);
@@ -171,6 +176,7 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
     <h2>Tech review</h2>
     <p>Car #<?= h($sheet['car_number']) ?> — <?= h(trim($sheet['car_make'] . ' ' . $sheet['car_model'])) ?> (<?= h($sheet['entrant_name']) ?>)</p>
     <p>Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h($statusLabel) ?></strong></p>
+    <?php if ($gearLinks): ?><p>Driver gear:</p><?= renderGearChips($gearLinks, 'admin') ?><?php endif; ?>
 
     <?php if ($accepted): ?>
     <p><?= h($acceptedLine) ?></p>

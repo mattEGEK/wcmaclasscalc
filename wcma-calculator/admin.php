@@ -16,6 +16,7 @@ require __DIR__ . '/pretech-lib.php';
 require __DIR__ . '/pretech-email.php';
 require __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-email.php';
+require __DIR__ . '/gear-chips.php';
 require __DIR__ . '/admin-gear.php';
 require __DIR__ . '/tech-sheet-render.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
