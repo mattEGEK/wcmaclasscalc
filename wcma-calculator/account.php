@@ -5,6 +5,7 @@ require __DIR__ . '/config.php';
 require __DIR__ . '/view_helpers.php';
 require __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-chips.php';
+require __DIR__ . '/cars-lib.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -49,6 +50,14 @@ switch ($action) {
         handleAccountDelete($pdo, $user, (int)($_POST['id'] ?? 0));
         break;
 
+    case 'archive-car':
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: account.php'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        $ok = db_archive_car($pdo, (int)$user['id'], (int)($_POST['id'] ?? 0));
+        setFlash($ok ? 'Car archived. Its history is kept.' : 'Car not found.', $ok ? 'success' : 'error');
+        header('Location: account.php');
+        exit;
+
     case 'file':
         handleAccountFile($pdo, $user, (int)($_GET['id'] ?? 0), $_GET['field'] ?? '');
         break;
@@ -80,17 +89,17 @@ switch ($action) {
 
 function handleAccountList(PDO $pdo, array $user): void {
     $drafts = db_get_user_drafts($pdo, $user['id']);
-    $submissions = db_get_user_submissions($pdo, $user['id']);
+    $cars = db_get_user_cars($pdo, (int)$user['id']);
+    $totalCount = count($cars) + db_count_user_drafts($pdo, $user['id']);
     $techSheets = db_get_user_tech_sheets($pdo, $user['id']);
     $activeEvents = db_get_active_events($pdo);
-    $totalCount = db_count_user_drafts($pdo, $user['id']) + db_count_user_submissions($pdo, $user['id']);
 
     $eventNames = [];
     foreach (db_get_all_events($pdo) as $e) {
         $eventNames[(int)$e['id']] = $e['name'];
     }
 
-    $carGroups = buildCarTechSheetGroups($submissions, $techSheets, $activeEvents, $eventNames);
+    $carGroups = buildCarGroups($cars, db_get_user_current_declarations($pdo, (int)$user['id']), $techSheets, $activeEvents, $eventNames);
     $carStatuses = [];
     foreach ($techSheets as $ts) {
         $carStatuses[(int)$ts['id']] = techCarStatusForSheet($ts, $techSheets);
@@ -130,33 +139,39 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
   <?php endif; ?>
 
   <h2>My Cars</h2>
-  <?php if (empty($carGroups['cars'])): ?>
-  <p class="empty-row">No classed cars yet — use the calculator to declare a class.</p>
+  <?php if (empty($carGroups)): ?>
+  <p class="empty-row">No cars yet. <a href="car-classing.html">Declare your class</a> to add your first car.</p>
   <?php else: ?>
-    <?php foreach ($carGroups['cars'] as $car): $s = $car['submission']; ?>
+    <?php foreach ($carGroups as $group): $car = $group['car']; $d = $group['declaration']; ?>
     <div class="car-card">
       <div class="car-card-header">
-        <span class="car-card-vehicle"><?= h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) ?></span>
-        <span class="car-card-class"><?= h($s['calculated_class'] ?? '—') ?></span>
+        <span class="car-card-vehicle"><?= h(carDisplayName($car)) ?></span>
+        <span class="car-card-class"><?= h($d['calculated_class'] ?? '—') ?></span>
       </div>
-      <p class="car-card-meta">Class declared <?= h(date('M j, Y', strtotime($s['submitted_at']))) ?></p>
+      <?php if ($d): ?>
+      <p class="car-card-meta">Class declared <?= h(date('M j, Y', strtotime($d['submitted_at']))) ?> ·
+        <span class="<?= h(declarationReviewBadgeClass($d['review_status'])) ?>"><?= h(declarationReviewLabel($d['review_status'])) ?></span></p>
+      <?php else: ?>
+      <p class="car-card-meta">No class declared yet.</p>
+      <?php endif; ?>
       <div class="car-card-actions">
-        <a href="account.php?action=view&id=<?= (int)$s['id'] ?>">View declaration</a>
-        <form method="post" action="account.php?action=delete" style="display:inline"
-              data-confirm="Permanently delete this class declaration and its files?">
+        <?php if ($d): ?><a href="account.php?action=view&id=<?= (int)$d['id'] ?>">View declaration</a><?php endif; ?>
+        <a href="car-classing.html?car=<?= (int)$car['id'] ?>"><?= $d ? 'Re-declare class' : 'Declare class' ?></a>
+        <form method="post" action="account.php?action=archive-car" style="display:inline"
+              data-confirm="Archive <?= h(carDisplayName($car)) ?>? It will be hidden, and its history is kept.">
           <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-          <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
-          <button type="submit" class="link-button">Delete</button>
+          <input type="hidden" name="id" value="<?= (int)$car['id'] ?>">
+          <button type="submit" class="link-button">Archive car</button>
         </form>
       </div>
-      <?php if (!empty($car['lines'])): ?>
+      <?php if (!empty($group['lines'])): ?>
       <ul class="car-card-tech-list">
-        <?php foreach ($car['lines'] as $line): $sheet = $line['sheet']; ?>
+        <?php foreach ($group['lines'] as $line): $sheet = $line['sheet']; ?>
         <?php $eventLabel = h($line['event_name']) . ($line['event_date'] ? ' (' . h(date('M j', strtotime($line['event_date']))) . ')' : ''); ?>
         <li class="car-card-tech-line">
           <?php if ($sheet === null): ?>
-            Tech sheet for <strong><?= $eventLabel ?></strong>: <span class="badge-pending">not submitted</span> —
-            <a href="tech-sheets.php?action=new&submission_id=<?= (int)$s['id'] ?>">Submit now</a>
+            Tech sheet for <strong><?= $eventLabel ?></strong>: <span class="badge-pending">not submitted</span>
+            <?php if ($d): ?> — <a href="tech-sheets.php?action=new&car_id=<?= (int)$car['id'] ?>">Submit now</a><?php else: ?> — declare a class first<?php endif; ?>
           <?php else: ?>
             Tech sheet (<?= h(ucfirst($sheet['sheet_type'])) ?>) for <strong><?= $eventLabel ?></strong>:
             <span class="badge-pending">submitted</span>
@@ -173,22 +188,6 @@ function renderAccountListPage(array $drafts, array $carGroups, int $count, stri
       <?php endif; ?>
     </div>
     <?php endforeach; ?>
-  <?php endif; ?>
-
-  <?php if (!empty($carGroups['orphanSheets'])): ?>
-  <h2 style="margin-top:2rem">Other Tech Sheets</h2>
-  <ul class="car-card-tech-list">
-    <?php foreach ($carGroups['orphanSheets'] as $ts): ?>
-    <li class="car-card-tech-line">
-      Tech sheet (<?= h(ucfirst($ts['sheet_type'])) ?>): <?= h(trim($ts['car_make'] . ' ' . $ts['car_model'] . ' #' . $ts['car_number'])) ?> —
-      <?php $cs = $carStatuses[(int)$ts['id']] ?? ['state' => 'none', 'via' => null, 'sheet_id' => null]; ?>
-      <span class="badge-pending">submitted</span>
-      <span class="<?= h(techCarStatusBadgeClass($cs['state'])) ?>"><?= h(techCarStatusLabel($cs, (int)($ts['season'] ?? date('Y')))) ?></span> —
-      <a href="tech-sheets.php?action=view&id=<?= (int)$ts['id'] ?>">View</a>
-      <?= renderGearChips($gearLinks[(int)$ts['id']] ?? [], 'owner', ['sheet_season' => (int)($ts['season'] ?? 0)]) ?>
-    </li>
-    <?php endforeach; ?>
-  </ul>
   <?php endif; ?>
 
   <h2 style="margin-top:2rem">Drafts</h2>
@@ -298,6 +297,12 @@ function renderAccountViewPage(array $s, string $csrf, ?array $flash): void {
       <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
       <button type="submit" class="btn btn-primary">Resend Confirmation to My Email</button>
     </form>
+    <form method="post" action="account.php?action=delete" style="margin-top:1rem"
+          data-confirm="Permanently delete this class declaration and its files?">
+      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+      <input type="hidden" name="id" value="<?= (int)$s['id'] ?>">
+      <button type="submit" class="btn btn-secondary">Delete this declaration</button>
+    </form>
     <h2 style="margin-top:1.5rem">Uploaded Files</h2>
     <?php
     $files = [
@@ -324,6 +329,7 @@ function renderAccountViewPage(array $s, string $csrf, ?array $flash): void {
   </div>
   </div>
 </div>
+<script src="js/confirm-modal.js"></script>
 <script src="js/form-feedback.js"></script>
 </body>
 </html><?php
@@ -371,6 +377,12 @@ function handleAccountDelete(PDO $pdo, array $user, int $id): void {
     if (!$sub) {
         setFlash('Class declaration not found.', 'error');
         header('Location: account.php');
+        exit;
+    }
+
+    if (db_count_tech_sheets_for_submission($pdo, $id) > 0) {
+        setFlash('This declaration is on a submitted tech sheet, so it cannot be deleted.', 'error');
+        header('Location: account.php?action=view&id=' . $id);
         exit;
     }
 

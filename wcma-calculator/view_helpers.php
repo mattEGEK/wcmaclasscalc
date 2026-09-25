@@ -105,74 +105,42 @@ function renderCommonNav(string $current = ''): string {
 }
 
 /**
- * Groups a competitor's classed cars (submissions) with their tech-sheet
- * status per active event, for the My Cars page. Pure data transformation —
- * no DB access, no HTML — so the grouping logic is unit-testable
- * independent of rendering (see tests/AccountCarGroupingTest.php).
+ * My Cars: each of the competitor's cars with its current class declaration and one tech-sheet
+ * line per active event (plus any sheet for an event no longer active). Pure data transformation:
+ * no DB, no HTML (see tests/AccountCarGroupingTest.php).
  *
- * @param array $submissions  Rows from db_get_user_submissions()
- * @param array $techSheets   Rows from db_get_user_tech_sheets()
- * @param array $activeEvents Rows from db_get_active_events()
- * @param array $eventNames   [event_id => name] map from db_get_all_events(),
- *                             covering past/inactive events too — used as a
- *                             fallback when a sheet's event has since been
- *                             deactivated.
- * @return array{cars: array, orphanSheets: array}
+ * @param array $cars                Rows from db_get_user_cars()
+ * @param array $currentDeclarations car_id => row, from db_get_user_current_declarations()
+ * @param array $techSheets          Rows from db_get_user_tech_sheets() (newest first)
+ * @param array $activeEvents        Rows from db_get_active_events()
+ * @param array $eventNames          [event_id => name] covering inactive events too
+ * @return array<int, array{car: array, declaration: ?array, lines: array}>
  */
-function buildCarTechSheetGroups(array $submissions, array $techSheets, array $activeEvents, array $eventNames): array {
-    $knownSubmissionIds = [];
-    foreach ($submissions as $s) {
-        $knownSubmissionIds[(int)$s['id']] = true;
-    }
-
-    $sheetsBySubmission = [];
-    $orphanSheets = [];
+function buildCarGroups(array $cars, array $currentDeclarations, array $techSheets, array $activeEvents, array $eventNames): array {
+    $sheetsByCar = [];
     foreach ($techSheets as $ts) {
-        $subId = (int)$ts['submission_id'];
-        if (isset($knownSubmissionIds[$subId])) {
-            $sheetsBySubmission[$subId][] = $ts;
-        } else {
-            // Defensive: shouldn't happen given the FK, but a submission
-            // could be deleted out from under a tech sheet in edge cases.
-            $orphanSheets[] = $ts;
-        }
+        $sheetsByCar[(int)$ts['car_id']][] = $ts;
     }
 
-    $cars = [];
-    foreach ($submissions as $s) {
-        $subId = (int)$s['id'];
+    $groups = [];
+    foreach ($cars as $car) {
+        $carId = (int)$car['id'];
         $sheetsByEvent = [];
-        foreach ($sheetsBySubmission[$subId] ?? [] as $ts) {
-            $eid = (int)$ts['event_id'];
-            if (!isset($sheetsByEvent[$eid])) {
-                $sheetsByEvent[$eid] = $ts;
-            }
+        foreach ($sheetsByCar[$carId] ?? [] as $ts) {
+            $sheetsByEvent[(int)$ts['event_id']] ??= $ts;   // newest sheet for each event
         }
 
         $lines = [];
         foreach ($activeEvents as $e) {
             $eventId = (int)$e['id'];
-            $lines[] = [
-                'event_id' => $eventId,
-                'event_name' => $e['name'],
-                'event_date' => $e['event_date'],
-                'sheet' => $sheetsByEvent[$eventId] ?? null,
-            ];
+            $lines[] = ['event_id' => $eventId, 'event_name' => $e['name'], 'event_date' => $e['event_date'], 'sheet' => $sheetsByEvent[$eventId] ?? null];
             unset($sheetsByEvent[$eventId]);
         }
-
-        // Any sheets left are tied to an event no longer active — still show them.
         foreach ($sheetsByEvent as $eventId => $ts) {
-            $lines[] = [
-                'event_id' => $eventId,
-                'event_name' => $eventNames[$eventId] ?? 'Unknown event',
-                'event_date' => null,
-                'sheet' => $ts,
-            ];
+            $lines[] = ['event_id' => $eventId, 'event_name' => $eventNames[$eventId] ?? 'Unknown event', 'event_date' => null, 'sheet' => $ts];
         }
 
-        $cars[] = ['submission' => $s, 'lines' => $lines];
+        $groups[] = ['car' => $car, 'declaration' => $currentDeclarations[$carId] ?? null, 'lines' => $lines];
     }
-
-    return ['cars' => $cars, 'orphanSheets' => $orphanSheets];
+    return $groups;
 }
