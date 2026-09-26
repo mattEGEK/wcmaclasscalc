@@ -71,15 +71,6 @@ final class GearLinksTest extends TestCase
         $this->assertNotNull($links[0]['gear']);
     }
 
-    public function testNameSuggestionsAreDistinctSortedAndSeasonScoped(): void
-    {
-        $names = gearNameSuggestions([
-            $this->gear(1, 5, 'zed'), $this->gear(2, 5, 'Amy'), $this->gear(3, 5, 'Bob', 2025), $this->gear(4, 5, 'amy'),
-        ], 2026);
-        $this->assertSame(['Amy', 'amy', 'zed'], $names);
-        $this->assertSame([], gearNameSuggestions([], 2026));
-    }
-
     public function testAttachToRosterUsesEachSheetOwnersRecordsAndDrivers(): void
     {
         $rows = [

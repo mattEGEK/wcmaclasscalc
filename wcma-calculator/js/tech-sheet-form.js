@@ -98,10 +98,14 @@
         });
     });
 
+    const driver1Choice = document.getElementById('driver1_choice');
+    const driver1NewName = document.getElementById('driver1_new_name');
+    WcmaDriverChoice.wire(driver1Choice, driver1NewName);
+
     const sheetTypeSelect = document.getElementById('sheet_type');
     const enduranceCard = document.getElementById('endurance-drivers-card');
     const additionalDriversContainer = document.getElementById('additional-drivers-container');
-    const additionalDrivers = []; // [{number, nameInput, state}]
+    const additionalDrivers = []; // [{number, picker, state}]
 
     // Toggling endurance -> standard hides #endurance-drivers-card, but the
     // co-driver name inputs stay in the DOM with `required` set, which fails
@@ -112,7 +116,8 @@
         const isEndurance = sheetTypeSelect.value === 'endurance';
         enduranceCard.hidden = !isEndurance;
         additionalDrivers.forEach(function (d) {
-            d.nameInput.disabled = !isEndurance;
+            d.picker.select.disabled = !isEndurance;
+            d.picker.sync();
         });
     });
 
@@ -120,7 +125,7 @@
         additionalDrivers.forEach(function (d, i) {
             const number = i + 2;
             d.number = number;
-            d.nameInput.placeholder = 'Driver ' + number + ' Name';
+            d.picker.select.setAttribute('aria-label', 'Driver ' + number);
         });
     }
 
@@ -136,13 +141,13 @@
         const fieldsWrap = document.createElement('div');
         fieldsWrap.style.flex = '1';
 
-        const nameInput = document.createElement('input');
-        nameInput.type = 'text';
-        nameInput.placeholder = 'Driver ' + number + ' Name';
-        nameInput.required = true;
-        nameInput.setAttribute('list', 'gear-names');
-        if (existingDriver && existingDriver.driver_name) nameInput.value = existingDriver.driver_name;
-        fieldsWrap.appendChild(nameInput);
+        const drivers = window.TECH_SHEET_DRIVERS || [];
+        const firstCoDriver = drivers.find(function (d) { return !d.self; });
+        const picker = WcmaDriverChoice.build(document, drivers,
+            existingDriver ? existingDriver.driver_choice : (firstCoDriver ? firstCoDriver.id : WcmaDriverChoice.NEW),
+            existingDriver ? existingDriver.new_name : '', number);
+        fieldsWrap.appendChild(picker.select);
+        fieldsWrap.appendChild(picker.nameInput);
         const equipContainer = document.createElement('div');
         fieldsWrap.appendChild(equipContainer);
         wrap.appendChild(fieldsWrap);
@@ -162,11 +167,15 @@
         additionalDriversContainer.appendChild(wrap);
         const equip = renderEquipmentInto(equipContainer, 'driver' + number, existingDriver ? existingDriver.equipment : null);
         additionalDrivers.push({
-            number: number, nameInput: nameInput, state: equip.state, wrap: wrap,
+            number: number, picker: picker, state: equip.state, wrap: wrap,
             highlightIncomplete: equip.highlightIncomplete, clearHighlights: equip.clearHighlights,
         });
-        nameInput.addEventListener('input', function () {
-            if (nameInput.value.trim() !== '') nameInput.classList.remove('error');
+        picker.nameInput.addEventListener('input', function () {
+            if (picker.nameInput.value.trim() !== '') picker.nameInput.classList.remove('error');
+        });
+        picker.select.addEventListener('change', function () {
+            picker.select.classList.remove('error');
+            picker.nameInput.classList.remove('error');
         });
     }
 
@@ -187,8 +196,11 @@
         driver1Equipment.clearHighlights();
         additionalDrivers.forEach(function (d) {
             d.clearHighlights();
-            d.nameInput.classList.remove('error');
+            d.picker.select.classList.remove('error');
+            d.picker.nameInput.classList.remove('error');
         });
+        driver1Choice.classList.remove('error');
+        driver1NewName.classList.remove('error');
         entrantSigWrap.classList.remove('field-error');
         driverSigWrap.classList.remove('field-error');
     }
@@ -206,6 +218,14 @@
             errorEl.classList.add('show');
             return;
         }
+        if (!WcmaDriverChoice.driverChoiceComplete(driver1Choice.value, driver1NewName.value)) {
+            e.preventDefault();
+            (driver1Choice.value === WcmaDriverChoice.NEW ? driver1NewName : driver1Choice).classList.add('error');
+            errorEl.textContent = 'Choose Driver 1, or pick "+ Add a co-driver" and type their name.';
+            errorEl.hidden = false;
+            errorEl.classList.add('show');
+            return;
+        }
         if (!isEquipmentComplete(driver1State)) {
             e.preventDefault();
             driver1Equipment.highlightIncomplete();
@@ -216,13 +236,15 @@
         }
         if (sheetTypeSelect.value === 'endurance') {
             const incompleteDriver = additionalDrivers.find(function (d) {
-                return d.nameInput.value.trim() === '' || !isEquipmentComplete(d.state);
+                return !WcmaDriverChoice.driverChoiceComplete(d.picker.select.value, d.picker.nameInput.value) || !isEquipmentComplete(d.state);
             });
             if (incompleteDriver) {
                 e.preventDefault();
-                if (incompleteDriver.nameInput.value.trim() === '') incompleteDriver.nameInput.classList.add('error');
+                if (!WcmaDriverChoice.driverChoiceComplete(incompleteDriver.picker.select.value, incompleteDriver.picker.nameInput.value)) {
+                    (incompleteDriver.picker.select.value === WcmaDriverChoice.NEW ? incompleteDriver.picker.nameInput : incompleteDriver.picker.select).classList.add('error');
+                }
                 incompleteDriver.highlightIncomplete();
-                errorEl.textContent = 'Please enter a name and confirm all safety equipment for every added driver (Driver ' + incompleteDriver.number + ') before submitting — the missing fields are highlighted below.';
+                errorEl.textContent = 'Please choose a driver and confirm all safety equipment for every added driver (Driver ' + incompleteDriver.number + ') before submitting — the missing fields are highlighted below.';
                 errorEl.hidden = false;
                 errorEl.classList.add('show');
                 return;
@@ -247,7 +269,7 @@
         document.getElementById('entrant_signature').value = entrantPad.isEmpty() ? '' : entrantPad.toPNGDataURL();
         document.getElementById('driver_signature').value = driverPad.isEmpty() ? '' : driverPad.toPNGDataURL();
         document.getElementById('drivers_json').value = JSON.stringify(additionalDrivers.map(function (d) {
-            return { driver_number: d.number, driver_name: d.nameInput.value, equipment: d.state };
+            return { driver_number: d.number, driver_choice: d.picker.select.value, new_name: d.picker.nameInput.value, equipment: d.state };
         }));
     });
 })();

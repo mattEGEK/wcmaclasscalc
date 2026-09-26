@@ -36,21 +36,19 @@ final class GearLinksSourceTest extends TestCase
         $this->assertStringContainsString("renderGearChips(\$gearLinks, 'owner', [", $view);
     }
 
-    public function testSheetFormGetsNameSuggestionsFromTheUsersOwnRecords(): void
+    public function testSheetFormPicksDriversFromTheUsersProfiles(): void
     {
-        foreach (['handleNew', 'handleEdit'] as $fn) {
-            $body = $this->body('tech-sheets.php', $fn);
-            $this->assertStringContainsString('gearNameSuggestions(', $body, $fn);
-            $this->assertStringContainsString('db_get_user_gear_records($pdo, (int)$user[\'id\'])', $body, $fn);
+        foreach (['handleNew', 'handleEdit', 'handleSubmit', 'handleUpdate'] as $fn) {
+            $this->assertStringContainsString("db_get_user_drivers(\$pdo, (int)\$user['id'])", $this->body('tech-sheets.php', $fn), $fn);
+        }
+        foreach (['handleSubmit', 'handleUpdate'] as $fn) {
+            $this->assertStringContainsString('techSheetApplyDriverChoices($_POST, $owned)', $this->body('tech-sheets.php', $fn), $fn);
         }
         $form = $this->body('tech-sheets.php', 'renderTechSheetForm');
-        $this->assertStringContainsString('<datalist id="gear-names">', $form);
-        $this->assertStringContainsString('name="driver_name" required list="gear-names"', $form);
-    }
-
-    public function testAddedDriverRowsUseTheSuggestionList(): void
-    {
-        $this->assertStringContainsString("nameInput.setAttribute('list', 'gear-names');", $this->src('js/tech-sheet-form.js'));
+        $this->assertStringContainsString('window.TECH_SHEET_DRIVERS = ', $form);
+        $this->assertStringContainsString('<script src="js/driver-choice.js"></script>', $form);
+        $this->assertStringNotContainsString('gear-names', $this->src('tech-sheets.php') . $this->src('js/tech-sheet-form.js'));
+        $this->assertStringContainsString('WcmaDriverChoice.build(', $this->src('js/tech-sheet-form.js'));
     }
 
     public function testGarageCarPageShowsGearChipsPerTaggedSheet(): void

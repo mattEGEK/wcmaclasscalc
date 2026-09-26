@@ -287,17 +287,6 @@ function gearLinksForSheet(array $sheet, array $drivers, array $ownerGear): arra
     return $links;
 }
 
-/** Distinct gear-record driver names for a season, sorted case-insensitively: suggestions for the sheet form. */
-function gearNameSuggestions(array $ownerGear, int $season): array {
-    $names = [];
-    foreach ($ownerGear as $g) {
-        if ((int)$g['season'] === $season) $names[$g['driver_name']] = true;
-    }
-    $names = array_keys($names);
-    usort($names, fn(string $a, string $b): int => strcasecmp($a, $b) ?: strcmp($a, $b));
-    return $names;
-}
-
 /**
  * Adds `gear_links` to each roster row. $driversBySheet is db_get_drivers_for_sheets(); $seasonGear
  * is every owner's gear records for the season(s) on the roster.

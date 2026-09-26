@@ -167,8 +167,7 @@ function handleNew(PDO $pdo, array $user, int $carId, int $eventId = 0): void {
         exit;
     }
 
-    $gearNames = gearNameSuggestions(db_get_user_gear_records($pdo, (int)$user['id']), gearSeasonNow());
-    renderTechSheetForm($declaration, $events, generateCsrfToken(), null, [], $gearNames, $car, $eventId);
+    renderTechSheetForm($declaration, $events, generateCsrfToken(), null, [], db_get_user_drivers($pdo, (int)$user['id']), $car, $eventId);
 }
 
 function handleView(PDO $pdo, array $user, int $id): void {
@@ -289,17 +288,15 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
 
     $events = db_get_active_events($pdo);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
-    $gearNames = gearNameSuggestions(db_get_user_gear_records($pdo, (int)$user['id']), (int)($sheet['season'] ?? 0) ?: gearSeasonNow());
     $csrf = generateCsrfToken();
-    renderTechSheetEditForm($sheet, $drivers, $events, $csrf, $gearNames, $car);
+    renderTechSheetEditForm($sheet, $drivers, $events, $csrf, db_get_user_drivers($pdo, (int)$user['id']), $car);
 }
 
-function renderTechSheetForm(array $submission, array $events, string $csrf, ?array $existingSheet, array $existingDrivers, array $gearNames, array $car, int $preselectEventId = 0): void {
+function renderTechSheetForm(array $submission, array $events, string $csrf, ?array $existingSheet, array $existingDrivers, array $ownerDrivers, array $car, int $preselectEventId = 0): void {
     $isEdit = $existingSheet !== null;
     $formAction = $isEdit ? 'tech-sheets.php?action=update' : 'tech-sheets.php?action=submit';
     $pageTitle = $isEdit ? 'Edit Tech Sheet' : 'Submit Tech Sheet';
     $entrantName = $isEdit ? $existingSheet['entrant_name'] : $submission['name'];
-    $driverName = $isEdit ? $existingSheet['driver_name'] : $submission['name'];
     $engineHp = $isEdit ? $existingSheet['engine_hp'] : ($submission['dyno_hp'] ?: $submission['declared_hp']);
     $carClass = $isEdit ? $existingSheet['class'] : ($submission['calculated_class'] ?? '');
     $carNeedsColour = trim((string)($car['colour'] ?? '')) === '';
@@ -311,10 +308,21 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     $existingLogBook = $isEdit ? $existingSheet['log_book_turned_in'] : null;
     $hasEntrantSignature = $isEdit && !empty($existingSheet['entrant_signature_path']);
     $hasDriverSignature = $isEdit && !empty($existingSheet['driver_signature_path']);
-    $existingDriversForJs = array_map(function (array $d): array {
+    $ownedById = [];
+    $selfId = null;
+    foreach ($ownerDrivers as $d) {
+        $ownedById[(int)$d['id']] = $d;
+        if ($selfId === null && (int)($d['user_id'] ?? 0) === (int)$d['owner_user_id']) $selfId = (int)$d['id'];
+    }
+    $driver1Choice = $isEdit ? techSheetDriverChoiceFor($ownedById, (string)$existingSheet['driver_name']) : ($selfId !== null ? (string)$selfId : 'new');
+    $driver1NewName = ($isEdit && $driver1Choice === 'new') ? (string)$existingSheet['driver_name'] : '';
+    $driversForJs = array_map(fn(array $d): array => ['id' => (int)$d['id'], 'name' => (string)$d['name'], 'self' => (int)$d['id'] === $selfId], $ownerDrivers);
+    $existingDriversForJs = array_map(function (array $d) use ($ownedById): array {
+        $choice = techSheetDriverChoiceFor($ownedById, (string)$d['driver_name']);
         return [
             'driver_number' => (int)$d['driver_number'],
-            'driver_name' => $d['driver_name'],
+            'driver_choice' => $choice,
+            'new_name' => $choice === 'new' ? (string)$d['driver_name'] : '',
             'equipment' => json_decode($d['equipment_json'] ?? '{}', true) ?: [],
         ];
     }, $existingDrivers);
@@ -347,7 +355,6 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     <input type="hidden" name="drivers_json" id="drivers_json">
     <input type="hidden" name="entrant_signature" id="entrant_signature">
     <input type="hidden" name="driver_signature" id="driver_signature">
-    <datalist id="gear-names"><?php foreach ($gearNames as $gearName): ?><option value="<?= h($gearName) ?>"><?php endforeach; ?></datalist>
 
     <div class="detail-card">
       <h2>Event &amp; Sheet Type</h2>
@@ -379,11 +386,19 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
       <h2>Entrant &amp; Driver</h2>
       <div class="tech-sheet-header-grid">
         <div><label for="entrant_name">Entrant</label><input type="text" id="entrant_name" name="entrant_name" required value="<?= h((string)$entrantName) ?>"></div>
-        <div><label for="driver_name">Driver name (Driver 1)</label><input type="text" id="driver_name" name="driver_name" required list="gear-names" value="<?= h((string)$driverName) ?>"></div>
+        <div><label for="driver1_choice">Driver name (Driver 1)</label>
+          <select id="driver1_choice" name="driver1_choice" required>
+            <?php foreach ($ownerDrivers as $d): ?>
+            <option value="<?= (int)$d['id'] ?>"<?= (string)(int)$d['id'] === $driver1Choice ? ' selected' : '' ?>><?= h((string)$d['name']) ?><?= (int)$d['id'] === $selfId ? ' (you)' : '' ?></option>
+            <?php endforeach; ?>
+            <option value="new"<?= $driver1Choice === 'new' ? ' selected' : '' ?>>+ Add a co-driver</option>
+          </select>
+          <input type="text" id="driver1_new_name" name="driver1_new_name" maxlength="100" placeholder="Co-driver's name" aria-label="Driver 1 name" value="<?= h($driver1NewName) ?>">
+        </div>
         <div><label for="engine_hp">Engine HP</label><input type="text" id="engine_hp" name="engine_hp" value="<?= h((string)$engineHp) ?>"></div>
       </div>
       <p class="form-hint">Driver 1 is the person driving. If you race as a team, put the team name in Entrant.</p>
-      <?php if ($gearNames): ?><p class="form-hint">Pick a driver from your My Drivers list so their gear status links to this sheet.</p><?php endif; ?>
+      <p class="form-hint">Drivers come from your <a href="drivers.php">Drivers</a> page. Choose "+ Add a co-driver" to add someone new: they are added to your Drivers when you submit.</p>
       <input type="hidden" name="class" value="<?= h((string)$carClass) ?>">
       <input type="hidden" name="car_weight" value="<?= (int)$carWeight ?>">
     </div>
@@ -435,20 +450,22 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
   const TECH_DRIVER_EQUIPMENT_ITEMS = <?= json_encode(TECH_DRIVER_EQUIPMENT_ITEMS) ?>;
   window.TECH_SHEET_EXISTING_CHECKLIST = <?= json_encode($existingChecklist ?: new stdClass()) ?>;
   window.TECH_SHEET_EXISTING_EQUIPMENT = <?= json_encode($existingEquipment ?: new stdClass()) ?>;
-  window.TECH_SHEET_EXISTING_DRIVERS = <?= json_encode($existingDriversForJs) ?>;
+  window.TECH_SHEET_EXISTING_DRIVERS = <?= json_encode($existingDriversForJs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+  window.TECH_SHEET_DRIVERS = <?= json_encode($driversForJs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   window.TECH_SHEET_HAS_ENTRANT_SIGNATURE = <?= $hasEntrantSignature ? 'true' : 'false' ?>;
   window.TECH_SHEET_HAS_DRIVER_SIGNATURE = <?= $hasDriverSignature ? 'true' : 'false' ?>;
 </script>
 <script src="js/tech-sheet-checklist.js"></script>
 <script src="js/signature-pad.js"></script>
+<script src="js/driver-choice.js"></script>
 <script src="js/tech-sheet-form.js"></script>
 <?php renderSiteFooter(); ?>
 </body>
 </html><?php
 }
 
-function renderTechSheetEditForm(array $sheet, array $drivers, array $events, string $csrf, array $gearNames, array $car): void {
-    renderTechSheetForm([], $events, $csrf, $sheet, $drivers, $gearNames, $car);
+function renderTechSheetEditForm(array $sheet, array $drivers, array $events, string $csrf, array $ownerDrivers, array $car): void {
+    renderTechSheetForm([], $events, $csrf, $sheet, $drivers, $ownerDrivers, $car);
 }
 
 function handleTechSheetSignature(PDO $pdo, array $user, int $id, string $which): void {
@@ -584,7 +601,16 @@ function handleSubmit(PDO $pdo, array $user): void {
         exit;
     }
 
-    $parsed = parseTechSheetPost(array_merge($_POST, ['car_number' => $snap['car_number'], 'car_colour' => $snap['car_colour'], 'engine_cc' => (string)($snap['engine_cc'] ?? '')]));
+    $owned = [];
+    foreach (db_get_user_drivers($pdo, (int)$user['id']) as $d) $owned[(int)$d['id']] = $d;
+    $choices = techSheetApplyDriverChoices($_POST, $owned);
+    if (!$choices['ok']) {
+        setFlash((string)$choices['error'], 'error');
+        header('Location: tech-sheets.php?action=new&car_id=' . $carId . ($eventId > 0 ? '&event_id=' . $eventId : ''));
+        exit;
+    }
+
+    $parsed = parseTechSheetPost(array_merge($choices['post'], ['car_number' => $snap['car_number'], 'car_colour' => $snap['car_colour'], 'engine_cc' => (string)($snap['engine_cc'] ?? '')]));
     $driverRows = validateTechSheetPost($parsed);
     if ($driverRows === null) {
         setFlash('Please complete every required field, including all driver equipment checklists, before submitting.', 'error');
@@ -669,7 +695,16 @@ function handleUpdate(PDO $pdo, array $user): void {
         exit;
     }
 
-    $parsed = parseTechSheetPost(array_merge($_POST, ['car_number' => $snap['car_number'], 'car_colour' => $snap['car_colour'], 'engine_cc' => (string)($snap['engine_cc'] ?? '')]));
+    $owned = [];
+    foreach (db_get_user_drivers($pdo, (int)$user['id']) as $d) $owned[(int)$d['id']] = $d;
+    $choices = techSheetApplyDriverChoices($_POST, $owned);
+    if (!$choices['ok']) {
+        setFlash((string)$choices['error'], 'error');
+        header('Location: tech-sheets.php?action=edit&id=' . $id);
+        exit;
+    }
+
+    $parsed = parseTechSheetPost(array_merge($choices['post'], ['car_number' => $snap['car_number'], 'car_colour' => $snap['car_colour'], 'engine_cc' => (string)($snap['engine_cc'] ?? '')]));
     $driverRows = validateTechSheetPost($parsed);
     if ($driverRows === null) {
         setFlash('Please complete every required field, including all driver equipment checklists.', 'error');

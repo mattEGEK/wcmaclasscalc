@@ -178,3 +178,60 @@ function validateAdditionalDrivers(array $driversInput): ?array {
     }
     return $rows;
 }
+
+/**
+ * The driver a form choice stands for: one of the owner's driver profiles by id, or 'new' with a
+ * typed name (db_insert_tech_sheet() / db_add_tech_sheet_driver() create that profile when the
+ * sheet is saved). Null when the id is not one of the owner's profiles, or the new name is blank
+ * or over 100 characters.
+ *
+ * @param array<int, array> $ownedById the owner's drivers rows keyed by id
+ */
+function techSheetDriverName(array $ownedById, string $choice, string $newName): ?string {
+    if ($choice === 'new') {
+        $name = trim((string)preg_replace('/\s+/', ' ', $newName));
+        return ($name === '' || mb_strlen($name, 'UTF-8') > 100) ? null : $name;
+    }
+    if (!ctype_digit($choice) || !isset($ownedById[(int)$choice])) return null;
+    return (string)$ownedById[(int)$choice]['name'];
+}
+
+/**
+ * Turns the form's driver choices into what parseTechSheetPost() expects: driver_name for Driver 1
+ * and, on an endurance sheet, driver_name on each drivers_json row. A standard sheet's drivers_json
+ * becomes '[]'. The same person may not appear twice.
+ *
+ * @return array{ok: bool, error: ?string, post: ?array}
+ */
+function techSheetApplyDriverChoices(array $post, array $ownedById): array {
+    $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'post' => null];
+    $first = techSheetDriverName($ownedById, (string)($post['driver1_choice'] ?? ''), (string)($post['driver1_new_name'] ?? ''));
+    if ($first === null) return $fail('Choose Driver 1 from your drivers, or add a co-driver with their name.');
+
+    $seen = [db_driver_name_norm($first) => true];
+    $rows = [];
+    if (($post['sheet_type'] ?? 'standard') === 'endurance') {
+        $input = json_decode((string)($post['drivers_json'] ?? '[]'), true);
+        if (!is_array($input)) return $fail('Choose a driver for every added driver.');
+        foreach ($input as $row) {
+            $name = is_array($row) ? techSheetDriverName($ownedById, (string)($row['driver_choice'] ?? ''), (string)($row['new_name'] ?? '')) : null;
+            if ($name === null) return $fail('Choose a driver for every added driver.');
+            $norm = db_driver_name_norm($name);
+            if (isset($seen[$norm])) return $fail($name . ' is on this sheet twice.');
+            $seen[$norm] = true;
+            $rows[] = ['driver_number' => $row['driver_number'] ?? null, 'driver_name' => $name, 'equipment' => $row['equipment'] ?? []];
+        }
+    }
+    $post['driver_name'] = $first;
+    $post['drivers_json'] = json_encode($rows);
+    return ['ok' => true, 'error' => null, 'post' => $post];
+}
+
+/** For editing a sheet: the profile id matching a name already on it, or 'new' so the name is kept. */
+function techSheetDriverChoiceFor(array $ownedById, string $name): string {
+    $norm = db_driver_name_norm($name);
+    foreach ($ownedById as $id => $d) {
+        if ($d['name_norm'] === $norm) return (string)$id;
+    }
+    return 'new';
+}
