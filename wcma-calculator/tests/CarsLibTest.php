@@ -69,16 +69,6 @@ final class CarsLibTest extends TestCase
         $this->assertNull(carsPublicShape($car, null)['current_class']);
     }
 
-    public function testApplySheetDetailsWritesBackToTheCar(): void
-    {
-        $pdo = make_temp_pdo();
-        $u = $this->user($pdo);
-        $id = db_create_car($pdo, $u, ['car_number' => '42', 'make' => 'Honda', 'model' => 'S2000']);
-        carsApplySheetDetails($pdo, $id, '042', 'Blue', '1998');
-        $car = db_get_car($pdo, $id);
-        $this->assertSame(['042', '42', 'Blue', '1998'], [$car['car_number'], $car['car_number_norm'], $car['colour'], $car['engine_cc']]);
-    }
-
     public function testNoBannedWording(): void
     {
         $src = file_get_contents(__DIR__ . '/../cars-lib.php') . file_get_contents(__DIR__ . '/../email-copy.php');

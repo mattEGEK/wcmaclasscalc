@@ -235,6 +235,17 @@ function renderGarageCarHtml(array $vm): string {
     return $out;
 }
 
+/** "Which car is this tech sheet for?": the given (active) cars, each opening the form for that car. */
+function renderTechSheetCarPickerHtml(array $cars, int $eventId): string {
+    $out = '<h1>Submit a tech sheet</h1><p class="hub-intro">Which car is this tech sheet for?</p><div class="hub-card">';
+    foreach ($cars as $car) {
+        $url = 'tech-sheets.php?action=new&car_id=' . (int)$car['id'] . ($eventId > 0 ? '&event_id=' . $eventId : '');
+        $out .= '<div class="hub-line"><span><span class="hub-plate">' . h((string)$car['car_number']) . '</span> ' . h(garageCarTitle($car)) . '</span>'
+            . '<a class="hub-btn" href="' . h($url) . '">Choose</a></div>';
+    }
+    return $out . '</div><p><a href="garage.php?action=add">+ Add a car</a></p>';
+}
+
 function renderDeclarationHtml(array $s, string $csrf): string {
     $id = (int)$s['id'];
     $vehicle = trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model']);

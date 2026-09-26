@@ -17,6 +17,7 @@ require __DIR__ . '/pretech-page.php';
 require __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-chips.php';
 require __DIR__ . '/cars-lib.php';
+require __DIR__ . '/garage-page.php';
 require __DIR__ . '/events-lib.php';
 require_once __DIR__ . '/email-copy.php';
 
@@ -141,9 +142,16 @@ switch ($action) {
 function handleNew(PDO $pdo, array $user, int $carId, int $eventId = 0): void {
     $car = db_get_user_car($pdo, (int)$user['id'], $carId);
     if (!$car || $car['archived_at'] !== null) {
-        setFlash('Car not found.', 'error');
-        header('Location: garage.php');
-        exit;
+        $cars = db_get_user_cars($pdo, (int)$user['id']);
+        if (!$cars) {
+            setFlash('Add your car before submitting a tech sheet.', 'error');
+            header('Location: garage.php?action=add');
+            exit;
+        }
+        renderPageStart('Submit a tech sheet', 'garage', ['flash' => getFlash()]);
+        echo renderTechSheetCarPickerHtml($cars, $eventId);
+        renderPageEnd();
+        return;
     }
     $declaration = db_get_car_current_declaration($pdo, $carId);
     if (!$declaration) {
@@ -272,26 +280,29 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
         exit;
     }
 
+    $car = db_get_user_car($pdo, (int)$user['id'], (int)$sheet['car_id']);
+    if ($car === null) {
+        setFlash('Car not found.', 'error');
+        header('Location: garage.php');
+        exit;
+    }
+
     $events = db_get_active_events($pdo);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
     $gearNames = gearNameSuggestions(db_get_user_gear_records($pdo, (int)$user['id']), (int)($sheet['season'] ?? 0) ?: gearSeasonNow());
     $csrf = generateCsrfToken();
-    renderTechSheetEditForm($sheet, $drivers, $events, $csrf, $gearNames);
+    renderTechSheetEditForm($sheet, $drivers, $events, $csrf, $gearNames, $car);
 }
 
-function renderTechSheetForm(array $submission, array $events, string $csrf, ?array $existingSheet = null, array $existingDrivers = [], array $gearNames = [], ?array $car = null, int $preselectEventId = 0): void {
+function renderTechSheetForm(array $submission, array $events, string $csrf, ?array $existingSheet, array $existingDrivers, array $gearNames, array $car, int $preselectEventId = 0): void {
     $isEdit = $existingSheet !== null;
     $formAction = $isEdit ? 'tech-sheets.php?action=update' : 'tech-sheets.php?action=submit';
     $pageTitle = $isEdit ? 'Edit Tech Sheet' : 'Submit Tech Sheet';
     $entrantName = $isEdit ? $existingSheet['entrant_name'] : $submission['name'];
     $driverName = $isEdit ? $existingSheet['driver_name'] : $submission['name'];
-    $carNumber = $isEdit ? $existingSheet['car_number'] : (string)($car['car_number'] ?? '');
-    $carColour = $isEdit ? $existingSheet['car_colour'] : (string)($car['colour'] ?? '');
-    $engineCc = $isEdit ? $existingSheet['engine_cc'] : (string)($car['engine_cc'] ?? '');
     $engineHp = $isEdit ? $existingSheet['engine_hp'] : ($submission['dyno_hp'] ?: $submission['declared_hp']);
-    $carMake = $isEdit ? $existingSheet['car_make'] : (string)($car['make'] ?? $submission['make']);
-    $carModel = $isEdit ? $existingSheet['car_model'] : (string)($car['model'] ?? $submission['model']);
     $carClass = $isEdit ? $existingSheet['class'] : ($submission['calculated_class'] ?? '');
+    $carNeedsColour = trim((string)($car['colour'] ?? '')) === '';
     $carWeight = $isEdit ? (int)$existingSheet['car_weight'] : (int)$submission['competition_weight'];
     $selectedEventId = $isEdit ? (int)$existingSheet['event_id'] : ($preselectEventId ?: null);
     $selectedSheetType = $isEdit ? $existingSheet['sheet_type'] : 'standard';
@@ -307,7 +318,6 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
             'equipment' => json_decode($d['equipment_json'] ?? '{}', true) ?: [],
         ];
     }, $existingDrivers);
-    $backCarId = $isEdit ? (int)$existingSheet['car_id'] : (int)($car['id'] ?? 0);
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -323,7 +333,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 </head>
 <body class="hub">
 <div class="container">
-  <?php renderSiteHeader($pageTitle, '<a href="garage.php?car=' . $backCarId . '">← Back to Garage</a>', 'garage'); ?>
+  <?php renderSiteHeader($pageTitle, '<a href="garage.php?car=' . (int)$car['id'] . '">← Back to the car</a>', 'garage'); ?>
 
   <form id="tech-sheet-form" method="post" action="<?= h($formAction) ?>">
     <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
@@ -355,19 +365,25 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     </div>
 
     <div class="detail-card">
-      <h2>Vehicle &amp; Entrant</h2>
+      <h2>Car</h2>
+      <p class="tech-sheet-car"><span class="hub-plate"><?= h((string)$car['car_number']) ?></span> <?= h(garageCarTitle($car)) ?><?= garageCarSub($car) !== '' ? ' · ' . h(garageCarSub($car)) : '' ?></p>
+      <p class="form-hint">Car details come from your Garage and are copied onto the sheet when you submit. <a href="garage.php?car=<?= (int)$car['id'] ?>">Edit car details</a></p>
+      <?php if ($carNeedsColour): ?>
+      <label for="car_colour">Car colour</label>
+      <input type="text" id="car_colour" name="car_colour" maxlength="30" required>
+      <p class="form-hint">Your car has no colour on file yet. It will be saved to the car.</p>
+      <?php endif; ?>
+    </div>
+
+    <div class="detail-card">
+      <h2>Entrant &amp; Driver</h2>
       <div class="tech-sheet-header-grid">
         <div><label for="entrant_name">Entrant</label><input type="text" id="entrant_name" name="entrant_name" required value="<?= h((string)$entrantName) ?>"></div>
         <div><label for="driver_name">Driver name (Driver 1)</label><input type="text" id="driver_name" name="driver_name" required list="gear-names" value="<?= h((string)$driverName) ?>"></div>
-        <div><label for="car_number">Car Number</label><input type="text" id="car_number" name="car_number" required value="<?= h((string)$carNumber) ?>"></div>
-        <div><label for="car_colour">Car Colour</label><input type="text" id="car_colour" name="car_colour" required value="<?= h((string)$carColour) ?>"></div>
-        <div><label for="engine_cc">Engine CC</label><input type="text" id="engine_cc" name="engine_cc" value="<?= h((string)$engineCc) ?>"></div>
         <div><label for="engine_hp">Engine HP</label><input type="text" id="engine_hp" name="engine_hp" value="<?= h((string)$engineHp) ?>"></div>
       </div>
       <p class="form-hint">Driver 1 is the person driving. If you race as a team, put the team name in Entrant.</p>
       <?php if ($gearNames): ?><p class="form-hint">Pick a driver from your My Drivers list so their gear status links to this sheet.</p><?php endif; ?>
-      <input type="hidden" name="car_make" value="<?= h((string)$carMake) ?>">
-      <input type="hidden" name="car_model" value="<?= h((string)$carModel) ?>">
       <input type="hidden" name="class" value="<?= h((string)$carClass) ?>">
       <input type="hidden" name="car_weight" value="<?= (int)$carWeight ?>">
     </div>
@@ -431,8 +447,8 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 </html><?php
 }
 
-function renderTechSheetEditForm(array $sheet, array $drivers, array $events, string $csrf, array $gearNames = []): void {
-    renderTechSheetForm([], $events, $csrf, $sheet, $drivers, $gearNames);
+function renderTechSheetEditForm(array $sheet, array $drivers, array $events, string $csrf, array $gearNames, array $car): void {
+    renderTechSheetForm([], $events, $csrf, $sheet, $drivers, $gearNames, $car);
 }
 
 function handleTechSheetSignature(PDO $pdo, array $user, int $id, string $which): void {
@@ -561,7 +577,14 @@ function handleSubmit(PDO $pdo, array $user): void {
         exit;
     }
 
-    $parsed = parseTechSheetPost($_POST);
+    $snap = carsSheetSnapshot($car, $_POST);
+    if (!$snap['ok']) {
+        setFlash((string)$snap['error'], 'error');
+        header('Location: tech-sheets.php?action=new&car_id=' . $carId . ($eventId > 0 ? '&event_id=' . $eventId : ''));
+        exit;
+    }
+
+    $parsed = parseTechSheetPost(array_merge($_POST, ['car_number' => $snap['car_number'], 'car_colour' => $snap['car_colour'], 'engine_cc' => (string)($snap['engine_cc'] ?? '')]));
     $driverRows = validateTechSheetPost($parsed);
     if ($driverRows === null) {
         setFlash('Please complete every required field, including all driver equipment checklists, before submitting.', 'error');
@@ -587,7 +610,7 @@ function handleSubmit(PDO $pdo, array $user): void {
         'log_book_turned_in' => (int)$parsed['log_book'],
     ]);
 
-    carsApplySheetDetails($pdo, $carId, $parsed['car_number'], $parsed['car_colour'], $parsed['engine_cc']);
+    if ($snap['colour_for_car'] !== null) db_update_car($pdo, $carId, ['colour' => $snap['colour_for_car']]);
     db_tag_event($pdo, (int)$user['id'], $eventId, $carId);
 
     $sigPaths = [];
@@ -638,7 +661,15 @@ function handleUpdate(PDO $pdo, array $user): void {
         exit;
     }
 
-    $parsed = parseTechSheetPost($_POST);
+    $car = db_get_user_car($pdo, (int)$user['id'], (int)$sheet['car_id']);
+    $snap = $car !== null ? carsSheetSnapshot($car, $_POST) : ['ok' => false, 'error' => 'Car not found.'];
+    if (!$snap['ok']) {
+        setFlash((string)$snap['error'], 'error');
+        header('Location: tech-sheets.php?action=edit&id=' . $id);
+        exit;
+    }
+
+    $parsed = parseTechSheetPost(array_merge($_POST, ['car_number' => $snap['car_number'], 'car_colour' => $snap['car_colour'], 'engine_cc' => (string)($snap['engine_cc'] ?? '')]));
     $driverRows = validateTechSheetPost($parsed);
     if ($driverRows === null) {
         setFlash('Please complete every required field, including all driver equipment checklists.', 'error');
@@ -650,7 +681,7 @@ function handleUpdate(PDO $pdo, array $user): void {
     db_update_tech_sheet($pdo, $id, [
         'event_id' => $eventId, 'sheet_type' => $parsed['sheet_type'],
         'entrant_name' => $parsed['entrant_name'], 'driver_name' => $parsed['driver_name'],
-        'car_make' => $sheet['car_make'], 'car_model' => $sheet['car_model'], 'car_colour' => $parsed['car_colour'],
+        'car_make' => $car['make'], 'car_model' => $car['model'], 'car_colour' => $parsed['car_colour'],
         'car_number' => $parsed['car_number'], 'class' => $sheet['class'],
         'engine_cc' => $parsed['engine_cc'], 'engine_hp' => $parsed['engine_hp'],
         'car_weight' => (int)$sheet['car_weight'],
@@ -658,11 +689,7 @@ function handleUpdate(PDO $pdo, array $user): void {
         'log_book_turned_in' => (int)$parsed['log_book'],
     ]);
 
-    // Only the car's newest sheet writes its details back to the car — an edit to an older sheet
-    // must not overwrite what the newest sheet already put there.
-    if (db_get_car_latest_tech_sheet_id($pdo, (int)$sheet['car_id']) === $id) {
-        carsApplySheetDetails($pdo, (int)$sheet['car_id'], $parsed['car_number'], $parsed['car_colour'], $parsed['engine_cc']);
-    }
+    if ($snap['colour_for_car'] !== null) db_update_car($pdo, (int)$car['id'], ['colour' => $snap['colour_for_car']]);
 
     if (!empty($_POST['entrant_signature'])) {
         $path = techSheetSaveSignature(__DIR__, $id, 'entrant', $_POST['entrant_signature']);

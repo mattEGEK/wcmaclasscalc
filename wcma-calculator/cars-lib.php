@@ -95,7 +95,24 @@ function carsPublicShape(array $car, ?array $declaration): array {
     ];
 }
 
-/** A submitted tech sheet's car details become the car's details (the sheet itself keeps its snapshot). */
-function carsApplySheetDetails(PDO $pdo, int $carId, string $number, string $colour, ?string $engineCc): void {
-    db_update_car($pdo, $carId, ['car_number' => $number, 'colour' => $colour, 'engine_cc' => $engineCc]);
+/**
+ * A tech sheet's car details are a snapshot of the car record (spec §4). Posted car fields are
+ * ignored, except the colour when the car has none on file: the form asks for it, and it goes on
+ * the sheet and back onto the car (colour_for_car).
+ *
+ * @return array{ok: bool, error: ?string, car_number: string, car_colour: string, engine_cc: ?string, colour_for_car: ?string}
+ */
+function carsSheetSnapshot(array $car, array $post): array {
+    $colour = trim((string)($car['colour'] ?? ''));
+    $forCar = null;
+    if ($colour === '') {
+        $colour = trim((string)preg_replace('/\s+/', ' ', (string)($post['car_colour'] ?? '')));
+        $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'car_number' => (string)$car['car_number'], 'car_colour' => '', 'engine_cc' => null, 'colour_for_car' => null];
+        if ($colour === '') return $fail("Enter the car's colour.");
+        if (mb_strlen($colour, 'UTF-8') > CARS_FIELD_MAX['colour']) return $fail('That colour is too long (30 characters at most).');
+        $forCar = $colour;
+    }
+    $cc = trim((string)($car['engine_cc'] ?? ''));
+    return ['ok' => true, 'error' => null, 'car_number' => (string)$car['car_number'], 'car_colour' => $colour,
+            'engine_cc' => $cc === '' ? null : $cc, 'colour_for_car' => $forCar];
 }

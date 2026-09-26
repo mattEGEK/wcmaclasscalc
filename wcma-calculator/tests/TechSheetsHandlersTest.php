@@ -39,21 +39,16 @@ final class TechSheetsHandlersTest extends TestCase
         }
     }
 
-    public function testSubmitAndUpdateWriteDetailsBackToTheCar(): void
+    public function testSubmitAndUpdateSnapshotTheCarRecord(): void
     {
         foreach (['handleSubmit', 'handleUpdate'] as $fn) {
-            $this->assertStringContainsString('carsApplySheetDetails(', $this->body($fn), $fn);
+            $body = $this->body($fn);
+            $this->assertStringContainsString('carsSheetSnapshot($car, $_POST)', $body, $fn);
+            $this->assertStringContainsString("'car_make' => \$car['make'], 'car_model' => \$car['model']", $body, $fn);
+            $this->assertStringContainsString("if (\$snap['colour_for_car'] !== null) db_update_car(", $body, $fn);
+            $this->assertStringNotContainsString('carsApplySheetDetails(', $body, $fn);
         }
-    }
-
-    public function testUpdateOnlyWritesBackWhenEditingTheCarsNewestSheet(): void
-    {
-        $body = $this->body('handleUpdate');
-        $this->assertStringContainsString('db_get_car_latest_tech_sheet_id(', $body);
-        $this->assertMatchesRegularExpression(
-            '/if \(db_get_car_latest_tech_sheet_id\(.*?===\s*\$id\)\s*\{\s*carsApplySheetDetails\(/s',
-            $body
-        );
+        $this->assertStringContainsString('db_get_user_car($pdo, (int)$user[\'id\'], (int)$sheet[\'car_id\'])', $this->body('handleUpdate'));
     }
 
     public function testSubmittingASheetTagsTheEventAndNewCanPreselectIt(): void
