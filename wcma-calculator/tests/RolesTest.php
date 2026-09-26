@@ -74,4 +74,11 @@ final class RolesTest extends TestCase
         $this->assertNull(adminMovedActionUrl('users', []));
         $this->assertNull(adminMovedActionUrl('tech-sheet-accept', ['id' => '4']));   // POSTs are not redirected
     }
+
+    public function testMovedGearActionsRedirect(): void
+    {
+        $this->assertSame('inspect.php?action=gear&season=2026&filter=accepted', adminMovedActionUrl('gear', ['season' => '2026', 'filter' => 'accepted']));
+        $this->assertSame('inspect.php?action=gear-record&id=9', adminMovedActionUrl('gear-record', ['id' => '9']));
+        $this->assertNull(adminMovedActionUrl('gear-create-accept', []));
+    }
 }

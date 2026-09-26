@@ -30,6 +30,7 @@ require __DIR__ . '/declaration-review-lib.php';
 require __DIR__ . '/inspect-lib.php';
 require __DIR__ . '/inspect-page.php';
 require __DIR__ . '/admin-tech-sheets.php';
+require __DIR__ . '/admin-gear.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
 require __DIR__ . '/phpmailer/src/SMTP.php';
@@ -68,6 +69,27 @@ switch ($action) {
         break;
     case 'tech-sheet-photos-send-back':
         handleTechSheetPhotosSendBack($pdo, $postId);
+        break;
+    case 'gear':
+        handleGearAdminList($pdo);
+        break;
+    case 'gear-record':
+        handleGearAdminView($pdo, $getId);
+        break;
+    case 'gear-record-accept':
+        handleGearAdminAcceptInPerson($pdo, $postId);
+        break;
+    case 'gear-record-revoke':
+        handleGearAdminRevoke($pdo, $postId);
+        break;
+    case 'gear-photos-accept':
+        handleGearAdminPhotosAccept($pdo, $postId);
+        break;
+    case 'gear-photos-send-back':
+        handleGearAdminPhotosSendBack($pdo, $postId);
+        break;
+    case 'gear-create-accept':
+        handleGearCreateAccept($pdo);
         break;
     default:
         inspectShowRoster($pdo);

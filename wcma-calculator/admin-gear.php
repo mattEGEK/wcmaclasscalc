@@ -1,9 +1,9 @@
 <?php
 // wcma-calculator/admin-gear.php
 //
-// Admin "Gear" tab: driver gear records for a season, and the review page (accept in person,
-// accept photos remotely, send photos back). Included by admin.php, which provides requireAuth(),
-// the router and the CSRF/POST checks.
+// Inspector section, Gear tab: driver gear records for a season, and the review page (accept in
+// person, accept photos remotely, send photos back), plus the roster's one-tap "create and accept".
+// Included by inspect.php, which provides the role gate, the POST/CSRF checks and the router.
 
 const GEAR_ADMIN_FILTERS = [
     'all' => 'All drivers',
@@ -29,24 +29,11 @@ function handleGearAdminList(PDO $pdo): void {
 }
 
 function renderGearAdminListPage(array $records, int $season, string $filter, array $counts, ?array $flash): void {
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gear — WCMA Admin</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="css/calculator.css">
-<link rel="stylesheet" href="css/hub.css">
-</head>
-<body class="hub">
-<div class="container">
-  <?php renderSiteHeader('Gear', renderAdminNav('gear', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
-  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+    renderPageStart('Gear', 'inspect', ['flash' => $flash, 'subnav' => inspectSubnavHtml('gear')]);
+    ?>
+<h1 class="hub-page-title">Gear</h1>
 
-  <form method="get" action="admin.php" class="detail-card" style="margin-bottom:1rem">
+  <form method="get" action="inspect.php" class="hub-card inspect-filters">
     <input type="hidden" name="action" value="gear">
     <label for="gear-season">Season</label>
     <input type="number" id="gear-season" name="season" value="<?= (int)$season ?>" min="2000" max="2100">
@@ -57,7 +44,7 @@ function renderGearAdminListPage(array $records, int $season, string $filter, ar
       <?php endforeach; ?>
     </select>
     <button type="submit" class="btn btn-primary">Apply</button>
-    <p class="form-hint" style="margin-top:.5rem"><?= (int)$counts['all'] ?> drivers: <?= (int)$counts['accepted'] ?> accepted, <?= (int)$counts['pending_review'] ?> with photos awaiting review, <?= (int)$counts['needs_gear'] ?> still need a gear check at the track.</p>
+    <p class="form-hint"><?= (int)$counts['all'] ?> drivers: <?= (int)$counts['accepted'] ?> accepted, <?= (int)$counts['pending_review'] ?> with photos awaiting review, <?= (int)$counts['needs_gear'] ?> still need a gear check at the track.</p>
   </form>
 
   <table class="data-table" id="gear-admin-table">
@@ -71,22 +58,20 @@ function renderGearAdminListPage(array $records, int $season, string $filter, ar
         <td><?= h((string)($g['licence_no'] ?? '')) ?></td>
         <td><?= h((string)($g['owner_name'] ?? '')) ?></td>
         <td class="<?= h(gearStatusBadgeClass($st['state'])) ?>"><?= h(gearStatusLabel($st, (int)$g['season'])) ?></td>
-        <td class="actions"><a href="admin.php?action=gear-record&amp;id=<?= (int)$g['id'] ?>"><?= $st['state'] === 'accepted' ? 'View' : 'Review' ?></a></td>
+        <td class="actions"><a href="inspect.php?action=gear-record&amp;id=<?= (int)$g['id'] ?>"><?= $st['state'] === 'accepted' ? 'View' : 'Review' ?></a></td>
       </tr>
     <?php endforeach; endif; ?>
     </tbody>
   </table>
-</div>
-<?php renderSiteFooter(); ?>
-</body>
-</html><?php
+<?php
+    renderPageEnd();
 }
 
 function handleGearAdminView(PDO $pdo, int $id): void {
     $gear = db_get_gear_record($pdo, $id);
     if ($gear === null) {
         setFlash('Gear record not found.', 'error');
-        header('Location: admin.php?action=gear');
+        header('Location: inspect.php?action=gear');
         exit;
     }
     $owner = db_find_user_by_id($pdo, (int)$gear['owner_user_id']);
@@ -107,14 +92,14 @@ function handleGearAdminAcceptInPerson(PDO $pdo, int $id): void {
     } else {
         setFlash($r['error'], 'error');
     }
-    header('Location: admin.php?action=gear-record&id=' . $id);
+    header('Location: inspect.php?action=gear-record&id=' . $id);
     exit;
 }
 
 function handleGearAdminRevoke(PDO $pdo, int $id): void {
     $r = gearRevoke($pdo, $id);
     setFlash($r['ok'] ? 'Acceptance revoked. The gear record is open again.' : $r['error'], $r['ok'] ? 'success' : 'error');
-    header('Location: admin.php?action=gear-record&id=' . $id);
+    header('Location: inspect.php?action=gear-record&id=' . $id);
     exit;
 }
 
@@ -127,7 +112,7 @@ function handleGearAdminPhotosAccept(PDO $pdo, int $id): void {
         $sent = gearNotify($pdo, 'accepted', db_get_gear_record($pdo, $id), gearAdminBaseUrl(), ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend');
         setFlash('Photos accepted: the gear is pre-teched.' . ($sent ? ' The driver\'s account holder and the club were emailed.' : ' The notification email could not be sent.'), $sent ? 'success' : 'error');
     }
-    header('Location: admin.php?action=gear-record&id=' . $id);
+    header('Location: inspect.php?action=gear-record&id=' . $id);
     exit;
 }
 
@@ -151,7 +136,7 @@ function handleGearAdminPhotosSendBack(PDO $pdo, int $id): void {
         $n = count($r['retakes']);
         setFlash($n . ' ' . ($n === 1 ? 'photo' : 'photos') . ' sent back for a retake.' . ($sent ? ' The account holder was emailed.' : ' The notification email could not be sent.'), $sent ? 'success' : 'error');
     }
-    header('Location: admin.php?action=gear-record&id=' . $id);
+    header('Location: inspect.php?action=gear-record&id=' . $id);
     exit;
 }
 
@@ -166,22 +151,10 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
         $when = !empty($gear['reviewed_at']) ? ' on ' . date('M j, Y g:i A', strtotime($gear['reviewed_at'])) : '';
         $acceptedLine = 'Accepted ' . $how . $who . $when . '.';
     }
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gear #<?= $id ?> — WCMA Admin</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="css/calculator.css">
-<link rel="stylesheet" href="css/hub.css">
-</head>
-<body class="hub">
-<div class="container">
-  <?php renderSiteHeader('Gear #' . $id, '<a href="admin.php?action=gear&amp;season=' . (int)$gear['season'] . '">← Back to gear list</a>', 'staff'); ?>
-  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+    renderPageStart('Gear #' . $id, 'inspect', ['flash' => $flash, 'subnav' => inspectSubnavHtml('gear')]);
+    ?>
+<p><a href="inspect.php?action=gear&amp;season=<?= (int)$gear['season'] ?>">&larr; Back to the gear list</a></p>
+<h1 class="hub-page-title">Gear #<?= $id ?></h1>
 
   <div class="detail-card">
     <h2>Gear review</h2>
@@ -191,14 +164,14 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
 
     <?php if ($accepted): ?>
     <p><?= h($acceptedLine) ?></p>
-    <form method="post" action="admin.php?action=gear-record-revoke" data-confirm="Revoke this acceptance? The gear record goes back to open<?= ($gear['accepted_via'] ?? '') === 'photos' ? ' and its photos return to the review queue' : '' ?>.">
+    <form method="post" action="inspect.php?action=gear-record-revoke" data-confirm="Revoke this acceptance? The gear record goes back to open<?= ($gear['accepted_via'] ?? '') === 'photos' ? ' and its photos return to the review queue' : '' ?>.">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
       <button type="submit" class="btn btn-secondary">Revoke acceptance</button>
     </form>
     <?php else: ?>
     <p class="form-hint">Accepting in person records that the gear you are looking at matches what the driver declared. To review photos instead, use the photo review below.</p>
-    <form method="post" action="admin.php?action=gear-record-accept">
+    <form method="post" action="inspect.php?action=gear-record-accept">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
       <button type="submit" class="btn btn-primary" id="gear-inperson-btn">Accept — gear teched in person</button>
@@ -207,12 +180,8 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
   </div>
 
   <?php renderGearReviewCard($gear, $snapshot, $csrf); ?>
-</div>
-<script src="js/confirm-modal.js"></script>
-<script src="js/form-feedback.js"></script>
-<?php renderSiteFooter(); ?>
-</body>
-</html><?php
+<?php
+    renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script><script src="js/form-feedback.js"></script>']);
 }
 
 /** The gear photos, with accept / send-back controls while they are awaiting review. */
@@ -237,7 +206,7 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
     <p class="form-hint">Accepting these photos makes the gear pre-teched for the season. To send photos back, tick each one, say what is wrong, and use "Send back for retakes".</p>
     <?php endif; ?>
 
-    <form method="post" action="admin.php?action=gear-photos-send-back" id="gear-review-form">
+    <form method="post" action="inspect.php?action=gear-photos-send-back" id="gear-review-form">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
       <?php foreach ($photos as $key => $row):
@@ -268,7 +237,7 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
     </form>
 
     <?php if ($awaiting): ?>
-    <form method="post" action="admin.php?action=gear-photos-accept" style="margin-top:.75rem">
+    <form method="post" action="inspect.php?action=gear-photos-accept" style="margin-top:.75rem">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
       <button type="submit" class="btn btn-primary" id="gear-accept-btn">Accept photos (pre-teched)</button>
@@ -285,7 +254,7 @@ function handleGearCreateAccept(PDO $pdo): void {
     $sheet = $sheetId > 0 ? db_get_tech_sheet($pdo, $sheetId) : null;
     if ($sheet === null) {
         setFlash('Tech sheet not found.', 'error');
-        header('Location: admin.php?action=tech-sheets');
+        header('Location: inspect.php');
         exit;
     }
 
@@ -299,10 +268,10 @@ function handleGearCreateAccept(PDO $pdo): void {
     }
 
     if (($_POST['back'] ?? '') === 'sheet') {
-        header('Location: admin.php?action=tech-sheet&id=' . $sheetId);
+        header('Location: inspect.php?action=tech-sheet&id=' . $sheetId);
     } else {
-        $filter = is_string($_POST['filter'] ?? null) && isset(TECH_SHEET_FILTERS[$_POST['filter']]) ? $_POST['filter'] : 'all';
-        header('Location: admin.php?action=tech-sheets&event=' . (int)$sheet['event_id'] . '&filter=' . rawurlencode($filter));
+        $filter = is_string($_POST['filter'] ?? null) && isset(INSPECT_ROSTER_FILTERS[$_POST['filter']]) ? $_POST['filter'] : 'all';
+        header('Location: inspect.php?event=' . (int)$sheet['event_id'] . '&filter=' . rawurlencode($filter));
     }
     exit;
 }

@@ -6,13 +6,6 @@
 // the router. (The file keeps its old name; the event roster that used to live here is in
 // inspect-page.php.)
 
-const TECH_SHEET_FILTERS = [
-    'all' => 'All sheets',
-    'needs_tech' => 'Needs tech at the track (car or gear)',
-    'pending_review' => 'Photos awaiting review',
-    'accepted' => 'Accepted (car and gear)',
-];
-
 function handleTechSheetView(PDO $pdo, int $id): void {
     $sheet = db_get_tech_sheet($pdo, $id);
     if ($sheet === null) {

@@ -6,9 +6,9 @@
 require_once __DIR__ . '/view_helpers.php';
 require_once __DIR__ . '/gear-lib.php';
 
-/** The inspector's one-tap form for a driver with no gear record (posts to admin.php). */
+/** The inspector's one-tap form for a driver with no gear record (posts to inspect.php). */
 function gearChipCreateForm(string $csrf, int $sheetId, int $driverNumber, array $hidden): string {
-    $out = '<form method="post" action="admin.php?action=gear-create-accept" class="gear-inline-form">'
+    $out = '<form method="post" action="inspect.php?action=gear-create-accept" class="gear-inline-form">'
         . '<input type="hidden" name="csrf_token" value="' . h($csrf) . '">'
         . '<input type="hidden" name="sheet_id" value="' . $sheetId . '">'
         . '<input type="hidden" name="driver_number" value="' . $driverNumber . '">';
@@ -53,7 +53,7 @@ function renderGearChips(array $links, string $audience, array $opts = []): stri
         $class = gearStatusBadgeClass($l['status']['state']);
         $href = $audience === 'owner'
             ? 'gear.php?action=pretech&amp;id=' . (int)$gear['id']
-            : 'admin.php?action=gear-record&amp;id=' . (int)$gear['id'];
+            : 'inspect.php?action=gear-record&amp;id=' . (int)$gear['id'];
         $html .= '<li class="gear-chip">' . $name . ': <a class="' . h($class) . '" href="' . $href . '">' . h($label) . '</a></li>';
     }
     return $html . '</ul>';

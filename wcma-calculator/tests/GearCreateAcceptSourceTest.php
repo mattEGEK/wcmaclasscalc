@@ -20,11 +20,12 @@ final class GearCreateAcceptSourceTest extends TestCase
         return $next === false ? substr($src, $start) : substr($src, $start, $next - $start);
     }
 
-    public function testRouteIsAdminOnlyPostOnlyAndCsrfChecked(): void
+    public function testRouteIsPostOnlyAndCsrfCheckedInTheInspectorSection(): void
     {
-        $admin = $this->src('admin.php');
-        $this->assertMatchesRegularExpression("/case 'gear-create-accept':\\s+requireAuth\\(\\\$minRole\\);/", $admin);
-        $this->assertMatchesRegularExpression("/case 'gear-create-accept':.{0,300}?REQUEST_METHOD.{0,300}?validateCsrfToken.{0,300}?handleGearCreateAccept\\(\\\$pdo\\);/s", $admin);
+        $this->assertContains('gear-create-accept', INSPECT_POST_ACTIONS);
+        $this->assertSame('inspector', inspectActionMinRole('gear-create-accept'));
+        $this->assertStringContainsString("case 'gear-create-accept':", $this->src('inspect.php'));
+        $this->assertStringNotContainsString("case 'gear-create-accept':", $this->src('admin.php'));
     }
 
     public function testHandlerReadsTheNameFromTheSheetNotFromTheRequest(): void
@@ -35,7 +36,7 @@ final class GearCreateAcceptSourceTest extends TestCase
         $this->assertStringContainsString('gearCreateAndAcceptInPerson($pdo, $sheet,', $handler);
         $this->assertStringContainsString('(int)$user[\'id\']', $handler);
         $this->assertStringNotContainsString("\$_POST['driver_name']", $handler);
-        $this->assertStringContainsString('TECH_SHEET_FILTERS[$_POST[\'filter\']]', $handler);
+        $this->assertStringContainsString('INSPECT_ROSTER_FILTERS[$_POST[\'filter\']]', $handler);
     }
 
     public function testReviewPagePassesATokenAndOptionsToTheAdminChips(): void

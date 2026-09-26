@@ -175,51 +175,6 @@ switch ($action) {
         handleEventSetActive($pdo, (int)($_POST['id'] ?? 0), true);
         break;
 
-    case 'gear':
-        requireAuth($minRole);
-        handleGearAdminList($pdo);
-        break;
-
-    case 'gear-record':
-        requireAuth($minRole);
-        handleGearAdminView($pdo, is_scalar($_GET['id'] ?? null) ? (int)$_GET['id'] : 0);
-        break;
-
-    case 'gear-record-accept':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=gear'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleGearAdminAcceptInPerson($pdo, (int)($_POST['id'] ?? 0));
-        break;
-
-    case 'gear-record-revoke':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=gear'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleGearAdminRevoke($pdo, (int)($_POST['id'] ?? 0));
-        break;
-
-    case 'gear-photos-accept':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=gear'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleGearAdminPhotosAccept($pdo, (int)($_POST['id'] ?? 0));
-        break;
-
-    case 'gear-photos-send-back':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=gear'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleGearAdminPhotosSendBack($pdo, (int)($_POST['id'] ?? 0));
-        break;
-
-    case 'gear-create-accept':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleGearCreateAccept($pdo);
-        break;
-
     case 'settings':
         requireAuth($minRole);
         handleSettings($pdo);

@@ -73,4 +73,19 @@ final class InspectSourceTest extends TestCase
         $this->assertStringContainsString("renderPageStart('Tech Sheet #' . \$id, 'inspect'", $src);
         $this->assertStringContainsString("inspectSubnavHtml('roster')", $this->body('inspect.php', 'inspectShowRoster'));
     }
+
+    public function testGearRoutesMovedFromAdmin(): void
+    {
+        $this->assertRoutesMoved(
+            ['gear', 'gear-record', 'gear-record-accept', 'gear-record-revoke', 'gear-photos-accept', 'gear-photos-send-back', 'gear-create-accept'],
+            ['gear-record-accept', 'gear-record-revoke', 'gear-photos-accept', 'gear-photos-send-back', 'gear-create-accept']
+        );
+        $src = $this->src('admin-gear.php');
+        $this->assertStringNotContainsString('admin.php', $src);
+        $this->assertStringNotContainsString('renderSiteHeader(', $src);
+        $this->assertStringContainsString("renderPageStart('Gear', 'inspect'", $src);
+        $this->assertStringContainsString("renderPageStart('Gear #' . \$id, 'inspect'", $src);
+        $this->assertStringNotContainsString('admin.php', $this->src('gear-chips.php'));
+        $this->assertStringNotContainsString('TECH_SHEET_FILTERS', $this->src('admin-tech-sheets.php'));
+    }
 }

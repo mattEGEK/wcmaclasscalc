@@ -49,13 +49,13 @@ final class GearChipsActionsTest extends TestCase
         $html = renderGearChips([$this->link('Jane Racer', $this->gear(4)), $this->link('Sam Coach', null, 2)], 'admin', $this->adminOpts());
 
         $this->assertSame(1, substr_count($html, '<form '));
-        $this->assertStringContainsString('<form method="post" action="admin.php?action=gear-create-accept" class="gear-inline-form">', $html);
+        $this->assertStringContainsString('<form method="post" action="inspect.php?action=gear-create-accept" class="gear-inline-form">', $html);
         $this->assertStringContainsString('<input type="hidden" name="csrf_token" value="tok-1">', $html);
         $this->assertStringContainsString('<input type="hidden" name="sheet_id" value="12">', $html);
         $this->assertStringContainsString('<input type="hidden" name="driver_number" value="2">', $html);
         $this->assertStringContainsString('>' . self::BUTTON . '</button>', $html);
         $this->assertStringContainsString('Sam Coach: <span class="badge-pending">No gear record</span>', $html);
-        $this->assertStringContainsString('href="admin.php?action=gear-record&amp;id=4"', $html);
+        $this->assertStringContainsString('href="inspect.php?action=gear-record&amp;id=4"', $html);
     }
 
     public function testEveryDriverWithoutARecordGetsItsOwnForm(): void

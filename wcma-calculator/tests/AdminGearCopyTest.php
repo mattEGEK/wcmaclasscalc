@@ -18,14 +18,16 @@ final class AdminGearCopyTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/\bsafe\b/i', $source);
     }
 
-    public function testEveryGearRouteIsAdminOnlyAndPostRoutesCheckCsrf(): void
+    public function testGearRoutesLiveInTheInspectorSectionAndPostRoutesAreGated(): void
     {
+        $inspect = $this->src('inspect.php');
         $admin = $this->src('admin.php');
         foreach (['gear', 'gear-record', 'gear-record-accept', 'gear-record-revoke', 'gear-photos-accept', 'gear-photos-send-back'] as $route) {
-            $this->assertMatchesRegularExpression("/case '" . preg_quote($route, '/') . "':\\s+requireAuth\\(\\\$minRole\\);/", $admin, $route);
+            $this->assertStringContainsString("case '$route':", $inspect, $route);
+            $this->assertStringNotContainsString("case '$route':", $admin, $route);
         }
         foreach (['gear-record-accept', 'gear-record-revoke', 'gear-photos-accept', 'gear-photos-send-back'] as $route) {
-            $this->assertMatchesRegularExpression("/case '" . preg_quote($route, '/') . "':.*?validateCsrfToken/s", $admin, $route);
+            $this->assertContains($route, INSPECT_POST_ACTIONS, $route);
         }
     }
 

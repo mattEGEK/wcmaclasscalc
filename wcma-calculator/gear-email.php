@@ -109,7 +109,7 @@ function gearNotify(PDO $pdo, string $kind, array $gear, string $baseUrl, array 
         $base = rtrim($baseUrl, '/');
         $id = (int)$gear['id'];
         $pageUrl = $base . '/gear.php?action=pretech&id=' . $id;
-        $adminUrl = $base . '/admin.php?action=gear-record&id=' . $id;
+        $adminUrl = $base . '/inspect.php?action=gear-record&id=' . $id;
 
         $owner = db_find_user_by_id($pdo, (int)$gear['owner_user_id']);
         $ownerTo = $owner ? [[$owner['email'], $owner['name']]] : [];
