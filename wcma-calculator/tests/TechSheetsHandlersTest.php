@@ -65,4 +65,14 @@ final class TechSheetsHandlersTest extends TestCase
             $body
         );
     }
+
+    // handleSubmit()/handleUpdate() setFlash() a message (e.g. "… is on this sheet twice.")
+    // before redirecting back to the new/edit form on a validation failure. Without this, that
+    // flash is silently dropped and the competitor never sees why their submission was refused.
+    public function testTheNewEditFormDisplaysTheFlashMessage(): void
+    {
+        $body = $this->body('renderTechSheetForm');
+        $this->assertStringContainsString('getFlash(', $body);
+        $this->assertStringContainsString('form-messages', $body);
+    }
 }

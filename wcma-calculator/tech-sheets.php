@@ -308,6 +308,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     $existingLogBook = $isEdit ? $existingSheet['log_book_turned_in'] : null;
     $hasEntrantSignature = $isEdit && !empty($existingSheet['entrant_signature_path']);
     $hasDriverSignature = $isEdit && !empty($existingSheet['driver_signature_path']);
+    $flash = getFlash();
     $ownedById = [];
     $selfId = null;
     foreach ($ownerDrivers as $d) {
@@ -342,6 +343,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 <body class="hub">
 <div class="container">
   <?php renderSiteHeader($pageTitle, '<a href="garage.php?car=' . (int)$car['id'] . '">← Back to the car</a>', 'garage'); ?>
+  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <form id="tech-sheet-form" method="post" action="<?= h($formAction) ?>">
     <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
