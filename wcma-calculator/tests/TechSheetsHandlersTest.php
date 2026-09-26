@@ -73,6 +73,6 @@ final class TechSheetsHandlersTest extends TestCase
     {
         $body = $this->body('renderTechSheetForm');
         $this->assertStringContainsString('getFlash(', $body);
-        $this->assertStringContainsString('form-messages', $body);
+        $this->assertStringContainsString("h(\$flash['message'])", $body);
     }
 }

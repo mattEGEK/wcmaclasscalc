@@ -20,6 +20,36 @@
         return /^\d+$/.test(String(choice || ''));
     }
 
+    function collapseName(name) {
+        return String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    }
+
+    /**
+     * The identity key for a {choice, newName} entry: the profile id for a profile choice (also
+     * matching a NEW entry whose typed name equals an existing profile's name, case/whitespace
+     * insensitive), or 'new:' + the collapsed-whitespace, lower-cased typed name otherwise.
+     */
+    function driverIdentityKey(choice, newName, drivers) {
+        if (choice !== NEW) return String(choice);
+        const collapsed = collapseName(newName);
+        const matched = (drivers || []).find(function (d) { return collapseName(d.name) === collapsed; });
+        return matched ? String(matched.id) : 'new:' + collapsed;
+    }
+
+    /**
+     * Takes [{choice, newName}] (Driver 1 first, then each additional row) and the drivers list.
+     * Returns the index of the first entry that repeats an earlier entry's person, or -1.
+     */
+    function duplicateDriverChoice(entries, drivers) {
+        const seen = {};
+        for (let i = 0; i < entries.length; i++) {
+            const key = driverIdentityKey(entries[i].choice, entries[i].newName, drivers);
+            if (seen[key]) return i;
+            seen[key] = true;
+        }
+        return -1;
+    }
+
     /** Shows (and requires) the name input only while "+ Add a co-driver" is chosen. Returns the sync function. */
     function wire(select, nameInput) {
         function sync() {
@@ -52,7 +82,7 @@
         return { select: select, nameInput: nameInput, sync: wire(select, nameInput) };
     }
 
-    const api = { NEW, driverChoiceOptions, driverChoiceComplete, wire, build };
+    const api = { NEW, driverChoiceOptions, driverChoiceComplete, duplicateDriverChoice, wire, build };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else window.WcmaDriverChoice = api;
 })();

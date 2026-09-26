@@ -170,6 +170,10 @@ final class GaragePageTest extends TestCase
         $this->assertStringNotContainsString('value="untag"', $html);
         $this->assertStringNotContainsString('value="archive"', $html);
         $this->assertStringNotContainsString('Re-declare class', $html);
+        // carVm()'s tagged event 10 has no sheet: an archived car offers neither
+        // "Submit tech sheet" nor "Declare a class first" for it, just the restore hint.
+        $this->assertStringNotContainsString('action=new&amp;car_id=3', $html);
+        $this->assertStringContainsString('Restore the car to submit a tech sheet', $html);
     }
 
     public function testFailedDetailsEditReopensTheFormWithTheErrorAndTypedValues(): void

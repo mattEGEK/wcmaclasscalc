@@ -202,9 +202,13 @@ function renderGarageCarHtml(array $vm): string {
                 . renderGearChips($row['gearLinks'], 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0)]);
         } else {
             $out .= '<span class="hub-status hub-status--todo">No tech sheet yet</span> ';
-            $out .= $cur !== null
-                ? '<a class="hub-btn" href="tech-sheets.php?action=new&amp;car_id=' . $id . '&amp;event_id=' . $eid . '">Submit tech sheet</a>'
-                : '<a href="calculator.php?car=' . $id . '">Declare a class first</a>';
+            if ($archived) {
+                $out .= 'Restore the car to submit a tech sheet';
+            } else {
+                $out .= $cur !== null
+                    ? '<a class="hub-btn" href="tech-sheets.php?action=new&amp;car_id=' . $id . '&amp;event_id=' . $eid . '">Submit tech sheet</a>'
+                    : '<a href="calculator.php?car=' . $id . '">Declare a class first</a>';
+            }
         }
         if (!$archived) $out .= garagePostForm($csrf, 'untag', $id, 'Not going anymore', 'hub-btn hub-btn--link', '', ['event_id' => $eid]);
         $out .= '</div>';

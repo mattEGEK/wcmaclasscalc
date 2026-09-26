@@ -63,6 +63,21 @@ final class GarageSourceTest extends TestCase
         $this->assertStringContainsString('db_count_tech_sheets_for_submission(', $this->body('garage.php', 'garageDeleteDeclaration'));
     }
 
+    public function testDeletingADeclarationRestoresTheCarsPreviousOne(): void
+    {
+        $del = $this->body('garage.php', 'garageDeleteDeclaration');
+        $this->assertMatchesRegularExpression(
+            "/db_delete_submission\(\\\$pdo, \\\$id\);\\s*db_restore_current_declaration\(\\\$pdo, \(int\)\\\$sub\['car_id'\]\);/",
+            $del
+        );
+    }
+
+    public function testAddCarFormShowsTheFlashOnAFreshGetButNotOnAValidationError(): void
+    {
+        $add = $this->body('garage.php', 'garageRenderAdd');
+        $this->assertStringContainsString("'flash' => \$error === null ? getFlash() : null", $add);
+    }
+
     public function testAccountKeepsDraftEndpointsAndRedirectsEverythingElse(): void
     {
         $src = $this->src('account.php');

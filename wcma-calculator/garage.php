@@ -75,7 +75,10 @@ function garageShowList(PDO $pdo, int $uid): void {
 }
 
 function garageRenderAdd(PDO $pdo, array $values, ?string $error): void {
-    renderPageStart('Add a car', 'garage', ['subnav' => '<a href="garage.php">&larr; Back to Garage</a>']);
+    renderPageStart('Add a car', 'garage', [
+        'subnav' => '<a href="garage.php">&larr; Back to Garage</a>',
+        'flash' => $error === null ? getFlash() : null,
+    ]);
     echo renderAddCarHtml([
         'csrf' => generateCsrfToken(), 'values' => $values, 'error' => $error,
         'msrLink' => seasonLinkMatching(db_get_season_links($pdo, true), 'Classing'),
@@ -214,7 +217,7 @@ function garageResendDeclaration(PDO $pdo, int $uid, int $id): void {
         $mail->send();
         $sent = true;
     } catch (Exception $e) {
-        error_log('Account resend error: ' . $e->getMessage());
+        error_log('Garage resend error: ' . $e->getMessage());
     }
 
     db_update_email_sent($pdo, $id, $sent ? 1 : 0);
@@ -237,6 +240,7 @@ function garageDeleteDeclaration(PDO $pdo, int $uid, int $id): void {
         rmdir($upload_dir);
     }
     db_delete_submission($pdo, $id);
+    db_restore_current_declaration($pdo, (int)$sub['car_id']);
     setFlash('Class declaration deleted.', 'success');
     header('Location: garage.php?car=' . (int)$sub['car_id']);
     exit;

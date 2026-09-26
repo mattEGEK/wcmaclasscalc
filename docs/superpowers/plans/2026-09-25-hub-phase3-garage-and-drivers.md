@@ -57,9 +57,9 @@
 | `account.php` | rewrite | Redirects to the Garage; keeps the draft JSON endpoints |
 | `drivers-lib.php` | create | `driversGearLabel()`, `driversGearAction()`, `driversRows()`, `driversAdd()`, `driversSetLicence()` |
 | `drivers-page.php` | create | Pure HTML: `renderDriversHtml()` |
-| `drivers.php` | create | Drivers controller: GET list (`?name=` pre-fills Add); POST add, licence |
+| `drivers.php` | create | Drivers controller: GET list; POST add, licence |
 | `gear.php`, `gear-page.php`, `gear-lib.php` | modify | List/add/renew redirect to Drivers; `renderGearListPage()` and `gearRenew()` removed; pre-tech page links back to Drivers |
-| `gear-chips.php` | modify | "Add to Drivers" link to `drivers.php?name=` |
+| `gear-chips.php` | modify | "Go to Drivers" link to `drivers.php` |
 | `tech-sheets.php` | modify | Car picker; car details read-only from the car; drivers picked from profiles; links point at the Garage |
 | `tech-sheet-data.php` | modify | `techSheetDriverName()`, `techSheetApplyDriverChoices()`, `techSheetDriverChoiceFor()` |
 | `js/driver-choice.js` | create | Pure option/validation helpers plus the select + "new name" widget |

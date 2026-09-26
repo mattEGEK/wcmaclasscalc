@@ -142,9 +142,12 @@
         fieldsWrap.style.flex = '1';
 
         const drivers = window.TECH_SHEET_DRIVERS || [];
-        const firstCoDriver = drivers.find(function (d) { return !d.self; });
+        // Default to a co-driver profile nobody else on the sheet has picked yet, so adding a row
+        // doesn't start the new driver as a duplicate of Driver 1 or another row.
+        const chosen = [driver1Choice.value].concat(additionalDrivers.map(function (d) { return d.picker.select.value; }));
+        const availableCoDriver = drivers.find(function (d) { return !d.self && chosen.indexOf(String(d.id)) === -1; });
         const picker = WcmaDriverChoice.build(document, drivers,
-            existingDriver ? existingDriver.driver_choice : (firstCoDriver ? firstCoDriver.id : WcmaDriverChoice.NEW),
+            existingDriver ? existingDriver.driver_choice : (availableCoDriver ? availableCoDriver.id : WcmaDriverChoice.NEW),
             existingDriver ? existingDriver.new_name : '', number);
         fieldsWrap.appendChild(picker.select);
         fieldsWrap.appendChild(picker.nameInput);
@@ -245,6 +248,25 @@
                 }
                 incompleteDriver.highlightIncomplete();
                 errorEl.textContent = 'Please choose a driver and confirm all safety equipment for every added driver (Driver ' + incompleteDriver.number + ') before submitting — the missing fields are highlighted below.';
+                errorEl.hidden = false;
+                errorEl.classList.add('show');
+                return;
+            }
+            const rows = [{ choice: driver1Choice.value, newName: driver1NewName.value, select: driver1Choice, nameInput: driver1NewName }]
+                .concat(additionalDrivers.map(function (d) {
+                    return { choice: d.picker.select.value, newName: d.picker.nameInput.value, select: d.picker.select, nameInput: d.picker.nameInput };
+                }));
+            const dupIndex = WcmaDriverChoice.duplicateDriverChoice(rows, window.TECH_SHEET_DRIVERS || []);
+            if (dupIndex !== -1) {
+                e.preventDefault();
+                const dup = rows[dupIndex];
+                (dup.choice === WcmaDriverChoice.NEW ? dup.nameInput : dup.select).classList.add('error');
+                let name = dup.newName.trim();
+                if (dup.choice !== WcmaDriverChoice.NEW) {
+                    const match = (window.TECH_SHEET_DRIVERS || []).find(function (d) { return String(d.id) === String(dup.choice); });
+                    name = match ? match.name : 'This driver';
+                }
+                errorEl.textContent = name + ' is on this sheet twice.';
                 errorEl.hidden = false;
                 errorEl.classList.add('show');
                 return;

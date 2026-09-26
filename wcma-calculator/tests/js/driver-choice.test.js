@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { NEW, driverChoiceOptions, driverChoiceComplete } = require('../../js/driver-choice.js');
+const { NEW, driverChoiceOptions, driverChoiceComplete, duplicateDriverChoice } = require('../../js/driver-choice.js');
 
 const drivers = [{ id: 5, name: 'Jordan Lee', self: true }, { id: 6, name: 'Sam Patel', self: false }];
 
@@ -18,4 +18,25 @@ test('a choice is complete with a profile id, or new with a name', () => {
     assert.strictEqual(driverChoiceComplete(NEW, '  Alex '), true);
     assert.strictEqual(driverChoiceComplete(NEW, '   '), false);
     assert.strictEqual(driverChoiceComplete('', 'x'), false);
+});
+
+test('duplicateDriverChoice finds a repeated profile id, or -1 when all differ', () => {
+    const entries = [{ choice: '6', newName: '' }, { choice: '5', newName: '' }, { choice: '6', newName: '' }];
+    assert.strictEqual(duplicateDriverChoice(entries, drivers), 2);
+    assert.strictEqual(duplicateDriverChoice([{ choice: '5', newName: '' }, { choice: '6', newName: '' }], drivers), -1);
+});
+
+test('duplicateDriverChoice treats matching NEW names (collapsed whitespace, case-insensitive) as the same person', () => {
+    const entries = [{ choice: NEW, newName: 'Alex Rivera' }, { choice: NEW, newName: '  alex   rivera ' }];
+    assert.strictEqual(duplicateDriverChoice(entries, drivers), 1);
+});
+
+test('duplicateDriverChoice matches a NEW name against an existing profile name', () => {
+    const entries = [{ choice: '6', newName: '' }, { choice: NEW, newName: ' sam patel ' }];
+    assert.strictEqual(duplicateDriverChoice(entries, drivers), 1);
+});
+
+test('duplicateDriverChoice with no drivers list still catches repeated NEW names', () => {
+    const entries = [{ choice: NEW, newName: 'Alex' }, { choice: NEW, newName: 'Alex' }];
+    assert.strictEqual(duplicateDriverChoice(entries, undefined), 1);
 });

@@ -465,6 +465,23 @@ function db_delete_submission(PDO $pdo, int $id): void {
     $pdo->prepare("DELETE FROM submissions WHERE id = :id")->execute([':id' => $id]);
 }
 
+/**
+ * After deleting a car's current declaration, restores the newest remaining declaration as current
+ * (un-supersedes it) so the car isn't left with no class while earlier declarations exist. Its
+ * review_status becomes 'accepted' if accepted_at is set, else 'submitted'. No-op if a
+ * non-superseded declaration exists for the car, or none remain.
+ */
+function db_restore_current_declaration(PDO $pdo, int $carId): void {
+    if (db_get_car_current_declaration($pdo, $carId) !== null) return;
+    $stmt = $pdo->prepare("SELECT * FROM submissions WHERE car_id = :c ORDER BY submitted_at DESC, id DESC LIMIT 1");
+    $stmt->execute([':c' => $carId]);
+    $newest = $stmt->fetch();
+    if (!$newest) return;
+    $status = $newest['accepted_at'] !== null ? 'accepted' : 'submitted';
+    $pdo->prepare("UPDATE submissions SET review_status = :s WHERE id = :id")
+        ->execute([':s' => $status, ':id' => $newest['id']]);
+}
+
 function db_delete_submissions(PDO $pdo, array $ids): int {
     if (empty($ids)) return 0;
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
