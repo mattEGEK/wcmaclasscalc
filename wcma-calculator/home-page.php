@@ -197,7 +197,7 @@ function renderHomeHtml(array $vm): string
     $out .= '<h2>At a glance</h2><div class="hub-grid-2">';
     $out .= '<div class="hub-card"><h3>Garage</h3>';
     if (!$vm['cars']) {
-        $out .= '<p>Start by declaring your class</p><a class="hub-btn" href="calculator.php">Declare your class</a>';
+        $out .= '<p>Start by adding your car and declaring its class</p><a class="hub-btn" href="garage.php?action=add">Add a car</a>';
     } else {
         foreach ($vm['garage'] as $g) {
             $car = $g['car'];
@@ -210,7 +210,7 @@ function renderHomeHtml(array $vm): string
             }
             $out .= '</span><span class="hub-status ' . h(homeStatusClass($g['techState'])) . '">' . h($g['techLabel']) . '</span></div>';
         }
-        $out .= '<a class="hub-btn hub-btn--secondary" href="account.php">Open garage &rarr;</a>';
+        $out .= '<a class="hub-btn hub-btn--secondary" href="garage.php">Open garage &rarr;</a>';
     }
     $out .= '</div>';
 

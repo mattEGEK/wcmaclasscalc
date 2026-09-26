@@ -15,7 +15,7 @@ function hubNavItems(?array $user): array {
     }
     $items = [
         ['key' => 'home', 'label' => 'Home', 'href' => 'index.php'],
-        ['key' => 'garage', 'label' => 'Garage', 'href' => 'account.php'],     // garage.php in Phase 3
+        ['key' => 'garage', 'label' => 'Garage', 'href' => 'garage.php'],
         ['key' => 'drivers', 'label' => 'Drivers', 'href' => 'gear.php'],      // drivers.php in Phase 3
         ['key' => 'calculator', 'label' => 'Class Calculator', 'href' => 'calculator.php'],
     ];

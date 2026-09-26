@@ -29,7 +29,7 @@ final class LayoutTest extends TestCase
         $html = hubNavHtml(['id' => 1, 'name' => 'Jordan Lee', 'role' => 'user'], 'home');
         $this->assertStringContainsString('<span class="hub-nav-current" aria-current="page">Home</span>', $html);
         $this->assertStringNotContainsString('href="index.php"', $html);
-        $this->assertStringContainsString('href="account.php"', $html);
+        $this->assertStringContainsString('href="garage.php"', $html);
         $this->assertStringContainsString('href="calculator.php"', $html);
         $this->assertStringContainsString('>Menu<', $html);                     // phone toggle is a labelled button
     }

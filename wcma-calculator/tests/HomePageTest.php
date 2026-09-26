@@ -59,6 +59,7 @@ final class HomePageTest extends TestCase
         $this->assertStringContainsString('Season Finale', $html);
         $this->assertStringContainsString("I'm going", $html);
         $this->assertStringContainsString(EVENTS_NOT_REGISTERING, $html);
+        $this->assertStringContainsString('href="garage.php">Open garage', $html);
     }
 
     public function testSeasonLinksAreEscapedAndOmittedWhenEmpty(): void
@@ -73,8 +74,8 @@ final class HomePageTest extends TestCase
     public function testEmptyStates(): void
     {
         $noCars = renderHomeHtml($this->vm(['cars' => [], 'readiness' => ['events' => [], 'untagged' => []]]));
-        $this->assertStringContainsString('Start by declaring your class', $noCars);
-        $this->assertStringContainsString('href="calculator.php"', $noCars);
+        $this->assertStringContainsString('Start by adding your car and declaring its class', $noCars);
+        $this->assertStringContainsString('href="garage.php?action=add"', $noCars);
         $this->assertStringNotContainsString('<div class="hub-card"><h3>Garage</h3><div class="hub-card">', $noCars);
         $noEvents = renderHomeHtml($this->vm(['readiness' => ['events' => [], 'untagged' => []]]));
         $this->assertStringContainsString('No upcoming events yet.', $noEvents);
