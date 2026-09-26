@@ -157,6 +157,7 @@ function inspectClassingFilters(array $get): array {
 /** A Classing URL for filters $f with $over applied (e.g. ['page' => 2]). Unset filters and page 1 are left out. */
 function inspectClassingQuery(array $f, array $over = []): string {
     $params = ['action' => 'classing'];
+    // 0 and '' mean "not set" for every Classing filter (season, car, class, status, q); page 1 is the default.
     foreach (array_merge($f, $over) as $key => $value) {
         if ($value === '' || $value === 0 || ($key === 'page' && (int)$value <= 1)) continue;
         $params[$key] = $value;

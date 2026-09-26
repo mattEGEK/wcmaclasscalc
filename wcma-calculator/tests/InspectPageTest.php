@@ -197,6 +197,18 @@ final class InspectPageTest extends TestCase
         $this->assertStringContainsString('<input type="hidden" name="car" value="3">', $html);
     }
 
+    public function testClassingAndHistoryTablesStackOnPhones(): void
+    {
+        $list = renderInspectClassingHtml($this->classingVm([$this->decl()], [], ['isAdmin' => true]));
+        $this->assertStringContainsString('<table class="data-table inspect-stack" id="classing-table">', $list);
+        foreach (['<td data-label="Select">', '<td data-label="Submitted">', '<td data-label="Car">#42', '<td data-label="Entrant">', '<td data-label="Class">', '<td data-label="Review">'] as $needle) {
+            $this->assertStringContainsString($needle, $list);
+        }
+        $page = renderInspectDeclarationHtml($this->declVm());
+        $this->assertStringContainsString('<table class="data-table inspect-stack">', $page);
+        $this->assertStringContainsString('<td data-label="Class">GT3</td>', $page);
+    }
+
     public function testQueueListsItemsOldestFirstWithReviewLinks(): void
     {
         $car = ['kind' => 'car_photos', 'id' => 12, 'title' => 'Car pre-tech photos: #17 <Miata>', 'detail' => 'Jordan Lee · Fall Sprint',

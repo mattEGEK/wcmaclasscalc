@@ -117,7 +117,7 @@ function renderInspectClassingHtml(array $vm): string {
             . '<button type="submit" id="bulk-delete-btn" class="hub-btn hub-btn--secondary" disabled data-confirm-template="Permanently delete {n} selected declaration(s) and their files?">Delete selected</button></form>';
     }
 
-    $out .= '<table class="data-table" id="classing-table"><thead><tr>'
+    $out .= '<table class="data-table inspect-stack" id="classing-table"><thead><tr>'
         . ($admin ? '<th><input type="checkbox" id="classing-select-all" aria-label="Select all declarations"></th>' : '')
         . '<th>Submitted</th><th>Car</th><th>Entrant</th><th>Class</th><th>Review</th><th>Actions</th></tr></thead><tbody>';
     if (!$vm['rows']) {
@@ -127,12 +127,12 @@ function renderInspectClassingHtml(array $vm): string {
         $id = (int)$s['id'];
         $status = (string)$s['review_status'];
         $out .= '<tr>'
-            . ($admin ? '<td><input type="checkbox" class="submission-select" form="bulk-delete-form" name="ids[]" value="' . $id . '" aria-label="Select declaration ' . $id . '"></td>' : '')
-            . '<td>' . h(date('M j, Y', strtotime((string)$s['submitted_at']))) . '</td>'
-            . '<td>#' . h((string)($s['car_number'] ?? '?')) . ' ' . h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) . '</td>'
-            . '<td>' . h((string)$s['name']) . '</td>'
-            . '<td><strong>' . h((string)($s['calculated_class'] ?? '—')) . '</strong></td>'
-            . '<td><span class="hub-status ' . h(homeStatusClass($status)) . '">' . h(declarationReviewLabel($status)) . '</span></td>'
+            . ($admin ? '<td data-label="Select"><input type="checkbox" class="submission-select" form="bulk-delete-form" name="ids[]" value="' . $id . '" aria-label="Select declaration ' . $id . '"></td>' : '')
+            . '<td data-label="Submitted">' . h(date('M j, Y', strtotime((string)$s['submitted_at']))) . '</td>'
+            . '<td data-label="Car">#' . h((string)($s['car_number'] ?? '?')) . ' ' . h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) . '</td>'
+            . '<td data-label="Entrant">' . h((string)$s['name']) . '</td>'
+            . '<td data-label="Class"><strong>' . h((string)($s['calculated_class'] ?? '—')) . '</strong></td>'
+            . '<td data-label="Review"><span class="hub-status ' . h(homeStatusClass($status)) . '">' . h(declarationReviewLabel($status)) . '</span></td>'
             . '<td><a href="inspect.php?action=declaration&amp;id=' . $id . '">' . ($status === 'submitted' ? 'Review' : 'View') . '</a></td></tr>';
     }
     $out .= '</tbody></table>';
@@ -300,13 +300,13 @@ function inspectDeclarationFilesHtml(array $s): string {
 
 function inspectDeclarationHistoryHtml(int $currentId, ?array $car, array $history): string {
     if ($car === null || !$history) return '';
-    $out = '<section class="hub-card"><h2>This car\'s declarations</h2><table class="data-table">'
+    $out = '<section class="hub-card"><h2>This car\'s declarations</h2><table class="data-table inspect-stack">'
         . '<thead><tr><th>Submitted</th><th>Class</th><th>Review</th><th></th></tr></thead><tbody>';
     foreach ($history as $d) {
         $did = (int)$d['id'];
-        $out .= '<tr><td>' . h(date('M j, Y', strtotime((string)$d['submitted_at']))) . '</td>'
-            . '<td>' . h((string)($d['calculated_class'] ?? '—')) . '</td>'
-            . '<td>' . h(declarationReviewLabel((string)$d['review_status'])) . '</td>'
+        $out .= '<tr><td data-label="Submitted">' . h(date('M j, Y', strtotime((string)$d['submitted_at']))) . '</td>'
+            . '<td data-label="Class">' . h((string)($d['calculated_class'] ?? '—')) . '</td>'
+            . '<td data-label="Review">' . h(declarationReviewLabel((string)$d['review_status'])) . '</td>'
             . '<td>' . ($did === $currentId ? 'This one' : '<a href="inspect.php?action=declaration&amp;id=' . $did . '">View</a>') . '</td></tr>';
     }
     return $out . '</tbody></table><p><a href="inspect.php?action=classing&amp;car=' . (int)$car['id'] . '">Open this car in Classing</a></p></section>';
