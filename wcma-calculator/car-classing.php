@@ -40,9 +40,10 @@ $to_name  = db_get_setting($pdo, 'classing_recipient_name', config_default('CLAS
 // Set timezone to Mountain Standard Time
 date_default_timezone_set('America/Denver');
 
-// Collect form data
-$name = isset($_POST['name']) ? trim($_POST['name']) : '';
-$email = isset($_POST['email']) ? trim($_POST['email']) : '';
+// Collect form data. Name and email come from the signed-in account, never the POSTed values.
+$account = db_find_user_by_id($pdo, (int)$current_user['id']);
+$name = $account !== null ? trim((string)$account['name']) : '';
+$email = $account !== null ? trim((string)$account['email']) : '';
 $year = isset($_POST['year']) ? trim($_POST['year']) : '';
 $make = isset($_POST['make']) ? trim($_POST['make']) : '';
 $model = isset($_POST['model']) ? trim($_POST['model']) : '';
@@ -194,6 +195,26 @@ if (!$car['ok']) {
     exit;
 }
 
+// For an existing car, the stored declaration and email use the car's own record, not the
+// POSTed values, since the car may have been resolved from a stale form. A 'new' car keeps
+// the POSTed year/make/model — they're what created the car.
+$carIdField = trim((string)($_POST['car_id'] ?? ''));
+if ($carIdField !== 'new' && ctype_digit($carIdField)) {
+    $carRow = db_get_user_car($pdo, (int)$current_user['id'], (int)$car['car_id']);
+    if ($carRow !== null) {
+        $year = (string)($carRow['year'] ?? '');
+        $make = (string)$carRow['make'];
+        $model = (string)$carRow['model'];
+    }
+}
+
+// form_data is stored only when it's a valid JSON object within a sane size; otherwise null.
+$form_data_raw = $_POST['form_data'] ?? '';
+$form_data_decoded = json_decode($form_data_raw, false);
+$form_data = (json_last_error() === JSON_ERROR_NONE && $form_data_decoded instanceof stdClass && strlen($form_data_raw) <= 16384)
+    ? $form_data_raw
+    : null;
+
 // ── Persist to database ───────────────────────────────────────────────────────
 $submission_id = db_insert_submission($pdo, [
     ':submitted_at'           => date('Y-m-d H:i:s'),
@@ -225,7 +246,7 @@ $submission_id = db_insert_submission($pdo, [
     ':calculated_class'       => $calculated_class ?: null,
     ':user_id'                => (int)$current_user['id'],
     ':car_id'                 => $car['car_id'],
-    ':form_data'              => (is_array(json_decode($_POST['form_data'] ?? '', true)) ? $_POST['form_data'] : null),
+    ':form_data'              => $form_data,
 ]);
 
 // Move uploaded files to uploads/{submission_id}/

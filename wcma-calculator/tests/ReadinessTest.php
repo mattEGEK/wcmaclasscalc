@@ -88,11 +88,25 @@ final class ReadinessTest extends TestCase
         $withSheet = $carTech(['sheets' => [$sheet([])]]);
         $this->assertSame('tech-sheets.php?action=pretech&id=70', $withSheet['action']['url']);
 
-        $this->assertSame('done', $carTech(['atTrack' => ['car:3']])['state']);
+        $this->assertSame('done', $carTech(['atTrack' => ['car:3@2026']])['state']);
         $this->assertSame('info', $carTech(['sheets' => [$sheet(['photo_status' => 'submitted'])]])['state']);
         $retake = $carTech(['sheets' => [$sheet(['photo_status' => 'needs_changes'])]]);
         $this->assertSame(['todo', 'tech-sheets.php?action=pretech&id=70'], [$retake['state'], $retake['action']['url']]);
         $this->assertSame('done', $carTech(['sheets' => [$sheet(['status' => 'teched', 'accepted_via' => 'photos'])]])['state']);
+    }
+
+    public function testAtTrackChoiceIsScopedToItsSeasonAndDoesNotCarryToAnotherSeason(): void
+    {
+        $world = $this->world([
+            'today' => '2026-09-26',
+            'events' => [
+                ['id' => 20, 'name' => 'Season Opener', 'event_date' => '2027-03-01'],
+            ],
+            'plans' => [['event_id' => 20, 'car_id' => 3]],
+            'atTrack' => ['car:3@2026'],
+        ]);
+        $carTech = $this->items(buildReadiness($world), 0)['car_tech:3'];
+        $this->assertSame('todo', $carTech['state']);
     }
 
     public function testGearUsesTheSheetsDriversOrTheSelfProfile(): void

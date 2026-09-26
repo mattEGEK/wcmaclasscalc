@@ -61,4 +61,13 @@ final class TechSheetsHandlersTest extends TestCase
         $this->assertStringContainsString('db_tag_event(', $this->body('handleSubmit'));
         $this->assertStringContainsString('$eventId', $this->body('handleNew'));
     }
+
+    public function testValidationFailureRedirectCarriesTheChosenEventId(): void
+    {
+        $body = $this->body('handleSubmit');
+        $this->assertMatchesRegularExpression(
+            '/driverRows === null\).*?if \(\$eventId > 0\) \$redirect \.= \'&event_id=\' \. \$eventId;/s',
+            $body
+        );
+    }
 }

@@ -1273,17 +1273,29 @@ async function loadConfiguration(draftId) {
  * show a message. Shared by "Load Saved", pre-fill from a car's declaration, and restoring a
  * signed-out visitor's stashed entries after sign-in.
  */
+/**
+ * Sets a form field's value unless it lives in a hidden `.form-group` — those fields are
+ * account/car-bound (e.g. name, email) and restored/prefilled data must not overwrite them.
+ */
+function setRestorableFieldValue(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const group = el.closest('.form-group');
+    if (group && group.hidden) return;
+    el.value = value;
+}
+
 function applyFormData(data, message) {
     // Populate all form fields (basic fields first)
-    if (document.getElementById('name')) document.getElementById('name').value = data.name || '';
-    if (document.getElementById('email')) document.getElementById('email').value = data.email || '';
-    if (document.getElementById('year')) document.getElementById('year').value = data.year || '';
-    if (document.getElementById('make')) document.getElementById('make').value = data.make || '';
-    if (document.getElementById('model')) document.getElementById('model').value = data.model || '';
-    if (document.getElementById('comments')) document.getElementById('comments').value = data.comments || '';
-    if (document.getElementById('competition-weight')) document.getElementById('competition-weight').value = data.competitionWeight || '';
-    if (document.getElementById('declared-hp')) document.getElementById('declared-hp').value = data.declaredHp || '';
-    if (document.getElementById('dyno-hp')) document.getElementById('dyno-hp').value = data.dynoHp || '';
+    setRestorableFieldValue('name', data.name || '');
+    setRestorableFieldValue('email', data.email || '');
+    setRestorableFieldValue('year', data.year || '');
+    setRestorableFieldValue('make', data.make || '');
+    setRestorableFieldValue('model', data.model || '');
+    setRestorableFieldValue('comments', data.comments || '');
+    setRestorableFieldValue('competition-weight', data.competitionWeight || '');
+    setRestorableFieldValue('declared-hp', data.declaredHp || '');
+    setRestorableFieldValue('dyno-hp', data.dynoHp || '');
 
     // Update form data first to populate modifier options
     updateFormData();
@@ -1291,11 +1303,11 @@ function applyFormData(data, message) {
 
     // Wait a moment for modifier options to populate, then set values
     setTimeout(() => {
-        if (document.getElementById('chassis')) document.getElementById('chassis').value = data.chassis || '';
-        if (document.getElementById('body-mods')) document.getElementById('body-mods').value = data.bodyMods || '';
-        if (document.getElementById('transmission')) document.getElementById('transmission').value = data.transmission || '';
-        if (document.getElementById('drivetrain')) document.getElementById('drivetrain').value = data.drivetrain || '';
-        if (document.getElementById('tires')) document.getElementById('tires').value = data.tires || '';
+        setRestorableFieldValue('chassis', data.chassis || '');
+        setRestorableFieldValue('body-mods', data.bodyMods || '');
+        setRestorableFieldValue('transmission', data.transmission || '');
+        setRestorableFieldValue('drivetrain', data.drivetrain || '');
+        setRestorableFieldValue('tires', data.tires || '');
 
         // Handle brake/suspension checkboxes - clear all first, then check saved ones
         const brakeContainer = document.getElementById('brake-suspension-options');

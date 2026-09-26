@@ -564,7 +564,9 @@ function handleSubmit(PDO $pdo, array $user): void {
     $driverRows = validateTechSheetPost($parsed);
     if ($driverRows === null) {
         setFlash('Please complete every required field, including all driver equipment checklists, before submitting.', 'error');
-        header('Location: tech-sheets.php?action=new&car_id=' . $carId);
+        $redirect = 'tech-sheets.php?action=new&car_id=' . $carId;
+        if ($eventId > 0) $redirect .= '&event_id=' . $eventId;
+        header('Location: ' . $redirect);
         // Residual risk (I3): a validation failure here loses the filled-in form,
         // since real re-population from $_POST wasn't built in this fix wave.
         // The C2 client-side validation added alongside this makes hitting this

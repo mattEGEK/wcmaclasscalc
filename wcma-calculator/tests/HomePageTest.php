@@ -80,6 +80,38 @@ final class HomePageTest extends TestCase
         $this->assertStringContainsString('No upcoming events yet.', $noEvents);
     }
 
+    public function testTagFormOffersOnlyCarsNotYetTaggedToAGoingToEvent(): void
+    {
+        $vm = $this->vm([
+            'cars' => [
+                3 => ['id' => 3, 'car_number' => '42', 'year' => '2004', 'make' => 'Honda', 'model' => 'S2000'],
+                4 => ['id' => 4, 'car_number' => '7', 'year' => '2010', 'make' => 'Mazda', 'model' => 'MX-5'],
+            ],
+        ]);
+        $html = renderHomeHtml($vm);
+        // Car 3 is tagged to event 10 (has a tech_sheet item), so it gets the untag form...
+        $this->assertStringContainsString('#42 2004 Honda S2000', $html);
+        $this->assertStringContainsString('Not going anymore', $html);
+        // ...while car 4 is not tagged, so it's offered a tag form for event 10, car 4 only.
+        $this->assertStringContainsString(
+            'name="action" value="tag"><input type="hidden" name="event_id" value="10">'
+            . '<span>Fall Sprint</span><input type="hidden" name="car_id" value="4">',
+            $html
+        );
+    }
+
+    public function testAlreadyDoneSectionOmittedWhenNoDoneItems(): void
+    {
+        $vm = $this->vm();
+        $vm['readiness']['events'][0]['items'] = array_values(array_filter(
+            $vm['readiness']['events'][0]['items'],
+            fn($i) => $i['state'] !== 'done'
+        ));
+        $html = renderHomeHtml($vm);
+        $this->assertStringNotContainsString('Already done', $html);
+        $this->assertStringNotContainsString('hub-done', $html);
+    }
+
     public function testLandingOffersCalculatorAndSignIn(): void
     {
         $html = renderLandingHtml([['label' => 'Waiver', 'url' => 'https://x.test']]);

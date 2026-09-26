@@ -14,7 +14,7 @@ date_default_timezone_set('America/Denver');
  */
 function profileValidateName(string $name): array {
     $name = trim((string)preg_replace('/\s+/', ' ', $name));
-    if (strlen($name) === 0 || strlen($name) > 100) {
+    if (mb_strlen($name, 'UTF-8') === 0 || mb_strlen($name, 'UTF-8') > 100) {
         return ['ok' => false, 'error' => 'Name must be 1–100 characters.', 'name' => ''];
     }
     return ['ok' => true, 'error' => null, 'name' => $name];
@@ -102,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newPassword = (string)($_POST['new_password'] ?? '');
             $hash = password_hash($newPassword, PASSWORD_BCRYPT);
             db_set_user_password($pdo, (int)$user['id'], $hash);
+            session_regenerate_id(true);
             setFlash('Password updated.', 'success');
         } else {
             setFlash($error, 'error');
@@ -109,6 +110,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: profile.php');
         exit;
     }
+
+    // Unknown action: PRG back to profile.php rather than falling through to the render below.
+    header('Location: profile.php');
+    exit;
 }
 
 // ── Render page ───────────────────────────────────────────────────────────────

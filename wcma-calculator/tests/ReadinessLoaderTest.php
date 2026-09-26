@@ -41,7 +41,7 @@ final class ReadinessLoaderTest extends TestCase
         $this->assertSame($self, $in['selfDriverId']);
         $this->assertArrayHasKey($sam, $in['drivers']);
         $this->assertArrayHasKey("$self:2026", $in['gear']);
-        $this->assertSame(["car:$car"], $in['atTrack']);
+        $this->assertSame(["car:$car@2026"], $in['atTrack']);
 
         $result = buildReadiness($in);   // the shape is directly usable
         $this->assertCount(1, $result['events']);

@@ -23,6 +23,17 @@ final class ProfileTest extends TestCase
         $this->assertFalse(profileValidateName(str_repeat('x', 101))['ok']);
     }
 
+    public function testNameValidationCountsMultibyteCharactersNotBytes(): void
+    {
+        $this->lib();
+        // 100 two-byte characters: 200 bytes but 100 chars, so this must be valid.
+        $name = str_repeat('é', 100);
+        $this->assertTrue(profileValidateName($name)['ok']);
+        $this->assertSame(100, mb_strlen(profileValidateName($name)['name'], 'UTF-8'));
+        // 101 multibyte characters must fail.
+        $this->assertFalse(profileValidateName(str_repeat('é', 101))['ok']);
+    }
+
     public function testPasswordValidation(): void
     {
         $this->lib();
@@ -62,5 +73,35 @@ final class ProfileTest extends TestCase
         $this->lib();
         // Account with both google_id and password_hash: can change (linked account)
         $this->assertTrue(profileCanChangePassword(['password_hash' => 'somehash', 'google_id' => 'g-12345']));
+    }
+
+    private function source(): string {
+        return str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../profile.php'));
+    }
+
+    public function testUnknownPostActionRedirectsInsteadOfRendering(): void
+    {
+        $src = $this->source();
+        $postBlockStart = strpos($src, "REQUEST_METHOD'] === 'POST'");
+        $this->assertNotFalse($postBlockStart);
+        $renderStart = strpos($src, 'renderPageStart(');
+        $this->assertNotFalse($renderStart);
+        $postBlock = substr($src, $postBlockStart, $renderStart - $postBlockStart);
+        // There must be four redirects in the POST handling: name, the Google-only guard, the
+        // password outcome, and a fallback for any other/unknown action — so an unrecognised
+        // action never falls through to the render below.
+        $this->assertSame(4, substr_count($postBlock, "header('Location: profile.php');"));
+        $this->assertSame(4, substr_count($postBlock, 'exit;'));
+    }
+
+    public function testSessionIsRegeneratedAfterAPasswordChange(): void
+    {
+        $src = $this->source();
+        $passwordActionStart = strpos($src, "if (\$action === 'password')");
+        $nextActionOrEnd = strpos($src, "\n}\n", $passwordActionStart);
+        $passwordBlock = substr($src, $passwordActionStart, $nextActionOrEnd - $passwordActionStart);
+        $this->assertStringContainsString('session_regenerate_id(true)', $passwordBlock);
+        // Regeneration must happen after the password is actually stored, and before redirect.
+        $this->assertGreaterThan(strpos($passwordBlock, 'db_set_user_password('), strpos($passwordBlock, 'session_regenerate_id(true)'));
     }
 }

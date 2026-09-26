@@ -595,7 +595,7 @@ function db_set_at_track(PDO $pdo, string $subjectType, int $subjectId, int $sea
         ->execute([':t' => $subjectType, ':s' => $subjectId, ':y' => $season, ':now' => date('Y-m-d H:i:s')]);
 }
 
-/** "car:ID" / "driver:ID" keys for the given subjects that chose "I'll do it at the track" this season. */
+/** "car:ID@SEASON" / "driver:ID@SEASON" keys for the given subjects that chose "I'll do it at the track" this season. */
 function db_get_at_track_keys(PDO $pdo, array $carIds, array $driverIds, int $season): array {
     $keys = [];
     $stmt = $pdo->prepare("SELECT subject_type, subject_id FROM at_track_choices WHERE season = :y");
@@ -605,7 +605,7 @@ function db_get_at_track_keys(PDO $pdo, array $carIds, array $driverIds, int $se
     foreach ($stmt->fetchAll() as $r) {
         $id = (int)$r['subject_id'];
         if (($r['subject_type'] === 'car' && isset($cars[$id])) || ($r['subject_type'] === 'driver' && isset($drivers[$id]))) {
-            $keys[] = $r['subject_type'] . ':' . $id;
+            $keys[] = $r['subject_type'] . ':' . $id . '@' . $season;
         }
     }
     return $keys;

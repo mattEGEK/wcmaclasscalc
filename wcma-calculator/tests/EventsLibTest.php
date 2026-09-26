@@ -57,7 +57,7 @@ final class EventsLibTest extends TestCase
         $this->assertFalse(eventsSetAtTrack($pdo, $u, 'driver', (int)db_get_self_driver($pdo, $other)['id'], 2026)['ok']);
         $this->assertFalse(eventsSetAtTrack($pdo, $u, 'boat', $car, 2026)['ok']);
 
-        $this->assertEqualsCanonicalizing(["car:$car", "driver:$self"], db_get_at_track_keys($pdo, [$car], [$self], 2026));
+        $this->assertEqualsCanonicalizing(["car:$car@2026", "driver:$self@2026"], db_get_at_track_keys($pdo, [$car], [$self], 2026));
         $this->assertSame([], db_get_at_track_keys($pdo, [$car], [$self], 2027));
     }
 

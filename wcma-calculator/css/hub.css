@@ -150,7 +150,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .hub-hero h1 { font-family: var(--hub-font-narrow); font-size: 36px; }
 
 /* Phone */
-@media (max-width: 700px) {
+@media screen and (max-width: 700px) {
   .hub-menu-btn {
     display: inline-flex;
     align-items: center;

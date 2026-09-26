@@ -146,12 +146,14 @@ function renderHomeHtml(array $vm): string
             }
         }
 
-        $out .= '<details class="hub-done" open><summary>Already done for ' . h((string)$first['event']['name'])
-            . ' (' . h((string)count($doneItems)) . ')</summary><ul>';
-        foreach ($doneItems as $item) {
-            $out .= '<li>' . h($item['label']) . '</li>';
+        if ($doneItems) {
+            $out .= '<details class="hub-done" open><summary>Already done for ' . h((string)$first['event']['name'])
+                . ' (' . h((string)count($doneItems)) . ')</summary><ul>';
+            foreach ($doneItems as $item) {
+                $out .= '<li>' . h($item['label']) . '</li>';
+            }
+            $out .= '</ul></details>';
         }
-        $out .= '</ul></details>';
     }
 
     // Tagged cars per event, derived from the first event's tech_sheet items (for "not going anymore").
@@ -172,6 +174,10 @@ function renderHomeHtml(array $vm): string
                     if (isset($cars[$carId])) {
                         $out .= homeRenderUntagForm($ev['event'], $cars[$carId], $csrf);
                     }
+                }
+                $untaggedCars = array_diff_key($cars, $eventCarIds);
+                if ($untaggedCars) {
+                    $out .= homeRenderTagForm($ev['event'], $untaggedCars, $csrf);
                 }
             }
         }

@@ -25,7 +25,7 @@ function renderAuthPage(string $title, string $bodyHtml): void {
 /**
  * Whitelist redirect targets to same-site pages we actually link users back
  * to (never an absolute/external URL) to avoid an open-redirect via
- * ?redirect=. Falls back to the calculator.
+ * ?redirect=. Falls back to index.php.
  */
 function safeRedirectTarget(?string $raw): string {
     $raw = trim((string)$raw);

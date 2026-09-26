@@ -107,7 +107,7 @@ function buildReadiness(array $in): array {
                 $byId = $seasonSheets;
                 usort($byId, fn(array $a, array $b): int => (int)$a['id'] <=> (int)$b['id']);
                 $latest = $byId ? (int)end($byId)['id'] : null;
-                $items[] = readinessTech('car_tech', 'car', $carId, $status, $season, isset($atTrack["car:$carId"]), [
+                $items[] = readinessTech('car_tech', 'car', $carId, $status, $season, isset($atTrack["car:$carId@$season"]), [
                     'label' => "Car tech for $n", 'doneLabel' => "Car tech $season for $n: %s", 'pendingLabel' => "Car tech photos for $n are with an inspector",
                     'retakeLabel' => "Retake photos for $n", 'atTrackLabel' => "Car tech for $n: you'll bring it to tech at the track",
                 ], $latest !== null ? 'tech-sheets.php?action=pretech&id=' . $latest : null,
@@ -122,7 +122,7 @@ function buildReadiness(array $in): array {
                 $name = (string)$in['drivers'][$did]['name'];
                 $gear = $in['gear']["$did:$season"] ?? null;
                 $status = $gear !== null ? gearStatus($gear) : ['state' => 'none', 'via' => null];
-                $items[] = readinessTech('gear', 'driver', $did, $status, $season, isset($atTrack["driver:$did"]), [
+                $items[] = readinessTech('gear', 'driver', $did, $status, $season, isset($atTrack["driver:$did@$season"]), [
                     'label' => "Gear for $name", 'doneLabel' => "Gear for $name: %s $season", 'pendingLabel' => "Gear photos for $name are with an inspector",
                     'retakeLabel' => "Retake gear photos for $name", 'atTrackLabel' => "Gear for $name: checked at the track",
                 ], 'gear.php?action=start&driver_id=' . $did, $gear !== null ? 'gear.php?action=pretech&id=' . (int)$gear['id'] : null);
