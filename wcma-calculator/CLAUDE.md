@@ -34,15 +34,17 @@ Four vanilla JS ES6 modules loaded from `car-classing.html`:
 
 1. **Base Ratio** = `competitionWeight / declaredHp` (rounded to 2 decimals)
 2. **Base Class** = determined from base ratio using fixed ranges (GTU < 6.00, GT1 6-7.99, GT2 8-9.99, GT3 10-11.99, GT4 12-13.99, IT1 14-17.99, IT2 ≥ 18)
-3. **Modifier lookups** use the base class as the column index into modifier tables
-4. **Weight Factor** is iteratively resolved — it depends on the final class, so the loop recalculates until class stabilizes
+3. **Scoring Class** = the class picked in "Class to score in", or the base class when left on Auto (`getScoringClass()`). Modifier lookups use its column, as the old WCMA calculator used the ticked class. A car can land in a different class than it was scored in; that is a known, accepted quirk of the WCMA method.
+4. **Weight Factor** comes from the chosen class; on Auto it is iteratively resolved against the final class
 5. **Modified Ratio** = `baseRatio + weightFactor + modificationFactor`
 6. **Calculated Class** = determined from modified ratio using same ranges
+7. **Competing Class** = the chosen class if it is faster than the calculated class (regs allow moving up, never down), else the calculated class. This is what is submitted as `calculated_class`.
 
 ## Key Constraints
 
 - Weight and HP inputs must be whole integers — decimal entry is blocked via `keydown` and `paste` handlers in `ui-controller.js:1469-1496`
 - Modifier dropdowns are disabled until both weight and HP are entered
-- Selecting `chassis1` or `chassis2` disables the Body Mods dropdown (chassis restriction logic at `ui-controller.js:176-230`)
-- Brake/suspension section only renders checkboxes for IT1/IT2; shows an informational note for other classes
+- Body mods and brake/suspension are checkbox groups (several may be ticked); drafts from before body mods were checkboxes stored a single id, which still loads
+- Selecting `chassis1` or `chassis2` clears and disables the Body Mods checkboxes (`handleChassisRestrictions()`)
+- Brake/suspension section only renders checkboxes when scoring in IT1/IT2; shows an informational note for other classes
 - Saved configurations stored in `localStorage` under key `wcma-saved-configs`, capped at 10 entries

@@ -3,7 +3,7 @@
  * Handles DOM manipulation, event handling, and real-time updates
  */
 
-import { updateCalculations, formatNumber, getBoundaryDistances, CLASS_RANGES } from './calculator.js';
+import { updateCalculations, formatNumber, getBoundaryDistances, getScoringClass, getItTireMaxWidth, CLASS_RANGES } from './calculator.js';
 import { handleFormSubmit, clearFieldError, showFieldError, validateFileSize, validateFileType } from './form-handler.js';
 import {
     chassisModifierTable,
@@ -21,9 +21,9 @@ let formData = {
     competitionWeight: '',
     declaredHp: '',
     dynoHp: '',
-    targetClass: '',
+    classChoice: '',
     chassis: '',
-    bodyMods: '',
+    bodyMods: [],
     transmission: '',
     drivetrain: '',
     tires: '',
@@ -134,7 +134,6 @@ window.addEventListener('beforeunload', (event) => {
 function updateModifierExplainers() {
     const explainerFields = [
         { selectId: 'chassis', explainerId: 'chassis-explainer', table: chassisModifierTable },
-        { selectId: 'body-mods', explainerId: 'body-mods-explainer', table: bodyModifierTable },
         { selectId: 'transmission', explainerId: 'transmission-explainer', table: transModifierTable },
         { selectId: 'drivetrain', explainerId: 'drivetrain-explainer', table: dtModifierTable },
         { selectId: 'tires', explainerId: 'tires-explainer', table: tireModifierTable }
@@ -213,6 +212,15 @@ function getBrakeSuspensionValues() {
 }
 
 /**
+ * Get selected body mod values (multiple checkboxes)
+ * @returns {Array} Array of selected option IDs
+ */
+function getBodyModValues() {
+    const checkboxes = document.querySelectorAll('#body-mods-options input[type="checkbox"]:checked');
+    return Array.from(checkboxes).map(cb => cb.value);
+}
+
+/**
  * Get current form data from DOM
  * @returns {Object} Form data object
  */
@@ -221,9 +229,9 @@ function getFormData() {
         competitionWeight: document.getElementById('competition-weight')?.value || '',
         declaredHp: document.getElementById('declared-hp')?.value || '',
         dynoHp: document.getElementById('dyno-hp')?.value || '',
-        targetClass: '', // Not used - class is calculated automatically
+        classChoice: document.getElementById('class-choice')?.value || '',
         chassis: document.getElementById('chassis')?.value || '',
-        bodyMods: document.getElementById('body-mods')?.value || '',
+        bodyMods: getBodyModValues(),
         transmission: document.getElementById('transmission')?.value || '',
         drivetrain: document.getElementById('drivetrain')?.value || '',
         tires: document.getElementById('tires')?.value || '',
@@ -252,45 +260,27 @@ function hasBaseInfo() {
 }
 
 /**
- * Populate modifier dropdown options based on calculated class
+ * The class whose column the modifier values are read from: the chosen
+ * class, or the class the weight/HP ratio falls in when left on Auto.
+ * @returns {string} Class name, or '' without weight and HP
+ */
+function currentScoringClass() {
+    if (!hasBaseInfo()) return '';
+    return getScoringClass(parseFloat(formData.competitionWeight), parseFloat(formData.declaredHp), formData.classChoice);
+}
+
+/**
+ * Populate modifier options for the scoring class
  */
 function populateModifierOptions() {
-    // Calculate base ratio to determine initial class
-    const weightNum = parseFloat(formData.competitionWeight);
-    const hpNum = parseFloat(formData.declaredHp);
-    
-    if (!weightNum || !hpNum || weightNum <= 0 || hpNum <= 0) {
-        return;
-    }
-    
-    const baseRatio = weightNum / hpNum;
-    let calculatedClass = '';
-    
-    // Determine class from base ratio
-    if (baseRatio < 6.00) {
-        calculatedClass = 'GTU';
-    } else if (baseRatio >= 6.00 && baseRatio < 8.00) {
-        calculatedClass = 'GT1';
-    } else if (baseRatio >= 8.00 && baseRatio < 10.00) {
-        calculatedClass = 'GT2';
-    } else if (baseRatio >= 10.00 && baseRatio < 12.00) {
-        calculatedClass = 'GT3';
-    } else if (baseRatio >= 12.00 && baseRatio < 14.00) {
-        calculatedClass = 'GT4';
-    } else if (baseRatio >= 14.00 && baseRatio < 18.00) {
-        calculatedClass = 'IT1';
-    } else {
-        calculatedClass = 'IT2';
-    }
-    
-    if (!calculatedClass) {
+    const scoringClass = currentScoringClass();
+    if (!scoringClass) {
         return;
     }
 
-    // Map of field IDs to modifier tables (excluding brake-suspension)
+    // Map of field IDs to modifier tables (checkbox groups are handled below)
     const modifierMap = {
         'chassis': chassisModifierTable,
-        'body-mods': bodyModifierTable,
         'transmission': transModifierTable,
         'drivetrain': dtModifierTable,
         'tires': tireModifierTable
@@ -300,37 +290,37 @@ function populateModifierOptions() {
     Object.keys(modifierMap).forEach(fieldId => {
         const select = document.getElementById(fieldId);
         const table = modifierMap[fieldId];
-        
+
         if (!select || !table) return;
 
         // Save current selection
         const currentValue = select.value;
-        
+
         // Clear options
         select.innerHTML = '<option value="">-- Select --</option>';
-        
+
         // Populate with available options for this class
         table.forEach(row => {
             const optionId = row[0];
             const description = row[1];
-            
-            if (isOptionAvailable(table, optionId, calculatedClass)) {
+
+            if (isOptionAvailable(table, optionId, scoringClass)) {
                 const option = document.createElement('option');
                 option.value = optionId;
-                
+
                 // Get modifier value for this option and class
-                const modifierValue = getModifierValue(table, optionId, calculatedClass);
+                const modifierValue = getModifierValue(table, optionId, scoringClass);
                 if (modifierValue !== null) {
                     const sign = modifierValue >= 0 ? '+' : '';
                     option.textContent = `${description} (${sign}${formatNumber(modifierValue)})`;
                 } else {
                     option.textContent = description;
                 }
-                
+
                 select.appendChild(option);
             }
         });
-        
+
         // Restore selection if still valid
         if (currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
             select.value = currentValue;
@@ -339,11 +329,56 @@ function populateModifierOptions() {
         }
     });
 
+    populateBodyModCheckboxes(scoringClass);
+
     // Special handling for Chassis restrictions affecting Body Mods
     handleChassisRestrictions();
-    
+
     // Handle brake-suspension as checkboxes (only for IT1/IT2)
-    populateBrakeSuspensionCheckboxes(calculatedClass);
+    populateBrakeSuspensionCheckboxes(scoringClass);
+}
+
+/**
+ * Render one checkbox per modifier row that applies in the given class,
+ * ticking those listed in `checkedValues`.
+ * @returns {number} How many checkboxes were rendered
+ */
+function renderModifierCheckboxes(container, table, scoringClass, idPrefix, name, checkedValues) {
+    container.innerHTML = '';
+    table.forEach(row => {
+        const optionId = row[0];
+        const modifierValue = getModifierValue(table, optionId, scoringClass);
+        if (modifierValue === null) return;
+
+        const checkboxWrapper = document.createElement('div');
+        checkboxWrapper.className = 'checkbox-item';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `${idPrefix}-${optionId}`;
+        checkbox.name = name;
+        checkbox.value = optionId;
+        checkbox.checked = checkedValues.includes(optionId);
+
+        const label = document.createElement('label');
+        label.htmlFor = checkbox.id;
+        const sign = modifierValue >= 0 ? '+' : '';
+        label.textContent = `${row[1]} (${sign}${formatNumber(modifierValue)})`;
+
+        checkboxWrapper.appendChild(checkbox);
+        checkboxWrapper.appendChild(label);
+        container.appendChild(checkboxWrapper);
+    });
+    return container.children.length;
+}
+
+/**
+ * Populate body mod checkboxes for the scoring class. Several may be ticked.
+ */
+function populateBodyModCheckboxes(scoringClass) {
+    const container = document.getElementById('body-mods-options');
+    if (!container) return;
+    renderModifierCheckboxes(container, bodyModifierTable, scoringClass, 'body', 'body_mods[]', getBodyModValues());
 }
 
 /**
@@ -351,24 +386,24 @@ function populateModifierOptions() {
  */
 function handleChassisRestrictions() {
     const chassisSelect = document.getElementById('chassis');
-    const bodyModsSelect = document.getElementById('body-mods');
+    const bodyContainer = document.getElementById('body-mods-options');
 
-    if (!chassisSelect || !bodyModsSelect) return;
+    if (!chassisSelect || !bodyContainer) return;
 
     const selectedChassis = chassisSelect.value;
+    const bodyCheckboxes = bodyContainer.querySelectorAll('input[type="checkbox"]');
 
-    // Restricted chassis types:
-    // chassis1: "Sports Racer, Prototypes, Monocoque race cars (GTU,GT1,GT2)"
-    // chassis2: "Non-Production Vehicle (excluding GT4,IT1,IT2)"
+    // Body mods apply to production vehicles only, so they are off for
+    // chassis1 (sports racer/prototype/monocoque) and chassis2 (non-production).
     const isRestricted = (selectedChassis === 'chassis1' || selectedChassis === 'chassis2');
 
     if (isRestricted) {
-        // Capture previous value to check if we need to trigger an update
-        const previousValue = bodyModsSelect.value;
-
-        // Disable body mods and reset selection
-        bodyModsSelect.disabled = true;
-        bodyModsSelect.value = '';
+        let cleared = false;
+        bodyCheckboxes.forEach(cb => {
+            if (cb.checked) cleared = true;
+            cb.checked = false;
+            cb.disabled = true;
+        });
 
         // Show tooltip/message
         let tooltip = document.getElementById('body-mods-tooltip');
@@ -381,21 +416,17 @@ function handleChassisRestrictions() {
             tooltip.style.marginTop = '4px';
             tooltip.style.fontStyle = 'italic';
             tooltip.textContent = 'Not applicable for this Chassis type';
-            bodyModsSelect.parentElement.parentElement.appendChild(tooltip);
+            bodyContainer.parentElement.parentElement.appendChild(tooltip);
         }
         tooltip.style.display = 'block';
 
-        // If the value changed (was cleared), trigger a change event
-        // This allows the standard event listeners to handle the update/recalculation
-        // and avoids duplicating logic or accessing variables out of scope.
-        if (previousValue !== '') {
-            bodyModsSelect.dispatchEvent(new Event('change', { bubbles: true }));
+        // Let the standard listeners recalculate once the ticks are gone
+        if (cleared) {
+            bodyContainer.dispatchEvent(new Event('change', { bubbles: true }));
         }
     } else {
-        // Enable if we have base info
-        if (hasBaseInfo()) {
-            bodyModsSelect.disabled = false;
-        }
+        const enabled = hasBaseInfo();
+        bodyCheckboxes.forEach(cb => { cb.disabled = !enabled; });
 
         // Hide tooltip
         const tooltip = document.getElementById('body-mods-tooltip');
@@ -406,68 +437,55 @@ function handleChassisRestrictions() {
 }
 
 /**
- * Populate brake/suspension checkboxes based on the BASE class (before modifiers).
- * Cars whose base ratio isn't IT1/IT2 lose the section and any ticked mods.
+ * Populate brake/suspension checkboxes for the scoring class.
+ * Cars not scoring in IT1/IT2 lose the section and any ticked mods.
  */
-function populateBrakeSuspensionCheckboxes(baseClass) {
+function populateBrakeSuspensionCheckboxes(scoringClass) {
     const container = document.getElementById('brake-suspension-options');
     if (!container) return;
 
-    if (baseClass !== 'IT1' && baseClass !== 'IT2') {
+    if (scoringClass !== 'IT1' && scoringClass !== 'IT2') {
         const hadSelections = container.querySelector('input[type="checkbox"]:checked') !== null;
         container.innerHTML = '';
         if (hadSelections) {
             const notice = document.createElement('span');
             notice.className = 'field-note brake-removed-note';
-            notice.textContent = 'Brake & suspension selections were removed because your car is no longer in IT1/IT2.';
+            notice.textContent = 'Brake & suspension selections were removed because your car is no longer scoring in IT1/IT2.';
             container.appendChild(notice);
         }
         const note = document.createElement('span');
         note.className = 'field-note';
-        note.textContent = 'Available when your base ratio (weight ÷ HP) is 14.00 or higher.';
+        note.textContent = 'Available when scoring in IT1 or IT2.';
         container.appendChild(note);
         return;
     }
-    
-    // Save currently checked values
-    const checkedValues = Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
-    
-    // Clear container
-    container.innerHTML = '';
-    
-    // Populate with available options for this class
-    brakeModifierTable.forEach(row => {
-        const optionId = row[0];
-        const description = row[1];
-        
-        if (isOptionAvailable(brakeModifierTable, optionId, baseClass)) {
-            const modifierValue = getModifierValue(brakeModifierTable, optionId, baseClass);
-            if (modifierValue !== null) {
-                const checkboxWrapper = document.createElement('div');
-                checkboxWrapper.className = 'checkbox-item';
-                
-                const checkbox = document.createElement('input');
-                checkbox.type = 'checkbox';
-                checkbox.id = `brake-${optionId}`;
-                checkbox.name = 'brake_suspension[]';
-                checkbox.value = optionId;
-                checkbox.checked = checkedValues.includes(optionId);
-                
-                const label = document.createElement('label');
-                label.htmlFor = `brake-${optionId}`;
-                const sign = modifierValue >= 0 ? '+' : '';
-                label.textContent = `${description} (${sign}${formatNumber(modifierValue)})`;
-                
-                checkboxWrapper.appendChild(checkbox);
-                checkboxWrapper.appendChild(label);
-                container.appendChild(checkboxWrapper);
-            }
-        }
-    });
-    
-    if (container.children.length === 0) {
+
+    if (renderModifierCheckboxes(container, brakeModifierTable, scoringClass, 'brake', 'brake_suspension[]', getBrakeSuspensionValues()) === 0) {
         container.innerHTML = '<span class="field-note">No brake/suspension mods available for this class</span>';
     }
+}
+
+/**
+ * Show the IT maximum tyre width for the car's weight, and warn when the
+ * chosen tyre is in a width band above it.
+ */
+function updateTireWidthNote() {
+    const note = document.getElementById('tire-width-note');
+    if (!note) return;
+
+    const scoringClass = currentScoringClass();
+    if (scoringClass !== 'IT1' && scoringClass !== 'IT2') {
+        note.textContent = 'IT1/IT2: maximum tire width depends on competition weight';
+        note.classList.remove('field-warning');
+        return;
+    }
+
+    const maxWidth = getItTireMaxWidth(parseFloat(formData.competitionWeight));
+    const tooWide = formData.tires === 'tire1' || formData.tires === 'tire2';   // 267mm to 282mm
+    note.textContent = tooWide
+        ? `This tire is wider than the ${maxWidth}mm maximum for IT cars at your competition weight.`
+        : `IT maximum tire section width at your competition weight: ${maxWidth}mm.`;
+    note.classList.toggle('field-warning', tooWide);
 }
 
 /**
@@ -476,8 +494,8 @@ function populateBrakeSuspensionCheckboxes(baseClass) {
 function updateModificationFieldsState() {
     const hasBase = hasBaseInfo();
     const modificationFields = [
+        'class-choice',
         'chassis',
-        'body-mods',
         'transmission',
         'drivetrain',
         'tires'
@@ -486,11 +504,11 @@ function updateModificationFieldsState() {
     modificationFields.forEach(fieldId => {
         const field = document.getElementById(fieldId);
         const note = field?.parentElement.querySelector('.field-note');
-        
+
         if (field) {
             // Enable if we have base info
             field.disabled = !hasBase;
-            
+
             if (note) {
                 if (hasBase) {
                     note.style.display = 'none';
@@ -500,16 +518,12 @@ function updateModificationFieldsState() {
             }
         }
     });
-    
-    // Handle brake-suspension checkboxes separately
-    const brakeContainer = document.getElementById('brake-suspension-options');
-    if (brakeContainer) {
-        const checkboxes = brakeContainer.querySelectorAll('input[type="checkbox"]');
-        checkboxes.forEach(cb => {
-            cb.disabled = !hasBase;
-        });
-    }
-    
+
+    // Checkbox groups
+    document.querySelectorAll('#brake-suspension-options input[type="checkbox"], #body-mods-options input[type="checkbox"]').forEach(cb => {
+        cb.disabled = !hasBase;
+    });
+
     // Populate modifier options when base info is available
     if (hasBase) {
         populateModifierOptions();
@@ -576,7 +590,9 @@ function updateInlineResults(results) {
     if (inlineCalculatedClass) {
         const hasRatio = results.modifiedRatio > 0 || results.baseRatio > 0;
         if (hasRatio && results.calculatedClass) {
-            inlineCalculatedClass.textContent = results.calculatedClass;
+            inlineCalculatedClass.textContent = results.movedUp
+                ? `${results.competingClass} (up from ${results.calculatedClass})`
+                : results.calculatedClass;
         } else {
             inlineCalculatedClass.textContent = '--';
         }
@@ -618,11 +634,8 @@ function highlightCalculatedClass(calculatedClass) {
  * Update modifier values displayed next to each select
  */
 function updateModifierValues() {
-    // Calculate class from current base ratio for modifier lookup
-    const weightNum = parseFloat(formData.competitionWeight);
-    const hpNum = parseFloat(formData.declaredHp);
-    
-    if (!weightNum || !hpNum || weightNum <= 0 || hpNum <= 0) {
+    const scoringClass = currentScoringClass();
+    if (!scoringClass) {
         // Clear all modifier displays if no base info
         ['chassis-modifier', 'body-mods-modifier', 'transmission-modifier', 
          'drivetrain-modifier', 'tires-modifier', 'brake-suspension-modifier'].forEach(id => {
@@ -634,30 +647,9 @@ function updateModifierValues() {
         });
         return;
     }
-    
-    const baseRatio = weightNum / hpNum;
-    let calculatedClass = '';
-    
-    // Determine class from base ratio
-    if (baseRatio < 6.00) {
-        calculatedClass = 'GTU';
-    } else if (baseRatio >= 6.00 && baseRatio < 8.00) {
-        calculatedClass = 'GT1';
-    } else if (baseRatio >= 8.00 && baseRatio < 10.00) {
-        calculatedClass = 'GT2';
-    } else if (baseRatio >= 10.00 && baseRatio < 12.00) {
-        calculatedClass = 'GT3';
-    } else if (baseRatio >= 12.00 && baseRatio < 14.00) {
-        calculatedClass = 'GT4';
-    } else if (baseRatio >= 14.00 && baseRatio < 18.00) {
-        calculatedClass = 'IT1';
-    } else {
-        calculatedClass = 'IT2';
-    }
 
     const modifierFields = [
         { id: 'chassis', modifierId: 'chassis-modifier', table: chassisModifierTable },
-        { id: 'body-mods', modifierId: 'body-mods-modifier', table: bodyModifierTable },
         { id: 'transmission', modifierId: 'transmission-modifier', table: transModifierTable },
         { id: 'drivetrain', modifierId: 'drivetrain-modifier', table: dtModifierTable },
         { id: 'tires', modifierId: 'tires-modifier', table: tireModifierTable }
@@ -667,10 +659,10 @@ function updateModifierValues() {
         const selectEl = document.getElementById(field.id);
         const modifierEl = document.getElementById(field.modifierId);
         
-        if (selectEl && modifierEl && field.table && calculatedClass) {
+        if (selectEl && modifierEl && field.table && scoringClass) {
             const optionId = selectEl.value;
             if (optionId) {
-                const value = getModifierValue(field.table, optionId, calculatedClass);
+                const value = getModifierValue(field.table, optionId, scoringClass);
                 if (value !== null) {
                     const sign = value >= 0 ? '+' : '';
                     modifierEl.textContent = `${sign}${formatNumber(value)}`;
@@ -686,28 +678,30 @@ function updateModifierValues() {
         }
     });
     
-    // Handle brake-suspension checkboxes separately (sum of all selected)
-    const brakeModifierEl = document.getElementById('brake-suspension-modifier');
-    if (brakeModifierEl && calculatedClass) {
-        const checkedBoxes = document.querySelectorAll('#brake-suspension-options input[type="checkbox"]:checked');
+    // Checkbox groups show the sum of everything ticked
+    [
+        { containerId: 'body-mods-options', modifierId: 'body-mods-modifier', table: bodyModifierTable },
+        { containerId: 'brake-suspension-options', modifierId: 'brake-suspension-modifier', table: brakeModifierTable }
+    ].forEach(group => {
+        const modifierEl = document.getElementById(group.modifierId);
+        if (!modifierEl) return;
         let totalValue = 0;
-        
-        checkedBoxes.forEach(checkbox => {
-            const value = getModifierValue(brakeModifierTable, checkbox.value, calculatedClass);
+        document.querySelectorAll(`#${group.containerId} input[type="checkbox"]:checked`).forEach(checkbox => {
+            const value = getModifierValue(group.table, checkbox.value, scoringClass);
             if (value !== null) {
                 totalValue += value;
             }
         });
-        
+
         if (totalValue !== 0) {
             const sign = totalValue >= 0 ? '+' : '';
-            brakeModifierEl.textContent = `${sign}${formatNumber(totalValue)}`;
-            brakeModifierEl.style.color = 'var(--secondary-color)';
+            modifierEl.textContent = `${sign}${formatNumber(totalValue)}`;
+            modifierEl.style.color = 'var(--secondary-color)';
         } else {
-            brakeModifierEl.textContent = '+0.00';
-            brakeModifierEl.style.color = '#999';
+            modifierEl.textContent = '+0.00';
+            modifierEl.style.color = '#999';
         }
-    }
+    });
 }
 
 /**
@@ -718,6 +712,7 @@ function handleCalculationUpdate() {
     updateModificationFieldsState();
     updateModifierValues();
     updateModifierExplainers();
+    updateTireWidthNote();
     const results = updateCalculations(formData);
     updateResultsDisplay(results);
 }
@@ -792,8 +787,9 @@ function handlePrint() {
         competitionWeight: document.getElementById('competition-weight')?.value || '',
         declaredHp: document.getElementById('declared-hp')?.value || '',
         dynoHp: document.getElementById('dyno-hp')?.value || '',
+        classChoice: document.getElementById('class-choice')?.value || '',
         chassis: getSelectedOptionText('chassis'),
-        bodyMods: getSelectedOptionText('body-mods'),
+        bodyMods: getBodyModSelections(),
         transmission: getSelectedOptionText('transmission'),
         drivetrain: getSelectedOptionText('drivetrain'),
         tires: getSelectedOptionText('tires'),
@@ -966,6 +962,10 @@ function handlePrint() {
             </div>
             ${formValues.dynoHp ? `<div class="form-row"><div class="form-label">Dyno HP:</div><div class="form-value">${formValues.dynoHp}</div></div>` : ''}
             <div class="form-row">
+                <div class="form-label">Scored In:</div>
+                <div class="form-value">${results.scoringClass || '--'}${formValues.classChoice ? '' : ' (auto)'}</div>
+            </div>
+            <div class="form-row">
                 <div class="form-label">Chassis:</div>
                 <div class="form-value">${formValues.chassis || '<span class="empty">Not selected</span>'}</div>
             </div>
@@ -1009,7 +1009,7 @@ function handlePrint() {
                 </div>
                 <div class="result-item highlight">
                     <span class="result-label">Calculated Class:</span>
-                    <span class="result-value">${results.calculatedClass || '--'}</span>
+                    <span class="result-value">${results.movedUp ? `${results.competingClass} (up from ${results.calculatedClass})` : (results.calculatedClass || '--')}</span>
                 </div>
             </div>
             
@@ -1124,7 +1124,21 @@ function getSelectedOptionText(selectId) {
  * Get brake/suspension selections as formatted text
  */
 function getBrakeSuspensionSelections() {
-    const checkboxes = document.querySelectorAll('#brake-suspension-options input[type="checkbox"]:checked');
+    return getCheckedLabelsText('brake-suspension-options');
+}
+
+/**
+ * Get body mod selections as formatted text
+ */
+function getBodyModSelections() {
+    return getCheckedLabelsText('body-mods-options');
+}
+
+/**
+ * Labels of the ticked checkboxes in a container, without their "(+0.00)" values
+ */
+function getCheckedLabelsText(containerId) {
+    const checkboxes = document.querySelectorAll(`#${containerId} input[type="checkbox"]:checked`);
     if (checkboxes.length === 0) return '';
     const selections = Array.from(checkboxes).map(cb => {
         const label = document.querySelector(`label[for="${cb.id}"]`);
@@ -1133,7 +1147,7 @@ function getBrakeSuspensionSelections() {
         }
         return '';
     }).filter(text => text);
-    return selections.join(', ');
+    return selections.join('; ');
 }
 
 /**
@@ -1150,8 +1164,9 @@ function getAllFormDataForSave() {
         competitionWeight: document.getElementById('competition-weight')?.value || '',
         declaredHp: document.getElementById('declared-hp')?.value || '',
         dynoHp: document.getElementById('dyno-hp')?.value || '',
+        classChoice: document.getElementById('class-choice')?.value || '',
         chassis: document.getElementById('chassis')?.value || '',
-        bodyMods: document.getElementById('body-mods')?.value || '',
+        bodyMods: getBodyModValues(),
         transmission: document.getElementById('transmission')?.value || '',
         drivetrain: document.getElementById('drivetrain')?.value || '',
         tires: document.getElementById('tires')?.value || '',
@@ -1296,6 +1311,7 @@ function applyFormData(data, message) {
     setRestorableFieldValue('competition-weight', data.competitionWeight || '');
     setRestorableFieldValue('declared-hp', data.declaredHp || '');
     setRestorableFieldValue('dyno-hp', data.dynoHp || '');
+    setRestorableFieldValue('class-choice', data.classChoice || '');
 
     // Update form data first to populate modifier options
     updateFormData();
@@ -1304,28 +1320,29 @@ function applyFormData(data, message) {
     // Wait a moment for modifier options to populate, then set values
     setTimeout(() => {
         setRestorableFieldValue('chassis', data.chassis || '');
-        setRestorableFieldValue('body-mods', data.bodyMods || '');
         setRestorableFieldValue('transmission', data.transmission || '');
         setRestorableFieldValue('drivetrain', data.drivetrain || '');
         setRestorableFieldValue('tires', data.tires || '');
 
-        // Handle brake/suspension checkboxes - clear all first, then check saved ones
-        const brakeContainer = document.getElementById('brake-suspension-options');
-        if (brakeContainer) {
-            const allCheckboxes = brakeContainer.querySelectorAll('input[type="checkbox"]');
-            allCheckboxes.forEach(checkbox => {
+        // Checkbox groups - clear all first, then tick the saved ones.
+        // Older drafts saved body mods as a single option id.
+        [
+            { containerId: 'brake-suspension-options', idPrefix: 'brake', saved: data.brakeSuspension },
+            { containerId: 'body-mods-options', idPrefix: 'body', saved: data.bodyMods }
+        ].forEach(group => {
+            const container = document.getElementById(group.containerId);
+            if (!container) return;
+            container.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
                 checkbox.checked = false;
             });
-
-            if (data.brakeSuspension && Array.isArray(data.brakeSuspension)) {
-                data.brakeSuspension.forEach(optionId => {
-                    const checkbox = document.getElementById(`brake-${optionId}`);
-                    if (checkbox) {
-                        checkbox.checked = true;
-                    }
-                });
-            }
-        }
+            const saved = Array.isArray(group.saved) ? group.saved : (group.saved ? [group.saved] : []);
+            saved.forEach(optionId => {
+                const checkbox = document.getElementById(`${group.idPrefix}-${optionId}`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            });
+        });
 
         updateFormData();
         handleCalculationUpdate();
@@ -1522,7 +1539,7 @@ function initializeEventListeners() {
         
         // Add all calculation results as hidden fields for email
         const fieldsToAdd = {
-            'calculated_class': results.calculatedClass || '--',
+            'calculated_class': results.competingClass || '--',
             'base_ratio': results.baseRatio > 0 ? results.baseRatio.toFixed(2) : '--',
             'modified_ratio': results.modifiedRatio > 0 ? results.modifiedRatio.toFixed(2) : '--',
             'modification_factor': results.modificationFactor.toFixed(2),
@@ -1570,7 +1587,7 @@ function initializeEventListeners() {
         // Add display text for modifier selections (not just option IDs)
         const modifierDisplayFields = {
             'chassis_display': getSelectedOptionText('chassis'),
-            'body_mods_display': getSelectedOptionText('body-mods'),
+            'body_mods_display': getBodyModSelections(),
             'transmission_display': getSelectedOptionText('transmission'),
             'drivetrain_display': getSelectedOptionText('drivetrain'),
             'tires_display': getSelectedOptionText('tires')
@@ -1624,8 +1641,8 @@ function initializeEventListeners() {
         'competition-weight',
         'declared-hp',
         'dyno-hp',
+        'class-choice',
         'chassis',
-        'body-mods',
         'transmission',
         'drivetrain',
         'tires'
@@ -1639,16 +1656,19 @@ function initializeEventListeners() {
         }
     });
     
-    // Handle brake-suspension checkboxes
-    const brakeContainer = document.getElementById('brake-suspension-options');
-    if (brakeContainer) {
-        // Use event delegation for dynamically created checkboxes
-        brakeContainer.addEventListener('change', (event) => {
-            if (event.target.type === 'checkbox') {
-                handleCalculationUpdate();
-            }
-        });
-    }
+    // Checkbox groups (event delegation for dynamically created checkboxes).
+    // Clearing body mods for a restricted chassis dispatches a change on the
+    // container itself, so that counts too.
+    ['brake-suspension-options', 'body-mods-options'].forEach(containerId => {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.addEventListener('change', (event) => {
+                if (event.target.type === 'checkbox' || event.target === container) {
+                    handleCalculationUpdate();
+                }
+            });
+        }
+    });
 
 
     // File upload handlers

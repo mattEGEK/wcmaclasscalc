@@ -215,6 +215,55 @@ export function formatNumber(value, decimals = 2) {
 }
 
 /**
+ * True when `name` is one of the WCMA classes.
+ * @param {string} name
+ * @returns {boolean}
+ */
+export function isValidClass(name) {
+    return CLASS_RANGES.some(r => r.name === name);
+}
+
+/**
+ * True when class `a` is faster (a lower weight/hp band) than class `b`.
+ * @param {string} a
+ * @param {string} b
+ * @returns {boolean}
+ */
+export function isFasterClass(a, b) {
+    const ia = CLASS_RANGES.findIndex(r => r.name === a);
+    const ib = CLASS_RANGES.findIndex(r => r.name === b);
+    return ia !== -1 && ib !== -1 && ia < ib;
+}
+
+/**
+ * The class whose column the modifier tables are read from. As in the WCMA
+ * calculator, that is the class the entrant chose, or by default the class
+ * their weight/hp ratio (before any factors) falls in.
+ * @param {number} weight - Competition weight in lbs
+ * @param {number} hp - Declared maximum average horsepower
+ * @param {string} classChoice - Chosen class, or '' for automatic
+ * @returns {string} Class name, or '' without weight and HP
+ */
+export function getScoringClass(weight, hp, classChoice) {
+    if (isValidClass(classChoice)) {
+        return classChoice;
+    }
+    return determineClass(calculateBaseRatio(weight, hp));
+}
+
+/**
+ * Maximum tyre section width (mm) allowed in IT1/IT2 for a given minimum
+ * competition weight (WCMA Technical Regulations 3.3 C.2).
+ * @param {number} weight - Competition weight in lbs
+ * @returns {number} Width in mm
+ */
+export function getItTireMaxWidth(weight) {
+    if (weight > 2750) return 265;
+    if (weight >= 2400) return 255;
+    return 225;
+}
+
+/**
  * Main calculation orchestrator
  * Performs all calculations and returns results object
  * @param {Object} formData - Object containing all form input values
@@ -224,7 +273,7 @@ export function updateCalculations(formData) {
     const {
         competitionWeight,
         declaredHp,
-        targetClass,
+        classChoice,
         chassis,
         bodyMods,
         transmission,
@@ -239,6 +288,9 @@ export function updateCalculations(formData) {
         modificationFactor: 0,
         modifiedRatio: 0,
         calculatedClass: '',
+        scoringClass: '',
+        competingClass: '',
+        movedUp: false,
         chassisValue: 0,
         bodyModsValue: 0,
         transmissionValue: 0,
@@ -256,99 +308,72 @@ export function updateCalculations(formData) {
         return results;
     }
 
-    // Calculate base ratio first
     results.baseRatio = calculateBaseRatio(weightNum, hpNum);
-    
-    // Determine class from base ratio to determine which modifier values apply
-    let classForModifiers = determineClass(results.baseRatio);
-    
-    // Collect modification factors using modifier tables
-    // Modifiers are based on the base class (before modifiers are applied)
-    let modifierSum = 0;
-    let chassisVal = 0, bodyVal = 0, transVal = 0, dtVal = 0, tireVal = 0, brakeVal = 0;
 
-    if (chassis && classForModifiers) {
-        const v = getModifierValue(chassisModifierTable, chassis, classForModifiers);
-        if (v !== null && !isNaN(v)) { modifierSum += v; chassisVal = v; }
-    }
+    const chosenClass = isValidClass(classChoice) ? classChoice : '';
+    const scoringClass = getScoringClass(weightNum, hpNum, chosenClass);
+    results.scoringClass = scoringClass;
 
-    if (bodyMods && classForModifiers) {
-        const v = getModifierValue(bodyModifierTable, bodyMods, classForModifiers);
-        if (v !== null && !isNaN(v)) { modifierSum += v; bodyVal = v; }
-    }
+    // Single-choice fields hold one option id; checkbox fields hold a list.
+    // A lone string is accepted for checkbox fields so older saved drafts load.
+    const sumOf = (table, ids) => {
+        const list = Array.isArray(ids) ? ids : (ids ? [ids] : []);
+        return list.reduce((sum, id) => {
+            const v = getModifierValue(table, id, scoringClass);
+            return v !== null && !isNaN(v) ? sum + v : sum;
+        }, 0);
+    };
 
-    if (transmission && classForModifiers) {
-        const v = getModifierValue(transModifierTable, transmission, classForModifiers);
-        if (v !== null && !isNaN(v)) { modifierSum += v; transVal = v; }
-    }
+    results.chassisValue         = sumOf(chassisModifierTable, chassis);
+    results.bodyModsValue        = sumOf(bodyModifierTable, bodyMods);
+    results.transmissionValue    = sumOf(transModifierTable, transmission);
+    results.drivetrainValue      = sumOf(dtModifierTable, drivetrain);
+    results.tiresValue           = sumOf(tireModifierTable, tires);
+    results.brakeSuspensionValue = sumOf(brakeModifierTable, brakeSuspension);
+    results.modificationFactor = results.chassisValue + results.bodyModsValue
+        + results.transmissionValue + results.drivetrainValue
+        + results.tiresValue + results.brakeSuspensionValue;
 
-    if (drivetrain && classForModifiers) {
-        const v = getModifierValue(dtModifierTable, drivetrain, classForModifiers);
-        if (v !== null && !isNaN(v)) { modifierSum += v; dtVal = v; }
-    }
-
-    if (tires && classForModifiers) {
-        const v = getModifierValue(tireModifierTable, tires, classForModifiers);
-        if (v !== null && !isNaN(v)) { modifierSum += v; tireVal = v; }
-    }
-
-    if (brakeSuspension && Array.isArray(brakeSuspension) && brakeSuspension.length > 0 && classForModifiers) {
-        brakeSuspension.forEach(optionId => {
-            const v = getModifierValue(brakeModifierTable, optionId, classForModifiers);
-            if (v !== null && !isNaN(v)) { modifierSum += v; brakeVal += v; }
-        });
-    } else if (brakeSuspension && typeof brakeSuspension === 'string' && brakeSuspension && classForModifiers) {
-        const v = getModifierValue(brakeModifierTable, brakeSuspension, classForModifiers);
-        if (v !== null && !isNaN(v)) { modifierSum += v; brakeVal = v; }
-    }
-
-    results.modificationFactor = modifierSum;
-    results.chassisValue         = chassisVal;
-    results.bodyModsValue        = bodyVal;
-    results.transmissionValue    = transVal;
-    results.drivetrainValue      = dtVal;
-    results.tiresValue           = tireVal;
-    results.brakeSuspensionValue = brakeVal;
-
-    // Iteratively calculate weight factor based on the final calculated class
-    // Start with class from base ratio + modifiers (without weight factor)
-    let classForWeightFactor = determineClass(results.baseRatio + results.modificationFactor);
-    let previousWeightFactor = null;
-    let iterations = 0;
-    const maxIterations = 10;
-    
-    // Iterate until weight factor stabilizes (class used matches resulting class)
-    while (iterations < maxIterations) {
-        // Calculate weight factor based on current class
-        results.weightFactor = calculateWeightFactor(weightNum, classForWeightFactor);
-        
-        // Calculate final modified ratio with this weight factor
+    if (chosenClass) {
+        // The WCMA calculator takes the weight factor from the chosen class.
+        results.weightFactor = calculateWeightFactor(weightNum, chosenClass);
         results.modifiedRatio = results.baseRatio + results.weightFactor + results.modificationFactor;
-        
-        // Determine what class results from this modified ratio
-        const resultingClass = determineClass(results.modifiedRatio);
-        
-        // If weight factor hasn't changed and class matches, we're stable
-        if (previousWeightFactor !== null && 
-            Math.abs(results.weightFactor - previousWeightFactor) < 0.001 &&
-            resultingClass === classForWeightFactor) {
-            break;
-        }
-        
-        // If resulting class is different, use it for next iteration
-        if (resultingClass !== classForWeightFactor) {
-            classForWeightFactor = resultingClass;
-            previousWeightFactor = results.weightFactor;
-            iterations++;
-        } else {
-            // Class matches, we're done
-            break;
+    } else {
+        // Iteratively calculate weight factor based on the final calculated class
+        // Start with class from base ratio + modifiers (without weight factor)
+        let classForWeightFactor = determineClass(results.baseRatio + results.modificationFactor);
+        let previousWeightFactor = null;
+        let iterations = 0;
+        const maxIterations = 10;
+
+        // Iterate until weight factor stabilizes (class used matches resulting class)
+        while (iterations < maxIterations) {
+            results.weightFactor = calculateWeightFactor(weightNum, classForWeightFactor);
+            results.modifiedRatio = results.baseRatio + results.weightFactor + results.modificationFactor;
+            const resultingClass = determineClass(results.modifiedRatio);
+
+            if (previousWeightFactor !== null &&
+                Math.abs(results.weightFactor - previousWeightFactor) < 0.001 &&
+                resultingClass === classForWeightFactor) {
+                break;
+            }
+
+            if (resultingClass !== classForWeightFactor) {
+                classForWeightFactor = resultingClass;
+                previousWeightFactor = results.weightFactor;
+                iterations++;
+            } else {
+                break;
+            }
         }
     }
-    
-    // Final class determination
+
     results.calculatedClass = determineClass(results.modifiedRatio);
+
+    // A driver may always run in a faster class than their ratio gives
+    // (Technical Regulations 3.2 E.1.6 / 3.3 E.1.6), never a slower one.
+    results.movedUp = !!chosenClass && isFasterClass(chosenClass, results.calculatedClass);
+    results.competingClass = results.movedUp ? chosenClass : results.calculatedClass;
 
     return results;
 }
-

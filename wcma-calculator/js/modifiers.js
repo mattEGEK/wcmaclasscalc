@@ -9,8 +9,8 @@
 
 // Chassis modifier table (radio button - single selection)
 export const chassisModifierTable = [
-    ["chassis1", "Sports Racer, Prototypes, Monocoque race cars (GTU,GT1,GT2)", -2.5, -2.5, -3.4, 99, 99, 99, 99],
-    ["chassis2", "Non-Production Vehicle (excluding GT4,IT1,IT2)", -0.4, -0.4, -0.4, -0.4, 99, 99, 99],
+    ["chassis1", "Sports Racer, Prototypes, Monocoque race cars (GTU, GT1, GT2 only)", -2.5, -2.5, -3.4, 99, 99, 99, 99],
+    ["chassis2", "Non-Production Vehicle (GTU, GT1, GT2, GT3 only)", -0.4, -0.4, -0.4, -0.4, 99, 99, 99],
     ["chassis3", "Roll cage bars that penetrate the front firewall/bulkhead (IT1,IT2 only)", 99, 99, 99, 99, 99, 0.4, 0.4],
     ["chassis4", "Not applicable", 0, 0, 0, 0, 0, 0, 0]
 ];
@@ -19,10 +19,9 @@ export const chassisModifierTable = [
 export const bodyModifierTable = [
     ["body1", "Modification of OEM roof line, shape, or windshield/frame removal", -0.3, -0.3, -0.3, -0.3, -0.3, -0.3, -0.3],
     ["body2", "Modification of floor pan for exhaust clearance only and/or the rocker panel for side exiting exhaust", -0.2, -0.2, -0.2, -0.2, -0.2, -0.2, -0.2],
-    ["body3", "Factory stock aero option (GT3,GT4,IT1,IT2 only)", 99, 99, 99, 0.4, 0.4, 0.4, 0.4],
+    ["body3", "Factory stock aero option \"BTM Aero\" (GT3, GT4, IT1, IT2 only)", 99, 99, 99, 0.4, 0.4, 0.4, 0.4],
     ["body4", "IT1 only Front splitter", 99, 99, 99, 99, 99, -0.5, 99],
-    ["body5", "IT2 only Single rear wing or spoiler", 99, 99, 99, 99, 99, 99, -1.0],
-    ["body6", "Not applicable", 0, 0, 0, 0, 0, 0, 0]
+    ["body5", "IT2 only Single rear wing or spoiler", 99, 99, 99, 99, 99, 99, -1.0]
 ];
 
 // Transmission modifier table (radio button - single selection)

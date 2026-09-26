@@ -155,6 +155,21 @@ renderPageStart('Class Calculator', 'calculator', ['bodyClass' => 'calculator-pa
                 <p class="field-help">Horsepower measured on a dynamometer. Optional, but if you have a dyno chart, providing this helps verify your Declared HP at tech inspection.</p>
                 <span class="error-message" id="dyno-hp-error"></span>
             </div>
+
+            <div class="form-group">
+                <label for="class-choice">Class to score in</label>
+                <select id="class-choice" name="class_choice" disabled>
+                    <option value="">Auto (from weight &divide; HP)</option>
+                    <option value="GTU">GTU</option>
+                    <option value="GT1">GT1</option>
+                    <option value="GT2">GT2</option>
+                    <option value="GT3">GT3</option>
+                    <option value="GT4">GT4</option>
+                    <option value="IT1">IT1</option>
+                    <option value="IT2">IT2</option>
+                </select>
+                <p class="field-help">Some mod factors differ by class. Auto scores your mods in the class your weight &divide; HP falls in. Pick a class to score them in that class instead, or to run in a faster class than your result &mdash; the regs let you move up a class, never down.</p>
+            </div>
             <div class="form-group">
                 <label for="chassis">Chassis</label>
                 <div class="select-with-modifier">
@@ -166,15 +181,17 @@ renderPageStart('Class Calculator', 'calculator', ['bodyClass' => 'calculator-pa
                 <p class="modifier-explainer" id="chassis-explainer"></p>
             </div>
 
-            <div class="form-group">
-                <label for="body-mods">Body Mods</label>
-                <div class="select-with-modifier">
-                    <select id="body-mods" name="body_mods" disabled data-modifier-type="body">
-                        <option value="">-- Select --</option>
-                    </select>
-                    <span class="modifier-value" id="body-mods-modifier">+0.00</span>
+            <div class="form-group full-width">
+                <label>Body Mods (production vehicles)</label>
+                <div class="checkbox-group">
+                    <div id="body-mods-options" class="checkbox-options">
+                        <span class="field-note">Enter weight and HP first.</span>
+                    </div>
+                    <div class="modifier-value-container">
+                        <span class="modifier-value" id="body-mods-modifier">+0.00</span>
+                    </div>
                 </div>
-                <p class="modifier-explainer" id="body-mods-explainer"></p>
+                <p class="field-help">Tick every one that applies. &ldquo;BTM Aero&rdquo; means the car keeps its base trim model body lines with no non-BTM aero &mdash; see the <a href="https://www.wcma.ca/racing/racing-regulations/" target="_blank" rel="noopener">Technical Regulations</a>, 3.2 D.2.f (GT) and 3.3 D.4 (IT), for what is allowed.</p>
             </div>
 
             <div class="form-group">
@@ -207,15 +224,15 @@ renderPageStart('Class Calculator', 'calculator', ['bodyClass' => 'calculator-pa
                     </select>
                     <span class="modifier-value" id="tires-modifier">+0.00</span>
                 </div>
-                <span class="field-note">IT1/IT2: Tire width based on vehicle weight</span>
+                <span class="field-note" id="tire-width-note">IT1/IT2: maximum tire width depends on competition weight</span>
                 <p class="modifier-explainer" id="tires-explainer"></p>
             </div>
 
-            <div class="form-group">
+            <div class="form-group full-width">
                 <label>Brake & Suspension (IT1/IT2)</label>
                 <div class="checkbox-group">
                     <div id="brake-suspension-options" class="checkbox-options">
-                        <span class="field-note">Available when your base ratio (weight ÷ HP) is 14.00 or higher.</span>
+                        <span class="field-note">Available when scoring in IT1 or IT2.</span>
                     </div>
                     <div class="modifier-value-container">
                         <span class="modifier-value" id="brake-suspension-modifier">+0.00</span>

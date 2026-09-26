@@ -665,6 +665,11 @@ input[type="file"]:focus {
     line-height: 1.3;
 }
 
+.field-note.field-warning {
+    color: var(--error-color);
+    font-style: normal;
+}
+
 /* Error Messages */
 .error-message {
     color: var(--error-color);

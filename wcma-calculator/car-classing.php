@@ -52,7 +52,9 @@ $competition_weight = isset($_POST['competition_weight']) ? trim($_POST['competi
 $declared_hp = isset($_POST['declared_hp']) ? trim($_POST['declared_hp']) : '';
 $dyno_hp = isset($_POST['dyno_hp']) ? trim($_POST['dyno_hp']) : '';
 $chassis = isset($_POST['chassis']) ? trim($_POST['chassis']) : '';
-$body_mods = isset($_POST['body_mods']) ? trim($_POST['body_mods']) : '';
+// Body mods are checkboxes (body_mods[]); older clients sent a single value.
+$body_mods = isset($_POST['body_mods']) ? $_POST['body_mods'] : '';
+$body_mods = is_array($body_mods) ? implode(', ', array_map('trim', $body_mods)) : trim($body_mods);
 $transmission = isset($_POST['transmission']) ? trim($_POST['transmission']) : '';
 $drivetrain = isset($_POST['drivetrain']) ? trim($_POST['drivetrain']) : '';
 $tires = isset($_POST['tires']) ? trim($_POST['tires']) : '';
