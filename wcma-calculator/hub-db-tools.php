@@ -61,6 +61,8 @@ function hubSeed(PDO $pdo, string $password): array {
     $declare($s2000, 'Honda', 'S2000', '2004', 2860, 240, 'GT3');
     $miataDecl = $declare($miata, 'Mazda', 'Miata', '1999', 2400, 140, 'IT1');
 
+    db_tag_event($pdo, $jordan, $fall, $s2000);   // on the roster with no sheet yet
+
     gearCreate($pdo, $jordan, 'Jordan Lee', 'WCMA-0412', $year);   // the self profile
     db_create_driver($pdo, $jordan, 'Sam Patel');
 
@@ -89,5 +91,5 @@ function hubSeed(PDO $pdo, string $password): array {
     db_create_season_link($pdo, $year . ' Race Licences', 'https://www.motorsportreg.com/orgs/western-canada-motorsport-associati', 2);
     db_create_season_link($pdo, 'Car Classing & Number Reservation', 'https://www.motorsportreg.com/orgs/western-canada-motorsport-associati', 3);
 
-    return ['users' => 3, 'cars' => 2, 'events' => 2, 'tech_sheets' => 1, 'season_links' => 3];
+    return ['users' => 3, 'cars' => 2, 'events' => 2, 'tech_sheets' => 1, 'season_links' => 3, 'event_plans' => 1];
 }

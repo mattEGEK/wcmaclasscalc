@@ -44,6 +44,10 @@ final class HubDbToolsTest extends TestCase
         $this->assertCount(2, db_get_active_events($pdo));
         $this->assertCount(3, db_get_season_links($pdo, true));
         $this->assertCount(1, db_get_user_tech_sheets($pdo, (int)$jordan['id']));
+
+        $fall = (int)$pdo->query("SELECT id FROM events WHERE name = 'Fall Sprint'")->fetchColumn();
+        $this->assertSame(['17', '42'], array_column(db_get_event_roster_cars($pdo, $fall), 'car_number'));
+        $this->assertSame(1, $summary['event_plans']);
     }
 
     public function testSeedRefusesANonEmptyDatabase(): void
