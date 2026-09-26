@@ -25,11 +25,11 @@ function emailLogoSrc(PHPMailer $mail): ?string {
  * with the WCMA logo embedded. If the constant WCMA_MAIL_LOG is defined, the message is appended to
  * that file as a JSON line and NOTHING is sent (development / end-to-end runs).
  *
- * @param array{subject: string, html: string, text: string} $message
+ * @param array{subject: string, html: string, text: string, headers?: array<string,string>} $message
  */
 function emailSmtpSend(array $to, array $message): bool {
     if (defined('WCMA_MAIL_LOG')) {
-        return file_put_contents(WCMA_MAIL_LOG, json_encode(['to' => $to, 'subject' => $message['subject'], 'text' => $message['text']]) . "\n", FILE_APPEND) !== false;
+        return file_put_contents(WCMA_MAIL_LOG, json_encode(['to' => $to, 'subject' => $message['subject'], 'text' => $message['text'], 'headers' => $message['headers'] ?? []]) . "\n", FILE_APPEND) !== false;
     }
     try {
         $mail = new PHPMailer(true);
@@ -49,6 +49,9 @@ function emailSmtpSend(array $to, array $message): bool {
         $mail->isHTML(true);
         $mail->Body    = $message['html'];
         $mail->AltBody = $message['text'];
+        foreach ($message['headers'] ?? [] as $name => $value) {
+            $mail->addCustomHeader((string)$name, (string)$value);
+        }
         emailLogoSrc($mail);
         $mail->send();
         return true;

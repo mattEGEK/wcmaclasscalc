@@ -221,12 +221,15 @@ final class PretechEmailTest extends TestCase
         $ok = emailSmtpSend([['jane@example.com', 'Jane']], ['subject' => 'Hello', 'html' => '<p>x</p>', 'text' => 'plain body']);
 
         $this->assertTrue($ok);
+        $this->assertTrue(emailSmtpSend([['jane@example.com', 'Jane']], ['subject' => 'Hi', 'html' => '', 'text' => 't', 'headers' => ['List-Unsubscribe' => '<https://x.test/u>']]));
         $lines = file($file, FILE_IGNORE_NEW_LINES);
-        $this->assertCount(1, $lines);
+        $this->assertCount(2, $lines);
         $entry = json_decode($lines[0], true);
         $this->assertSame([['jane@example.com', 'Jane']], $entry['to']);
         $this->assertSame('Hello', $entry['subject']);
         $this->assertSame('plain body', $entry['text']);
+        $this->assertSame([], $entry['headers']);
+        $this->assertSame(['List-Unsubscribe' => '<https://x.test/u>'], json_decode($lines[1], true)['headers']);
         unlink($file);
     }
 }
