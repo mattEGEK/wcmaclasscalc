@@ -9,6 +9,10 @@ require_once __DIR__ . '/roles.php';
 require_once __DIR__ . '/gear-lib.php';
 require_once __DIR__ . '/tech-sheet-data.php';
 
+// Every page that records a submitted_at (car-classing.php, tech-sheets.php, ...) sets this first;
+// hubSeed()'s date() calls must use the same timezone or its rows sort ahead of/behind real ones.
+date_default_timezone_set('America/Denver');
+
 function hubResetDatabase(string $dbPath, string $uploadsDir): void {
     foreach ([$dbPath, $dbPath . '-wal', $dbPath . '-shm'] as $f) {
         if (is_file($f)) unlink($f);
