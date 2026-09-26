@@ -92,9 +92,16 @@ function adminSubnavHtml(string $current): string {
 /** The signed-in "no access" page (spec §9): a 403 inside the layout. The caller sets the status code. */
 function hubRenderForbidden(): void {
     renderPageStart('No access', '');
-    echo '<h1 class="hub-page-title">You don&#039;t have access to this page</h1>'
-        . '<p>This page is for WCMA inspectors and admins. If you think you should have access, ask a WCMA admin.</p>'
-        . '<p><a class="hub-btn" href="index.php">Go to Home</a></p>';
+    $user = current_user();
+    if ($user !== null && $user['role'] === 'inspector') {
+        echo '<h1 class="hub-page-title">You don&#039;t have access to this page</h1>'
+            . '<p>This page is for WCMA admins. Your inspector tools are in the Inspector section.</p>'
+            . '<p><a class="hub-btn" href="inspect.php">Go to the Inspector section</a></p>';
+    } else {
+        echo '<h1 class="hub-page-title">You don&#039;t have access to this page</h1>'
+            . '<p>This page is for WCMA inspectors and admins. If you think you should have access, ask a WCMA admin.</p>'
+            . '<p><a class="hub-btn" href="index.php">Go to Home</a></p>';
+    }
     renderPageEnd();
 }
 

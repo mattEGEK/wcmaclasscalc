@@ -29,7 +29,7 @@ function renderAuthPage(string $title, string $bodyHtml): void {
  */
 function safeRedirectTarget(?string $raw): string {
     $raw = trim((string)$raw);
-    if (preg_match('/^(index\.php|calculator\.php(\?(car|draft)=\d+|\?restore=1)?|garage\.php(\?car=\d+)?|drivers\.php|profile\.php|account\.php|admin\.php)$/', $raw)) {
+    if (preg_match('/^(index\.php|calculator\.php(\?(car|draft)=\d+|\?restore=1)?|garage\.php(\?car=\d+)?|drivers\.php|profile\.php|account\.php|admin\.php|inspect\.php)$/', $raw)) {
         return $raw;
     }
     return 'index.php';

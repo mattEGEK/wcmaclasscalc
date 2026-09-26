@@ -53,6 +53,10 @@ function inspectRosterRowHtml(array $row, array $vm): string {
     $current = $row['class']['current'];
     $classLink = $current === null ? '' : ' <a href="inspect.php?action=declaration&amp;id=' . (int)$current['id'] . '">'
         . ($current['review_status'] === 'submitted' ? 'Review' : 'View') . '</a>';
+    // Insert the link before garageClassHtml()'s closing </p> so it stays on the same line as the class,
+    // instead of appending after the </p> where it wraps onto its own line.
+    $classCell = $classLink === '' ? garageClassHtml($row['class'])
+        : preg_replace('/<\/p>$/', $classLink . '</p>', garageClassHtml($row['class']));
     $sheetCell = $sheet === null
         ? '<span class="hub-status hub-status--todo">No sheet yet</span>'
         : '<span class="hub-status ' . ($sheet['status'] === 'teched' ? 'hub-status--ok">Accepted' : 'hub-status--info">Submitted') . '</span>'
@@ -67,7 +71,7 @@ function inspectRosterRowHtml(array $row, array $vm): string {
         . '<div><h2>' . h(garageCarTitle($car)) . '</h2><p class="inspect-row-sub">' . h((string)$car['owner_name'])
         . (empty($car['tagged']) ? ' · has a sheet, not tagged' : '') . '</p></div></div>'
         . '<dl class="inspect-facts">'
-        . '<div><dt>Class</dt><dd>' . garageClassHtml($row['class']) . $classLink . '</dd></div>'
+        . '<div><dt>Class</dt><dd>' . $classCell . '</dd></div>'
         . '<div><dt>Tech sheet</dt><dd>' . $sheetCell . '</dd></div>'
         . '<div><dt>Car tech</dt><dd><span class="hub-status ' . h(homeStatusClass($row['status']['state'])) . '">'
         . h(techCarStatusLabel($row['status'], $vm['season'])) . '</span></dd></div>'

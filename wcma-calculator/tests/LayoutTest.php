@@ -61,10 +61,25 @@ final class LayoutTest extends TestCase
 
         $this->assertStringContainsString('class="hub-header"', $html);
         $this->assertStringContainsString('You don&#039;t have access to this page', $html);
+        $this->assertStringContainsString('This page is for WCMA inspectors and admins', $html);
         $this->assertStringContainsString('<a class="hub-btn" href="index.php">Go to Home</a>', $html);
 
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../session_bootstrap.php'));
         $this->assertMatchesRegularExpression("/case 'forbidden':\\s*http_response_code\\(403\\);\\s*require_once __DIR__ \\. '\\/view_helpers\\.php';[^\\n]*\\n\\s*hubRenderForbidden\\(\\);\\s*exit;/", $src);
+    }
+
+    public function testForbiddenPageSendsInspectorsToTheirOwnSection(): void
+    {
+        $GLOBALS['TEST_CURRENT_USER'] = ['id' => 4, 'name' => 'Ivy Inspector', 'role' => 'inspector'];
+        ob_start();
+        hubRenderForbidden();
+        $html = ob_get_clean();
+        unset($GLOBALS['TEST_CURRENT_USER']);
+
+        $this->assertStringContainsString('You don&#039;t have access to this page', $html);
+        $this->assertStringContainsString('This page is for WCMA admins. Your inspector tools are in the Inspector section.', $html);
+        $this->assertStringContainsString('<a class="hub-btn" href="inspect.php">Go to the Inspector section</a>', $html);
+        $this->assertStringNotContainsString('This page is for WCMA inspectors and admins', $html);
     }
 
     public function testCurrentSectionIsInertText(): void

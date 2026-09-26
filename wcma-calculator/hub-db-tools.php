@@ -9,10 +9,6 @@ require_once __DIR__ . '/roles.php';
 require_once __DIR__ . '/gear-lib.php';
 require_once __DIR__ . '/tech-sheet-data.php';
 
-// Every page that records a submitted_at (car-classing.php, tech-sheets.php, ...) sets this first;
-// hubSeed()'s date() calls must use the same timezone or its rows sort ahead of/behind real ones.
-date_default_timezone_set('America/Denver');
-
 function hubResetDatabase(string $dbPath, string $uploadsDir): void {
     foreach ([$dbPath, $dbPath . '-wal', $dbPath . '-shm'] as $f) {
         if (is_file($f)) unlink($f);
@@ -31,6 +27,11 @@ function hubResetDatabase(string $dbPath, string $uploadsDir): void {
 
 /** @return array<string, int> */
 function hubSeed(PDO $pdo, string $password): array {
+    // Every page that records a submitted_at (car-classing.php, tech-sheets.php, ...) sets this first;
+    // hubSeed()'s date() calls must use the same timezone or its rows sort ahead of/behind real ones.
+    // Set here (not at file scope) so including this file doesn't change the timezone for every
+    // includer (reset-hub-db.php, PHPUnit).
+    date_default_timezone_set('America/Denver');
     if ((int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn() > 0) {
         throw new RuntimeException('The database already has users. Reset it first.');
     }

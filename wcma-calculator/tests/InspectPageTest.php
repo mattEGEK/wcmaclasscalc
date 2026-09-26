@@ -45,6 +45,13 @@ final class InspectPageTest extends TestCase
                   'Needs tech at the track', '<option value="3" selected>Fall Sprint', 'All cars (1)'] as $needle) {
             $this->assertStringContainsString($needle, $html);
         }
+
+        // The class Review link must sit inside the same "garage-class" container as the class text,
+        // not after garageClassHtml()'s closing </p> where it wraps onto its own line.
+        $this->assertMatchesRegularExpression(
+            '/<p class="garage-class">.*href="inspect\.php\?action=declaration&amp;id=8">Review<\/a><\/p>/s',
+            $html
+        );
     }
 
     public function testADriverWithoutGearOnASheetGetsTheOneTapButton(): void

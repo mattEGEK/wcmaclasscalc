@@ -21,6 +21,12 @@ final class AdminSourceTest extends TestCase
         $this->assertNotFalse($router);
         $this->assertLessThan($gate, $moved);
         $this->assertLessThan($router, $gate);
+
+        // login/logout must work for anyone (signed-out users too), so the redirect to auth.php
+        // has to sit before the admin-only gate.
+        $loginRedirect = strpos($admin, "header('Location: auth.php?action=' . \$action);");
+        $this->assertNotFalse($loginRedirect, 'admin.php should redirect login/logout to auth.php');
+        $this->assertLessThan($gate, $loginRedirect);
         foreach (['requireAuth(', 'adminActionMinRole(', 'renderAdminNav(', 'TECH_EMAIL', "/admin-tech-sheets.php'", "/admin-gear.php'"] as $gone) {
             $this->assertStringNotContainsString($gone, $admin, $gone);
         }

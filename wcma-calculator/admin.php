@@ -19,6 +19,7 @@ db_init($pdo);
 $action = $_GET['action'] ?? 'users';
 $movedTo = adminMovedActionUrl(is_string($action) ? $action : '', $_GET);
 if ($movedTo !== null) { header('Location: ' . $movedTo); exit; }
+if ($action === 'login' || $action === 'logout') { header('Location: auth.php?action=' . $action); exit; }
 require_role('admin');
 
 /** POST-only and CSRF-checked; otherwise back to $back. */
