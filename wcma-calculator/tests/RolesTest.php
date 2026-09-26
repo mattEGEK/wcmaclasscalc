@@ -81,4 +81,13 @@ final class RolesTest extends TestCase
         $this->assertSame('inspect.php?action=gear-record&id=9', adminMovedActionUrl('gear-record', ['id' => '9']));
         $this->assertNull(adminMovedActionUrl('gear-create-accept', []));
     }
+
+    public function testMovedClassingActionsRedirect(): void
+    {
+        $this->assertSame('inspect.php?action=classing', adminMovedActionUrl('list', ['sort' => 'name', 'dir' => 'asc']));
+        $this->assertSame('inspect.php?action=declaration&id=7', adminMovedActionUrl('view', ['id' => '7']));
+        $this->assertSame('inspect.php?action=declaration-file&id=7&field=car_image', adminMovedActionUrl('file', ['id' => '7', 'field' => 'car_image']));
+        $this->assertSame('inspect.php?action=declarations-export', adminMovedActionUrl('export', ['sort' => 'name']));
+        $this->assertNull(adminMovedActionUrl('delete', ['id' => '7']));
+    }
 }

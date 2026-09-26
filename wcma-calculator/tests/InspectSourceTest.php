@@ -88,4 +88,41 @@ final class InspectSourceTest extends TestCase
         $this->assertStringNotContainsString('admin.php', $this->src('gear-chips.php'));
         $this->assertStringNotContainsString('TECH_SHEET_FILTERS', $this->src('admin-tech-sheets.php'));
     }
+
+    public function testClassingRoutesMovedFromAdmin(): void
+    {
+        $this->assertRoutesMoved(
+            ['classing', 'declaration', 'declaration-file', 'declarations-export', 'declaration-accept', 'declaration-send-back',
+             'declaration-resend', 'declaration-update-contact', 'declaration-delete', 'declarations-bulk-delete'],
+            ['declaration-accept', 'declaration-send-back', 'declaration-resend', 'declaration-update-contact', 'declaration-delete', 'declarations-bulk-delete']
+        );
+        $admin = $this->src('admin.php');
+        foreach (['list', 'view', 'file', 'resend', 'update-contact', 'delete', 'bulk-delete', 'export'] as $old) {
+            $this->assertStringNotContainsString("case '$old':", $admin, $old);
+        }
+        $this->assertStringContainsString("\$action = \$_GET['action'] ?? 'users';", $admin);
+    }
+
+    public function testReviewEmailsGoOutOnlyAfterTheReviewSucceeded(): void
+    {
+        foreach (['inspectAcceptDeclaration' => 'accepted', 'inspectSendBackDeclaration' => 'sent_back'] as $fn => $kind) {
+            $b = $this->body('inspect.php', $fn);
+            $this->assertMatchesRegularExpression("/if \\(\\\$r\\['ok'\\]\\) \\{\\s*\\\$sent = declarationNotify\\(\\\$pdo, '$kind', /", $b, $fn);
+            $this->assertStringContainsString("(int)current_user()['id']", $b, $fn);
+            $this->assertStringContainsString("'emailSmtpSend'", $b, $fn);
+        }
+    }
+
+    public function testDeclarationFilesAreServedOnlyForKnownFields(): void
+    {
+        $b = $this->body('inspect.php', 'inspectDeclarationFile');
+        $this->assertStringContainsString("\$columns = ['dyno_chart' => 'dyno_chart_path', 'dyno_table' => 'dyno_table_path', 'car_image' => 'car_image_path'];", $b);
+        $this->assertStringContainsString('http_response_code(404)', $b);
+        $this->assertStringContainsString("header('X-Content-Type-Options: nosniff');", $b);
+    }
+
+    public function testBulkDeleteIdsAreScalarOnly(): void
+    {
+        $this->assertStringContainsString("fn(\$v): int => is_scalar(\$v) ? (int)\$v : 0", $this->src('inspect.php'));
+    }
 }

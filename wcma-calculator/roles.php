@@ -56,6 +56,10 @@ const ADMIN_MOVED_ACTIONS = [
     'tech-sheet-sig' => ['tech-sheet-sig', ['id', 'which']],
     'gear' => ['gear', ['season', 'filter']],
     'gear-record' => ['gear-record', ['id']],
+    'list' => ['classing', []],
+    'view' => ['declaration', ['id']],
+    'file' => ['declaration-file', ['id', 'field']],
+    'export' => ['declarations-export', []],
 ];
 
 /** The inspect.php URL for a moved admin.php action, or null when $action has not moved. */
