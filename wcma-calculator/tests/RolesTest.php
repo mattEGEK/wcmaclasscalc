@@ -64,4 +64,14 @@ final class RolesTest extends TestCase
             $this->assertNotContains($action, INSPECT_POST_ACTIONS, $action);
         }
     }
+
+    public function testMovedAdminActionsRedirectToTheInspectorSection(): void
+    {
+        $this->assertSame('inspect.php?action=tech-sheet&id=12', adminMovedActionUrl('tech-sheet', ['action' => 'tech-sheet', 'id' => '12', 'x' => 'y']));
+        $this->assertSame('inspect.php?action=roster&event=3', adminMovedActionUrl('tech-sheets', ['event' => '3', 'filter' => 'needs_tech']));
+        $this->assertSame('inspect.php?action=roster', adminMovedActionUrl('tech-sheets', ['event' => ['x']]));
+        $this->assertSame('inspect.php?action=tech-sheet-sig&id=4&which=tech', adminMovedActionUrl('tech-sheet-sig', ['id' => '4', 'which' => 'tech']));
+        $this->assertNull(adminMovedActionUrl('users', []));
+        $this->assertNull(adminMovedActionUrl('tech-sheet-accept', ['id' => '4']));   // POSTs are not redirected
+    }
 }

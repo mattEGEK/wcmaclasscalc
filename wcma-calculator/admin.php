@@ -47,6 +47,8 @@ function requireAuth(string $min = 'admin'): void {
 
 // ── Router ────────────────────────────────────────────────────────────────────
 $action = $_GET['action'] ?? 'list';
+$movedTo = adminMovedActionUrl(is_string($action) ? $action : '', $_GET);
+if ($movedTo !== null) { header('Location: ' . $movedTo); exit; }
 $minRole = adminActionMinRole($action);
 $ip     = $_SERVER['REMOTE_ADDR'];
 
@@ -171,49 +173,6 @@ switch ($action) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleEventSetActive($pdo, (int)($_POST['id'] ?? 0), true);
-        break;
-
-    case 'tech-sheets':
-        requireAuth($minRole);
-        handleTechSheetsList($pdo);
-        break;
-
-    case 'tech-sheet':
-        requireAuth($minRole);
-        handleTechSheetView($pdo, (int)($_GET['id'] ?? 0));
-        break;
-
-    case 'tech-sheet-accept':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleTechSheetAccept($pdo, (int)($_POST['id'] ?? 0));
-        break;
-
-    case 'tech-sheet-revoke':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleTechSheetRevoke($pdo, (int)($_POST['id'] ?? 0));
-        break;
-
-    case 'tech-sheet-sig':
-        requireAuth($minRole);
-        handleTechSheetSig($pdo, (int)($_GET['id'] ?? 0), (string)($_GET['which'] ?? ''));
-        break;
-
-    case 'tech-sheet-photos-accept':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleTechSheetPhotosAccept($pdo, (int)($_POST['id'] ?? 0));
-        break;
-
-    case 'tech-sheet-photos-send-back':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=tech-sheets'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleTechSheetPhotosSendBack($pdo, (int)($_POST['id'] ?? 0));
         break;
 
     case 'gear':

@@ -38,18 +38,6 @@ final class GearCreateAcceptSourceTest extends TestCase
         $this->assertStringContainsString('TECH_SHEET_FILTERS[$_POST[\'filter\']]', $handler);
     }
 
-    public function testRosterPassesATokenAndOptionsToTheAdminChips(): void
-    {
-        $list = $this->body('admin-tech-sheets.php', 'handleTechSheetsList');
-        $this->assertStringContainsString('getFlash(), generateCsrfToken()', $list);
-
-        $page = $this->body('admin-tech-sheets.php', 'renderTechSheetsListPage');
-        $this->assertStringContainsString('?array $flash, string $csrf = \'\'): void', $page);
-        $this->assertStringContainsString("'csrf' => \$csrf, 'sheet_id' => (int)\$s['id']", $page);
-        $this->assertStringContainsString("'back' => 'roster'", $page);
-        $this->assertStringContainsString("'sheet_season' => (int)\$s['season']", $page);
-    }
-
     public function testReviewPagePassesATokenAndOptionsToTheAdminChips(): void
     {
         $page = $this->body('admin-tech-sheets.php', 'renderTechSheetViewPage');

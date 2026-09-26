@@ -130,7 +130,7 @@ function pretechNotify(PDO $pdo, string $kind, array $sheet, array $event, strin
         $id = (int)$sheet['id'];
         $pageUrl = $base . '/tech-sheets.php?action=pretech&id=' . $id;
         $viewUrl = $base . '/tech-sheets.php?action=view&id=' . $id;
-        $adminUrl = $base . '/admin.php?action=tech-sheet&id=' . $id;
+        $adminUrl = $base . '/inspect.php?action=tech-sheet&id=' . $id;
 
         $owner = db_find_user_by_id($pdo, (int)$sheet['user_id']);
         $competitor = $owner ? [[$owner['email'], $owner['name']]] : [];

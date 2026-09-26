@@ -1,5 +1,5 @@
 // wcma-calculator/js/admin-tech-review.js
-// Signature pad for the in-person tech review form (admin.php?action=tech-sheet).
+// Signature pad for the in-person tech review form (inspect.php?action=tech-sheet).
 (function () {
     const canvas = document.getElementById('tech-sig-canvas');
     if (!canvas) return; // accepted sheets have no form

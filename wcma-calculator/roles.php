@@ -46,6 +46,27 @@ function inspectActionMinRole(string $action): string {
     return in_array($action, INSPECT_ADMIN_ONLY_ACTIONS, true) ? 'admin' : 'inspector';
 }
 
+/**
+ * admin.php GET actions that moved to inspect.php in Phase 4: action => [inspect.php action, query keys
+ * carried over]. Emails already sent and bookmarks use the old URLs, so admin.php redirects them.
+ */
+const ADMIN_MOVED_ACTIONS = [
+    'tech-sheets' => ['roster', ['event']],
+    'tech-sheet' => ['tech-sheet', ['id']],
+    'tech-sheet-sig' => ['tech-sheet-sig', ['id', 'which']],
+];
+
+/** The inspect.php URL for a moved admin.php action, or null when $action has not moved. */
+function adminMovedActionUrl(string $action, array $query): ?string {
+    if (!isset(ADMIN_MOVED_ACTIONS[$action])) return null;
+    [$to, $keys] = ADMIN_MOVED_ACTIONS[$action];
+    $params = ['action' => $to];
+    foreach ($keys as $key) {
+        if (isset($query[$key]) && is_scalar($query[$key]) && (string)$query[$key] !== '') $params[$key] = (string)$query[$key];
+    }
+    return 'inspect.php?' . http_build_query($params);
+}
+
 /** Staff review emails name the reviewer, so staff accounts need at least two name words. */
 function userHasFirstAndLastName(string $name): bool {
     return count(preg_split('/\s+/', trim($name), -1, PREG_SPLIT_NO_EMPTY)) >= 2;

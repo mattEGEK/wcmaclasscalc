@@ -21,10 +21,10 @@ final class PretechEmailTest extends TestCase
 
     public function testSubmittedEmailsForClubAndCompetitor(): void
     {
-        $club = pretechEmailSubmitted($this->sheet(), $this->event(), 'https://x.test/admin.php?action=tech-sheet&id=12', 'https://x.test/tech-sheets.php?action=pretech&id=12', 15, true);
+        $club = pretechEmailSubmitted($this->sheet(), $this->event(), 'https://x.test/inspect.php?action=tech-sheet&id=12', 'https://x.test/tech-sheets.php?action=pretech&id=12', 15, true);
         $this->assertStringContainsString('Pre-Tech Submitted', $club['subject']);
         $this->assertStringContainsString('Car #42', $club['subject']);
-        $this->assertStringContainsString('https://x.test/admin.php?action=tech-sheet&amp;id=12', $club['html']);
+        $this->assertStringContainsString('https://x.test/inspect.php?action=tech-sheet&amp;id=12', $club['html']);
         $this->assertStringContainsString('15 photos', $club['text']);
         $this->assertStringContainsString('cid:wcma-logo', $club['html']);
         $this->assertStringContainsString('Jane &lt;Racer&gt;', $club['html']);   // escaped
@@ -69,7 +69,7 @@ final class PretechEmailTest extends TestCase
 
     public function testAcceptedEmailLeadsWithTheScrutineerLineAndNamesTheReviewer(): void
     {
-        $admin = 'https://x.test/admin.php?action=tech-sheet&id=12';
+        $admin = 'https://x.test/inspect.php?action=tech-sheet&id=12';
         $view = 'https://x.test/tech-sheets.php?action=view&id=12';
         $ivy = ['name' => 'Ivy Inspector'];
 
@@ -80,7 +80,7 @@ final class PretechEmailTest extends TestCase
         $this->assertStringContainsString('Reviewed by: Ivy Inspector', $mail['html']);
         $this->assertStringContainsString('decals', $mail['text']);
         $this->assertStringContainsString('2026', $mail['text']);
-        $this->assertStringNotContainsString('admin.php', $mail['text'] . $mail['html']);
+        $this->assertStringNotContainsString('inspect.php', $mail['text'] . $mail['html']);
 
         $club = pretechEmailAccepted($this->sheet(), $this->event(), $view, $admin, true, $ivy);
         $this->assertStringContainsString('Reviewed by: Ivy Inspector', $club['text']);
@@ -180,8 +180,8 @@ final class PretechEmailTest extends TestCase
         $captured = [];
         $sendFn = function (array $to, array $message) use (&$captured): bool { $captured[$to[0][0]] = $message; return true; };
         $this->assertTrue(pretechNotify($pdo, 'accepted', $sheet, $this->event(), 'https://x.test', ['email' => 'club@example.com', 'name' => 'Club'], $sendFn));
-        $this->assertStringContainsString('https://x.test/admin.php?action=tech-sheet&id=12', $captured['club@example.com']['text']);
-        $this->assertStringNotContainsString('admin.php', $captured['jane@example.com']['text']);
+        $this->assertStringContainsString('https://x.test/inspect.php?action=tech-sheet&id=12', $captured['club@example.com']['text']);
+        $this->assertStringNotContainsString('inspect.php', $captured['jane@example.com']['text']);
         $this->assertStringContainsString('action=view&id=12', $captured['jane@example.com']['text']);
     }
 
