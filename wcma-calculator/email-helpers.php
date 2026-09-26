@@ -40,6 +40,7 @@ function emailSmtpSend(array $to, array $message): bool {
         $mail->Password   = SMTP_PASS;
         $mail->SMTPSecure = (SMTP_PORT === 465) ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = SMTP_PORT;
+        $mail->Timeout    = 30;
         $mail->CharSet    = 'UTF-8';
         $mail->setFrom(FROM_EMAIL, FROM_NAME);
         foreach ($to as [$address, $name]) {
@@ -56,7 +57,7 @@ function emailSmtpSend(array $to, array $message): bool {
         $mail->send();
         return true;
     } catch (Exception $e) {
-        error_log('Pre-tech email error: ' . $e->getMessage());
+        error_log('Email send error: ' . $e->getMessage());
         return false;
     }
 }

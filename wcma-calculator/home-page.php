@@ -70,7 +70,7 @@ function homeRenderTodoItem(int $n, array $item, string $csrf): string {
 /** The tag ("I'm going") form for one untagged event. */
 function homeRenderTagForm(array $event, array $cars, string $csrf, bool $offerReminders = false): string {
     $eid = (int)$event['id'];
-    $out = '<form method="post" action="index.php" class="hub-line">' . homeCsrfField($csrf)
+    $out = '<form method="post" action="index.php" class="hub-line hub-tag-form">' . homeCsrfField($csrf)
         . '<input type="hidden" name="action" value="tag">'
         . '<input type="hidden" name="event_id" value="' . h((string)$eid) . '">';
     $out .= '<span>' . h((string)$event['name']) . '</span>';

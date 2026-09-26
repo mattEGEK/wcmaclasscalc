@@ -131,6 +131,11 @@ final class HomePageTest extends TestCase
         $this->assertStringNotContainsString('offer_reminders', renderHomeHtml($this->vm(['offerReminders' => false])));
     }
 
+    public function testTagFormWrapsOnNarrowScreens(): void
+    {
+        $this->assertStringContainsString('class="hub-line hub-tag-form"', renderHomeHtml($this->vm()));
+    }
+
     public function testNoBannedWording(): void
     {
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', file_get_contents(__DIR__ . '/../home-page.php'));

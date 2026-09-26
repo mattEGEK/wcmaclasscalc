@@ -77,4 +77,10 @@ final class ReminderEmailTest extends TestCase
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../email-helpers.php'));
         $this->assertStringContainsString("foreach (\$message['headers'] ?? [] as \$name => \$value) {\n            \$mail->addCustomHeader((string)\$name, (string)\$value);", $src);
     }
+
+    public function testTheMailerHasATimeoutSoAHungSmtpServerCannotStallTheRun(): void
+    {
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../email-helpers.php'));
+        $this->assertStringContainsString("\$mail->Port       = SMTP_PORT;\n        \$mail->Timeout    = 30;", $src);
+    }
 }

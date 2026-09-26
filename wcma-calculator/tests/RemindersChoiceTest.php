@@ -34,7 +34,7 @@ final class RemindersChoiceTest extends TestCase
     public function testLeavingItUntickedIsAChoiceToo(): void
     {
         [$pdo, $u] = $this->setUpUser();
-        $this->assertSame('', remindersRecordTagChoice($pdo, $u, ['offer_reminders' => '1']));
+        $this->assertSame(' You can turn on reminder emails in your Profile.', remindersRecordTagChoice($pdo, $u, ['offer_reminders' => '1']));
         $this->assertSame(0, (int)$this->row($pdo, $u)['reminder_emails']);
         $this->assertFalse(remindersShouldOffer($this->row($pdo, $u)));
     }

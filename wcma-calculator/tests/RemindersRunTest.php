@@ -113,6 +113,20 @@ final class RemindersRunTest extends TestCase
         $this->assertSame(1, $this->runReminders()['sent']);
     }
 
+    public function testOneUsersBlowUpDoesNotStopLaterUsersFromGettingTheirEmails(): void
+    {
+        $bad = $this->user('bad@example.com', 'Bad Person');
+        $this->going($bad, 'not-a-date');   // makes reminderDue()/reminderDaysUntil() throw for this user
+        $good = $this->user('good@example.com', 'Good Person');
+        $e = $this->going($good, '2026-10-08');
+
+        $summary = $this->runReminders();
+        $this->assertSame(['users' => 2, 'sent' => 1, 'skipped' => 0, 'failed' => 1], $summary);
+        $this->assertCount(1, $this->sent);
+        $this->assertSame([['good@example.com', 'Good Person']], $this->sent[0][0]);
+        $this->assertTrue(db_reminder_logged($this->pdo, $good, $e, 7));
+    }
+
     public function testTheUnsubscribeLinkIsSignedForThatUser(): void
     {
         $u = $this->user('jordan@example.com', 'Jordan Lee');

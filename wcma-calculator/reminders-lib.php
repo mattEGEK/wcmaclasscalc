@@ -112,5 +112,5 @@ function remindersRecordTagChoice(PDO $pdo, int $userId, array $post): string {
     if (empty($post['offer_reminders']) || !remindersShouldOffer(db_find_user_by_id($pdo, $userId))) return '';
     $on = !empty($post['reminders']);
     db_set_user_reminders($pdo, $userId, $on);
-    return $on ? ' We\'ll email you reminders before your events.' : '';
+    return $on ? ' We\'ll email you reminders before your events.' : ' You can turn on reminder emails in your Profile.';
 }

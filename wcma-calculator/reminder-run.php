@@ -24,25 +24,30 @@ function remindersRun(PDO $pdo, string $today, string $baseUrl, callable $sendFn
     foreach (db_get_reminder_users($pdo) as $user) {
         $summary['users']++;
         $uid = (int)$user['id'];
-        foreach (reminderDigests(buildReadiness(loadReadinessInputs($pdo, $uid, $today)), $today) as $digest) {
-            $eventId = (int)$digest['event']['id'];
-            if (db_reminder_logged($pdo, $uid, $eventId, $digest['daysOut'])) {
-                $summary['skipped']++;
-                continue;
+        try {
+            foreach (reminderDigests(buildReadiness(loadReadinessInputs($pdo, $uid, $today)), $today) as $digest) {
+                $eventId = (int)$digest['event']['id'];
+                if (db_reminder_logged($pdo, $uid, $eventId, $digest['daysOut'])) {
+                    $summary['skipped']++;
+                    continue;
+                }
+                $message = reminderEmail($user, $digest, $baseUrl, reminderUnsubscribeUrl($baseUrl, $uid, $secret));
+                try {
+                    $ok = (bool)$sendFn([[(string)$user['email'], (string)$user['name']]], $message);
+                } catch (Throwable $e) {
+                    error_log('Reminder email error: ' . $e->getMessage());
+                    $ok = false;
+                }
+                if ($ok) {
+                    db_log_reminder($pdo, $uid, $eventId, $digest['daysOut']);
+                    $summary['sent']++;
+                } else {
+                    $summary['failed']++;
+                }
             }
-            $message = reminderEmail($user, $digest, $baseUrl, reminderUnsubscribeUrl($baseUrl, $uid, $secret));
-            try {
-                $ok = (bool)$sendFn([[(string)$user['email'], (string)$user['name']]], $message);
-            } catch (Throwable $e) {
-                error_log('Reminder email error: ' . $e->getMessage());
-                $ok = false;
-            }
-            if ($ok) {
-                db_log_reminder($pdo, $uid, $eventId, $digest['daysOut']);
-                $summary['sent']++;
-            } else {
-                $summary['failed']++;
-            }
+        } catch (Throwable $e) {
+            error_log('Reminder run error for user ' . $uid . ': ' . $e->getMessage());
+            $summary['failed']++;
         }
     }
     return $summary;

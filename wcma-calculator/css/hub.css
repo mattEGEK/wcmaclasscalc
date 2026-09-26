@@ -151,6 +151,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .hub-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .hub-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--hub-line); }
 .hub-line:first-of-type { border-top: 0; }
+.hub-tag-form { flex-wrap: wrap; gap: 8px 12px; }
 
 /* Landing */
 .hub-hero { background: var(--hub-ink); color: #fff; padding: 28px 0; }

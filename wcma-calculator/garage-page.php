@@ -214,7 +214,7 @@ function renderGarageCarHtml(array $vm): string {
         $out .= '</div>';
     }
     if (!$archived && $ev['untagged']) {
-        $out .= '<form method="post" action="garage.php" class="hub-line">' . garageCsrfField($csrf)
+        $out .= '<form method="post" action="garage.php" class="hub-line hub-tag-form">' . garageCsrfField($csrf)
             . '<input type="hidden" name="action" value="tag"><input type="hidden" name="car_id" value="' . $id . '">'
             . '<label for="garage-tag-event">Bring this car to another event</label><select id="garage-tag-event" name="event_id">';
         foreach ($ev['untagged'] as $e) {
