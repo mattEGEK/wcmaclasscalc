@@ -1,5 +1,5 @@
 <?php
-// wcma-calculator/gear.php — competitor "My Drivers": gear records and gear photo pre-tech.
+// wcma-calculator/gear.php — a driver's gear photo pre-tech (the Drivers page links here).
 require __DIR__ . '/session_bootstrap.php';
 require __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
@@ -41,14 +41,14 @@ function loadOwnGearRecord(PDO $pdo, array $user, int $id): array {
     $gear = db_get_gear_record($pdo, $id);
     if ($gear === null || (int)$gear['owner_user_id'] !== (int)$user['id']) {
         setFlash('Gear record not found.', 'error');
-        header('Location: gear.php');
+        header('Location: drivers.php');
         exit;
     }
     return $gear;
 }
 
 function requireGearPost(): void {
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: gear.php'); exit; }
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: drivers.php'); exit; }
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
 }
 
@@ -56,21 +56,10 @@ $action = $_GET['action'] ?? 'list';
 
 switch ($action) {
     case 'list':
-        $user = requireGearLogin();
-        handleGearList($pdo, $user);
-        break;
-
     case 'add':
-        $user = requireGearLogin();
-        requireGearPost();
-        handleGearAdd($pdo, $user);
-        break;
-
     case 'renew':
-        $user = requireGearLogin();
-        requireGearPost();
-        handleGearRenew($pdo, $user, (int)($_POST['id'] ?? 0));
-        break;
+        header('Location: drivers.php');
+        exit;
 
     case 'pretech':
         $user = requireGearLogin();
@@ -89,27 +78,8 @@ switch ($action) {
         break;
 
     default:
-        header('Location: gear.php');
+        header('Location: drivers.php');
         exit;
-}
-
-function handleGearList(PDO $pdo, array $user): void {
-    $prefill = is_string($_GET['name'] ?? null) ? mb_substr(trim($_GET['name']), 0, 100) : null;
-    renderGearListPage(db_get_user_gear_records($pdo, (int)$user['id']), gearSeasonNow(), generateCsrfToken(), getFlash(), $prefill);
-}
-
-function handleGearAdd(PDO $pdo, array $user): void {
-    $r = gearCreate($pdo, (int)$user['id'], (string)($_POST['driver_name'] ?? ''), (string)($_POST['licence_no'] ?? ''), gearSeasonNow());
-    setFlash($r['ok'] ? 'Driver added. Open their gear photos to pre-tech their gear, or have it checked at the track.' : $r['error'], $r['ok'] ? 'success' : 'error');
-    header('Location: gear.php');
-    exit;
-}
-
-function handleGearRenew(PDO $pdo, array $user, int $id): void {
-    $r = gearRenew($pdo, (int)$user['id'], $id, gearSeasonNow());
-    setFlash($r['ok'] ? 'Gear record renewed for ' . gearSeasonNow() . '.' : $r['error'], $r['ok'] ? 'success' : 'error');
-    header('Location: gear.php');
-    exit;
 }
 
 function handleGearPretech(PDO $pdo, array $user, int $id): void {
@@ -140,14 +110,14 @@ function handleGearStart(PDO $pdo, array $user, int $driverId): void {
     $driver = db_get_driver($pdo, $driverId);
     if ($driver === null || (int)$driver['owner_user_id'] !== (int)$user['id']) {
         setFlash('Driver not found.', 'error');
-        header('Location: gear.php');
+        header('Location: drivers.php');
         exit;
     }
     $season = gearSeasonNow();
     $gear = db_get_gear_record_for_driver($pdo, $driverId, $season);
     if ($gear === null) {
         $r = gearCreate($pdo, (int)$user['id'], (string)$driver['name'], '', $season);
-        if (!$r['ok']) { setFlash((string)$r['error'], 'error'); header('Location: gear.php'); exit; }
+        if (!$r['ok']) { setFlash((string)$r['error'], 'error'); header('Location: drivers.php'); exit; }
         $id = (int)$r['id'];
     } else {
         $id = (int)$gear['id'];

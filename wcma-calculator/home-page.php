@@ -219,7 +219,7 @@ function renderHomeHtml(array $vm): string
         $out .= '<div class="hub-line"><span>' . h($d['name']) . ($d['isSelf'] ? ' (you)' : '') . '</span>'
             . '<span class="hub-status ' . h(homeStatusClass($d['gearState'])) . '">' . h($d['gearLabel']) . '</span></div>';
     }
-    $out .= '<a class="hub-btn hub-btn--secondary" href="gear.php">Manage drivers &rarr;</a></div>';
+    $out .= '<a class="hub-btn hub-btn--secondary" href="drivers.php">Manage drivers &rarr;</a></div>';
     $out .= '</div>';
 
     // This season on MotorsportReg

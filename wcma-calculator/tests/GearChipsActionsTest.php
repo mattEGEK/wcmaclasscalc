@@ -31,7 +31,7 @@ final class GearChipsActionsTest extends TestCase
     {
         $html = renderGearChips([$this->link('Sam Coach', null)], 'owner', ['sheet_season' => gearSeasonNow() - 1]);
         $this->assertStringContainsString('Sam Coach: <span class="badge-pending">No gear record</span>', $html);
-        $this->assertStringNotContainsString('Add gear record', $html);
+        $this->assertStringNotContainsString('Go to Drivers', $html);
         $this->assertStringNotContainsString('gear.php', $html);
     }
 
@@ -39,9 +39,9 @@ final class GearChipsActionsTest extends TestCase
     {
         $links = [$this->link('Sam Coach', null)];
         foreach ([['sheet_season' => gearSeasonNow()], ['sheet_season' => 0], []] as $opts) {
-            $this->assertStringContainsString('<a href="gear.php?name=Sam%20Coach">Add gear record</a>', renderGearChips($links, 'owner', $opts));
+            $this->assertStringContainsString('<a href="drivers.php">Go to Drivers</a>', renderGearChips($links, 'owner', $opts));
         }
-        $this->assertStringContainsString('Add gear record', renderGearChips($links, 'owner'));
+        $this->assertStringContainsString('Go to Drivers', renderGearChips($links, 'owner'));
     }
 
     public function testAdminGetsAOneTapFormForDriversWithNoRecord(): void
@@ -109,7 +109,7 @@ final class GearChipsActionsTest extends TestCase
     {
         $html = renderGearChips([$this->link('Sam Coach', null)], 'admin', $this->adminOpts());
         $this->assertStringNotContainsString('gear.php', $html);
-        $this->assertStringNotContainsString('Add gear record', $html);
+        $this->assertStringNotContainsString('Go to Drivers', $html);
     }
 
     public function testUnknownAudienceNeverGetsTheButton(): void

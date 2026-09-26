@@ -22,7 +22,7 @@ function gearChipCreateForm(string $csrf, int $sheetId, int $driverNumber, array
  * @param array $links    gearLinksForSheet() result
  * @param string $audience 'owner' (competitor pages) or 'admin' (inspector pages)
  * @param array{sheet_season?: int, csrf?: string, sheet_id?: int, hidden?: array<string,string>} $opts
- *   sheet_season: the sheet's season; the competitor "Add gear record" link and the inspector button
+ *   sheet_season: the sheet's season; the competitor "Go to Drivers" link and the inspector button
  *     are only offered when it is the current season (0 or absent = not restricted).
  *   csrf + sheet_id: admin only; when both are given a driver with no record gets a
  *     "Create and accept gear in person" form. hidden: extra hidden inputs for that form.
@@ -42,7 +42,7 @@ function renderGearChips(array $links, string $audience, array $opts = []): stri
         if ($gear === null) {
             $html .= '<li class="gear-chip">' . $name . ': <span class="badge-pending">No gear record</span>';
             if ($audience === 'owner' && $seasonOk) {
-                $html .= ' <a href="gear.php?name=' . h(rawurlencode($l['name'])) . '">Add gear record</a>';
+                $html .= ' <a href="drivers.php">Go to Drivers</a>';
             } elseif ($audience === 'admin' && $seasonOk && $csrf !== '' && $sheetId > 0) {
                 $html .= ' ' . gearChipCreateForm($csrf, $sheetId, (int)$l['driver_number'], $hidden);
             }

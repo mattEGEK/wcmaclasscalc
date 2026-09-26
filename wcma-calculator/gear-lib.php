@@ -106,18 +106,6 @@ function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $
     return ['ok' => true, 'error' => null, 'id' => $id];
 }
 
-/** New-season copy of an earlier record (same name and licence, no photos). @return array{ok: bool, error: ?string, id: ?int} */
-function gearRenew(PDO $pdo, int $ownerId, int $fromId, int $season): array {
-    $from = db_get_gear_record($pdo, $fromId);
-    if ($from === null || (int)$from['owner_user_id'] !== $ownerId) {
-        return ['ok' => false, 'error' => 'Gear record not found.', 'id' => null];
-    }
-    if ($season <= (int)$from['season']) {
-        return ['ok' => false, 'error' => 'Choose a later season to renew for.', 'id' => null];
-    }
-    return gearCreate($pdo, $ownerId, $from['driver_name'], (string)($from['licence_no'] ?? ''), $season);
-}
-
 /** Photos of a gear record, which are present, which conditional ones apply, and what is still missing. */
 function gearSnapshot(PDO $pdo, int $id): array {
     $photos = db_get_inspection_photos($pdo, 'gear_record', $id);

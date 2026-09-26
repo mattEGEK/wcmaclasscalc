@@ -133,28 +133,6 @@ final class GearLibTest extends TestCase
         $this->assertNull(db_get_gear_record($pdo, $noLicence['id'])['licence_no']);
     }
 
-    public function testRenewCopiesNameAndLicenceForALaterSeason(): void
-    {
-        $pdo = make_temp_pdo();
-        [$owner, $admin] = $this->users($pdo);
-        $old = gearCreate($pdo, $owner, 'Jane Racer', 'WCMA-1', 2025)['id'];
-        db_accept_gear_in_person($pdo, $old, $admin);
-
-        $r = gearRenew($pdo, $owner, $old, 2026);
-        $this->assertTrue($r['ok'], (string)$r['error']);
-        $new = db_get_gear_record($pdo, $r['id']);
-        $this->assertSame('Jane Racer', $new['driver_name']);
-        $this->assertSame('WCMA-1', $new['licence_no']);
-        $this->assertSame(2026, (int)$new['season']);
-        $this->assertSame('open', $new['status']);
-        $this->assertNull($new['photo_status']);
-
-        $this->assertFalse(gearRenew($pdo, $owner, $old, 2026)['ok']);        // already exists
-        $this->assertFalse(gearRenew($pdo, $owner, $old, 2025)['ok']);        // not a later season
-        $this->assertFalse(gearRenew($pdo, $owner + 99, $old, 2027)['ok']);   // not the owner
-        $this->assertFalse(gearRenew($pdo, $owner, 99999, 2027)['ok']);
-    }
-
     public function testSnapshotReportsPresentApplicableAndMissing(): void
     {
         $pdo = make_temp_pdo();

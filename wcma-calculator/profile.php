@@ -175,7 +175,7 @@ renderPageStart('Profile', '', ['flash' => $flash]);
 <div class="hub-card">
     <h2>Your driver profile</h2>
     <p>Your name is also your driver name on tech sheets and gear.<br>
-    <a href="gear.php">Go to drivers</a></p>
+    <a href="drivers.php">Go to drivers</a></p>
 </div>
 
 <?php

@@ -1,0 +1,57 @@
+<?php
+// wcma-calculator/drivers-lib.php
+//
+// Driver profiles for the Drivers page (spec §4): co-drivers, licence numbers, and each driver's
+// gear status for the season. The profile carries over year to year; the gear check does not.
+// Callers must have loaded db.php and gear-lib.php.
+
+/** From January 1 every driver shows "Needs gear tech {season}" until there is gear activity. */
+function driversGearLabel(array $status, int $season): string {
+    return $status['state'] === 'none' ? 'Needs gear tech ' . $season : gearStatusLabel($status, $season);
+}
+
+/** Every state opens this season's gear photos; gear.php?action=start creates the record on first use. */
+function driversGearAction(int $driverId, array $status): array {
+    $labels = ['accepted' => 'View gear', 'pending_review' => 'View photos', 'needs_changes' => 'Retake photos', 'photos_draft' => 'Continue photos'];
+    return ['label' => $labels[$status['state']] ?? 'Add photos', 'url' => 'gear.php?action=start&driver_id=' . $driverId];
+}
+
+/** @param array $gear driver id => that driver's gear_records row for $season */
+function driversRows(array $drivers, array $gear, int $selfId, int $season): array {
+    $rows = [];
+    foreach ($drivers as $d) {
+        $id = (int)$d['id'];
+        $status = isset($gear[$id]) ? gearStatus($gear[$id]) : ['state' => 'none', 'via' => null];
+        $rows[] = ['driver' => $d, 'isSelf' => $id === $selfId, 'state' => $status['state'],
+                   'label' => driversGearLabel($status, $season), 'action' => driversGearAction($id, $status)];
+    }
+    return $rows;
+}
+
+/** Adds a co-driver the owner manages. @return array{ok: bool, error: ?string, id: ?int} */
+function driversAdd(PDO $pdo, int $ownerId, string $name, string $licence): array {
+    $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'id' => null];
+    $name = trim((string)preg_replace('/\s+/', ' ', $name));
+    $licence = trim($licence);
+    if ($name === '') return $fail("Enter the driver's name.");
+    if (mb_strlen($name, 'UTF-8') > 100) return $fail('That name is too long (100 characters at most).');
+    if (mb_strlen($licence, 'UTF-8') > 40) return $fail('That licence number is too long (40 characters at most).');
+    $existing = db_find_driver($pdo, $ownerId, $name);
+    if ($existing !== null) return $fail($existing['name'] . ' is already on your Drivers page.');
+    try {
+        $id = db_create_driver($pdo, $ownerId, $name, $licence === '' ? null : $licence);
+    } catch (PDOException $e) {
+        return $fail($name . ' is already on your Drivers page.');   // lost a race with a duplicate request
+    }
+    return ['ok' => true, 'error' => null, 'id' => $id];
+}
+
+/** Sets or clears the licence number on one of the owner's drivers. @return array{ok: bool, error: ?string} */
+function driversSetLicence(PDO $pdo, int $ownerId, int $driverId, string $licence): array {
+    $driver = db_get_driver($pdo, $driverId);
+    if ($driver === null || (int)$driver['owner_user_id'] !== $ownerId) return ['ok' => false, 'error' => 'Driver not found.'];
+    $licence = trim($licence);
+    if (mb_strlen($licence, 'UTF-8') > 40) return ['ok' => false, 'error' => 'That licence number is too long (40 characters at most).'];
+    db_update_driver_licence($pdo, $driverId, $licence === '' ? null : $licence);
+    return ['ok' => true, 'error' => null];
+}

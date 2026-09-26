@@ -1,87 +1,9 @@
 <?php
 // wcma-calculator/gear-page.php
 //
-// Markup for the competitor's My Drivers list (gear.php) and a driver's gear pre-tech page
-// (gear.php?action=pretech). Pure output; decisions live in gear-lib.php. Callers must have
-// loaded photo-requirements.php, inspection-lib.php, pretech-page.php (pretechRenderCard),
-// gear-lib.php and view_helpers.php.
-
-function renderGearListPage(array $records, int $season, string $csrf, ?array $flash, ?string $prefillName = null): void {
-    $current = array_values(array_filter($records, fn(array $g): bool => (int)$g['season'] === $season));
-    $currentNames = array_map(fn(array $g): string => $g['driver_name_norm'], $current);
-    $renewable = [];
-    foreach ($records as $g) {
-        if ((int)$g['season'] < $season && !in_array($g['driver_name_norm'], $currentNames, true) && !isset($renewable[$g['driver_name_norm']])) {
-            $renewable[$g['driver_name_norm']] = $g;   // the most recent earlier record for that driver (list is newest season first)
-        }
-    }
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>My Drivers — WCMA Calculator</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="css/calculator.css">
-<link rel="stylesheet" href="css/hub.css">
-</head>
-<body class="hub">
-<div class="container">
-  <?php renderSiteHeader('My Drivers', '', 'drivers'); ?>
-  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
-
-  <div class="detail-card">
-    <h2>Driver gear for <?= (int)$season ?></h2>
-    <p>Each driver's gear is checked once a year. Add a record for yourself, or for each co-driver if you are a team captain, then optionally submit photos of the gear so an inspector can review it before the event. If the photos are accepted, the gear does not need to be checked at the track.</p>
-  </div>
-
-  <form method="post" action="gear.php?action=add" id="gear-add-form" class="detail-card" style="margin-bottom:1rem">
-    <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-    <h3>Add a driver</h3>
-    <label for="gear-driver-name">Driver name</label>
-    <input type="text" id="gear-driver-name" name="driver_name" maxlength="100" required value="<?= h((string)$prefillName) ?>">
-    <label for="gear-licence">WCMA licence number (optional)</label>
-    <input type="text" id="gear-licence" name="licence_no" maxlength="40">
-    <button type="submit" class="btn btn-primary" style="margin-top:.75rem">Add driver</button>
-  </form>
-
-  <table class="data-table" id="gear-table">
-    <thead><tr><th>Driver</th><th>Licence</th><th>Gear status</th><th>Actions</th></tr></thead>
-    <tbody>
-    <?php if (empty($current)): ?>
-      <tr><td colspan="4" class="empty-row">No drivers yet for <?= (int)$season ?>. Add one above.</td></tr>
-    <?php else: foreach ($current as $g): $st = gearStatus($g); ?>
-      <tr>
-        <td><?= h($g['driver_name']) ?></td>
-        <td><?= h((string)($g['licence_no'] ?? '')) ?></td>
-        <td class="<?= h(gearStatusBadgeClass($st['state'])) ?>"><?= h(gearStatusLabel($st, (int)$g['season'])) ?></td>
-        <td class="actions"><a href="gear.php?action=pretech&amp;id=<?= (int)$g['id'] ?>"><?= $st['state'] === 'accepted' ? 'View' : 'Gear photos' ?></a></td>
-      </tr>
-    <?php endforeach; endif; ?>
-    </tbody>
-  </table>
-
-  <?php if ($renewable): ?>
-  <div class="detail-card" style="margin-top:1.5rem">
-    <h3>From earlier seasons</h3>
-    <?php foreach ($renewable as $g): ?>
-    <form method="post" action="gear.php?action=renew" style="display:inline-block;margin:.25rem .5rem .25rem 0">
-      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-      <input type="hidden" name="id" value="<?= (int)$g['id'] ?>">
-      <?= h($g['driver_name']) ?> (<?= (int)$g['season'] ?>)
-      <button type="submit" class="btn btn-secondary">Renew for <?= (int)$season ?></button>
-    </form>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
-</div>
-<script src="js/form-feedback.js"></script>
-<?php renderSiteFooter(); ?>
-</body>
-</html><?php
-}
+// Markup for a driver's gear pre-tech page (gear.php?action=pretech). Pure output; decisions live
+// in gear-lib.php. Callers must have loaded photo-requirements.php, inspection-lib.php,
+// pretech-page.php (pretechRenderCard), gear-lib.php and view_helpers.php.
 
 function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?array $flash): void {
     $id = (int)$gear['id'];
@@ -120,7 +42,7 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
 </head>
 <body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Gear pre-tech', '<a href="gear.php">← Back to My Drivers</a>', 'drivers'); ?>
+  <?php renderSiteHeader('Gear pre-tech', '<a href="drivers.php">← Back to Drivers</a>', 'drivers'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card">

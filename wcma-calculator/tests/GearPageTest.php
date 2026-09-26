@@ -40,72 +40,10 @@ final class GearPageTest extends TestCase
         ], $o);
     }
 
-    private function renderList(array $records, int $season = 2026, ?array $flash = null): string {
-        ob_start();
-        renderGearListPage($records, $season, 'csrf-token-1', $flash);
-        return (string)ob_get_clean();
-    }
-
-    public function testAddFormCanBePrefilledFromTheQueryAndEscapesIt(): void
-    {
-        ob_start();
-        renderGearListPage([], 2026, 'csrf-token-1', null, 'Sam "<Coach>"');
-        $html = (string)ob_get_clean();
-        $this->assertStringContainsString('name="driver_name" maxlength="100" required value="Sam &quot;&lt;Coach&gt;&quot;"', $html);
-
-        $plain = $this->renderList([]);
-        $this->assertStringContainsString('name="driver_name" maxlength="100" required value=""', $plain);
-    }
-
     private function renderPretech(array $gear, array $snapshot, ?array $flash = null): string {
         ob_start();
         renderGearPretechPage($gear, $snapshot, 'csrf-token-1', $flash);
         return (string)ob_get_clean();
-    }
-
-    public function testListShowsAddFormRecordsAndEscapesNames(): void
-    {
-        $html = $this->renderList([$this->gear()]);
-        $this->assertStringContainsString('id="gear-add-form"', $html);
-        $this->assertStringContainsString('name="driver_name"', $html);
-        $this->assertStringContainsString('name="licence_no"', $html);
-        $this->assertStringContainsString('name="csrf_token" value="csrf-token-1"', $html);
-        $this->assertStringContainsString('id="gear-table"', $html);
-        $this->assertStringContainsString('Jane &lt;Racer&gt;', $html);
-        $this->assertStringNotContainsString('<Racer>', $html);
-        $this->assertStringContainsString('WCMA-1', $html);
-        $this->assertStringContainsString('Needs gear check at the track', $html);
-        $this->assertStringContainsString('gear.php?action=pretech&amp;id=4', $html);
-    }
-
-    public function testListShowsStatusChipsPerRecord(): void
-    {
-        $html = $this->renderList([
-            $this->gear(['id' => 1, 'driver_name' => 'A', 'status' => 'accepted', 'accepted_via' => 'photos', 'photo_status' => 'accepted']),
-            $this->gear(['id' => 2, 'driver_name' => 'B', 'status' => 'accepted', 'accepted_via' => 'in_person']),
-            $this->gear(['id' => 3, 'driver_name' => 'C', 'photo_status' => 'submitted']),
-        ]);
-        $this->assertStringContainsString('Gear pre-teched 2026', $html);
-        $this->assertStringContainsString('Gear teched 2026', $html);
-        $this->assertStringContainsString('Photos pending review', $html);
-    }
-
-    public function testEmptyListSaysSo(): void
-    {
-        $this->assertStringContainsString('No drivers yet', $this->renderList([]));
-    }
-
-    public function testPreviousSeasonRecordsOfferRenewOnlyWhenNoCurrentRecordExists(): void
-    {
-        $old = $this->gear(['id' => 9, 'season' => 2025, 'driver_name' => 'Old Timer', 'driver_name_norm' => 'old timer']);
-        $current = $this->gear(['id' => 10, 'season' => 2026, 'driver_name' => 'Jane Racer', 'driver_name_norm' => 'jane racer']);
-        $oldSame = $this->gear(['id' => 11, 'season' => 2025, 'driver_name' => 'Jane Racer', 'driver_name_norm' => 'jane racer']);
-
-        $html = $this->renderList([$current, $old, $oldSame], 2026);
-        $this->assertStringContainsString('Renew for 2026', $html);
-        $this->assertSame(1, substr_count($html, 'action="gear.php?action=renew"'));   // Old Timer only: Jane already has a 2026 record
-        $this->assertStringContainsString('name="id" value="9"', $html);
-        $this->assertStringNotContainsString('name="id" value="11"', $html);
     }
 
     public function testPretechFormShowsACardForEveryGearRequirement(): void
@@ -180,9 +118,8 @@ final class GearPageTest extends TestCase
 
     public function testCopyAvoidsBannedWording(): void
     {
-        foreach ([$this->renderList([$this->gear()]), $this->renderPretech($this->gear(), $this->snapshot())] as $html) {
-            $text = strip_tags(preg_replace('/<script.*?<\/script>/s', '', $html));
-            $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', $text);
-        }
+        $html = $this->renderPretech($this->gear(), $this->snapshot());
+        $text = strip_tags(preg_replace('/<script.*?<\/script>/s', '', $html));
+        $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', $text);
     }
 }

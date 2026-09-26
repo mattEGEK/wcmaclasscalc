@@ -37,7 +37,7 @@ final class GearChipsTest extends TestCase
         $this->assertStringContainsString('<ul class="gear-chips">', $html);
         $this->assertStringContainsString('Jane Racer: <a class="badge-ok" href="gear.php?action=pretech&amp;id=4">Gear teched 2026</a>', $html);
         $this->assertStringContainsString('Sam Coach: <span class="badge-pending">No gear record</span>', $html);
-        $this->assertStringContainsString('<a href="gear.php?name=Sam%20Coach">Add gear record</a>', $html);
+        $this->assertStringContainsString('<a href="drivers.php">Go to Drivers</a>', $html);
     }
 
     public function testAdminChipsLinkToTheAdminGearReviewAndNeverOfferToAdd(): void
@@ -49,7 +49,7 @@ final class GearChipsTest extends TestCase
 
         $this->assertStringContainsString('href="admin.php?action=gear-record&amp;id=4">Photos pending review</a>', $html);
         $this->assertStringContainsString('Sam Coach: <span class="badge-pending">No gear record</span>', $html);
-        $this->assertStringNotContainsString('Add gear record', $html);
+        $this->assertStringNotContainsString('Go to Drivers', $html);
         $this->assertStringNotContainsString('gear.php', $html);
     }
 
@@ -61,7 +61,7 @@ final class GearChipsTest extends TestCase
         ], 'bogus');
 
         $this->assertStringNotContainsString('gear.php', $html);
-        $this->assertStringNotContainsString('Add gear record', $html);
+        $this->assertStringNotContainsString('Go to Drivers', $html);
         $this->assertStringContainsString('admin.php?action=gear-record&amp;id=4', $html);
     }
 
@@ -69,8 +69,7 @@ final class GearChipsTest extends TestCase
     {
         $html = renderGearChips([$this->link('<b>"Al" & Co', null)], 'owner');
         $this->assertStringNotContainsString('<b>', $html);
-        $this->assertStringContainsString('&lt;b&gt;', $html);
-        $this->assertStringContainsString('gear.php?name=%3Cb%3E%22Al%22%20%26%20Co', $html);
+        $this->assertStringContainsString('&lt;b&gt;&quot;Al&quot; &amp; Co', $html);
     }
 
     public function testStatusLabelsCoverEveryStateWithoutBannedWording(): void
