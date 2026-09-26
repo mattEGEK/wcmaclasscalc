@@ -115,3 +115,31 @@ To adjust the calculation formula, modify the functions in `js/calculator.js`:
 - Export results as PDF
 - Integration with WCMA database for automatic class verification
 
+## Reminder emails (daily cron)
+
+Competitors can turn on reminder emails in their Profile, or with the checkbox shown the first time
+they tag an event. Once a day, `reminders.php` emails each of them one digest per tagged event that is
+about 2 weeks, 1 week or 2 days away and still has something to do. Nobody gets an email when they are
+all set. Every email has an unsubscribe link.
+
+The cron runs on the server's clock, but the "how many days out" calculation is done in Denver time,
+so pick a morning time for the cron job; a run scheduled near midnight is harmless, since each reminder
+window still sends exactly once no matter when in the day the run happens.
+
+Setup on IONOS Web Hosting Plus:
+
+1. In `config.php`, set `SITE_BASE_URL` to the public URL of this folder, e.g. `https://221racing.com/classing`.
+   Without it, `reminders.php` refuses to run (emails need full links). Use the `https://` URL, not `http://` —
+   Gmail ignores one-click unsubscribe on a plain http link.
+2. Over SSH, check which PHP CLI exists: `ls /usr/bin/php*`. `reminders-cron.sh` tries `php8.3-cli`,
+   `php8.3`, `php-cli`, then `php`. Run it once by hand (`sh reminders-cron.sh`) and read `data/reminders.log`.
+   If the file is not executable after a deploy, run `chmod +x reminders-cron.sh`.
+3. Hosting → Cron jobs → Create cron job: Type **UnixCron**, Command = the full server path of
+   `reminders-cron.sh` (only letters, digits and `- _ . /` are allowed), Interval **Simple**, **daily**,
+   in the morning.
+
+Testing without sending anything:
+`php reminders.php --today=2026-10-04 --mail-log=/tmp/reminders-mail.log --base-url=https://example.test`
+writes the emails to the file as JSON lines. Each reminder is sent once per window, so run it against a
+copy of the database or reset it afterwards.
+

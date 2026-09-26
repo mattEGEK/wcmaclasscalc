@@ -87,11 +87,11 @@ final class ProfileTest extends TestCase
         $renderStart = strpos($src, 'renderPageStart(');
         $this->assertNotFalse($renderStart);
         $postBlock = substr($src, $postBlockStart, $renderStart - $postBlockStart);
-        // There must be four redirects in the POST handling: name, the Google-only guard, the
-        // password outcome, and a fallback for any other/unknown action — so an unrecognised
-        // action never falls through to the render below.
-        $this->assertSame(4, substr_count($postBlock, "header('Location: profile.php');"));
-        $this->assertSame(4, substr_count($postBlock, 'exit;'));
+        // There must be five redirects in the POST handling: name, the Google-only guard, the
+        // password outcome, the reminders outcome, and a fallback for any other/unknown action —
+        // so an unrecognised action never falls through to the render below.
+        $this->assertSame(5, substr_count($postBlock, "header('Location: profile.php');"));
+        $this->assertSame(5, substr_count($postBlock, 'exit;'));
     }
 
     public function testSessionIsRegeneratedAfterAPasswordChange(): void

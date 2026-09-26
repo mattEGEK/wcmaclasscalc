@@ -9,6 +9,7 @@ require_once __DIR__ . '/../gear-chips.php';
 require_once __DIR__ . '/../home-page.php';
 require_once __DIR__ . '/../garage-lib.php';
 require_once __DIR__ . '/../garage-page.php';
+require_once __DIR__ . '/../reminders-lib.php';
 
 use PHPUnit\Framework\TestCase;
 
@@ -182,6 +183,12 @@ final class GaragePageTest extends TestCase
         $this->assertStringContainsString('<details class="garage-edit" open>', $html);
         $this->assertStringContainsString('value="Typed"', $html);
         $this->assertStringContainsString('Enter the car&#039;s colour.', $html);
+    }
+
+    public function testBringThisCarFormOffersRemindersOnlyWhenAsked(): void
+    {
+        $this->assertStringContainsString('name="offer_reminders" value="1"', renderGarageCarHtml($this->carVm(['offerReminders' => true])));
+        $this->assertStringNotContainsString('offer_reminders', renderGarageCarHtml($this->carVm()));
     }
 
     public function testDeclarationPageShowsTheReviewAndFilesAndGuardsDelete(): void

@@ -1,6 +1,7 @@
 .phpunit.result.cache
 data/*.db
 data/*.db-*
+data/*.log
 config.php
 uploads/*
 !uploads/.htaccess

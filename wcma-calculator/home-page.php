@@ -4,7 +4,8 @@
 // The hub front door: the signed-out landing page and the signed-in Home to-do list (spec §3,
 // mockup C). Pure view functions — no DB, no session, no echo — so they are unit-testable.
 // Callers must have loaded view_helpers.php (h()), cars-lib.php (carDisplayName(),
-// declarationReviewLabel(), declarationReviewBadgeClass()) and events-lib.php (EVENTS_NOT_REGISTERING).
+// declarationReviewLabel(), declarationReviewBadgeClass()), events-lib.php (EVENTS_NOT_REGISTERING)
+// and reminders-lib.php (reminderOptInFieldsHtml()).
 
 /** Status word class for the Garage/Drivers "at a glance" cards. */
 function homeStatusClass(string $state): string {
@@ -67,9 +68,9 @@ function homeRenderTodoItem(int $n, array $item, string $csrf): string {
 }
 
 /** The tag ("I'm going") form for one untagged event. */
-function homeRenderTagForm(array $event, array $cars, string $csrf): string {
+function homeRenderTagForm(array $event, array $cars, string $csrf, bool $offerReminders = false): string {
     $eid = (int)$event['id'];
-    $out = '<form method="post" action="index.php" class="hub-line">' . homeCsrfField($csrf)
+    $out = '<form method="post" action="index.php" class="hub-line hub-tag-form">' . homeCsrfField($csrf)
         . '<input type="hidden" name="action" value="tag">'
         . '<input type="hidden" name="event_id" value="' . h((string)$eid) . '">';
     $out .= '<span>' . h((string)$event['name']) . '</span>';
@@ -83,6 +84,7 @@ function homeRenderTagForm(array $event, array $cars, string $csrf): string {
         }
         $out .= '</select>';
     }
+    if ($offerReminders) $out .= reminderOptInFieldsHtml();
     $out .= '<button type="submit" class="hub-btn">I\'m going</button></form>';
     return $out;
 }
@@ -104,6 +106,7 @@ function renderHomeHtml(array $vm): string
     $untagged = $readiness['untagged'];
     $cars = $vm['cars'];
     $csrf = (string)$vm['csrf'];
+    $offerReminders = !empty($vm['offerReminders']);
 
     $out = '<h1>' . h(homeHeadline($readiness)) . '</h1>';
 
@@ -177,14 +180,14 @@ function renderHomeHtml(array $vm): string
                 }
                 $untaggedCars = array_diff_key($cars, $eventCarIds);
                 if ($untaggedCars) {
-                    $out .= homeRenderTagForm($ev['event'], $untaggedCars, $csrf);
+                    $out .= homeRenderTagForm($ev['event'], $untaggedCars, $csrf, $offerReminders);
                 }
             }
         }
         if ($untagged) {
             foreach ($untagged as $event) {
                 if ($cars) {
-                    $out .= homeRenderTagForm($event, $cars, $csrf);
+                    $out .= homeRenderTagForm($event, $cars, $csrf, $offerReminders);
                 } else {
                     $out .= '<p class="hub-line"><span>' . h((string)$event['name']) . '</span></p>';
                 }

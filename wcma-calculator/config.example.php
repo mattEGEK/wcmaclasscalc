@@ -52,5 +52,6 @@ define('GITHUB_REPO',  'mattEGEK/wcmaclasscalc');
 
 // Public URL of the folder containing admin.php (no trailing slash), used for
 // admin links in feedback emails and GitHub issues, e.g. 'https://221racing.com/classing'.
-// Leave empty to fall back to the request's Host header.
+// Leave empty to fall back to the request's Host header. Also required for reminder emails
+// (reminders.php refuses to run without it) and should be the https URL, not http.
 define('SITE_BASE_URL', '');

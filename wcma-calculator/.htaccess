@@ -1,4 +1,4 @@
-<FilesMatch "^(autopull\.sh|git-autopull\.log|CLAUDE\.md|README\.md|phpunit\.xml|phpunit\.phar|reset-hub-db\.php|seed-hub-db\.php|hub-db-tools\.php)$">
+<FilesMatch "^(autopull\.sh|git-autopull\.log|CLAUDE\.md|README\.md|phpunit\.xml|phpunit\.phar|reset-hub-db\.php|seed-hub-db\.php|hub-db-tools\.php|reminders\.php|reminders-cron\.sh|reminder-run\.php)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
