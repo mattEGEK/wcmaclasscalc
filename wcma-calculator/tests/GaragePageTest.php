@@ -88,4 +88,95 @@ final class GaragePageTest extends TestCase
         $this->assertStringContainsString('name="action" value="add"', $html);
         $this->assertStringNotContainsString('target="_blank"', renderAddCarHtml(['csrf' => 't', 'values' => [], 'error' => null, 'msrLink' => null]));
     }
+
+    private function carVm(array $o = []): array {
+        return array_merge([
+            'car' => $this->car(),
+            'class' => ['current' => $this->decl(['reviewer_note' => 'Show the <dyno> sheet']), 'earlierAccepted' => null],
+            'declarations' => [$this->decl(['reviewer_note' => 'Show the <dyno> sheet']), $this->decl(['id' => 5, 'review_status' => 'superseded', 'calculated_class' => 'GT2', 'submitted_at' => '2026-02-01 10:00:00'])],
+            'season' => 2026, 'techState' => 'none', 'techLabel' => 'Needs tech at the track',
+            'techAction' => ['label' => 'Add photos', 'url' => 'tech-sheets.php?action=pretech&id=9'],
+            'events' => [
+                'tagged' => [
+                    ['event' => ['id' => 10, 'name' => 'Fall Sprint', 'event_date' => '2026-10-11'], 'sheet' => null, 'gearLinks' => []],
+                    ['event' => ['id' => 11, 'name' => 'Season Finale', 'event_date' => '2026-10-25'], 'sheet' => ['id' => 9, 'season' => 2026], 'gearLinks' => []],
+                ],
+                'untagged' => [['id' => 12, 'name' => 'Test <Day>', 'event_date' => '2026-11-01']],
+                'earlierSheets' => [['sheet' => ['id' => 2], 'event_name' => 'Spring Opener']],
+            ],
+            'csrf' => 'tok', 'detailsForm' => null,
+        ], $o);
+    }
+
+    public function testCarPageShowsDetailsFormClassAndHistory(): void
+    {
+        $html = renderGarageCarHtml($this->carVm());
+        $this->assertStringContainsString('<h1>2004 Honda S2000</h1>', $html);
+        $this->assertStringContainsString('name="action" value="update-car"', $html);
+        $this->assertStringContainsString('id="car-colour" name="colour"', $html);
+        $this->assertStringContainsString('value="Silver"', $html);
+        $this->assertStringContainsString('Show the &lt;dyno&gt; sheet', $html);
+        $this->assertStringContainsString('href="calculator.php?car=3">Re-declare class</a>', $html);
+        $this->assertStringContainsString('href="garage.php?declaration=8">View</a>', $html);
+        $this->assertStringContainsString('<h3>History</h3>', $html);
+        $this->assertStringContainsString('href="garage.php?declaration=5"', $html);
+        $this->assertStringContainsString('Replaced by a newer declaration', $html);
+    }
+
+    public function testCarPageShowsCarTechWithThePhotoAction(): void
+    {
+        $html = renderGarageCarHtml($this->carVm());
+        $this->assertStringContainsString('<h2>Car tech 2026</h2>', $html);
+        $this->assertStringContainsString('href="tech-sheets.php?action=pretech&amp;id=9">Add photos</a>', $html);
+        $noSheet = renderGarageCarHtml($this->carVm(['techAction' => null]));
+        $this->assertStringContainsString('after you submit a tech sheet', $noSheet);
+    }
+
+    public function testCarPageEventsHaveSheetStatusUntagAndBringToAnotherEvent(): void
+    {
+        $html = renderGarageCarHtml($this->carVm());
+        $this->assertStringContainsString('href="tech-sheets.php?action=new&amp;car_id=3&amp;event_id=10">Submit tech sheet</a>', $html);
+        $this->assertStringContainsString('href="tech-sheets.php?action=view&amp;id=9">View</a>', $html);
+        $this->assertStringContainsString('name="action" value="untag"', $html);
+        $this->assertStringContainsString('name="event_id" value="10"', $html);
+        $this->assertStringContainsString('Bring this car to another event', $html);
+        $this->assertStringContainsString('<option value="12">Test &lt;Day&gt;', $html);
+        $this->assertStringContainsString(EVENTS_NOT_REGISTERING, $html);
+        $this->assertStringContainsString('Spring Opener', $html);
+        $this->assertStringContainsString('href="tech-sheets.php?action=view&amp;id=2"', $html);
+    }
+
+    public function testUndeclaredCarPointsToTheCalculatorInsteadOfTheSheetForm(): void
+    {
+        $html = renderGarageCarHtml($this->carVm(['class' => ['current' => null, 'earlierAccepted' => null], 'declarations' => []]));
+        $this->assertStringContainsString('href="calculator.php?car=3">Declare class</a>', $html);
+        $this->assertStringContainsString('Declare a class first', $html);
+        $this->assertStringNotContainsString('action=new&amp;car_id=3', $html);
+    }
+
+    public function testArchiveFormAsksForConfirmation(): void
+    {
+        $html = renderGarageCarHtml($this->carVm());
+        $this->assertStringContainsString('name="action" value="archive"', $html);
+        $this->assertStringContainsString('data-confirm="Archive #42 2004 Honda S2000? It will be hidden, and its history is kept."', $html);
+    }
+
+    public function testArchivedCarPageOffersRestoreAndNoEventActions(): void
+    {
+        $html = renderGarageCarHtml($this->carVm(['car' => $this->car(['archived_at' => '2026-05-01 10:00:00'])]));
+        $this->assertStringContainsString('This car is archived', $html);
+        $this->assertStringContainsString('name="action" value="restore"', $html);
+        $this->assertStringNotContainsString('value="tag"', $html);
+        $this->assertStringNotContainsString('value="untag"', $html);
+        $this->assertStringNotContainsString('value="archive"', $html);
+        $this->assertStringNotContainsString('Re-declare class', $html);
+    }
+
+    public function testFailedDetailsEditReopensTheFormWithTheErrorAndTypedValues(): void
+    {
+        $html = renderGarageCarHtml($this->carVm(['detailsForm' => ['values' => ['make' => 'Typed'], 'error' => "Enter the car's colour."]]));
+        $this->assertStringContainsString('<details class="garage-edit" open>', $html);
+        $this->assertStringContainsString('value="Typed"', $html);
+        $this->assertStringContainsString('Enter the car&#039;s colour.', $html);
+    }
 }

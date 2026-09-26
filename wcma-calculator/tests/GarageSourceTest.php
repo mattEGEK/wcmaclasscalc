@@ -38,4 +38,20 @@ final class GarageSourceTest extends TestCase
         $this->assertStringContainsString('db_archive_car($pdo, $uid, $carId)', $post);
         $this->assertStringContainsString('db_restore_car($pdo, $uid, $carId)', $post);
     }
+
+    public function testCarPageLoadsOnlyTheUsersOwnCar(): void
+    {
+        $show = $this->body('garage.php', 'garageShowCar');
+        $this->assertStringContainsString('db_get_user_car($pdo, $uid, $carId)', $show);
+        $this->assertMatchesRegularExpression("/=== null\) \{ setFlash\('Car not found\.', 'error'\); header\('Location: garage\.php'\); exit; \}/", $show);
+        $this->assertStringContainsString('gearLinksForSheet(', $show);
+    }
+
+    public function testCarPostsAreOwnerScoped(): void
+    {
+        $post = $this->body('garage.php', 'handleGaragePost');
+        $this->assertStringContainsString("case 'update-car':\n            if (db_get_user_car(\$pdo, \$uid, \$carId) === null) break;", $post);
+        $this->assertStringContainsString('eventsTagCar($pdo, $uid,', $post);
+        $this->assertStringContainsString('eventsUntagCar($pdo, $uid,', $post);
+    }
 }
