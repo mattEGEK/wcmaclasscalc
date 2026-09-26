@@ -7,6 +7,7 @@ require __DIR__ . '/view_helpers.php';
 require __DIR__ . '/cars-lib.php';
 require __DIR__ . '/gear-lib.php';
 require __DIR__ . '/events-lib.php';
+require __DIR__ . '/reminders-lib.php';
 require __DIR__ . '/readiness-lib.php';
 require __DIR__ . '/home-page.php';
 
@@ -22,7 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     switch ($_POST['action'] ?? '') {
         case 'tag':
             $r = eventsTagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), (int)($_POST['car_id'] ?? 0));
-            setFlash($r['ok'] ? 'Added to your events. ' . EVENTS_NOT_REGISTERING : (string)$r['error'], $r['ok'] ? 'success' : 'error');
+            $extra = $r['ok'] ? remindersRecordTagChoice($pdo, $uid, $_POST) : '';
+            setFlash($r['ok'] ? 'Added to your events. ' . EVENTS_NOT_REGISTERING . $extra : (string)$r['error'], $r['ok'] ? 'success' : 'error');
             break;
         case 'untag':
             $r = eventsUntagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), (int)($_POST['car_id'] ?? 0));
@@ -66,6 +68,6 @@ renderPageStart('Home', 'home', ['flash' => getFlash()]);
 echo renderHomeHtml([
     'name' => (string)$user['name'], 'readiness' => buildReadiness($in), 'cars' => $in['cars'],
     'garage' => $garage, 'drivers' => $drivers, 'seasonLinks' => db_get_season_links($pdo, true),
-    'csrf' => generateCsrfToken(),
+    'csrf' => generateCsrfToken(), 'offerReminders' => remindersShouldOffer(db_find_user_by_id($pdo, $uid)),
 ]);
 renderPageEnd();

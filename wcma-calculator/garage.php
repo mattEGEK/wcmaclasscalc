@@ -7,6 +7,7 @@ require __DIR__ . '/config.php';
 require __DIR__ . '/view_helpers.php';
 require __DIR__ . '/cars-lib.php';
 require __DIR__ . '/events-lib.php';
+require __DIR__ . '/reminders-lib.php';
 require __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-chips.php';
 require __DIR__ . '/garage-lib.php';
@@ -118,6 +119,7 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         'season' => $season, 'techState' => $status['state'], 'techLabel' => techCarStatusLabel($status, $season),
         'techAction' => garageTechPhotosAction($seasonSheets, $status),
         'events' => $events, 'csrf' => generateCsrfToken(), 'detailsForm' => $detailsForm,
+        'offerReminders' => remindersShouldOffer(db_find_user_by_id($pdo, $uid)),
     ]);
     renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script>']);
 }
@@ -152,7 +154,8 @@ function handleGaragePost(PDO $pdo, int $uid, string $action): void {
             return;
         case 'tag':
             $r = eventsTagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), $carId);
-            setFlash($r['ok'] ? 'Added to your events. ' . EVENTS_NOT_REGISTERING : (string)$r['error'], $r['ok'] ? 'success' : 'error');
+            $extra = $r['ok'] ? remindersRecordTagChoice($pdo, $uid, $_POST) : '';
+            setFlash($r['ok'] ? 'Added to your events. ' . EVENTS_NOT_REGISTERING . $extra : (string)$r['error'], $r['ok'] ? 'success' : 'error');
             header('Location: garage.php?car=' . $carId);
             return;
         case 'untag':

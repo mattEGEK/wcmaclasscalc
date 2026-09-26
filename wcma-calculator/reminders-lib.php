@@ -97,3 +97,20 @@ function renderUnsubscribeHtml(string $state, int $userId, string $token): strin
     return '<h1 class="hub-page-title">' . h('This link isn\'t valid') . '</h1>'
         . '<p>It may have been copied incompletely. You can turn reminder emails off in your <a href="profile.php">Profile</a>.</p>';
 }
+
+/** The one-time "email me reminders" checkbox for tag forms, unticked. */
+function reminderOptInFieldsHtml(): string {
+    return '<input type="hidden" name="offer_reminders" value="1">'
+        . '<label class="hub-reminder-opt"><input type="checkbox" name="reminders" value="1"> ' . h(COPY_REMINDER_OPT_IN) . '</label>';
+}
+
+/**
+ * After a successful tag: when the form offered the checkbox and the user still hasn't chosen, record
+ * the choice (ticked = on, unticked = off). Returns a sentence to add to the flash message, or ''.
+ */
+function remindersRecordTagChoice(PDO $pdo, int $userId, array $post): string {
+    if (empty($post['offer_reminders']) || !remindersShouldOffer(db_find_user_by_id($pdo, $userId))) return '';
+    $on = !empty($post['reminders']);
+    db_set_user_reminders($pdo, $userId, $on);
+    return $on ? ' We\'ll email you reminders before your events.' : '';
+}

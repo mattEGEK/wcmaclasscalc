@@ -3,6 +3,7 @@
 require __DIR__ . '/session_bootstrap.php';
 require __DIR__ . '/db.php';
 require __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/email-copy.php';
 
 date_default_timezone_set('America/Denver');
 
@@ -111,6 +112,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    if ($action === 'reminders') {
+        $on = !empty($_POST['reminder_emails']);
+        db_set_user_reminders($pdo, (int)$user['id'], $on);
+        setFlash($on ? 'Reminder emails are on.' : 'Reminder emails are off.', 'success');
+        header('Location: profile.php');
+        exit;
+    }
+
     // Unknown action: PRG back to profile.php rather than falling through to the render below.
     header('Location: profile.php');
     exit;
@@ -170,6 +179,17 @@ renderPageStart('Profile', '', ['flash' => $flash]);
             <button type="submit" class="hub-btn">Update password</button>
         </form>
     <?php endif; ?>
+</div>
+
+<div class="hub-card" id="reminders">
+    <h2>Reminder emails</h2>
+    <form method="post" action="profile.php">
+        <input type="hidden" name="action" value="reminders">
+        <input type="hidden" name="csrf_token" value="<?= h(generateCsrfToken()) ?>">
+        <label class="hub-reminder-opt"><input type="checkbox" name="reminder_emails" value="1"<?= (int)$userRow['reminder_emails'] === 1 ? ' checked' : '' ?>> <?= h(COPY_REMINDER_OPT_IN) ?></label>
+        <p class="form-hint">We email you about 2 weeks, 1 week and 2 days before each event you&#039;re going to, listing anything still to do. No email when you&#039;re all set.</p>
+        <button type="submit" class="hub-btn">Save</button>
+    </form>
 </div>
 
 <div class="hub-card">

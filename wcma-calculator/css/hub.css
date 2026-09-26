@@ -193,6 +193,10 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .drivers-row .hub-line { justify-content: flex-start; gap: 12px; flex-wrap: wrap; }
 .drivers-row input[type="text"], #drivers-add-form input[type="text"] { min-height: var(--hub-tap); }
 
+/* Reminder opt-in */
+.hub-reminder-opt { display: inline-flex; gap: 10px; align-items: center; min-height: var(--hub-tap); font-size: 16px; }
+.hub-reminder-opt input[type="checkbox"] { width: 22px; height: 22px; }
+
 /* Inspector */
 .inspect-filters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 14px 20px; }
 .inspect-filters select, .inspect-filters input { min-height: var(--hub-tap); font-size: 18px; }

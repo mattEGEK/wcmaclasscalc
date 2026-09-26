@@ -4,6 +4,7 @@ require_once __DIR__ . '/../view_helpers.php';
 require_once __DIR__ . '/../cars-lib.php';
 require_once __DIR__ . '/../events-lib.php';
 require_once __DIR__ . '/../home-page.php';
+require_once __DIR__ . '/../reminders-lib.php';
 
 use PHPUnit\Framework\TestCase;
 
@@ -119,6 +120,15 @@ final class HomePageTest extends TestCase
         foreach (['href="calculator.php"', 'action=login', 'action=register', 'Waiver'] as $needle) {
             $this->assertStringContainsString($needle, $html);
         }
+    }
+
+    public function testTagFormsOfferRemindersOnlyWhenAsked(): void
+    {
+        $offered = renderHomeHtml($this->vm(['offerReminders' => true]));
+        $this->assertStringContainsString('name="offer_reminders" value="1"', $offered);
+        $this->assertStringContainsString('Email me reminders for events I&#039;m going to.', $offered);
+        $this->assertStringNotContainsString('offer_reminders', renderHomeHtml($this->vm()));
+        $this->assertStringNotContainsString('offer_reminders', renderHomeHtml($this->vm(['offerReminders' => false])));
     }
 
     public function testNoBannedWording(): void

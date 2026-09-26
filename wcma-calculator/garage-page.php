@@ -3,8 +3,8 @@
 //
 // Markup for the Garage (spec §4): the car list, Add a car, the car page and a class declaration.
 // Pure view functions: no DB, no session, no echo. Callers must have loaded view_helpers.php (h()),
-// cars-lib.php, events-lib.php (EVENTS_NOT_REGISTERING), home-page.php (homeStatusClass()) and
-// gear-chips.php (renderGearChips()).
+// cars-lib.php, events-lib.php (EVENTS_NOT_REGISTERING), home-page.php (homeStatusClass()),
+// gear-chips.php (renderGearChips()) and reminders-lib.php (reminderOptInFieldsHtml()).
 
 function garageCsrfField(string $csrf): string {
     return '<input type="hidden" name="csrf_token" value="' . h($csrf) . '">';
@@ -220,7 +220,8 @@ function renderGarageCarHtml(array $vm): string {
         foreach ($ev['untagged'] as $e) {
             $out .= '<option value="' . (int)$e['id'] . '">' . h((string)$e['name']) . ' — ' . h(date('M j', strtotime((string)$e['event_date']))) . '</option>';
         }
-        $out .= '</select><button type="submit" class="hub-btn">I\'m going</button></form><p class="form-hint">' . EVENTS_NOT_REGISTERING . '</p>';
+        $out .= '</select>' . (!empty($vm['offerReminders']) ? reminderOptInFieldsHtml() : '')
+            . '<button type="submit" class="hub-btn">I\'m going</button></form><p class="form-hint">' . EVENTS_NOT_REGISTERING . '</p>';
     }
     if ($ev['earlierSheets']) {
         $out .= '<h3>Earlier tech sheets</h3><ul>';
