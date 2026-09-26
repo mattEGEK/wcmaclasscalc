@@ -76,3 +76,24 @@ function reminderSecret(PDO $pdo): string {
     }
     return $secret;
 }
+
+/**
+ * The unsubscribe page body. $state: 'confirm' (a valid link: show the button), 'done' (reminders
+ * are now off), or anything else for an invalid link.
+ */
+function renderUnsubscribeHtml(string $state, int $userId, string $token): string {
+    if ($state === 'done') {
+        return '<h1 class="hub-page-title">You&#039;re unsubscribed</h1>'
+            . '<p>' . h('You won\'t get reminder emails any more.') . ' You can turn them back on in your <a href="profile.php">Profile</a>.</p>';
+    }
+    if ($state === 'confirm') {
+        return '<h1 class="hub-page-title">Stop reminder emails?</h1>'
+            . '<p>' . h('You\'ll stop getting emails before the events you\'re going to. Your Home page still lists what\'s left to do.') . '</p>'
+            . '<form method="post" action="unsubscribe.php">'
+            . '<input type="hidden" name="u" value="' . $userId . '">'
+            . '<input type="hidden" name="t" value="' . h($token) . '">'
+            . '<button type="submit" class="hub-btn">Unsubscribe</button></form>';
+    }
+    return '<h1 class="hub-page-title">' . h('This link isn\'t valid') . '</h1>'
+        . '<p>It may have been copied incompletely. You can turn reminder emails off in your <a href="profile.php">Profile</a>.</p>';
+}
