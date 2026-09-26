@@ -9,6 +9,7 @@ const COPY_TECH_SHEET_RECEIVED = 'Tech sheet received. An inspector will review 
 const COPY_TECH_SHEET_ACCEPTED = 'The scrutineer has reviewed & accepted your tech sheet.';
 const COPY_GEAR_ACCEPTED = 'The scrutineer has reviewed & accepted your gear.';
 const COPY_DECLARATION_ACCEPTED = 'The scrutineer has reviewed & accepted your class declaration.';
+const COPY_REMINDER_OPT_IN = 'Email me reminders for events I\'m going to.';
 
 /** "Reviewed by: First Last" for review emails, or '' when the reviewer is unknown. */
 function reviewedByLine(?array $reviewer): string {
