@@ -13,10 +13,10 @@ final class GearEmailTest extends TestCase
 
     public function testSubmittedEmailsForClubAndOwner(): void
     {
-        $club = gearEmailSubmitted($this->gear(), 'https://x.test/admin.php?action=gear-record&id=4', 'https://x.test/gear.php?action=pretech&id=4', 5, true);
+        $club = gearEmailSubmitted($this->gear(), 'https://x.test/inspect.php?action=gear-record&id=4', 'https://x.test/gear.php?action=pretech&id=4', 5, true);
         $this->assertStringContainsString('Gear Pre-Tech Submitted', $club['subject']);
         $this->assertStringContainsString('cid:wcma-logo', $club['html']);
-        $this->assertStringContainsString('https://x.test/admin.php?action=gear-record&amp;id=4', $club['html']);
+        $this->assertStringContainsString('https://x.test/inspect.php?action=gear-record&amp;id=4', $club['html']);
         $this->assertStringContainsString('5 photos', $club['text']);
         $this->assertStringContainsString('Jane &lt;Racer&gt;', $club['html']);
         $this->assertStringNotContainsString('<Racer>', $club['html']);
@@ -62,8 +62,8 @@ final class GearEmailTest extends TestCase
     public function testAcceptedOwnerAndClubCopies(): void
     {
         $ivy = ['name' => 'Ivy Inspector'];
-        $owner = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/admin.php?action=gear-record&id=4', false, $ivy);
-        $club = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/admin.php?action=gear-record&id=4', true, $ivy);
+        $owner = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/inspect.php?action=gear-record&id=4', false, $ivy);
+        $club = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/inspect.php?action=gear-record&id=4', true, $ivy);
 
         foreach ([$owner, $club] as $mail) {
             $this->assertStringContainsString('Gear Accepted', $mail['subject']);
@@ -73,19 +73,19 @@ final class GearEmailTest extends TestCase
         }
         $this->assertStringStartsWith(COPY_GEAR_ACCEPTED, $owner['text']);
         $this->assertStringContainsString('decals', $owner['text']);
-        $this->assertStringNotContainsString('admin.php', $owner['text']);
-        $this->assertStringNotContainsString('admin.php', $owner['html']);
-        $this->assertStringContainsString('admin.php?action=gear-record&id=4', $club['text']);
+        $this->assertStringNotContainsString('inspect.php', $owner['text']);
+        $this->assertStringNotContainsString('inspect.php', $owner['html']);
+        $this->assertStringContainsString('inspect.php?action=gear-record&id=4', $club['text']);
         $this->assertStringNotContainsString('You do not need', $club['text']);
     }
 
     public function testAcceptedClubCopyIsViaAwareAboutTheTrackCheck(): void
     {
-        $photos = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/admin.php?action=gear-record&id=4', true);
+        $photos = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/inspect.php?action=gear-record&id=4', true);
         $this->assertStringContainsString('No gear check is needed at the track.', $photos['text']);
         $this->assertStringNotContainsString('checked in person at the track', $photos['text']);
 
-        $inPerson = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/admin.php?action=gear-record&id=4', true, null, 'in_person');
+        $inPerson = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/inspect.php?action=gear-record&id=4', true, null, 'in_person');
         $this->assertStringContainsString('The gear was checked in person at the track.', $inPerson['text']);
         $this->assertStringNotContainsString('No gear check is needed', $inPerson['text']);
     }

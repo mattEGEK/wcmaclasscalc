@@ -27,6 +27,11 @@ function hubResetDatabase(string $dbPath, string $uploadsDir): void {
 
 /** @return array<string, int> */
 function hubSeed(PDO $pdo, string $password): array {
+    // Every page that records a submitted_at (car-classing.php, tech-sheets.php, ...) sets this first;
+    // hubSeed()'s date() calls must use the same timezone or its rows sort ahead of/behind real ones.
+    // Set here (not at file scope) so including this file doesn't change the timezone for every
+    // includer (reset-hub-db.php, PHPUnit).
+    date_default_timezone_set('America/Denver');
     if ((int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn() > 0) {
         throw new RuntimeException('The database already has users. Reset it first.');
     }
@@ -61,6 +66,8 @@ function hubSeed(PDO $pdo, string $password): array {
     $declare($s2000, 'Honda', 'S2000', '2004', 2860, 240, 'GT3');
     $miataDecl = $declare($miata, 'Mazda', 'Miata', '1999', 2400, 140, 'IT1');
 
+    db_tag_event($pdo, $jordan, $fall, $s2000);   // on the roster with no sheet yet
+
     gearCreate($pdo, $jordan, 'Jordan Lee', 'WCMA-0412', $year);   // the self profile
     db_create_driver($pdo, $jordan, 'Sam Patel');
 
@@ -89,5 +96,5 @@ function hubSeed(PDO $pdo, string $password): array {
     db_create_season_link($pdo, $year . ' Race Licences', 'https://www.motorsportreg.com/orgs/western-canada-motorsport-associati', 2);
     db_create_season_link($pdo, 'Car Classing & Number Reservation', 'https://www.motorsportreg.com/orgs/western-canada-motorsport-associati', 3);
 
-    return ['users' => 3, 'cars' => 2, 'events' => 2, 'tech_sheets' => 1, 'season_links' => 3];
+    return ['users' => 3, 'cars' => 2, 'events' => 2, 'tech_sheets' => 1, 'season_links' => 3, 'event_plans' => 1];
 }

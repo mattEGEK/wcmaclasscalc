@@ -41,3 +41,13 @@ function test_declaration_data(PDO $pdo, int $userId, string $number = '42', arr
         ':calculated_class' => 'IT1', ':user_id' => $userId, ':car_id' => test_make_car($pdo, $userId, $number),
     ], $overrides);
 }
+
+/** A submitted tech sheet for declaration $subId at event $eventId. */
+function test_make_sheet(PDO $pdo, int $userId, int $subId, int $eventId, string $number = '42', string $driver = 'Test Driver'): int {
+    return db_insert_tech_sheet($pdo, [
+        'submission_id' => $subId, 'user_id' => $userId, 'event_id' => $eventId, 'sheet_type' => 'standard',
+        'entrant_name' => $driver, 'driver_name' => $driver, 'car_make' => 'Mazda', 'car_model' => 'MX-5',
+        'car_colour' => 'Red', 'car_number' => $number, 'class' => 'IT1', 'engine_cc' => '1800', 'engine_hp' => '150',
+        'car_weight' => 2200, 'checklist_json' => '{}', 'driver1_equipment_json' => '{}', 'log_book_turned_in' => 1,
+    ]);
+}

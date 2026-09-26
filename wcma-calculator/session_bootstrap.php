@@ -45,7 +45,8 @@ function require_role(string $min): array {
             exit;
         case 'forbidden':
             http_response_code(403);
-            echo 'You do not have access to this page.';
+            require_once __DIR__ . '/view_helpers.php';   // h(), and layout.php for renderPageStart()
+            hubRenderForbidden();
             exit;
     }
     return $user;

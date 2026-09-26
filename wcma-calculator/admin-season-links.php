@@ -45,7 +45,7 @@ function renderSeasonLinksPage(array $links, string $csrf, ?array $flash): void 
 </head>
 <body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Season Links', renderAdminNav('season-links', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
+  <?php renderSiteHeader('Season links', adminSubnavHtml('season-links'), 'admin'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <div class="detail-card">
     <p>These links are shown to competitors as "This season on MotorsportReg". MotorsportReg gives each season's waiver and licences new web addresses, so update them at the start of every season.</p>

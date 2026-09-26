@@ -66,21 +66,6 @@ final class GearLinksSourceTest extends TestCase
         }
     }
 
-    public function testAdminRosterAttachesGearAndRendersAGearColumn(): void
-    {
-        $this->assertStringContainsString("/gear-chips.php'", $this->src('admin.php'));
-
-        $list = $this->body('admin-tech-sheets.php', 'handleTechSheetsList');
-        $this->assertStringContainsString('db_get_drivers_for_sheets(', $list);
-        $this->assertStringContainsString('db_get_gear_records_for_season(', $list);
-        $this->assertStringContainsString('gearAttachToRoster(', $list);
-
-        $page = $this->body('admin-tech-sheets.php', 'renderTechSheetsListPage');
-        $this->assertStringContainsString('<th>Gear</th>', $page);
-        $this->assertStringContainsString("renderGearChips(\$row['gear_links'] ?? [], 'admin', [", $page);
-        $this->assertStringContainsString('colspan="9"', $page);
-    }
-
     public function testAdminSheetReviewShowsTheOwnersGearChips(): void
     {
         $view = $this->body('admin-tech-sheets.php', 'handleTechSheetView');

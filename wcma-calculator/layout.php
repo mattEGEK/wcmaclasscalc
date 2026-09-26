@@ -20,7 +20,10 @@ function hubNavItems(?array $user): array {
         ['key' => 'calculator', 'label' => 'Class Calculator', 'href' => 'calculator.php'],
     ];
     if (user_has_role($user, 'inspector')) {
-        $items[] = ['key' => 'staff', 'label' => user_has_role($user, 'admin') ? 'Admin' : 'Inspector', 'href' => 'admin.php'];
+        $items[] = ['key' => 'inspect', 'label' => 'Inspector', 'href' => 'inspect.php', 'staff' => true];
+    }
+    if (user_has_role($user, 'admin')) {
+        $items[] = ['key' => 'admin', 'label' => 'Admin', 'href' => 'admin.php', 'staff' => true];
     }
     return $items;
 }
@@ -29,7 +32,7 @@ function hubNavHtml(?array $user, string $section): string {
     $out = '<button type="button" class="hub-menu-btn" aria-expanded="false" aria-controls="hub-nav-list">Menu</button>';
     $out .= '<nav class="hub-nav" aria-label="Main"><ul id="hub-nav-list">';
     foreach (hubNavItems($user) as $item) {
-        $cls = $item['key'] === 'staff' ? ' class="hub-nav-staff"' : '';
+        $cls = !empty($item['staff']) ? ' class="hub-nav-staff"' : '';
         $inner = $item['key'] === $section
             ? '<span class="hub-nav-current" aria-current="page">' . h($item['label']) . '</span>'
             : '<a href="' . h($item['href']) . '">' . h($item['label']) . '</a>';
@@ -50,6 +53,56 @@ function hubFooterHtml(): string {
         . '<a href="https://www.wcma.ca/racing/racing-regulations/" target="_blank" rel="noopener">Sporting &amp; Technical Regulations</a>'
         . '<a href="https://www.wcma.ca" target="_blank" rel="noopener">wcma.ca</a>'
         . '</div></footer>';
+}
+
+/** Section tabs (spec §1: "second-level tabs built from the same nav component"). $tabs: key => [href, label]. */
+function hubSubnavHtml(string $label, array $tabs, string $current): string {
+    $out = '<nav class="hub-tabs" aria-label="' . h($label) . '"><ul>';
+    foreach ($tabs as $key => [$href, $text]) {
+        $out .= '<li>' . ($key === $current
+            ? '<span class="hub-tab-current" aria-current="page">' . h($text) . '</span>'
+            : '<a href="' . h($href) . '">' . h($text) . '</a>') . '</li>';
+    }
+    return $out . '</ul></nav>';
+}
+
+const INSPECT_TABS = [
+    'roster' => ['inspect.php', 'Event roster'],
+    'queue' => ['inspect.php?action=queue', 'Review queue'],
+    'classing' => ['inspect.php?action=classing', 'Classing'],
+    'gear' => ['inspect.php?action=gear', 'Gear'],
+];
+
+const ADMIN_TABS = [
+    'users' => ['admin.php?action=users', 'Users & roles'],
+    'events' => ['admin.php?action=events', 'Events'],
+    'season-links' => ['admin.php?action=season-links', 'Season links'],
+    'settings' => ['admin.php?action=settings', 'Settings'],
+    'feedback' => ['admin.php?action=feedback', 'Feedback'],
+];
+
+function inspectSubnavHtml(string $current): string {
+    return hubSubnavHtml('Inspector', INSPECT_TABS, $current);
+}
+
+function adminSubnavHtml(string $current): string {
+    return hubSubnavHtml('Admin', ADMIN_TABS, $current);
+}
+
+/** The signed-in "no access" page (spec §9): a 403 inside the layout. The caller sets the status code. */
+function hubRenderForbidden(): void {
+    renderPageStart('No access', '');
+    $user = current_user();
+    if ($user !== null && $user['role'] === 'inspector') {
+        echo '<h1 class="hub-page-title">You don&#039;t have access to this page</h1>'
+            . '<p>This page is for WCMA admins. Your inspector tools are in the Inspector section.</p>'
+            . '<p><a class="hub-btn" href="inspect.php">Go to the Inspector section</a></p>';
+    } else {
+        echo '<h1 class="hub-page-title">You don&#039;t have access to this page</h1>'
+            . '<p>This page is for WCMA inspectors and admins. If you think you should have access, ask a WCMA admin.</p>'
+            . '<p><a class="hub-btn" href="index.php">Go to Home</a></p>';
+    }
+    renderPageEnd();
 }
 
 function renderPageStart(string $title, string $section, array $opts = []): void {

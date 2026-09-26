@@ -47,7 +47,7 @@ final class GearChipsTest extends TestCase
             $this->link('Sam Coach', null),
         ], 'admin');
 
-        $this->assertStringContainsString('href="admin.php?action=gear-record&amp;id=4">Photos pending review</a>', $html);
+        $this->assertStringContainsString('href="inspect.php?action=gear-record&amp;id=4">Photos pending review</a>', $html);
         $this->assertStringContainsString('Sam Coach: <span class="badge-pending">No gear record</span>', $html);
         $this->assertStringNotContainsString('Go to Drivers', $html);
         $this->assertStringNotContainsString('gear.php', $html);
@@ -62,7 +62,7 @@ final class GearChipsTest extends TestCase
 
         $this->assertStringNotContainsString('gear.php', $html);
         $this->assertStringNotContainsString('Go to Drivers', $html);
-        $this->assertStringContainsString('admin.php?action=gear-record&amp;id=4', $html);
+        $this->assertStringContainsString('inspect.php?action=gear-record&amp;id=4', $html);
     }
 
     public function testNamesAreEscapedInTextAndInTheUrl(): void

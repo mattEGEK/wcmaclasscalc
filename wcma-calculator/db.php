@@ -482,6 +482,35 @@ function db_restore_current_declaration(PDO $pdo, int $carId): void {
         ->execute([':s' => $status, ':id' => $newest['id']]);
 }
 
+/**
+ * An inspector accepts a declaration (spec §5). Atomic: only from 'submitted' or 'needs_changes', so
+ * a declaration a re-declaration superseded in the meantime is refused. accepted_at is the lasting
+ * record of the acceptance: it survives superseding (see db_restore_current_declaration()).
+ */
+function db_accept_declaration(PDO $pdo, int $id, int $reviewerUserId): bool {
+    $stmt = $pdo->prepare("
+        UPDATE submissions SET review_status = 'accepted', accepted_at = :now, reviewer_note = NULL,
+            reviewed_by_user_id = :reviewer, reviewed_at = :now
+        WHERE id = :id AND review_status IN ('submitted', 'needs_changes')
+    ");
+    $stmt->execute([':now' => date('Y-m-d H:i:s'), ':reviewer' => $reviewerUserId, ':id' => $id]);
+    return $stmt->rowCount() === 1;
+}
+
+/**
+ * An inspector sends a declaration back with a note (-> 'needs_changes'). Atomic: only from 'submitted'
+ * or 'accepted'. Sending back an accepted declaration withdraws the acceptance, so accepted_at is cleared.
+ */
+function db_send_back_declaration(PDO $pdo, int $id, int $reviewerUserId, string $note): bool {
+    $stmt = $pdo->prepare("
+        UPDATE submissions SET review_status = 'needs_changes', reviewer_note = :note, accepted_at = NULL,
+            reviewed_by_user_id = :reviewer, reviewed_at = :now
+        WHERE id = :id AND review_status IN ('submitted', 'accepted')
+    ");
+    $stmt->execute([':note' => $note, ':now' => date('Y-m-d H:i:s'), ':reviewer' => $reviewerUserId, ':id' => $id]);
+    return $stmt->rowCount() === 1;
+}
+
 function db_delete_submissions(PDO $pdo, array $ids): int {
     if (empty($ids)) return 0;
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -1502,4 +1531,133 @@ function db_update_season_link(PDO $pdo, int $id, string $label, string $url, in
 
 function db_delete_season_link(PDO $pdo, int $id): void {
     $pdo->prepare("DELETE FROM season_links WHERE id = :id")->execute([':id' => $id]);
+}
+
+// ── Inspector (spec §5) ───────────────────────────────────────────────────────
+
+/** Cars on an event's roster: tagged for the event or with a tech sheet for it, with the owner and `tagged` (0/1). */
+function db_get_event_roster_cars(PDO $pdo, int $eventId): array {
+    $stmt = $pdo->prepare("
+        SELECT c.*, u.name AS owner_name, u.email AS owner_email,
+               EXISTS (SELECT 1 FROM event_plans p WHERE p.event_id = :e AND p.car_id = c.id) AS tagged
+        FROM cars c JOIN users u ON u.id = c.owner_user_id
+        WHERE c.id IN (SELECT car_id FROM event_plans WHERE event_id = :e
+                       UNION SELECT car_id FROM tech_sheets WHERE event_id = :e)
+        ORDER BY (c.car_number_norm GLOB '[0-9]*') DESC, CAST(c.car_number_norm AS INTEGER) ASC, c.car_number_norm ASC, c.id ASC
+    ");
+    $stmt->execute([':e' => $eventId]);
+    return $stmt->fetchAll();
+}
+
+/** car id => that car's declarations, newest first. Cars with none are absent. */
+function db_get_declarations_for_cars(PDO $pdo, array $carIds): array {
+    $ids = array_values(array_unique(array_map('intval', $carIds)));
+    if (!$ids) return [];
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("SELECT * FROM submissions WHERE car_id IN ($marks) ORDER BY submitted_at DESC, id DESC");
+    $stmt->execute($ids);
+    $map = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $map[(int)$row['car_id']][] = $row;
+    }
+    return $map;
+}
+
+/** user id => that account's own driver profile (drivers.user_id). Accounts without one are absent. */
+function db_get_self_drivers_for_users(PDO $pdo, array $userIds): array {
+    $ids = array_values(array_unique(array_map('intval', $userIds)));
+    if (!$ids) return [];
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("SELECT * FROM drivers WHERE user_id IN ($marks)");
+    $stmt->execute($ids);
+    $map = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $map[(int)$row['user_id']] = $row;
+    }
+    return $map;
+}
+
+/** Declarations waiting on an inspector, oldest first, with the car's number. */
+function db_get_declarations_awaiting_review(PDO $pdo): array {
+    return $pdo->query("
+        SELECT s.*, c.car_number AS car_number
+        FROM submissions s JOIN cars c ON c.id = s.car_id
+        WHERE s.review_status = 'submitted'
+        ORDER BY s.submitted_at ASC, s.id ASC
+    ")->fetchAll();
+}
+
+/** Tech sheets whose car pre-tech photos wait on an inspector, oldest first, with the event name. */
+function db_get_sheets_awaiting_photo_review(PDO $pdo): array {
+    return $pdo->query("
+        SELECT ts.*, e.name AS event_name
+        FROM tech_sheets ts LEFT JOIN events e ON e.id = ts.event_id
+        WHERE ts.photo_status = 'submitted' AND ts.status = 'submitted'
+        ORDER BY ts.updated_at ASC, ts.id ASC
+    ")->fetchAll();
+}
+
+/** Gear records whose photos wait on an inspector, oldest first, with the driver and the owning account. */
+function db_get_gear_awaiting_photo_review(PDO $pdo): array {
+    return $pdo->query("
+        SELECT g.*, d.owner_user_id AS owner_user_id, d.name AS driver_name, d.name_norm AS driver_name_norm,
+               d.licence_no AS licence_no, u.name AS owner_name
+        FROM gear_records g JOIN drivers d ON d.id = g.driver_id LEFT JOIN users u ON u.id = d.owner_user_id
+        WHERE g.photo_status = 'submitted' AND g.status = 'open'
+        ORDER BY g.updated_at ASC, g.id ASC
+    ")->fetchAll();
+}
+
+/**
+ * The Classing tab's search. $f keys (all optional): q (name, email, make, model or car number;
+ * % and _ match literally), class, season (year submitted), status (review_status), car (car id).
+ *
+ * @return array{rows: array, total: int} rows are submissions.* plus car_number, newest first
+ */
+function db_search_declarations(PDO $pdo, array $f, int $limit, int $offset): array {
+    $where = [];
+    $params = [];
+    if ((string)($f['q'] ?? '') !== '') {
+        $where[] = "(s.name LIKE :q ESCAPE '\\' OR s.email LIKE :q ESCAPE '\\' OR s.make LIKE :q ESCAPE '\\'
+                     OR s.model LIKE :q ESCAPE '\\' OR c.car_number LIKE :q ESCAPE '\\')";
+        $params[':q'] = '%' . addcslashes((string)$f['q'], '%_\\') . '%';
+    }
+    if ((string)($f['class'] ?? '') !== '') {
+        $where[] = 's.calculated_class = :class';
+        $params[':class'] = (string)$f['class'];
+    }
+    if ((int)($f['season'] ?? 0) > 0) {
+        $where[] = 'substr(s.submitted_at, 1, 4) = :season';
+        $params[':season'] = (string)(int)$f['season'];
+    }
+    if ((string)($f['status'] ?? '') !== '') {
+        $where[] = 's.review_status = :status';
+        $params[':status'] = (string)$f['status'];
+    }
+    if ((int)($f['car'] ?? 0) > 0) {
+        $where[] = 's.car_id = :car';
+        $params[':car'] = (int)$f['car'];
+    }
+    $from = ' FROM submissions s LEFT JOIN cars c ON c.id = s.car_id' . ($where ? ' WHERE ' . implode(' AND ', $where) : '');
+
+    $count = $pdo->prepare('SELECT COUNT(*)' . $from);
+    $count->execute($params);
+
+    $stmt = $pdo->prepare('SELECT s.*, c.car_number AS car_number' . $from . ' ORDER BY s.submitted_at DESC, s.id DESC LIMIT :limit OFFSET :offset');
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+    }
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    return ['rows' => $stmt->fetchAll(), 'total' => (int)$count->fetchColumn()];
+}
+
+/** event id => how many cars are tagged for it. Events nobody tagged are absent. */
+function db_count_event_plans(PDO $pdo): array {
+    $counts = [];
+    foreach ($pdo->query("SELECT event_id, COUNT(*) AS n FROM event_plans GROUP BY event_id")->fetchAll() as $row) {
+        $counts[(int)$row['event_id']] = (int)$row['n'];
+    }
+    return $counts;
 }

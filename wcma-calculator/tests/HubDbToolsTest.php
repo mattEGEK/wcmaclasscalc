@@ -44,6 +44,32 @@ final class HubDbToolsTest extends TestCase
         $this->assertCount(2, db_get_active_events($pdo));
         $this->assertCount(3, db_get_season_links($pdo, true));
         $this->assertCount(1, db_get_user_tech_sheets($pdo, (int)$jordan['id']));
+
+        $fall = (int)$pdo->query("SELECT id FROM events WHERE name = 'Fall Sprint'")->fetchColumn();
+        $this->assertSame(['17', '42'], array_column(db_get_event_roster_cars($pdo, $fall), 'car_number'));
+        $this->assertSame(1, $summary['event_plans']);
+    }
+
+    /**
+     * Every page that writes a submitted_at (car-classing.php, tech-sheets.php, ...) sets
+     * date_default_timezone_set('America/Denver') first. hubSeed() must record its timestamps the
+     * same way, or seeded declarations sort ahead of/behind real ones made in the same test run
+     * (PHP's own default timezone is UTC, six hours off Denver during DST).
+     */
+    public function testSeedRecordsTimestampsInAmericaDenverNotTheServerDefaultTimezone(): void
+    {
+        $pdo = make_temp_pdo();
+        $before = new DateTimeImmutable('now', new DateTimeZone('America/Denver'));
+        hubSeed($pdo, 'password123');
+        $after = new DateTimeImmutable('now', new DateTimeZone('America/Denver'));
+
+        $jordan = db_find_user_by_email($pdo, 'jordan@example.com');
+        $cars = db_get_user_cars($pdo, (int)$jordan['id']);
+        $decl = db_get_car_current_declaration($pdo, (int)$cars[0]['id']);
+        $submittedAt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', (string)$decl['submitted_at'], new DateTimeZone('America/Denver'));
+
+        $this->assertGreaterThanOrEqual($before->modify('-30 seconds'), $submittedAt);
+        $this->assertLessThanOrEqual($after->modify('+30 seconds'), $submittedAt);
     }
 
     public function testSeedRefusesANonEmptyDatabase(): void
