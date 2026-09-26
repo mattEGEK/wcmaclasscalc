@@ -21,7 +21,7 @@ final class GearLinksSourceTest extends TestCase
 
     public function testCompetitorPagesRequireTheGearHelpers(): void
     {
-        foreach (['tech-sheets.php', 'account.php'] as $file) {
+        foreach (['tech-sheets.php', 'garage.php'] as $file) {
             $src = $this->src($file);
             $this->assertStringContainsString("/gear-lib.php'", $src, $file);
             $this->assertStringContainsString("/gear-chips.php'", $src, $file);
@@ -53,19 +53,17 @@ final class GearLinksSourceTest extends TestCase
         $this->assertStringContainsString("nameInput.setAttribute('list', 'gear-names');", $this->src('js/tech-sheet-form.js'));
     }
 
-    public function testMyCarsShowsGearChipsPerSheetLine(): void
+    public function testGarageCarPageShowsGearChipsPerTaggedSheet(): void
     {
-        $list = $this->body('account.php', 'handleAccountList');
-        $this->assertStringContainsString('db_get_drivers_for_sheets(', $list);
-        $this->assertStringContainsString('gearLinksForSheet(', $list);
-        $page = $this->body('account.php', 'renderAccountListPage');
-        $this->assertGreaterThanOrEqual(1, substr_count($page, "renderGearChips("));
-        $this->assertStringContainsString("renderGearChips(\$gearLinks[(int)\$sheet['id']]", $page);
+        $show = $this->body('garage.php', 'garageShowCar');
+        $this->assertStringContainsString('db_get_drivers_for_sheets(', $show);
+        $this->assertStringContainsString('gearLinksForSheet(', $show);
+        $this->assertStringContainsString("renderGearChips(\$row['gearLinks']", $this->src('garage-page.php'));
     }
 
     public function testNewCopyAvoidsBannedWording(): void
     {
-        foreach (['tech-sheets.php', 'account.php'] as $file) {
+        foreach (['tech-sheets.php', 'garage.php', 'garage-page.php'] as $file) {
             $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed)\b/i', $this->src($file), $file);
         }
     }

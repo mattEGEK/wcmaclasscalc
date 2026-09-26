@@ -40,10 +40,10 @@ final class CalculatorPageTest extends TestCase
         $start = strpos($src, 'function safeRedirectTarget');
         $end = strpos($src, "\n}\n", $start);
         eval(substr($src, $start, $end - $start + 2));
-        foreach (['index.php', 'calculator.php', 'calculator.php?car=3', 'calculator.php?restore=1', 'calculator.php?draft=9', 'profile.php', 'account.php', 'admin.php'] as $ok) {
+        foreach (['index.php', 'calculator.php', 'calculator.php?car=3', 'calculator.php?restore=1', 'calculator.php?draft=9', 'profile.php', 'account.php', 'admin.php', 'garage.php', 'garage.php?car=3', 'drivers.php'] as $ok) {
             $this->assertSame($ok, safeRedirectTarget($ok), $ok);
         }
-        foreach (['https://evil.test', '//evil.test', 'calculator.php?car=x', 'car-classing.html'] as $bad) {
+        foreach (['https://evil.test', '//evil.test', 'calculator.php?car=x', 'car-classing.html', 'garage.php?car=x'] as $bad) {
             $this->assertSame('index.php', safeRedirectTarget($bad), $bad);
         }
     }

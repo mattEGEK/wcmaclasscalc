@@ -104,14 +104,14 @@ switch ($action) {
 
     case 'update':
         $user = requireTechSheetLogin();
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: account.php'); exit; }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: garage.php'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleUpdate($pdo, $user);
         break;
 
     case 'resend':
         $user = requireTechSheetLogin();
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: account.php'); exit; }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: garage.php'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleResendTechSheet($pdo, $user, (int)($_POST['id'] ?? 0));
         break;
@@ -123,7 +123,7 @@ switch ($action) {
 
     case 'pretech-submit':
         $user = requireTechSheetLogin();
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: account.php'); exit; }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: garage.php'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handlePretechSubmit($pdo, $user, (int)($_POST['id'] ?? 0));
         break;
@@ -134,7 +134,7 @@ switch ($action) {
         break;
 
     default:
-        header('Location: account.php');
+        header('Location: garage.php');
         exit;
 }
 
@@ -142,7 +142,7 @@ function handleNew(PDO $pdo, array $user, int $carId, int $eventId = 0): void {
     $car = db_get_user_car($pdo, (int)$user['id'], $carId);
     if (!$car || $car['archived_at'] !== null) {
         setFlash('Car not found.', 'error');
-        header('Location: account.php');
+        header('Location: garage.php');
         exit;
     }
     $declaration = db_get_car_current_declaration($pdo, $carId);
@@ -155,7 +155,7 @@ function handleNew(PDO $pdo, array $user, int $carId, int $eventId = 0): void {
     $events = db_get_active_events($pdo);
     if (empty($events)) {
         setFlash('There are no upcoming events open for tech sheet submission yet.', 'error');
-        header('Location: account.php');
+        header('Location: garage.php?car=' . $carId);
         exit;
     }
 
@@ -167,7 +167,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
     $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
     if (!$sheet) {
         setFlash('Tech sheet not found.', 'error');
-        header('Location: account.php');
+        header('Location: garage.php');
         exit;
     }
     $event = db_get_event($pdo, (int)$sheet['event_id']);
@@ -190,7 +190,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
 </head>
 <body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Tech Sheet #' . $sheet['id'], '<a href="account.php">← Back to My Cars</a>', 'garage'); ?>
+  <?php renderSiteHeader('Tech Sheet #' . $sheet['id'], '<a href="garage.php?car=' . (int)$sheet['car_id'] . '">← Back to Garage</a>', 'garage'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <div class="detail-card actions no-print">
     <?php if (pretechSheetEditable($sheet)): ?>
@@ -222,7 +222,7 @@ function handlePretech(PDO $pdo, array $user, int $id): void {
     $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
     if (!$sheet) {
         setFlash('Tech sheet not found.', 'error');
-        header('Location: account.php');
+        header('Location: garage.php');
         exit;
     }
     $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
@@ -234,7 +234,7 @@ function handlePretechSubmit(PDO $pdo, array $user, int $id): void {
     $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
     if (!$sheet) {
         setFlash('Tech sheet not found.', 'error');
-        header('Location: account.php');
+        header('Location: garage.php');
         exit;
     }
 
@@ -258,7 +258,7 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
     $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
     if (!$sheet) {
         setFlash('Tech sheet not found.', 'error');
-        header('Location: account.php');
+        header('Location: garage.php');
         exit;
     }
     if ($sheet['status'] !== 'submitted') {
@@ -307,6 +307,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
             'equipment' => json_decode($d['equipment_json'] ?? '{}', true) ?: [],
         ];
     }, $existingDrivers);
+    $backCarId = $isEdit ? (int)$existingSheet['car_id'] : (int)($car['id'] ?? 0);
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -322,7 +323,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 </head>
 <body class="hub">
 <div class="container">
-  <?php renderSiteHeader($pageTitle, '<a href="account.php">← Back to My Cars</a>', 'garage'); ?>
+  <?php renderSiteHeader($pageTitle, '<a href="garage.php?car=' . $backCarId . '">← Back to Garage</a>', 'garage'); ?>
 
   <form id="tech-sheet-form" method="post" action="<?= h($formAction) ?>">
     <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
@@ -548,7 +549,7 @@ function handleSubmit(PDO $pdo, array $user): void {
     $submission = ($car && $car['archived_at'] === null) ? db_get_car_current_declaration($pdo, $carId) : null;
     if (!$submission) {
         setFlash('Car not found, or it has no class declaration yet.', 'error');
-        header('Location: account.php');
+        header('Location: garage.php?car=' . $carId);
         exit;
     }
 
@@ -620,7 +621,7 @@ function handleUpdate(PDO $pdo, array $user): void {
     $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
     if (!$sheet || $sheet['status'] !== 'submitted') {
         setFlash('Tech sheet not found or no longer editable.', 'error');
-        header('Location: account.php');
+        header('Location: garage.php');
         exit;
     }
     if (!pretechSheetEditable($sheet)) {
@@ -698,7 +699,7 @@ function handleResendTechSheet(PDO $pdo, array $user, int $id): void {
     $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
     if (!$sheet) {
         setFlash('Tech sheet not found.', 'error');
-        header('Location: account.php');
+        header('Location: garage.php');
         exit;
     }
     $event = db_get_event($pdo, (int)$sheet['event_id']);

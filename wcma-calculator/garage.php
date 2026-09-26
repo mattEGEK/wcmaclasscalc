@@ -13,6 +13,13 @@ require __DIR__ . '/garage-lib.php';
 require __DIR__ . '/home-page.php';
 require __DIR__ . '/garage-page.php';
 
+require __DIR__ . '/phpmailer/src/Exception.php';
+require __DIR__ . '/phpmailer/src/PHPMailer.php';
+require __DIR__ . '/phpmailer/src/SMTP.php';
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
 date_default_timezone_set('America/Denver');
 $pdo = db_connect();
 db_init($pdo);
@@ -27,6 +34,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if (($_GET['action'] ?? '') === 'add') {
     garageRenderAdd($pdo, [], null);
+    exit;
+}
+if (isset($_GET['declaration'])) {
+    garageShowDeclaration($pdo, $uid, (int)$_GET['declaration']);
+    exit;
+}
+if (($_GET['action'] ?? '') === 'file') {
+    garageDeclarationFile($pdo, $uid, (int)($_GET['id'] ?? 0), (string)($_GET['field'] ?? ''));
     exit;
 }
 if (isset($_GET['car'])) {
@@ -142,7 +157,107 @@ function handleGaragePost(PDO $pdo, int $uid, string $action): void {
             setFlash($r['ok'] ? 'Removed from your events.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
             header('Location: garage.php?car=' . $carId);
             return;
+        case 'resend-declaration':
+            garageResendDeclaration($pdo, $uid, (int)($_POST['id'] ?? 0));
+            return;
+        case 'delete-declaration':
+            garageDeleteDeclaration($pdo, $uid, (int)($_POST['id'] ?? 0));
+            return;
     }
     setFlash('Car not found.', 'error');
     header('Location: garage.php');
+}
+
+function garageShowDeclaration(PDO $pdo, int $uid, int $id): void {
+    $sub = db_get_user_submission($pdo, $uid, $id);
+    if (!$sub) { setFlash('Class declaration not found.', 'error'); header('Location: garage.php'); exit; }
+    renderPageStart('Class declaration', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="garage.php?car=' . (int)$sub['car_id'] . '">&larr; Back to the car</a>']);
+    echo renderDeclarationHtml($sub, generateCsrfToken());
+    renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script>']);
+}
+
+function buildGarageMailer(): PHPMailer {
+    $mail = new PHPMailer(true);
+    $mail->isSMTP();
+    $mail->Host       = SMTP_HOST;
+    $mail->SMTPAuth   = true;
+    $mail->Username   = SMTP_USER;
+    $mail->Password   = SMTP_PASS;
+    $mail->SMTPSecure = (SMTP_PORT === 465) ? PHPMailer::ENCRYPTION_SMTPS : PHPMailer::ENCRYPTION_STARTTLS;
+    $mail->Port       = SMTP_PORT;
+    $mail->CharSet    = 'UTF-8';
+    $mail->setFrom(FROM_EMAIL, FROM_NAME);
+    return $mail;
+}
+
+function garageResendDeclaration(PDO $pdo, int $uid, int $id): void {
+    $sub = db_get_user_submission($pdo, $uid, $id);
+    if (!$sub) { setFlash('Class declaration not found.', 'error'); header('Location: garage.php'); exit; }
+
+    $attachments = [];
+    foreach (['dyno_chart_path', 'dyno_table_path', 'car_image_path'] as $col) {
+        if ($sub[$col]) {
+            $path = __DIR__ . '/' . $sub[$col];
+            if (file_exists($path)) $attachments[] = ['path' => $path, 'name' => basename($path)];
+        }
+    }
+
+    $sent = false;
+    try {
+        $mail = buildGarageMailer();
+        $mail->addAddress($sub['email'], $sub['name']);
+        $mail->Subject = 'Your WCMA Class Declaration';
+        $mail->isHTML(true);
+        $mail->Body = '<p>Class: <strong>' . htmlspecialchars($sub['calculated_class'] ?? '') . '</strong></p><p>Vehicle: ' . htmlspecialchars(trim($sub['year'] . ' ' . $sub['make'] . ' ' . $sub['model'])) . '</p>';
+        $mail->AltBody = 'Class: ' . ($sub['calculated_class'] ?? '') . "\nVehicle: " . trim($sub['year'] . ' ' . $sub['make'] . ' ' . $sub['model']);
+        foreach ($attachments as $att) $mail->addAttachment($att['path'], $att['name']);
+        $mail->send();
+        $sent = true;
+    } catch (Exception $e) {
+        error_log('Account resend error: ' . $e->getMessage());
+    }
+
+    db_update_email_sent($pdo, $id, $sent ? 1 : 0);
+    setFlash($sent ? 'Confirmation re-sent to your email.' : 'Failed to send email. Please try again later.', $sent ? 'success' : 'error');
+    header('Location: garage.php?declaration=' . $id);
+    exit;
+}
+
+function garageDeleteDeclaration(PDO $pdo, int $uid, int $id): void {
+    $sub = db_get_user_submission($pdo, $uid, $id);
+    if (!$sub) { setFlash('Class declaration not found.', 'error'); header('Location: garage.php'); exit; }
+    if (db_count_tech_sheets_for_submission($pdo, $id) > 0) {
+        setFlash('This declaration is on a submitted tech sheet, so it cannot be deleted.', 'error');
+        header('Location: garage.php?declaration=' . $id);
+        exit;
+    }
+    $upload_dir = __DIR__ . '/uploads/' . $id;
+    if (is_dir($upload_dir)) {
+        foreach (glob($upload_dir . '/*') as $file) unlink($file);
+        rmdir($upload_dir);
+    }
+    db_delete_submission($pdo, $id);
+    setFlash('Class declaration deleted.', 'success');
+    header('Location: garage.php?car=' . (int)$sub['car_id']);
+    exit;
+}
+
+function garageDeclarationFile(PDO $pdo, int $uid, int $id, string $field): void {
+    $field_map = ['dyno_chart' => 'dyno_chart_path', 'dyno_table' => 'dyno_table_path', 'car_image' => 'car_image_path'];
+    if (!isset($field_map[$field])) { http_response_code(404); exit; }
+
+    $sub = db_get_user_submission($pdo, $uid, $id);
+    $db_field = $field_map[$field];
+    if (!$sub || !$sub[$db_field]) { http_response_code(404); exit; }
+
+    $path = __DIR__ . '/' . $sub[$db_field];
+    if (!file_exists($path)) { http_response_code(404); exit; }
+
+    $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+    $types = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'doc' => 'application/msword', 'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'txt' => 'text/plain'];
+
+    header('Content-Type: ' . ($types[$ext] ?? 'application/octet-stream'));
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
 }

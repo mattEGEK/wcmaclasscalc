@@ -54,4 +54,29 @@ final class GarageSourceTest extends TestCase
         $this->assertStringContainsString('eventsTagCar($pdo, $uid,', $post);
         $this->assertStringContainsString('eventsUntagCar($pdo, $uid,', $post);
     }
+
+    public function testDeclarationRoutesAreOwnerScoped(): void
+    {
+        foreach (['garageShowDeclaration', 'garageDeclarationFile', 'garageResendDeclaration', 'garageDeleteDeclaration'] as $fn) {
+            $this->assertStringContainsString('db_get_user_submission($pdo, $uid,', $this->body('garage.php', $fn), $fn);
+        }
+        $this->assertStringContainsString('db_count_tech_sheets_for_submission(', $this->body('garage.php', 'garageDeleteDeclaration'));
+    }
+
+    public function testAccountKeepsDraftEndpointsAndRedirectsEverythingElse(): void
+    {
+        $src = $this->src('account.php');
+        foreach (['draft-save', 'draft-list', 'draft-load', 'draft-delete'] as $action) {
+            $this->assertStringContainsString("case '$action':", $src, $action);
+        }
+        $this->assertStringContainsString("header('Location: garage.php?declaration=' . (int)(\$_GET['id'] ?? 0));", $src);
+        $this->assertStringContainsString("header('Location: garage.php');", $src);
+        $this->assertStringNotContainsString('<!DOCTYPE html>', $src);
+    }
+
+    public function testTechSheetsNoLongerSendPeopleToAccountPhp(): void
+    {
+        $this->assertStringNotContainsString('account.php', $this->src('tech-sheets.php'));
+        $this->assertStringNotContainsString('My Cars', $this->src('tech-sheets.php'));
+    }
 }

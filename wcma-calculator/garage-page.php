@@ -234,3 +234,40 @@ function renderGarageCarHtml(array $vm): string {
     }
     return $out;
 }
+
+function renderDeclarationHtml(array $s, string $csrf): string {
+    $id = (int)$s['id'];
+    $vehicle = trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model']);
+    $out = '<h1>Class declaration: ' . h($vehicle) . '</h1><div class="hub-grid-2"><section class="hub-card"><h2>Vehicle and class</h2>'
+        . '<table class="detail-table">'
+        . '<tr><td>Vehicle</td><td>' . h($vehicle) . '</td></tr>'
+        . '<tr><td>Weight</td><td>' . h((string)$s['competition_weight']) . ' lbs</td></tr>'
+        . '<tr><td>Declared HP</td><td>' . h((string)$s['declared_hp']) . '</td></tr>'
+        . '<tr><td>Calculated class</td><td><strong>' . h((string)($s['calculated_class'] ?? '—')) . '</strong></td></tr>'
+        . '<tr><td>Submitted</td><td>' . h(date('F j, Y \a\t g:i A', strtotime((string)$s['submitted_at']))) . '</td></tr>'
+        . '<tr><td>Review</td><td><span class="hub-status ' . h(homeStatusClass((string)$s['review_status'])) . '">' . h(declarationReviewLabel((string)$s['review_status'])) . '</span></td></tr>'
+        . '</table>';
+    if (trim((string)($s['reviewer_note'] ?? '')) !== '') {
+        $out .= '<p class="garage-note"><strong>Inspector\'s note:</strong> ' . h((string)$s['reviewer_note']) . '</p>';
+    }
+    $out .= '</section><section class="hub-card"><h2>Actions</h2>'
+        . '<form method="post" action="garage.php">' . garageCsrfField($csrf) . '<input type="hidden" name="action" value="resend-declaration">'
+        . '<input type="hidden" name="id" value="' . $id . '"><button type="submit" class="hub-btn">Resend confirmation to my email</button></form>'
+        . '<form method="post" action="garage.php" data-confirm="Permanently delete this class declaration and its files?">' . garageCsrfField($csrf)
+        . '<input type="hidden" name="action" value="delete-declaration"><input type="hidden" name="id" value="' . $id . '">'
+        . '<button type="submit" class="hub-btn hub-btn--link">Delete this declaration</button></form>'
+        . '<h2>Uploaded files</h2>';
+    $files = ['car_image' => ['Car image', $s['car_image_path'] ?? null], 'dyno_chart' => ['Dyno chart', $s['dyno_chart_path'] ?? null], 'dyno_table' => ['Dyno table', $s['dyno_table_path'] ?? null]];
+    $any = false;
+    foreach ($files as $field => [$label, $path]) {
+        if (!$path) continue;
+        $any = true;
+        $url = 'garage.php?action=file&id=' . $id . '&field=' . $field;
+        $isImage = in_array(strtolower(pathinfo((string)$path, PATHINFO_EXTENSION)), ['jpg', 'jpeg', 'png'], true);
+        $out .= '<p><strong>' . h($label) . '</strong></p>' . ($isImage
+            ? '<img src="' . h($url) . '" class="file-thumb" alt="' . h($label) . '">'
+            : '<a href="' . h($url) . '" target="_blank">' . h(basename((string)$path)) . '</a>');
+    }
+    if (!$any) $out .= '<p>No files uploaded.</p>';
+    return $out . '</section></div><p><a href="garage.php?car=' . (int)$s['car_id'] . '">&larr; Back to the car</a></p>';
+}

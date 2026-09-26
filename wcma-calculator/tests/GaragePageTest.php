@@ -179,4 +179,20 @@ final class GaragePageTest extends TestCase
         $this->assertStringContainsString('value="Typed"', $html);
         $this->assertStringContainsString('Enter the car&#039;s colour.', $html);
     }
+
+    public function testDeclarationPageShowsTheReviewAndFilesAndGuardsDelete(): void
+    {
+        $s = $this->decl(['id' => 8, 'car_id' => 3, 'year' => '2004', 'make' => 'Honda', 'model' => 'S2<000', 'review_status' => 'needs_changes',
+                          'reviewer_note' => 'Add the dyno table', 'car_image_path' => 'uploads/8/car.jpg', 'dyno_chart_path' => null, 'dyno_table_path' => 'uploads/8/t.pdf']);
+        $html = renderDeclarationHtml($s, 'tok');
+        $this->assertStringContainsString('2004 Honda S2&lt;000', $html);
+        $this->assertStringContainsString('Needs changes', $html);
+        $this->assertStringContainsString('Add the dyno table', $html);
+        $this->assertStringContainsString('src="garage.php?action=file&amp;id=8&amp;field=car_image"', $html);
+        $this->assertStringContainsString('href="garage.php?action=file&amp;id=8&amp;field=dyno_table"', $html);
+        $this->assertStringNotContainsString('field=dyno_chart', $html);
+        $this->assertStringContainsString('name="action" value="resend-declaration"', $html);
+        $this->assertStringContainsString('data-confirm="Permanently delete this class declaration and its files?"', $html);
+        $this->assertStringContainsString('href="garage.php?car=3"', $html);
+    }
 }
