@@ -37,6 +37,34 @@ function carsResolveForDeclaration(PDO $pdo, int $userId, array $post): array {
     return ['ok' => true, 'error' => null, 'car_id' => $id];
 }
 
+const CARS_FIELD_MAX = ['car_number' => 10, 'year' => 4, 'make' => 40, 'model' => 60, 'colour' => 30, 'engine_cc' => 10];
+const CARS_FIELD_LABELS = ['car_number' => 'number', 'year' => 'year', 'make' => 'make', 'model' => 'model', 'colour' => 'colour', 'engine_cc' => 'engine size'];
+
+/**
+ * The Add a car / Edit details form. Number, make, model and colour are required; year (four
+ * digits) and engine size are optional and become null when blank. On failure, data still holds
+ * what was typed so the form can be shown again.
+ *
+ * @return array{ok: bool, error: ?string, data: array<string, ?string>}
+ */
+function carsValidateDetails(array $post): array {
+    $data = [];
+    foreach (array_keys(CARS_FIELD_MAX) as $field) {
+        $data[$field] = trim((string)preg_replace('/\s+/', ' ', (string)($post[$field] ?? '')));
+    }
+    $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'data' => $data];
+    foreach (['car_number', 'make', 'model', 'colour'] as $field) {
+        if ($data[$field] === '') return $fail("Enter the car's " . CARS_FIELD_LABELS[$field] . '.');
+    }
+    foreach (CARS_FIELD_MAX as $field => $max) {
+        if (mb_strlen($data[$field], 'UTF-8') > $max) return $fail('That ' . CARS_FIELD_LABELS[$field] . " is too long ($max characters at most).");
+    }
+    if ($data['year'] !== '' && !preg_match('/^(19|20)\d{2}$/', $data['year'])) return $fail('Enter the year as four digits, like 2004.');
+    $data['year'] = $data['year'] === '' ? null : $data['year'];
+    $data['engine_cc'] = $data['engine_cc'] === '' ? null : $data['engine_cc'];
+    return ['ok' => true, 'error' => null, 'data' => $data];
+}
+
 function carDisplayName(array $car): string {
     return '#' . $car['car_number'] . ' ' . trim(($car['year'] ?? '') . ' ' . $car['make'] . ' ' . $car['model']);
 }

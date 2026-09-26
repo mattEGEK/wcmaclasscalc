@@ -68,6 +68,7 @@ function db_init(PDO $pdo): void {
             reviewer_note           TEXT,
             reviewed_by_user_id     INTEGER,
             reviewed_at             DATETIME,
+            accepted_at             DATETIME,
             form_data               TEXT
         )
     ");
@@ -912,6 +913,13 @@ function db_update_car(PDO $pdo, int $id, array $d): void {
 /** Archives one of the owner's active cars. False if it is not theirs or is already archived. */
 function db_archive_car(PDO $pdo, int $ownerId, int $id): bool {
     $stmt = $pdo->prepare("UPDATE cars SET archived_at = :now, updated_at = :now WHERE id = :id AND owner_user_id = :o AND archived_at IS NULL");
+    $stmt->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id, ':o' => $ownerId]);
+    return $stmt->rowCount() === 1;
+}
+
+/** Restores one of the owner's archived cars. False if it is not theirs or is not archived. */
+function db_restore_car(PDO $pdo, int $ownerId, int $id): bool {
+    $stmt = $pdo->prepare("UPDATE cars SET archived_at = NULL, updated_at = :now WHERE id = :id AND owner_user_id = :o AND archived_at IS NOT NULL");
     $stmt->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id, ':o' => $ownerId]);
     return $stmt->rowCount() === 1;
 }

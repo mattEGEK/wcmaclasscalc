@@ -28,6 +28,14 @@ function h(string $s): string {
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
 
+/** The first season link whose label contains $needle (case-insensitive), or null. Links are admin data, not code. */
+function seasonLinkMatching(array $links, string $needle): ?array {
+    foreach ($links as $link) {
+        if (stripos((string)$link['label'], $needle) !== false) return $link;
+    }
+    return null;
+}
+
 /**
  * Header for pages not yet rebuilt on renderPageStart(): the hub header and stripe, an optional
  * sub-navigation bar (back links, admin tabs), then the page title.
