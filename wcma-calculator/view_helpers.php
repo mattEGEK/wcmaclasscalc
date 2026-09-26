@@ -64,38 +64,3 @@ function renderSiteFooter(): void {
     echo hubFooterHtml();
 }
 
-/**
- * A single nav destination: a link, or (when $isCurrent) inert "you are
- * here" text rendered in the same position, so the set of destinations
- * stays identical across every page.
- */
-function navItem(string $href, string $label, bool $isCurrent): string {
-    if ($isCurrent) {
-        return '<span class="nav-current" aria-current="page">' . h($label) . '</span>';
-    }
-    return '<a href="' . h($href) . '">' . h($label) . '</a>';
-}
-
-/**
- * The staff sub-navigation shared by every admin page. $current marks the page being viewed
- * (inert "you are here" text, see navItem()). Inspectors see only the event-day destinations.
- */
-function renderAdminNav(string $current, string $role = 'admin'): string {
-    $items = [
-        'submissions'  => ['admin.php', 'Submissions', 'inspector'],
-        'tech-sheets'  => ['admin.php?action=tech-sheets', 'Tech Sheets', 'inspector'],
-        'gear'         => ['admin.php?action=gear', 'Gear', 'inspector'],
-        'users'        => ['admin.php?action=users', 'Manage Users', 'admin'],
-        'events'       => ['admin.php?action=events', 'Events', 'admin'],
-        'season-links' => ['admin.php?action=season-links', 'Season Links', 'admin'],
-        'settings'     => ['admin.php?action=settings', 'Settings', 'admin'],
-        'feedback'     => ['admin.php?action=feedback', 'Feedback', 'admin'],
-    ];
-    $links = [];
-    foreach ($items as $key => [$href, $label, $min]) {
-        if (!user_has_role(['role' => $role], $min)) continue;
-        $links[] = navItem($href, $label, $key === $current);
-    }
-    return implode(' ', $links);
-}
-

@@ -1,4 +1,7 @@
 <?php
+// wcma-calculator/admin.php — the Admin back office (spec §5): Users & roles, Events, Season links,
+// Settings and Feedback. Admins only. Inspector work (classing, tech sheets, gear) lives in inspect.php;
+// old admin.php links to it are redirected by adminMovedActionUrl() (roles.php).
 require __DIR__ . '/session_bootstrap.php';
 date_default_timezone_set('America/Denver');
 
@@ -7,180 +10,112 @@ require __DIR__ . '/config.php';
 require __DIR__ . '/view_helpers.php';
 require __DIR__ . '/feedback-lib.php';
 require __DIR__ . '/admin-feedback.php';
-require __DIR__ . '/admin-tech-sheets.php';
-require __DIR__ . '/tech-sheet-files.php';
-require __DIR__ . '/tech-review-lib.php';
-require __DIR__ . '/photo-requirements.php';
-require __DIR__ . '/inspection-lib.php';
-require __DIR__ . '/pretech-lib.php';
-require __DIR__ . '/pretech-email.php';
-require __DIR__ . '/gear-lib.php';
-require __DIR__ . '/gear-email.php';
-require __DIR__ . '/gear-chips.php';
-require __DIR__ . '/admin-gear.php';
 require __DIR__ . '/season-links-lib.php';
 require __DIR__ . '/admin-season-links.php';
-require __DIR__ . '/tech-sheet-render.php';
-require __DIR__ . '/phpmailer/src/Exception.php';
-require __DIR__ . '/phpmailer/src/PHPMailer.php';
-require __DIR__ . '/email-helpers.php';
-require __DIR__ . '/submission-email-render.php';
-require __DIR__ . '/phpmailer/src/SMTP.php';
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
 
 $pdo = db_connect();
 db_init($pdo);
 
-define('TECH_EMAIL', db_get_setting($pdo, 'tech_sheet_recipient_email', config_default('TECH_SHEET_RECIPIENT_EMAIL', 'classing@wcma.ca')));
-define('TECH_NAME',  db_get_setting($pdo, 'tech_sheet_recipient_name', config_default('TECH_SHEET_RECIPIENT_NAME', 'WCMA Classing')));
-
-// ── Auth helpers ──────────────────────────────────────────────────────────────
-/** Thin wrapper over require_role() (roles.php / session_bootstrap.php) so the router is unchanged. */
-function requireAuth(string $min = 'admin'): void {
-    require_role($min);
-}
-
-// ── Router ────────────────────────────────────────────────────────────────────
 $action = $_GET['action'] ?? 'users';
 $movedTo = adminMovedActionUrl(is_string($action) ? $action : '', $_GET);
 if ($movedTo !== null) { header('Location: ' . $movedTo); exit; }
-$minRole = adminActionMinRole($action);
-$ip     = $_SERVER['REMOTE_ADDR'];
+require_role('admin');
+
+/** POST-only and CSRF-checked; otherwise back to $back. */
+function adminRequirePost(string $back): void {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: ' . $back); exit; }
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+}
+
+$postId = is_scalar($_POST['id'] ?? null) ? (int)$_POST['id'] : 0;
 
 switch ($action) {
-    case 'login':
-        header('Location: auth.php?action=login');
-        exit;
-
-    case 'logout':
-        header('Location: auth.php?action=logout');
-        exit;
-
-    case 'users':
-        requireAuth($minRole);
-        handleUsersList($pdo);
-        break;
-
     case 'set-role':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleSetRole($pdo, (int)($_POST['id'] ?? 0), (string)($_POST['role'] ?? ''));
+        adminRequirePost('admin.php?action=users');
+        handleSetRole($pdo, $postId, (string)($_POST['role'] ?? ''));
         break;
 
     case 'set-name':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleSetName($pdo, (int)($_POST['id'] ?? 0), (string)($_POST['name'] ?? ''));
+        adminRequirePost('admin.php?action=users');
+        handleSetName($pdo, $postId, (string)($_POST['name'] ?? ''));
         break;
 
     case 'deactivate':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleSetActive($pdo, (int)($_POST['id'] ?? 0), false);
+        adminRequirePost('admin.php?action=users');
+        handleSetActive($pdo, $postId, false);
         break;
 
     case 'activate':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=users'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleSetActive($pdo, (int)($_POST['id'] ?? 0), true);
+        adminRequirePost('admin.php?action=users');
+        handleSetActive($pdo, $postId, true);
         break;
 
     case 'events':
-        requireAuth($minRole);
         handleEventsList($pdo);
         break;
 
     case 'event-create':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        adminRequirePost('admin.php?action=events');
         handleEventCreate($pdo);
         break;
 
     case 'event-update':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleEventUpdate($pdo, (int)($_POST['id'] ?? 0));
+        adminRequirePost('admin.php?action=events');
+        handleEventUpdate($pdo, $postId);
         break;
 
     case 'event-deactivate':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleEventSetActive($pdo, (int)($_POST['id'] ?? 0), false);
+        adminRequirePost('admin.php?action=events');
+        handleEventSetActive($pdo, $postId, false);
         break;
 
     case 'event-activate':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=events'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleEventSetActive($pdo, (int)($_POST['id'] ?? 0), true);
+        adminRequirePost('admin.php?action=events');
+        handleEventSetActive($pdo, $postId, true);
         break;
 
     case 'settings':
-        requireAuth($minRole);
         handleSettings($pdo);
         break;
 
     case 'settings-update':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=settings'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        adminRequirePost('admin.php?action=settings');
         handleSettingsUpdate($pdo);
         break;
 
     case 'feedback':
-        requireAuth($minRole);
         handleFeedbackList($pdo);
         break;
 
     case 'feedback-view':
-        requireAuth($minRole);
-        handleFeedbackView($pdo, (int)($_GET['id'] ?? 0));
+        handleFeedbackView($pdo, is_scalar($_GET['id'] ?? null) ? (int)$_GET['id'] : 0);
         break;
 
     case 'feedback-status':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=feedback'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleFeedbackStatus($pdo, (int)($_POST['id'] ?? 0));
+        adminRequirePost('admin.php?action=feedback');
+        handleFeedbackStatus($pdo, $postId);
         break;
 
     case 'feedback-retry':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=feedback'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleFeedbackRetry($pdo, (int)($_POST['id'] ?? 0));
+        adminRequirePost('admin.php?action=feedback');
+        handleFeedbackRetry($pdo, $postId);
         break;
 
     case 'season-links':
-        requireAuth($minRole);
         handleSeasonLinksList($pdo);
         break;
 
     case 'season-link-save':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=season-links'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleSeasonLinkSave($pdo, (int)($_POST['id'] ?? 0));
+        adminRequirePost('admin.php?action=season-links');
+        handleSeasonLinkSave($pdo, $postId);
         break;
 
     case 'season-link-delete':
-        requireAuth($minRole);
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: admin.php?action=season-links'); exit; }
-        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
-        handleSeasonLinkDelete($pdo, (int)($_POST['id'] ?? 0));
+        adminRequirePost('admin.php?action=season-links');
+        handleSeasonLinkDelete($pdo, $postId);
         break;
 
-    default:
-        requireAuth($minRole);
+    default:   // 'users'
         handleUsersList($pdo);
 }
 
@@ -242,7 +177,7 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Manage Users — WCMA Admin</title>
+<title>Users &amp; roles — WCMA Admin</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
@@ -255,7 +190,7 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 </head>
 <body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Manage Users', renderAdminNav('users', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
+  <?php renderSiteHeader('Users & roles', adminSubnavHtml('users'), 'admin'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <?php if (!empty($users)): ?>
   <div class="list-toolbar">
@@ -342,10 +277,7 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 }
 
 function handleEventsList(PDO $pdo): void {
-    $events = db_get_all_events($pdo);
-    $csrf = generateCsrfToken();
-    $flash = getFlash();
-    renderEventsPage($events, $csrf, $flash);
+    renderEventsPage(db_get_all_events($pdo), db_count_event_plans($pdo), generateCsrfToken(), getFlash());
 }
 
 function handleEventCreate(PDO $pdo): void {
@@ -389,7 +321,7 @@ function handleEventSetActive(PDO $pdo, int $id, bool $active): void {
     exit;
 }
 
-function renderEventsPage(array $events, string $csrf, ?array $flash): void {
+function renderEventsPage(array $events, array $going, string $csrf, ?array $flash): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -404,7 +336,7 @@ function renderEventsPage(array $events, string $csrf, ?array $flash): void {
 </head>
 <body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Events', renderAdminNav('events', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
+  <?php renderSiteHeader('Events', adminSubnavHtml('events'), 'admin'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">
@@ -424,19 +356,21 @@ function renderEventsPage(array $events, string $csrf, ?array $flash): void {
   </div>
 
   <table class="data-table" id="events-table">
-    <thead><tr><th>Date</th><th>Name</th><th>Location</th><th>Status</th><th>Actions</th></tr></thead>
+    <thead><tr><th>Date</th><th>Name</th><th>Location</th><th>Going</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>
     <?php if (empty($events)): ?>
-      <tr><td colspan="5" class="empty-row">No events yet.</td></tr>
+      <tr><td colspan="6" class="empty-row">No events yet.</td></tr>
     <?php else: foreach ($events as $e): ?>
       <tr>
         <td><?= h(date('M j, Y', strtotime($e['event_date']))) ?></td>
         <td><?= h($e['name']) ?></td>
         <td><?= h($e['location'] ?? '—') ?></td>
+        <?php $n = (int)($going[(int)$e['id']] ?? 0); ?>
+        <td><?= $n ?> <?= $n === 1 ? 'car' : 'cars' ?></td>
         <td class="<?= $e['active'] ? 'badge-ok' : 'badge-fail' ?>"><?= $e['active'] ? 'Active' : 'Inactive' ?></td>
         <td class="actions">
           <?php if ($e['active']): ?>
-          <form method="post" action="admin.php?action=event-deactivate" style="display:inline" data-confirm="Deactivate <?= h($e['name']) ?>? Competitors won't be able to pick it for new tech sheets.">
+          <form method="post" action="admin.php?action=event-deactivate" style="display:inline" data-confirm="Deactivate <?= h($e['name']) ?>? Competitors won't be able to tag it or pick it for new tech sheets.">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$e['id'] ?>">
             <button type="submit" class="link-button">Deactivate</button>
@@ -525,7 +459,7 @@ function renderSettingsPage(array $values, string $csrf, ?array $flash): void {
 </head>
 <body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Settings', renderAdminNav('settings', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
+  <?php renderSiteHeader('Settings', adminSubnavHtml('settings'), 'admin'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">

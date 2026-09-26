@@ -1,19 +1,10 @@
 <?php
 // wcma-calculator/roles.php
 //
-// Pure role helpers (no session, no DB). user < inspector < admin. Inspectors do classing,
-// car tech and gear; admins also run the back office.
+// Pure role helpers (no session, no DB). user < inspector < admin. Inspectors work in inspect.php
+// (classing, car tech, gear); admins also run the admin.php back office.
 
 const ROLE_LEVELS = ['user' => 0, 'inspector' => 1, 'admin' => 2];
-
-/** admin.php actions an inspector may use. Everything else in admin.php is admin-only. */
-const ADMIN_INSPECTOR_ACTIONS = [
-    'list', 'view', 'file', 'resend', 'export',
-    'tech-sheets', 'tech-sheet', 'tech-sheet-accept', 'tech-sheet-revoke', 'tech-sheet-sig',
-    'tech-sheet-photos-accept', 'tech-sheet-photos-send-back',
-    'gear', 'gear-record', 'gear-record-accept', 'gear-record-revoke', 'gear-photos-accept',
-    'gear-photos-send-back', 'gear-create-accept',
-];
 
 function user_has_role(?array $user, string $min): bool {
     if ($user === null) return false;
@@ -25,10 +16,6 @@ function user_has_role(?array $user, string $min): bool {
 function roleGateOutcome(?array $user, string $min): string {
     if ($user === null) return 'login';
     return user_has_role($user, $min) ? 'ok' : 'forbidden';
-}
-
-function adminActionMinRole(string $action): string {
-    return in_array($action, ADMIN_INSPECTOR_ACTIONS, true) ? 'inspector' : 'admin';
 }
 
 /** inspect.php actions only admins may use. Everything else in the Inspector section is open to inspectors. */

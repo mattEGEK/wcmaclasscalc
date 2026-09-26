@@ -17,20 +17,6 @@ final class RolesTest extends TestCase
         $this->assertFalse(user_has_role(['role' => 'bogus'], 'user'));
     }
 
-    public function testInspectorsGetEventDayWorkAndAdminsKeepTheBackOffice(): void
-    {
-        foreach (['list', 'view', 'file', 'resend', 'export', 'tech-sheets', 'tech-sheet', 'tech-sheet-accept',
-                  'tech-sheet-revoke', 'tech-sheet-sig', 'tech-sheet-photos-accept', 'tech-sheet-photos-send-back',
-                  'gear', 'gear-record', 'gear-record-accept', 'gear-record-revoke', 'gear-photos-accept',
-                  'gear-photos-send-back', 'gear-create-accept'] as $action) {
-            $this->assertSame('inspector', adminActionMinRole($action), $action);
-        }
-        foreach (['update-contact', 'delete', 'bulk-delete', 'users', 'set-role', 'set-name', 'deactivate', 'activate',
-                  'events', 'event-create', 'settings', 'settings-update', 'feedback', 'season-links', 'anything-new'] as $action) {
-            $this->assertSame('admin', adminActionMinRole($action), $action);
-        }
-    }
-
     public function testRoleGateOutcome(): void
     {
         $this->assertSame('login', roleGateOutcome(null, 'user'));

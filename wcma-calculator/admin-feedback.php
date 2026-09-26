@@ -1,7 +1,7 @@
 <?php
 /**
  * Admin "Feedback" tab: list, detail view, status changes, GitHub retry.
- * Included by admin.php, which provides requireAuth() and the routing.
+ * Included by admin.php, which provides the admin gate and the routing.
  */
 
 function handleFeedbackList(PDO $pdo): void {
@@ -75,7 +75,7 @@ function renderFeedbackListPage(array $rows, ?array $flash): void {
 </head>
 <body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Feedback', renderAdminNav('feedback', (string)(current_user()['role'] ?? 'user')), 'staff'); ?>
+  <?php renderSiteHeader('Feedback', adminSubnavHtml('feedback'), 'admin'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <p class="list-summary"><?= count($rows) ?> item<?= count($rows) === 1 ? '' : 's' ?></p>
   <table class="data-table">
@@ -121,7 +121,7 @@ function renderFeedbackViewPage(array $f, string $csrf, ?array $flash, bool $git
 </head>
 <body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Feedback #' . (int)$f['id'], '<a href="admin.php?action=feedback">← Back to list</a>', 'staff'); ?>
+  <?php renderSiteHeader('Feedback #' . (int)$f['id'], '<a href="admin.php?action=feedback">← Back to list</a>', 'admin'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card" style="margin-bottom:1.5rem">
