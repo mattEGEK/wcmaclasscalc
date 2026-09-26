@@ -92,7 +92,8 @@ function db_init(PDO $pdo): void {
             role          TEXT NOT NULL DEFAULT 'user', -- 'user' | 'inspector' | 'admin'
             created_at    DATETIME NOT NULL,
             active        INTEGER NOT NULL DEFAULT 1,
-            reminder_emails INTEGER NOT NULL DEFAULT 0
+            reminder_emails INTEGER NOT NULL DEFAULT 0,
+            reminder_prompted_at DATETIME
         )
     ");
 
@@ -309,6 +310,17 @@ function db_init(PDO $pdo): void {
             url        TEXT NOT NULL,
             sort_order INTEGER NOT NULL DEFAULT 0,
             active     INTEGER NOT NULL DEFAULT 1
+        )
+    ");
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS reminder_log (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id   INTEGER NOT NULL,
+            event_id  INTEGER NOT NULL,
+            days_out  INTEGER NOT NULL,
+            sent_at   DATETIME NOT NULL,
+            UNIQUE (user_id, event_id, days_out)
         )
     ");
 
@@ -1660,4 +1672,30 @@ function db_count_event_plans(PDO $pdo): array {
         $counts[(int)$row['event_id']] = (int)$row['n'];
     }
     return $counts;
+}
+
+// ── Reminders (spec §7) ───────────────────────────────────────────────────────
+
+/** Turns reminder emails on or off. Either way the user has now chosen, so the one-time offer stops. */
+function db_set_user_reminders(PDO $pdo, int $userId, bool $on): void {
+    $pdo->prepare("UPDATE users SET reminder_emails = :on, reminder_prompted_at = COALESCE(reminder_prompted_at, :now) WHERE id = :id")
+        ->execute([':on' => $on ? 1 : 0, ':now' => date('Y-m-d H:i:s'), ':id' => $userId]);
+}
+
+/** Active accounts that turned reminder emails on, by id. */
+function db_get_reminder_users(PDO $pdo): array {
+    return $pdo->query("SELECT * FROM users WHERE reminder_emails = 1 AND active = 1 ORDER BY id ASC")->fetchAll();
+}
+
+function db_reminder_logged(PDO $pdo, int $userId, int $eventId, int $daysOut): bool {
+    $stmt = $pdo->prepare("SELECT 1 FROM reminder_log WHERE user_id = :u AND event_id = :e AND days_out = :d");
+    $stmt->execute([':u' => $userId, ':e' => $eventId, ':d' => $daysOut]);
+    return $stmt->fetchColumn() !== false;
+}
+
+/** Records a sent reminder. False when it was already recorded. */
+function db_log_reminder(PDO $pdo, int $userId, int $eventId, int $daysOut): bool {
+    $stmt = $pdo->prepare("INSERT OR IGNORE INTO reminder_log (user_id, event_id, days_out, sent_at) VALUES (:u, :e, :d, :now)");
+    $stmt->execute([':u' => $userId, ':e' => $eventId, ':d' => $daysOut, ':now' => date('Y-m-d H:i:s')]);
+    return $stmt->rowCount() === 1;
 }
