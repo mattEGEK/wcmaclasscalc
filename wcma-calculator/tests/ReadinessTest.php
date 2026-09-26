@@ -46,7 +46,7 @@ final class ReadinessTest extends TestCase
         $r = buildReadiness($this->world());
         $first = array_keys($this->items($r, 0));
         $second = array_keys($this->items($r, 1));
-        $this->assertEqualsCanonicalizing(['declaration:3', 'tech_sheet:3', 'car_tech:3', 'gear:5'], $first);
+        $this->assertEqualsCanonicalizing(['declaration:3', 'tech_sheet:3', 'car_tech:3', 'gear:5', 'gear:6'], $first);
         $this->assertSame(['tech_sheet:3'], $second);
     }
 
@@ -109,7 +109,7 @@ final class ReadinessTest extends TestCase
         $this->assertSame('todo', $carTech['state']);
     }
 
-    public function testGearUsesTheSheetsDriversOrTheSelfProfile(): void
+    public function testGearCoversTheSheetsDriversAndEveryDriverOnTheProfile(): void
     {
         $sheet = ['id' => 70, 'car_id' => 3, 'event_id' => 10, 'season' => 2026, 'status' => 'submitted', 'photo_status' => null, 'accepted_via' => null, 'driver_id' => 5];
         $r = buildReadiness($this->world(['sheets' => [$sheet], 'sheetDrivers' => [70 => [6]],
@@ -118,9 +118,18 @@ final class ReadinessTest extends TestCase
         $this->assertSame('done', $items['gear:5']['state']);
         $this->assertSame(['todo', 'gear.php?action=start&driver_id=6', 'Gear for Sam Patel'], [$items['gear:6']['state'], $items['gear:6']['action']['url'], $items['gear:6']['label']]);
 
-        $selfOnly = $this->items(buildReadiness($this->world()));
-        $this->assertArrayHasKey('gear:5', $selfOnly);
-        $this->assertArrayNotHasKey('gear:6', $selfOnly);
+        // No tech sheet yet: every driver on the profile still needs this season's gear (spec §3)
+        $noSheet = $this->items(buildReadiness($this->world()));
+        $this->assertSame('todo', $noSheet['gear:5']['state']);
+        $this->assertSame(['todo', 'Gear for Sam Patel'], [$noSheet['gear:6']['state'], $noSheet['gear:6']['label']]);
+
+        // A sheet naming only the self driver does not hide the other profile drivers
+        $selfSheet = $this->items(buildReadiness($this->world(['sheets' => [$sheet]])));
+        $this->assertArrayHasKey('gear:6', $selfSheet);
+
+        // Drivers who are not on this user's profile are never listed
+        $foreign = $this->items(buildReadiness($this->world(['sheets' => [$sheet], 'sheetDrivers' => [70 => [99]]])));
+        $this->assertArrayNotHasKey('gear:99', $foreign);
     }
 
     public function testNothingTaggedMeansNoEventsAndAllUpcomingUntagged(): void
@@ -155,7 +164,7 @@ final class ReadinessTest extends TestCase
         ]));
         $kinds = array_map(fn($i) => $i['kind'] . ':' . $i['subject_id'], $r['events'][0]['items']);
         $this->assertSame(
-            ['declaration:3', 'tech_sheet:3', 'car_tech:3', 'gear:5', 'declaration:4', 'tech_sheet:4', 'car_tech:4'],
+            ['declaration:3', 'tech_sheet:3', 'car_tech:3', 'gear:5', 'gear:6', 'declaration:4', 'tech_sheet:4', 'car_tech:4'],
             $kinds
         );
         $this->assertSame(1, count(array_filter($kinds, fn($k) => $k === 'gear:5')));

@@ -114,9 +114,14 @@ function buildReadiness(array $in): array {
                    $status['sheet_id'] !== null ? 'tech-sheets.php?action=pretech&id=' . $status['sheet_id'] : null);
             }
 
-            $driverIds = $eventSheet !== null
-                ? array_values(array_unique(array_filter(array_merge([(int)($eventSheet['driver_id'] ?? 0)], array_map('intval', $in['sheetDrivers'][(int)$eventSheet['id']] ?? [])))))
-                : [(int)$in['selfDriverId']];
+            // Every driver on the profile needs this season's gear checked (spec §3), not only
+            // those named on a tech sheet. The sheet's drivers and the self driver come first.
+            $sheetDriverIds = $eventSheet !== null
+                ? array_merge([(int)($eventSheet['driver_id'] ?? 0)], array_map('intval', $in['sheetDrivers'][(int)$eventSheet['id']] ?? []))
+                : [];
+            $driverIds = array_values(array_unique(array_filter(array_merge(
+                $sheetDriverIds, [(int)$in['selfDriverId']], array_map('intval', array_keys($in['drivers']))
+            ))));
             foreach ($driverIds as $did) {
                 if (!isset($in['drivers'][$did]) || !$once("gear:$did")) continue;
                 $name = (string)$in['drivers'][$did]['name'];
