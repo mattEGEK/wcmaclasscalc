@@ -36,7 +36,7 @@ final class CalculatorPageTest extends TestCase
     public function testRedirectWhitelist(): void
     {
         require_once __DIR__ . '/../view_helpers.php';
-        $src = $this->src('auth.php');
+        $src = str_replace("\r\n", "\n", $this->src('auth.php'));
         $start = strpos($src, 'function safeRedirectTarget');
         $end = strpos($src, "\n}\n", $start);
         eval(substr($src, $start, $end - $start + 2));
