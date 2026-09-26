@@ -1543,7 +1543,7 @@ function db_get_event_roster_cars(PDO $pdo, int $eventId): array {
         FROM cars c JOIN users u ON u.id = c.owner_user_id
         WHERE c.id IN (SELECT car_id FROM event_plans WHERE event_id = :e
                        UNION SELECT car_id FROM tech_sheets WHERE event_id = :e)
-        ORDER BY CAST(c.car_number_norm AS INTEGER) ASC, c.car_number_norm ASC, c.id ASC
+        ORDER BY (c.car_number_norm GLOB '[0-9]*') DESC, CAST(c.car_number_norm AS INTEGER) ASC, c.car_number_norm ASC, c.id ASC
     ");
     $stmt->execute([':e' => $eventId]);
     return $stmt->fetchAll();

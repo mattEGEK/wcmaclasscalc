@@ -22,18 +22,21 @@ final class DbInspectTest extends TestCase
         $c42 = test_make_car($pdo, $jordan, '42');
         $c7 = test_make_car($pdo, $casey, '7');
         $c99 = test_make_car($pdo, $casey, '99');
+        $cA1 = test_make_car($pdo, $jordan, 'A1');                  // text car number
         test_make_car($pdo, $jordan, '5');                          // not going anywhere
         db_tag_event($pdo, $jordan, $fall, $c42);
+        db_tag_event($pdo, $jordan, $fall, $cA1);                  // text car, tagged
         $sub7 = db_insert_submission($pdo, test_declaration_data($pdo, $casey, '7'));
         test_make_sheet($pdo, $casey, $sub7, $fall, '7');          // a sheet, but not tagged
         db_tag_event($pdo, $casey, $other, $c99);                  // a different event
 
         $rows = db_get_event_roster_cars($pdo, $fall);
-        $this->assertSame([$c7, $c42], $this->ids($rows));
+        $this->assertSame([$c7, $c42, $cA1], $this->ids($rows));
         $this->assertSame('Casey Moss', $rows[0]['owner_name']);
         $this->assertSame('casey@example.com', $rows[0]['owner_email']);
         $this->assertSame(0, (int)$rows[0]['tagged']);
         $this->assertSame(1, (int)$rows[1]['tagged']);
+        $this->assertSame(1, (int)$rows[2]['tagged']);
         $this->assertSame([], db_get_event_roster_cars($pdo, 999));
     }
 
