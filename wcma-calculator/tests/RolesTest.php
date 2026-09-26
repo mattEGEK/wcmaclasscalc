@@ -48,4 +48,20 @@ final class RolesTest extends TestCase
         $this->assertFalse(userHasFirstAndLastName('Ivy'));
         $this->assertFalse(userHasFirstAndLastName('   '));
     }
+
+    public function testInspectorSectionIsOpenToInspectorsExceptDeclarationHousekeeping(): void
+    {
+        foreach (['roster', 'queue', 'classing', 'declaration', 'declaration-accept', 'declaration-send-back',
+                  'declaration-resend', 'gear-create-accept', 'tech-sheet-accept', 'anything-new'] as $action) {
+            $this->assertSame('inspector', inspectActionMinRole($action), $action);
+        }
+        foreach (['declaration-delete', 'declarations-bulk-delete', 'declaration-update-contact'] as $action) {
+            $this->assertSame('admin', inspectActionMinRole($action), $action);
+            $this->assertContains($action, INSPECT_POST_ACTIONS, $action);
+        }
+        foreach (['roster', 'queue', 'classing', 'declaration', 'declaration-file', 'declarations-export',
+                  'tech-sheet', 'tech-sheet-sig', 'gear', 'gear-record'] as $action) {
+            $this->assertNotContains($action, INSPECT_POST_ACTIONS, $action);
+        }
+    }
 }

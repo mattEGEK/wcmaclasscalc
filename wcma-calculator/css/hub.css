@@ -39,6 +39,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .hub-nav-current { border-bottom-color: var(--hub-red); }
 .hub-nav-staff { border-left: 1px solid var(--hub-line); margin-left: 8px; padding-left: 8px; }
 .hub-nav-staff a, .hub-nav-staff .hub-nav-current { color: var(--hub-ink-2); }
+.hub-nav-staff + .hub-nav-staff { border-left: 0; margin-left: 0; padding-left: 0; }
 
 /* Account and menu */
 .hub-account { margin-left: auto; font-size: 16px; }
@@ -50,6 +51,20 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 /* Sub-navigation */
 .hub-subnav { background: var(--hub-card); border-bottom: 1px solid var(--hub-line); font-size: 16px; padding: 8px 0; }
 .hub-subnav a { color: var(--hub-red-ink); }
+
+/* Section tabs (Inspector, Admin) */
+.hub-tabs ul { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.hub-tabs a, .hub-tab-current {
+  min-height: var(--hub-tap);
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 3px solid transparent;
+}
+.hub-tabs a { color: var(--hub-ink-2); }
+.hub-tab-current { color: var(--hub-ink); border-bottom-color: var(--hub-red); }
 
 /* Footer */
 .hub-footer { margin-top: 48px; padding: 24px 0; border-top: 1px solid var(--hub-line); }

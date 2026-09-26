@@ -31,6 +31,21 @@ function adminActionMinRole(string $action): string {
     return in_array($action, ADMIN_INSPECTOR_ACTIONS, true) ? 'inspector' : 'admin';
 }
 
+/** inspect.php actions only admins may use. Everything else in the Inspector section is open to inspectors. */
+const INSPECT_ADMIN_ONLY_ACTIONS = ['declaration-delete', 'declarations-bulk-delete', 'declaration-update-contact'];
+
+/** inspect.php actions that change data: POST-only and CSRF-checked in inspect.php before its router runs. */
+const INSPECT_POST_ACTIONS = [
+    'tech-sheet-accept', 'tech-sheet-revoke', 'tech-sheet-photos-accept', 'tech-sheet-photos-send-back',
+    'gear-record-accept', 'gear-record-revoke', 'gear-photos-accept', 'gear-photos-send-back', 'gear-create-accept',
+    'declaration-accept', 'declaration-send-back', 'declaration-resend',
+    'declaration-delete', 'declarations-bulk-delete', 'declaration-update-contact',
+];
+
+function inspectActionMinRole(string $action): string {
+    return in_array($action, INSPECT_ADMIN_ONLY_ACTIONS, true) ? 'admin' : 'inspector';
+}
+
 /** Staff review emails name the reviewer, so staff accounts need at least two name words. */
 function userHasFirstAndLastName(string $name): bool {
     return count(preg_split('/\s+/', trim($name), -1, PREG_SPLIT_NO_EMPTY)) >= 2;

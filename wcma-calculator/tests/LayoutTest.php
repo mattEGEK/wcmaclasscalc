@@ -15,13 +15,56 @@ final class LayoutTest extends TestCase
     {
         $this->assertSame(['home', 'calculator', 'signin'], $this->keys(null));
         $this->assertSame(['home', 'garage', 'drivers', 'calculator'], $this->keys(['id' => 1, 'name' => 'Jordan Lee', 'role' => 'user']));
-        $this->assertSame(['home', 'garage', 'drivers', 'calculator', 'staff'], $this->keys(['id' => 1, 'name' => 'Ivy Inspector', 'role' => 'inspector']));
+        $this->assertSame(['home', 'garage', 'drivers', 'calculator', 'inspect'], $this->keys(['id' => 1, 'name' => 'Ivy Inspector', 'role' => 'inspector']));
+        $this->assertSame(['home', 'garage', 'drivers', 'calculator', 'inspect', 'admin'], $this->keys(['id' => 1, 'name' => 'Site Admin', 'role' => 'admin']));
 
-        $staff = array_column(hubNavItems(['id' => 1, 'name' => 'Ivy Inspector', 'role' => 'inspector']), 'label', 'key');
-        $this->assertSame('Inspector', $staff['staff']);
-        $admin = array_column(hubNavItems(['id' => 1, 'name' => 'Site Admin', 'role' => 'admin']), 'label', 'key');
-        $this->assertSame('Admin', $admin['staff']);
-        $this->assertSame('Class Calculator', $admin['calculator']);
+        $admin = array_column(hubNavItems(['id' => 1, 'name' => 'Site Admin', 'role' => 'admin']), 'href', 'label');
+        $this->assertSame('inspect.php', $admin['Inspector']);
+        $this->assertSame('admin.php', $admin['Admin']);
+        $this->assertSame('calculator.php', $admin['Class Calculator']);
+    }
+
+    public function testStaffSectionsSitAfterADivider(): void
+    {
+        $html = hubNavHtml(['id' => 1, 'name' => 'Site Admin', 'role' => 'admin'], 'inspect');
+        $this->assertSame(2, substr_count($html, '<li class="hub-nav-staff">'));
+        $this->assertStringContainsString('<li class="hub-nav-staff"><span class="hub-nav-current" aria-current="page">Inspector</span></li>', $html);
+        $this->assertStringContainsString('<li class="hub-nav-staff"><a href="admin.php">Admin</a></li>', $html);
+        $this->assertStringContainsString('<li><a href="garage.php">Garage</a></li>', $html);
+    }
+
+    public function testSectionTabsMarkTheCurrentTab(): void
+    {
+        $html = inspectSubnavHtml('queue');
+        $this->assertStringContainsString('<nav class="hub-tabs" aria-label="Inspector">', $html);
+        $this->assertStringContainsString('<span class="hub-tab-current" aria-current="page">Review queue</span>', $html);
+        foreach (['href="inspect.php">Event roster<', 'href="inspect.php?action=classing">Classing<', 'href="inspect.php?action=gear">Gear<'] as $needle) {
+            $this->assertStringContainsString($needle, $html);
+        }
+        $this->assertStringNotContainsString('hub-tab-current', inspectSubnavHtml('nope'));
+
+        $admin = adminSubnavHtml('events');
+        $this->assertStringContainsString('<nav class="hub-tabs" aria-label="Admin">', $admin);
+        $this->assertStringContainsString('<span class="hub-tab-current" aria-current="page">Events</span>', $admin);
+        foreach (['Users &amp; roles', 'Season links', 'Settings', 'Feedback'] as $label) {
+            $this->assertStringContainsString('>' . $label . '</a>', $admin);
+        }
+    }
+
+    public function testForbiddenPageRendersInsideTheLayout(): void
+    {
+        $GLOBALS['TEST_CURRENT_USER'] = ['id' => 3, 'name' => 'Jordan Lee', 'role' => 'user'];
+        ob_start();
+        hubRenderForbidden();
+        $html = ob_get_clean();
+        unset($GLOBALS['TEST_CURRENT_USER']);
+
+        $this->assertStringContainsString('class="hub-header"', $html);
+        $this->assertStringContainsString('You don&#039;t have access to this page', $html);
+        $this->assertStringContainsString('<a class="hub-btn" href="index.php">Go to Home</a>', $html);
+
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../session_bootstrap.php'));
+        $this->assertMatchesRegularExpression("/case 'forbidden':\\s*http_response_code\\(403\\);\\s*require_once __DIR__ \\. '\\/view_helpers\\.php';[^\\n]*\\n\\s*hubRenderForbidden\\(\\);\\s*exit;/", $src);
     }
 
     public function testCurrentSectionIsInertText(): void
