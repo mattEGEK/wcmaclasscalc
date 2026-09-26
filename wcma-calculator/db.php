@@ -482,6 +482,35 @@ function db_restore_current_declaration(PDO $pdo, int $carId): void {
         ->execute([':s' => $status, ':id' => $newest['id']]);
 }
 
+/**
+ * An inspector accepts a declaration (spec §5). Atomic: only from 'submitted' or 'needs_changes', so
+ * a declaration a re-declaration superseded in the meantime is refused. accepted_at is the lasting
+ * record of the acceptance: it survives superseding (see db_restore_current_declaration()).
+ */
+function db_accept_declaration(PDO $pdo, int $id, int $reviewerUserId): bool {
+    $stmt = $pdo->prepare("
+        UPDATE submissions SET review_status = 'accepted', accepted_at = :now, reviewer_note = NULL,
+            reviewed_by_user_id = :reviewer, reviewed_at = :now
+        WHERE id = :id AND review_status IN ('submitted', 'needs_changes')
+    ");
+    $stmt->execute([':now' => date('Y-m-d H:i:s'), ':reviewer' => $reviewerUserId, ':id' => $id]);
+    return $stmt->rowCount() === 1;
+}
+
+/**
+ * An inspector sends a declaration back with a note (-> 'needs_changes'). Atomic: only from 'submitted'
+ * or 'accepted'. Sending back an accepted declaration withdraws the acceptance, so accepted_at is cleared.
+ */
+function db_send_back_declaration(PDO $pdo, int $id, int $reviewerUserId, string $note): bool {
+    $stmt = $pdo->prepare("
+        UPDATE submissions SET review_status = 'needs_changes', reviewer_note = :note, accepted_at = NULL,
+            reviewed_by_user_id = :reviewer, reviewed_at = :now
+        WHERE id = :id AND review_status IN ('submitted', 'accepted')
+    ");
+    $stmt->execute([':note' => $note, ':now' => date('Y-m-d H:i:s'), ':reviewer' => $reviewerUserId, ':id' => $id]);
+    return $stmt->rowCount() === 1;
+}
+
 function db_delete_submissions(PDO $pdo, array $ids): int {
     if (empty($ids)) return 0;
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
