@@ -325,3 +325,17 @@ function inspectDeclarationAdminHtml(array $s, string $csrf): string {
         . inspectCsrfField($csrf) . '<input type="hidden" name="id" value="' . $id . '">'
         . '<button type="submit" class="hub-btn hub-btn--link">Delete this declaration (admin)</button></form>';
 }
+
+/** The Review queue tab: everything waiting on an inspector, oldest first, each linking to its review card. */
+function renderInspectQueueHtml(array $items): string {
+    $out = '<h1 class="hub-page-title">Review queue</h1>';
+    if (!$items) return $out . '<p class="hub-card">Nothing is waiting for review.</p>';
+    $n = count($items);
+    $out .= '<p>' . $n . ' ' . ($n === 1 ? 'item is' : 'items are') . ' waiting, oldest first.</p><ol class="hub-card inspect-queue">';
+    foreach ($items as $item) {
+        $out .= '<li class="hub-line"><span><strong>' . h($item['title']) . '</strong><br>'
+            . '<span class="inspect-muted">' . h($item['detail']) . ' · waiting since ' . h(date('M j, g:i A', strtotime($item['since']))) . '</span></span>'
+            . '<a class="hub-btn" href="' . h($item['url']) . '">Review</a></li>';
+    }
+    return $out . '</ol>';
+}

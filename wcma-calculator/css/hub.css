@@ -205,6 +205,8 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .inspect-facts dd { margin: 4px 0 0; }
 .inspect-muted { color: var(--hub-ink-2); font-size: 16px; }
 .inspect-num { text-align: right; font-variant-numeric: tabular-nums; }
+.inspect-queue { list-style: none; padding: 6px 20px; }
+.inspect-queue .hub-line { gap: 12px; }
 
 /* Phone */
 @media screen and (max-width: 700px) {

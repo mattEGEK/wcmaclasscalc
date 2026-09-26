@@ -125,4 +125,13 @@ final class InspectSourceTest extends TestCase
     {
         $this->assertStringContainsString("fn(\$v): int => is_scalar(\$v) ? (int)\$v : 0", $this->src('inspect.php'));
     }
+
+    public function testQueueRouteBuildsFromTheThreeQueries(): void
+    {
+        $this->assertContains('queue', $this->routes());
+        $show = $this->body('inspect.php', 'inspectShowQueue');
+        foreach (['db_get_declarations_awaiting_review($pdo)', 'db_get_sheets_awaiting_photo_review($pdo)', 'db_get_gear_awaiting_photo_review($pdo)', "inspectSubnavHtml('queue')"] as $needle) {
+            $this->assertStringContainsString($needle, $show);
+        }
+    }
 }

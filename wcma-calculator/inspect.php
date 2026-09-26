@@ -96,6 +96,9 @@ switch ($action) {
     case 'gear-create-accept':
         handleGearCreateAccept($pdo);
         break;
+    case 'queue':
+        inspectShowQueue($pdo);
+        break;
     case 'classing':
         inspectShowClassing($pdo);
         break;
@@ -162,6 +165,17 @@ function inspectShowRoster(PDO $pdo): void {
         'season' => $season, 'csrf' => generateCsrfToken(),
     ]);
     renderPageEnd(['scripts' => '<script src="js/form-feedback.js"></script>']);
+}
+
+function inspectShowQueue(PDO $pdo): void {
+    $items = inspectReviewQueue(
+        db_get_declarations_awaiting_review($pdo),
+        db_get_sheets_awaiting_photo_review($pdo),
+        db_get_gear_awaiting_photo_review($pdo)
+    );
+    renderPageStart('Review queue', 'inspect', ['flash' => getFlash(), 'subnav' => inspectSubnavHtml('queue')]);
+    echo renderInspectQueueHtml($items);
+    renderPageEnd();
 }
 
 function inspectShowClassing(PDO $pdo): void {

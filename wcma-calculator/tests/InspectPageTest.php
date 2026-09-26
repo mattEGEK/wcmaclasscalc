@@ -189,4 +189,20 @@ final class InspectPageTest extends TestCase
         $this->assertStringContainsString("Showing one car's declarations.", $html);
         $this->assertStringContainsString('<input type="hidden" name="car" value="3">', $html);
     }
+
+    public function testQueueListsItemsOldestFirstWithReviewLinks(): void
+    {
+        $car = ['kind' => 'car_photos', 'id' => 12, 'title' => 'Car pre-tech photos: #17 <Miata>', 'detail' => 'Jordan Lee · Fall Sprint',
+                'since' => '2026-09-01 08:00:00', 'url' => 'inspect.php?action=tech-sheet&id=12#pretech-review'];
+        $decl = ['kind' => 'declaration', 'id' => 4, 'title' => 'Class declaration: #42 2004 Honda S2000', 'detail' => 'Jordan Lee · GT3',
+                 'since' => '2026-09-03 09:00:00', 'url' => 'inspect.php?action=declaration&id=4'];
+        $html = renderInspectQueueHtml([$car, $decl]);
+        $this->assertStringContainsString('2 items are waiting, oldest first.', $html);
+        $this->assertStringContainsString('#17 &lt;Miata&gt;', $html);
+        $this->assertStringContainsString('href="inspect.php?action=tech-sheet&amp;id=12#pretech-review">Review</a>', $html);
+        $this->assertStringContainsString('waiting since Sep 1, 8:00 AM', $html);
+        $this->assertLessThan(strpos($html, 'Class declaration'), strpos($html, 'Car pre-tech photos'));
+        $this->assertStringContainsString('1 item is waiting, oldest first.', renderInspectQueueHtml([$decl]));
+        $this->assertStringContainsString('Nothing is waiting for review.', renderInspectQueueHtml([]));
+    }
 }
