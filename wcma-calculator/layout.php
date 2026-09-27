@@ -28,6 +28,9 @@ function hubNavItems(?array $user): array {
     if (user_has_role($user, 'inspector')) {
         $items[] = ['key' => 'inspect', 'label' => 'Inspector', 'href' => 'inspect.php', 'staff' => true];
     }
+    if (mediaCanAccess($user)) {
+        $items[] = ['key' => 'media', 'label' => 'Media', 'href' => 'media.php', 'staff' => true];
+    }
     if (user_has_role($user, 'admin')) {
         $items[] = ['key' => 'admin', 'label' => 'Admin', 'href' => 'admin.php', 'staff' => true];
     }
@@ -87,8 +90,18 @@ const ADMIN_TABS = [
     'feedback' => ['admin.php?action=feedback', 'Feedback'],
 ];
 
+const MEDIA_TABS = [
+    'announcer' => ['media.php', 'Announcer'],
+    'kit' => ['media.php?action=kit', 'Media kit'],
+    'review' => ['media.php?action=review', 'Public review'],
+];
+
 function inspectSubnavHtml(string $current): string {
     return hubSubnavHtml('Inspector', INSPECT_TABS, $current);
+}
+
+function mediaSubnavHtml(string $current): string {
+    return hubSubnavHtml('Media', MEDIA_TABS, $current);
 }
 
 function adminSubnavHtml(string $current): string {

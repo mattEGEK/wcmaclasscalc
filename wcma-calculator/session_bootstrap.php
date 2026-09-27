@@ -20,6 +20,7 @@ function current_user(): ?array {
         'id'   => $_SESSION['user_id'],
         'name' => $_SESSION['user_name'],
         'role' => $_SESSION['user_role'],
+        'is_media' => (int)($_SESSION['user_is_media'] ?? 0),
     ];
 }
 
@@ -57,4 +58,5 @@ function login_user(array $user): void {
     $_SESSION['user_id']   = $user['id'];
     $_SESSION['user_name'] = $user['name'];
     $_SESSION['user_role'] = $user['role'];
+    $_SESSION['user_is_media'] = (int)($user['is_media'] ?? 0);
 }
