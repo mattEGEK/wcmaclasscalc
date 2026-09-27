@@ -42,7 +42,7 @@ final class HubDbToolsTest extends TestCase
         $this->assertCount(2, $cars);
         $this->assertNotNull(db_get_car_current_declaration($pdo, (int)$cars[0]['id']));
         $this->assertCount(2, db_get_user_drivers($pdo, (int)$jordan['id']));
-        $this->assertCount(2, db_get_active_events($pdo));
+        $this->assertCount(4, db_get_active_events($pdo));
         $this->assertCount(3, db_get_season_links($pdo, true));
         $this->assertCount(1, db_get_user_tech_sheets($pdo, (int)$jordan['id']));
 
@@ -91,5 +91,13 @@ final class HubDbToolsTest extends TestCase
         exec(escapeshellarg(PHP_BINARY) . ' ' . escapeshellarg(__DIR__ . '/../reset-hub-db.php') . ' 2>&1', $out, $code);
         $this->assertSame(1, $code);
         $this->assertStringContainsString('--confirm', implode("\n", $out));
+    }
+
+    public function testSeedIncludesOneIceEventPerClub(): void
+    {
+        $pdo = make_temp_pdo();
+        hubSeed($pdo, 'password123');
+        $ice = array_values(array_filter(db_get_all_events($pdo), fn(array $e): bool => $e['discipline'] === 'ice'));
+        $this->assertEqualsCanonicalizing(['NASCC', 'WSCC'], array_column($ice, 'host_club'));
     }
 }

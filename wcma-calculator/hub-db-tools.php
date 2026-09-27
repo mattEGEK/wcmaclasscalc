@@ -48,6 +48,8 @@ function hubSeed(PDO $pdo, string $password): array {
     $year = (int)date('Y');
     $fall = db_create_event($pdo, 'Fall Sprint', date('Y-m-d', strtotime('+17 days')), 'Castrol Raceway');
     db_create_event($pdo, 'Season Finale', date('Y-m-d', strtotime('+31 days')), 'Castrol Raceway');
+    db_create_event($pdo, 'NASCC Ice Race #1', date('Y-m-d', strtotime('+45 days')), 'Lake Wabamun', 'ice', 'NASCC');
+    db_create_event($pdo, 'WSCC Fire on Ice #1', date('Y-m-d', strtotime('+52 days')), 'Lake Shirley', 'ice', 'WSCC');
 
     $s2000 = db_create_car($pdo, $jordan, ['car_number' => '42', 'year' => '2004', 'make' => 'Honda', 'model' => 'S2000', 'colour' => 'Silver', 'engine_cc' => '1997']);
     $miata = db_create_car($pdo, $jordan, ['car_number' => '17', 'year' => '1999', 'make' => 'Mazda', 'model' => 'Miata', 'colour' => 'Red', 'engine_cc' => '1839']);
@@ -113,5 +115,5 @@ function hubSeed(PDO $pdo, string $password): array {
     db_insert_media_consent($pdo, ['driver_id' => $samDriver, 'consent_media' => 1, 'consent_public' => 0, 'is_minor' => 1,
         'guardian_name' => 'Priya Patel', 'given_by_user_id' => $jordan, 'on_behalf' => 1, 'wording_version' => 1]);
 
-    return ['users' => 4, 'cars' => 2, 'events' => 2, 'tech_sheets' => 1, 'season_links' => 3, 'event_plans' => 1, 'media_profiles' => 2];
+    return ['users' => 4, 'cars' => 2, 'events' => 4, 'tech_sheets' => 1, 'season_links' => 3, 'event_plans' => 1, 'media_profiles' => 2];
 }
