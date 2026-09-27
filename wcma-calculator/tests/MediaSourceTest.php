@@ -10,6 +10,14 @@ final class MediaSourceTest extends TestCase
         return str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../' . $file));
     }
 
+    /** db.php already loads tech-status.php, so a plain require of it redeclares functions (a fatal 500). */
+    public function testTechStatusIsOnlyEverRequiredOnce(): void
+    {
+        foreach (glob(__DIR__ . '/../*.php') as $file) {
+            $this->assertDoesNotMatchRegularExpression("/\brequire\s+__DIR__\s*\.\s*'\/tech-status\.php'/", $this->src(basename($file)), basename($file));
+        }
+    }
+
     public function testSessionCarriesTheMediaFlag(): void
     {
         $src = $this->src('session_bootstrap.php');

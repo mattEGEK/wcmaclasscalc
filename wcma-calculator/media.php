@@ -7,7 +7,7 @@ require __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
 require __DIR__ . '/view_helpers.php';
 require __DIR__ . '/feedback-lib.php';          // feedbackBaseUrl()
-require __DIR__ . '/tech-status.php';           // techDefaultEventId()
+require_once __DIR__ . '/tech-status.php';           // techDefaultEventId()
 require __DIR__ . '/photo-requirements.php';
 require __DIR__ . '/inspection-lib.php';
 require __DIR__ . '/media-lib.php';
