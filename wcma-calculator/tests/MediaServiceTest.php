@@ -201,12 +201,12 @@ final class MediaServiceTest extends TestCase
         mediaSaveProfile($pdo, $u, $d, ['blurb' => 'Fast.', 'consent_media' => '1', 'consent_public' => '1'], null, $this->base, 'rename');
 
         $this->assertSame('Add a note so the driver knows what to change.', mediaReviewAction($pdo, 'media-send-back', $d, $u, ' ')['error']);
-        $r = mediaReviewAction($pdo, 'media-send-back', $d, $u, 'Brighter photo');
-        $this->assertSame(['ok' => true, 'error' => null, 'notify' => 'sent_back'], $r);
+        $r = mediaReviewAction($pdo, 'media-send-back', $d, $u, '  Brighter   photo ');
+        $this->assertSame(['ok' => true, 'error' => null, 'notify' => 'sent_back', 'note' => 'Brighter photo'], $r);
         $this->assertSame('That profile is not waiting for review.', mediaReviewAction($pdo, 'media-accept', $d, $u, '')['error']);
 
         mediaSaveProfile($pdo, $u, $d, ['blurb' => 'Faster.', 'consent_media' => '1', 'consent_public' => '1'], null, $this->base, 'rename');
-        $this->assertSame(['ok' => true, 'error' => null, 'notify' => null], mediaReviewAction($pdo, 'media-accept', $d, $u, ''));
+        $this->assertSame(['ok' => true, 'error' => null, 'notify' => null, 'note' => ''], mediaReviewAction($pdo, 'media-accept', $d, $u, ''));
         $this->assertSame('accepted', db_get_media_profile($pdo, $d)['public_status']);
 
         $this->assertSame('Add a reason for hiding it.', mediaReviewAction($pdo, 'media-hide', $d, $u, '')['error']);

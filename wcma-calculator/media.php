@@ -30,10 +30,6 @@ if (!mediaCanAccess($user)) {
 }
 
 $action = is_string($_GET['action'] ?? null) && $_GET['action'] !== '' ? $_GET['action'] : 'announcer';
-$season = (int)date('Y');
-$events = db_get_all_events($pdo);
-$eventIds = array_map(fn(array $e): int => (int)$e['id'], $events);
-$eventParam = is_scalar($_GET['event'] ?? null) ? (int)$_GET['event'] : -1;
 
 if (in_array($action, MEDIA_POST_ACTIONS, true)) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: media.php?action=review'); exit; }
@@ -46,7 +42,7 @@ if (in_array($action, MEDIA_POST_ACTIONS, true)) {
         $done = ['media-accept' => 'Accepted. The public page is live.', 'media-send-back' => 'Sent back with your note.',
                  'media-hide' => 'Hidden everywhere.', 'media-unhide' => 'Unhidden.'][$action];
         if ($r['notify'] !== null) {
-            $sent = mediaNotifyOwner($pdo, $r['notify'], $driverId, (string)$_POST['note'],
+            $sent = mediaNotifyOwner($pdo, $r['notify'], $driverId, $r['note'],
                 feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', '')), 'emailSmtpSend');
             $done .= $sent ? ' The driver was emailed.' : ' The email could not be sent.';
         }
@@ -55,6 +51,11 @@ if (in_array($action, MEDIA_POST_ACTIONS, true)) {
     header('Location: media.php?action=review');
     exit;
 }
+
+$season = (int)date('Y');
+$events = db_get_all_events($pdo);
+$eventIds = array_map(fn(array $e): int => (int)$e['id'], $events);
+$eventParam = is_scalar($_GET['event'] ?? null) ? (int)$_GET['event'] : -1;
 
 switch ($action) {
     case 'kit':

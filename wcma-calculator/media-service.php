@@ -171,10 +171,11 @@ function mediaKitEntries(PDO $pdo, int $eventId, int $season): array {
 
 const MEDIA_POST_ACTIONS = ['media-accept', 'media-send-back', 'media-hide', 'media-unhide'];
 
-/** @return array{ok: bool, error: ?string, notify: ?string} */
+/** @return array{ok: bool, error: ?string, notify: ?string, note: string} note is the normalised note on
+ *  success when the action carries one (send-back, hide); '' on failure or when not applicable. */
 function mediaReviewAction(PDO $pdo, string $action, int $driverId, int $reviewerId, string $note): array {
-    $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'notify' => null];
-    $ok = fn(?string $notify = null): array => ['ok' => true, 'error' => null, 'notify' => $notify];
+    $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'notify' => null, 'note' => ''];
+    $ok = fn(?string $notify = null, string $n = ''): array => ['ok' => true, 'error' => null, 'notify' => $notify, 'note' => $n];
     if (!in_array($action, MEDIA_POST_ACTIONS, true)) return $fail('Unknown action.');
     $profile = db_get_media_profile($pdo, $driverId);
     if ($profile === null) return $fail('That profile no longer exists.');
@@ -189,11 +190,11 @@ function mediaReviewAction(PDO $pdo, string $action, int $driverId, int $reviewe
             if ($note === '') return $fail('Add a note so the driver knows what to change.');
             if ($profile['public_status'] !== 'pending_review') return $fail('That profile is not waiting for review.');
             db_set_media_public_status($pdo, $driverId, 'sent_back', $reviewerId, $note);
-            return $ok('sent_back');
+            return $ok('sent_back', $note);
         case 'media-hide':
             if ($note === '') return $fail('Add a reason for hiding it.');
             db_set_media_hidden($pdo, $driverId, $reviewerId, $note);
-            return $ok('hidden');
+            return $ok('hidden', $note);
         default:   // media-unhide
             db_set_media_hidden($pdo, $driverId, null, null);
             return $ok();
