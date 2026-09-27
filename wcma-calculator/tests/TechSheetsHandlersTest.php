@@ -99,4 +99,52 @@ final class TechSheetsHandlersTest extends TestCase
             $updateBody
         );
     }
+
+    public function testIceRoutesExist(): void
+    {
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../tech-sheets.php'));
+        $this->assertStringContainsString("case 'new-ice':", $src);
+        $this->assertStringContainsString("case 'submit-ice':", $src);
+        $this->assertStringContainsString("require __DIR__ . '/ice-sheet-page.php';", $src);
+    }
+
+    public function testNewIceUsesIceEventsAndNoDeclaration(): void
+    {
+        foreach (['handleNewIce', 'handleSubmitIce'] as $fn) {
+            $body = $this->body($fn);
+            $this->assertStringContainsString('db_get_user_car(', $body, $fn);
+            $this->assertStringNotContainsString('db_get_car_current_declaration(', $body, $fn);
+        }
+        $this->assertStringContainsString('db_get_active_events($pdo, DISCIPLINE_ICE)', $this->body('handleNewIce'));
+        $submit = $this->body('handleSubmitIce');
+        $this->assertStringContainsString('iceSheetValidate(', $submit);
+        $this->assertStringContainsString("'car_id' => \$carId", $submit);
+        $this->assertStringContainsString("'sheet_type' => 'ice'", $submit);
+        $this->assertStringContainsString('catch (InvalidArgumentException $e)', $submit);
+        $this->assertStringContainsString('techSheetRecipientEmail(', $submit);
+    }
+
+    public function testIceUpdateKeepsTheSheetsEventAndEmailsTheAccountHolder(): void
+    {
+        $body = $this->body('handleUpdateIce');
+        $this->assertStringContainsString("'event_id' => (int)\$sheet['event_id']", $body);
+        $this->assertStringNotContainsString("\$_POST['event_id']", $body);
+        $this->assertStringContainsString('iceSheetValidate(', $body);
+        $this->assertStringContainsString('techSheetRecipientEmail(', $body);
+        $this->assertStringContainsString('handleUpdateIce(', $this->body('handleUpdate'));
+        $this->assertStringContainsString('techSheetIsIce(', $this->body('handleEdit'));
+    }
+
+    public function testPretechIsOffForIceSheets(): void
+    {
+        foreach (['handlePretech', 'handlePretechSubmit'] as $fn) {
+            $this->assertStringContainsString('techSheetIsIce(', $this->body($fn), $fn);
+        }
+        $this->assertStringContainsString('!techSheetIsIce($sheet)', $this->body('handleView'));
+    }
+
+    public function testResendUsesTheRecipientHelper(): void
+    {
+        $this->assertStringContainsString('techSheetRecipientEmail(', $this->body('handleResendTechSheet'));
+    }
 }

@@ -62,4 +62,24 @@ final class TechSheetDriverChoiceTest extends TestCase
         $this->assertSame('6', techSheetDriverChoiceFor($this->owned(), ' Sam  PATEL '));
         $this->assertSame('new', techSheetDriverChoiceFor($this->owned(), 'Pat Old-Name'));
     }
+
+    public function testDriver1FormStatePicksYouForANewSheetAndTheSheetsDriverForAnEdit(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = db_create_user($pdo, ['email' => 'd@example.com', 'name' => 'Jordan Lee', 'password_hash' => 'x', 'google_id' => null]);
+        $self = (int)db_get_self_driver($pdo, $u)['id'];
+        $sam = db_create_driver($pdo, $u, 'Sam Patel');
+        $drivers = db_get_user_drivers($pdo, $u);
+
+        $new = techSheetDriver1FormState($drivers, null);
+        $this->assertSame($self, $new['selfId']);
+        $this->assertSame((string)$self, $new['choice']);
+        $this->assertSame('', $new['newName']);
+        $this->assertCount(count($drivers), $new['driversForJs']);
+
+        $this->assertSame((string)$sam, techSheetDriver1FormState($drivers, ['driver_name' => 'Sam Patel'])['choice']);
+        $gone = techSheetDriver1FormState($drivers, ['driver_name' => 'Alex Rivera']);
+        $this->assertSame('new', $gone['choice']);
+        $this->assertSame('Alex Rivera', $gone['newName']);
+    }
 }

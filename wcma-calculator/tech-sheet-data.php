@@ -235,3 +235,27 @@ function techSheetDriverChoiceFor(array $ownedById, string $name): string {
     }
     return 'new';
 }
+
+/**
+ * Driver 1 picker state for the tech sheet forms: the owner's drivers by id, which one is "you",
+ * the selected choice (you for a new sheet; the sheet's driver, or 'new' with their name, for an
+ * edit), and the list the driver-choice JS needs.
+ */
+function techSheetDriver1FormState(array $ownerDrivers, ?array $sheet): array {
+    $ownedById = [];
+    $selfId = null;
+    foreach ($ownerDrivers as $d) {
+        $ownedById[(int)$d['id']] = $d;
+        if ($selfId === null && (int)($d['user_id'] ?? 0) === (int)$d['owner_user_id']) $selfId = (int)$d['id'];
+    }
+    $choice = $sheet !== null
+        ? techSheetDriverChoiceFor($ownedById, (string)$sheet['driver_name'])
+        : ($selfId !== null ? (string)$selfId : 'new');
+    return [
+        'ownedById' => $ownedById,
+        'selfId' => $selfId,
+        'choice' => $choice,
+        'newName' => ($sheet !== null && $choice === 'new') ? (string)$sheet['driver_name'] : '',
+        'driversForJs' => array_map(fn(array $d): array => ['id' => (int)$d['id'], 'name' => (string)$d['name'], 'self' => (int)$d['id'] === $selfId], $ownerDrivers),
+    ];
+}

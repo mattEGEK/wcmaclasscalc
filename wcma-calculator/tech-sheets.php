@@ -19,6 +19,7 @@ require __DIR__ . '/gear-chips.php';
 require __DIR__ . '/cars-lib.php';
 require __DIR__ . '/garage-page.php';
 require __DIR__ . '/events-lib.php';
+require __DIR__ . '/ice-sheet-page.php';
 require_once __DIR__ . '/email-copy.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
@@ -91,6 +92,18 @@ switch ($action) {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: tech-sheets.php'); exit; }
         if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
         handleSubmit($pdo, $user);
+        break;
+
+    case 'new-ice':
+        $user = requireTechSheetLogin();
+        handleNewIce($pdo, $user, (int)($_GET['car_id'] ?? 0), (int)($_GET['event_id'] ?? 0));
+        break;
+
+    case 'submit-ice':
+        $user = requireTechSheetLogin();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: garage.php'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleSubmitIce($pdo, $user);
         break;
 
     case 'view':
@@ -203,7 +216,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
     <?php if (pretechSheetEditable($sheet)): ?>
     <a href="tech-sheets.php?action=edit&id=<?= (int)$sheet['id'] ?>" class="btn btn-secondary">Edit</a>
     <?php endif; ?>
-    <?php if ($sheet['status'] === 'submitted' && $carStatus['state'] !== 'accepted'): ?>
+    <?php if ($sheet['status'] === 'submitted' && $carStatus['state'] !== 'accepted' && !techSheetIsIce($sheet)): ?>
     <a href="tech-sheets.php?action=pretech&id=<?= (int)$sheet['id'] ?>" class="btn btn-secondary">Get pre-teched (optional)</a>
     <?php endif; ?>
     <form method="post" action="tech-sheets.php?action=resend" style="display:inline">
@@ -232,6 +245,11 @@ function handlePretech(PDO $pdo, array $user, int $id): void {
         header('Location: garage.php');
         exit;
     }
+    if (techSheetIsIce($sheet)) {
+        setFlash('Photo pre-tech for ice tech sheets isn\'t available yet. Bring the car to tech at the event.', 'error');
+        header('Location: tech-sheets.php?action=view&id=' . $id);
+        exit;
+    }
     $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
     $identity = db_get_sheet_identity_sheets($pdo, $sheet);
     renderPretechPage($sheet, $event, pretechPageMode($sheet, $identity), pretechSnapshot($pdo, $id), generateCsrfToken(), getFlash());
@@ -242,6 +260,11 @@ function handlePretechSubmit(PDO $pdo, array $user, int $id): void {
     if (!$sheet) {
         setFlash('Tech sheet not found.', 'error');
         header('Location: garage.php');
+        exit;
+    }
+    if (techSheetIsIce($sheet)) {
+        setFlash('Photo pre-tech for ice tech sheets isn\'t available yet. Bring the car to tech at the event.', 'error');
+        header('Location: tech-sheets.php?action=view&id=' . $id);
         exit;
     }
 
@@ -286,6 +309,15 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
         exit;
     }
 
+    if (techSheetIsIce($sheet)) {
+        $event = db_get_event($pdo, (int)$sheet['event_id']) ?? ['id' => (int)$sheet['event_id'], 'name' => '', 'event_date' => date('Y-m-d'), 'host_club' => (string)$sheet['club']];
+        $event['host_club'] = (string)$sheet['club'];
+        renderPageStart('Edit Ice Tech Sheet', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="tech-sheets.php?action=view&amp;id=' . $id . '">&larr; Back to the sheet</a>']);
+        echo renderIceTechSheetFormHtml(iceSheetFormVm($car, $event, [], db_get_user_drivers($pdo, (int)$user['id']), $sheet, generateCsrfToken()));
+        renderPageEnd();
+        return;
+    }
+
     $events = db_get_active_events($pdo, DISCIPLINE_SUMMER);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
     $csrf = generateCsrfToken();
@@ -309,15 +341,12 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     $hasEntrantSignature = $isEdit && !empty($existingSheet['entrant_signature_path']);
     $hasDriverSignature = $isEdit && !empty($existingSheet['driver_signature_path']);
     $flash = getFlash();
-    $ownedById = [];
-    $selfId = null;
-    foreach ($ownerDrivers as $d) {
-        $ownedById[(int)$d['id']] = $d;
-        if ($selfId === null && (int)($d['user_id'] ?? 0) === (int)$d['owner_user_id']) $selfId = (int)$d['id'];
-    }
-    $driver1Choice = $isEdit ? techSheetDriverChoiceFor($ownedById, (string)$existingSheet['driver_name']) : ($selfId !== null ? (string)$selfId : 'new');
-    $driver1NewName = ($isEdit && $driver1Choice === 'new') ? (string)$existingSheet['driver_name'] : '';
-    $driversForJs = array_map(fn(array $d): array => ['id' => (int)$d['id'], 'name' => (string)$d['name'], 'self' => (int)$d['id'] === $selfId], $ownerDrivers);
+    $d1 = techSheetDriver1FormState($ownerDrivers, $isEdit ? $existingSheet : null);
+    $ownedById = $d1['ownedById'];
+    $selfId = $d1['selfId'];
+    $driver1Choice = $d1['choice'];
+    $driver1NewName = $d1['newName'];
+    $driversForJs = $d1['driversForJs'];
     $existingDriversForJs = array_map(function (array $d) use ($ownedById): array {
         $choice = techSheetDriverChoiceFor($ownedById, (string)$d['driver_name']);
         return [
@@ -687,6 +716,11 @@ function handleUpdate(PDO $pdo, array $user): void {
         exit;
     }
 
+    if (techSheetIsIce($sheet)) {
+        handleUpdateIce($pdo, $user, $sheet);
+        return;
+    }
+
     $eventId = (int)($_POST['event_id'] ?? 0);
     $event = db_get_event($pdo, $eventId);
     if (!$event || (int)$event['active'] !== 1) {
@@ -771,6 +805,162 @@ function handleUpdate(PDO $pdo, array $user): void {
     exit;
 }
 
+function handleNewIce(PDO $pdo, array $user, int $carId, int $eventId): void {
+    $car = db_get_user_car($pdo, (int)$user['id'], $carId);
+    if (!$car || $car['archived_at'] !== null) {
+        setFlash('Choose one of your cars for the ice tech sheet.', 'error');
+        header('Location: garage.php');
+        exit;
+    }
+    $iceEvents = db_get_active_events($pdo, DISCIPLINE_ICE);
+    if (!$iceEvents) {
+        setFlash('There are no ice events open for tech sheets yet.', 'error');
+        header('Location: garage.php?car=' . $carId);
+        exit;
+    }
+    $event = $iceEvents[0];
+    foreach ($iceEvents as $e) {
+        if ((int)$e['id'] === $eventId) $event = $e;
+    }
+    renderPageStart('Ice tech sheet', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="garage.php?car=' . $carId . '">&larr; Back to the car</a>']);
+    echo renderIceTechSheetFormHtml(iceSheetFormVm($car, $event, $iceEvents, db_get_user_drivers($pdo, (int)$user['id']), null, generateCsrfToken()));
+    renderPageEnd();
+}
+
+/** Parses (but does not validate) an ice form POST. @return array{ok: bool, error: ?string, parsed: ?array, snap: ?array} */
+function iceSheetReadPost(PDO $pdo, array $user, array $car): array {
+    $fail = fn(string $m): array => ['ok' => false, 'error' => $m, 'parsed' => null, 'snap' => null];
+    $snap = carsSheetSnapshot($car, $_POST);
+    if (!$snap['ok']) return $fail((string)$snap['error']);
+    $owned = [];
+    foreach (db_get_user_drivers($pdo, (int)$user['id']) as $d) $owned[(int)$d['id']] = $d;
+    $choices = techSheetApplyDriverChoices(array_merge($_POST, ['sheet_type' => 'standard']), $owned);
+    if (!$choices['ok']) return $fail((string)$choices['error']);
+    $parsed = iceSheetParsePost(array_merge($choices['post'], [
+        'car_number' => $snap['car_number'], 'car_colour' => $snap['car_colour'], 'engine_cc' => (string)($snap['engine_cc'] ?? ''),
+    ]));
+    return ['ok' => true, 'error' => null, 'parsed' => $parsed, 'snap' => $snap];
+}
+
+/** Saves the signatures posted with an ice form. */
+function iceSheetSaveSignatures(PDO $pdo, int $id): void {
+    foreach (['entrant', 'driver'] as $which) {
+        if (!empty($_POST[$which . '_signature'])) {
+            $path = techSheetSaveSignature(__DIR__, $id, $which, $_POST[$which . '_signature']);
+            if ($path) db_update_tech_sheet_signatures($pdo, $id, [$which . '_signature_path' => $path]);
+        }
+    }
+}
+
+function handleSubmitIce(PDO $pdo, array $user): void {
+    $carId = (int)($_POST['car_id'] ?? 0);
+    $eventId = (int)($_POST['event_id'] ?? 0);
+    $back = 'tech-sheets.php?action=new-ice&car_id=' . $carId . '&event_id=' . $eventId;
+    $car = db_get_user_car($pdo, (int)$user['id'], $carId);
+    if (!$car || $car['archived_at'] !== null) {
+        setFlash('Choose one of your cars for the ice tech sheet.', 'error');
+        header('Location: garage.php');
+        exit;
+    }
+    $event = db_get_event($pdo, $eventId);
+    if (!$event || (int)$event['active'] !== 1 || ($event['discipline'] ?? 'summer') !== DISCIPLINE_ICE) {
+        setFlash('Please choose an open ice event.', 'error');
+        header('Location: garage.php?car=' . $carId);
+        exit;
+    }
+
+    $read = iceSheetReadPost($pdo, $user, $car);
+    if (!$read['ok']) {
+        setFlash((string)$read['error'], 'error');
+        header('Location: ' . $back);
+        exit;
+    }
+    $p = $read['parsed'];
+    $error = iceSheetValidate($p, (string)$event['host_club']);
+    if ($error !== null) {
+        setFlash($error, 'error');
+        header('Location: ' . $back);
+        exit;
+    }
+    try {
+        $id = db_insert_tech_sheet($pdo, [
+            'car_id' => $carId, 'user_id' => $user['id'], 'event_id' => $eventId, 'sheet_type' => 'ice',
+            'entrant_name' => $p['entrant_name'], 'driver_name' => $p['driver_name'],
+            'car_make' => $car['make'], 'car_model' => $car['model'], 'car_colour' => $p['car_colour'],
+            'car_number' => $p['car_number'], 'class' => $p['class'],
+            'engine_cc' => $p['engine_cc'], 'engine_hp' => $p['engine_hp'], 'car_weight' => (int)$p['car_weight'],
+            'checklist_json' => json_encode($p['checklist']), 'driver1_equipment_json' => json_encode($p['equipment']),
+            'log_book_turned_in' => (int)$p['log_book'],
+        ]);
+    } catch (InvalidArgumentException $e) {
+        setFlash($e->getMessage(), 'error');
+        header('Location: ' . $back);
+        exit;
+    }
+
+    if ($read['snap']['colour_for_car'] !== null) db_update_car($pdo, $carId, ['colour' => $read['snap']['colour_for_car']]);
+    db_tag_event($pdo, (int)$user['id'], $eventId, $carId);
+    iceSheetSaveSignatures($pdo, $id);
+
+    $sheet = db_get_tech_sheet($pdo, $id);
+    $recipient = techSheetRecipientEmail($pdo, $sheet);
+    $sent = $recipient !== null && sendTechSheetConfirmationEmail($sheet, [], $event, $recipient, $p['entrant_name']);
+    db_update_email_sent_tech_sheet($pdo, $id, $sent ? 1 : 0);
+    setFlash('Ice tech sheet submitted' . ($sent ? ' and emailed to you and the club.' : ', but the confirmation email failed to send.'), $sent ? 'success' : 'error');
+    header('Location: tech-sheets.php?action=view&id=' . $id);
+    exit;
+}
+
+/** Update for an ice sheet. The caller has already checked ownership, status and the photo edit lock. */
+function handleUpdateIce(PDO $pdo, array $user, array $sheet): void {
+    $id = (int)$sheet['id'];
+    $car = db_get_user_car($pdo, (int)$user['id'], (int)$sheet['car_id']);
+    if ($car === null) {
+        setFlash('Car not found.', 'error');
+        header('Location: garage.php');
+        exit;
+    }
+    $read = iceSheetReadPost($pdo, $user, $car);
+    if (!$read['ok']) {
+        setFlash((string)$read['error'], 'error');
+        header('Location: tech-sheets.php?action=edit&id=' . $id);
+        exit;
+    }
+    $p = $read['parsed'];
+    $error = iceSheetValidate($p, (string)$sheet['club']);
+    if ($error !== null) {
+        setFlash($error, 'error');
+        header('Location: tech-sheets.php?action=edit&id=' . $id);
+        exit;
+    }
+    try {
+        db_update_tech_sheet($pdo, $id, [
+            'event_id' => (int)$sheet['event_id'], 'sheet_type' => 'ice',
+            'entrant_name' => $p['entrant_name'], 'driver_name' => $p['driver_name'],
+            'car_make' => $car['make'], 'car_model' => $car['model'], 'car_colour' => $p['car_colour'],
+            'car_number' => $p['car_number'], 'class' => $p['class'],
+            'engine_cc' => $p['engine_cc'], 'engine_hp' => $p['engine_hp'], 'car_weight' => (int)$p['car_weight'],
+            'checklist_json' => json_encode($p['checklist']), 'driver1_equipment_json' => json_encode($p['equipment']),
+            'log_book_turned_in' => (int)$p['log_book'],
+        ]);
+    } catch (InvalidArgumentException $e) {
+        setFlash($e->getMessage(), 'error');
+        header('Location: tech-sheets.php?action=edit&id=' . $id);
+        exit;
+    }
+    if ($read['snap']['colour_for_car'] !== null) db_update_car($pdo, (int)$car['id'], ['colour' => $read['snap']['colour_for_car']]);
+    iceSheetSaveSignatures($pdo, $id);
+
+    $updated = db_get_tech_sheet($pdo, $id);
+    $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
+    $recipient = techSheetRecipientEmail($pdo, $updated);
+    $sent = $recipient !== null && sendTechSheetConfirmationEmail($updated, [], $event, $recipient, $p['entrant_name']);
+    db_update_email_sent_tech_sheet($pdo, $id, $sent ? 1 : 0);
+    setFlash('Ice tech sheet updated' . ($sent ? ' and re-emailed to you and the club.' : ', but the confirmation email failed to send.'), $sent ? 'success' : 'error');
+    header('Location: tech-sheets.php?action=view&id=' . $id);
+    exit;
+}
+
 function handleResendTechSheet(PDO $pdo, array $user, int $id): void {
     $sheet = db_get_user_tech_sheet($pdo, $user['id'], $id);
     if (!$sheet) {
@@ -781,10 +971,8 @@ function handleResendTechSheet(PDO $pdo, array $user, int $id): void {
     $event = db_get_event($pdo, (int)$sheet['event_id']);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
 
-    // current_user() doesn't carry an email; resolve the original submission's email
-    // (same fallback handleSubmit() uses when sending the initial confirmation).
-    $submission = db_get_submission($pdo, (int)$sheet['submission_id']);
-    $recipientEmail = $submission['email'] ?? null;
+    // The recipient is the declaration's email, or the account holder's for ice sheets.
+    $recipientEmail = techSheetRecipientEmail($pdo, $sheet);
 
     $sent = $recipientEmail
         ? sendTechSheetConfirmationEmail($sheet, $drivers, $event ?? [], $recipientEmail, $sheet['entrant_name'])
