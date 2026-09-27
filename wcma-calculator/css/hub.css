@@ -261,3 +261,12 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
   .inspect-stack td { border: 0; padding: 2px 0; }
   .inspect-stack td[data-label]::before { content: attr(data-label) ": "; font-weight: 700; color: var(--hub-ink-2); }
 }
+
+/* ── Driver media profiles ─────────────────────────────────────────────── */
+.media-form h2 { margin-top: 1.5rem; }
+.media-photo-preview { width: 160px; height: 160px; object-fit: cover; border-radius: 8px; display: block; margin-bottom: .5rem; }
+.media-sponsor-row { display: grid; grid-template-columns: 1fr; gap: .25rem; margin-bottom: .75rem; }
+@media (min-width: 700px) { .media-sponsor-row { grid-template-columns: auto 1fr auto 1fr; align-items: center; gap: .5rem; } }
+.media-check { display: flex; gap: .5rem; align-items: flex-start; margin: .75rem 0 .25rem; font-weight: 500; }
+.media-check input { margin-top: .25rem; flex: none; width: 1.25rem; height: 1.25rem; }
+.media-note { border-left: 4px solid var(--hub-warn); }
