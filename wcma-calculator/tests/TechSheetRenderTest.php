@@ -130,4 +130,29 @@ final class TechSheetRenderTest extends TestCase
         $inPerson['accepted_via'] = 'in_person';
         $this->assertStringNotContainsString('Accepted remotely', renderTechSheetHtml($inPerson, [], ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']));
     }
+
+    public function testIceSheetRendersItsClubClassSeasonAndIceChecklist(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-render.php';
+        $sheet = array_merge($this->sampleSheet(), [
+            'discipline' => 'ice', 'club' => 'NASCC', 'class' => 'SS', 'season' => 2027, 'sheet_type' => 'ice',
+            'checklist_json' => json_encode(['airbags' => ['status' => 'ok']]),
+        ]);
+        $html = renderTechSheetHtml($sheet, [], ['name' => 'NASCC Ice #1', 'event_date' => '2026-12-12']);
+        $this->assertStringContainsString('ICE RACE VEHICLE INSPECTION FORM', $html);
+        $this->assertStringContainsString('Northern Alberta Sports Car Club · Ice 2027', $html);
+        $this->assertStringContainsString('SS — Street Safe (FWD/RWD) (NASCC)', $html);
+        $this->assertStringContainsString('Airbags removed (disabling is not enough)', $html);
+        $this->assertStringNotContainsString('Fuel Tank Compartment', $html);
+        $this->assertStringContainsString('Suit or FR coveralls', $html);
+    }
+
+    public function testSummerSheetStillRendersTheSummerForm(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-render.php';
+        $html = renderTechSheetHtml($this->sampleSheet(), [], ['name' => 'Fall Sprint', 'event_date' => '2026-10-11']);
+        $this->assertStringContainsString('>VEHICLE INSPECTION FORM<', $html);
+        $this->assertStringContainsString('Fuel Tank Compartment', $html);
+        $this->assertStringNotContainsString('Ice ', $html);
+    }
 }

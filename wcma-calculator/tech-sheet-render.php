@@ -1,6 +1,7 @@
 <?php
 // wcma-calculator/tech-sheet-render.php
 require_once __DIR__ . '/tech-sheet-data.php';
+require_once __DIR__ . '/ice-sheet-lib.php';
 
 /**
  * Renders a signature <img>, or a "Not signed" placeholder.
@@ -22,12 +23,12 @@ function techSheetSignatureImg(?string $path, string $which, callable $resolveSr
     return '<img src="' . h($src) . '" alt="Signature" style="max-height:60px;border-bottom:1px solid #333">';
 }
 
-function techSheetEquipmentTable(array $equipment): string {
+function techSheetEquipmentTable(array $equipment, array $items = TECH_DRIVER_EQUIPMENT_ITEMS): string {
     $out = '<table cellpadding="4" style="border-collapse:collapse;width:100%;font-size:0.85rem">';
     $out .= '<tr style="background:#f0f1f2"><th style="text-align:left;border:1px solid #ccc;padding:4px">Item</th>';
     $out .= '<th style="border:1px solid #ccc;padding:4px">Confirmed</th>';
     $out .= '</tr>';
-    foreach (TECH_DRIVER_EQUIPMENT_ITEMS as $key => $def) {
+    foreach ($items as $key => $def) {
         $item = $equipment[$key] ?? ['competitor_confirmed' => false, 'value' => null];
         $label = h($def['label']);
         if ($def['has_rating'] && !empty($item['value'])) {
@@ -54,23 +55,31 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
     $checklist = json_decode($sheet['checklist_json'] ?? '{}', true) ?: [];
     $equipment = json_decode($sheet['driver1_equipment_json'] ?? '{}', true) ?: [];
 
+    $isIce = techSheetIsIce($sheet);
+    $sections = techSheetChecklistSections($sheet);
+    $items = techSheetEquipmentItems($sheet);
+
     $out = '<div style="font-family:Arial,sans-serif;color:#222;max-width:800px">';
     if ($logoSrc) {
         $out .= '<div style="text-align:center;margin-bottom:0.5rem"><img src="' . h($logoSrc) . '" alt="WCMA Logo" style="max-height:70px"></div>';
     }
-    $out .= '<h1 style="text-align:center;margin-bottom:0.2rem">VEHICLE INSPECTION FORM</h1>';
-    $out .= '<p style="text-align:center;color:#555;font-size:0.85rem">' . h($event['name'] ?? '') . ' — ' . h(date('F j, Y', strtotime($event['event_date'] ?? 'now'))) . '</p>';
+    $out .= '<h1 style="text-align:center;margin-bottom:0.2rem">' . ($isIce ? 'ICE RACE VEHICLE INSPECTION FORM' : 'VEHICLE INSPECTION FORM') . '</h1>';
+    $subtitle = h($event['name'] ?? '') . ' — ' . h(date('F j, Y', strtotime($event['event_date'] ?? 'now')));
+    if ($isIce) {
+        $subtitle .= ' · ' . h((string)(iceClubLabel((string)($sheet['club'] ?? '')) ?? ($sheet['club'] ?? ''))) . ' · Ice ' . (int)($sheet['season'] ?? 0);
+    }
+    $out .= '<p style="text-align:center;color:#555;font-size:0.85rem">' . $subtitle . '</p>';
 
     $out .= '<table cellpadding="4" style="width:100%;border-collapse:collapse;margin:1rem 0">';
     $out .= '<tr><td style="width:50%"><strong>Entrant:</strong> ' . h($sheet['entrant_name']) . '</td><td><strong>Driver 1:</strong> ' . h($sheet['driver_name']) . '</td></tr>';
     $out .= '<tr><td><strong>Car Make:</strong> ' . h($sheet['car_make']) . '</td><td><strong>Car Number:</strong> ' . h($sheet['car_number']) . '</td></tr>';
-    $out .= '<tr><td><strong>Car Model:</strong> ' . h($sheet['car_model']) . '</td><td><strong>Class:</strong> ' . h($sheet['class']) . '</td></tr>';
+    $out .= '<tr><td><strong>Car Model:</strong> ' . h($sheet['car_model']) . '</td><td><strong>Class:</strong> ' . h(techSheetClassLine($sheet)) . '</td></tr>';
     $out .= '<tr><td><strong>Car Colour:</strong> ' . h($sheet['car_colour']) . '</td><td><strong>Engine:</strong> ' . h((string)($sheet['engine_cc'] ?? '')) . ' CC / ' . h((string)($sheet['engine_hp'] ?? '')) . ' HP</td></tr>';
     $out .= '<tr><td><strong>Car Weight:</strong> ' . h((string)$sheet['car_weight']) . ' lbs</td><td></td></tr>';
     $out .= '</table>';
 
     $out .= '<h2 style="border-bottom:2px solid #2c3e50;padding-bottom:4px">Vehicle Checklist</h2>';
-    foreach (TECH_CHECKLIST_SECTIONS as $section) {
+    foreach ($sections as $section) {
         $out .= '<h3 style="margin-bottom:2px">' . h($section['label']) . '</h3>';
         $out .= '<table cellpadding="4" style="border-collapse:collapse;width:100%;font-size:0.85rem;margin-bottom:0.8rem">';
         foreach ($section['items'] as $key => $label) {
@@ -83,13 +92,13 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
     }
 
     $out .= '<h2 style="border-bottom:2px solid #2c3e50;padding-bottom:4px">Driver Safety Equipment — ' . h($sheet['driver_name']) . '</h2>';
-    $out .= techSheetEquipmentTable($equipment);
+    $out .= techSheetEquipmentTable($equipment, $items);
 
     if (($sheet['sheet_type'] ?? 'standard') === 'endurance' && !empty($drivers)) {
         foreach ($drivers as $d) {
             $driverEquipment = json_decode($d['equipment_json'] ?? '{}', true) ?: [];
             $out .= '<h2 style="border-bottom:2px solid #2c3e50;padding-bottom:4px">Driver ' . (int)$d['driver_number'] . ' — ' . h($d['driver_name']) . '</h2>';
-            $out .= techSheetEquipmentTable($driverEquipment);
+            $out .= techSheetEquipmentTable($driverEquipment, $items);
         }
     }
 
