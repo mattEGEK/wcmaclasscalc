@@ -58,4 +58,12 @@ final class MediaSourceTest extends TestCase
         $profile = $this->src('media-profile.php');
         $this->assertStringContainsString("=== 'self'", $profile);
     }
+
+    public function testMediaControllerIsGatedAndReviewActionsArePostOnly(): void
+    {
+        $src = $this->src('media.php');
+        $this->assertStringContainsString("\$user = require_role('user');", $src);
+        $this->assertMatchesRegularExpression('/if \(!mediaCanAccess\(\$user\)\) \{\s*http_response_code\(403\);\s*hubRenderForbidden\(\);\s*exit;/', $src);
+        $this->assertStringContainsString("class_exists('ZipArchive')", $src);
+    }
 }

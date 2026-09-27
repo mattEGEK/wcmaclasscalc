@@ -93,3 +93,78 @@ function mediaDeleteProfile(PDO $pdo, int $userId, int $driverId, string $baseDi
     if ($photo && is_file($baseDir . '/' . $photo)) unlink($baseDir . '/' . $photo);
     return true;
 }
+
+/** @return array<int, array{number: string, car: string, class: string, drivers: array}> */
+function mediaAnnouncerRoster(PDO $pdo, int $eventId): array {
+    $cars = db_get_event_roster_cars($pdo, $eventId);
+    $byCar = [];
+    foreach (db_get_event_tech_sheets($pdo, $eventId) as $s) $byCar[(int)$s['car_id']][] = $s;
+    $latest = [];
+    foreach ($cars as $car) {
+        $cid = (int)$car['id'];
+        if (isset($byCar[$cid])) continue;
+        $lid = db_get_car_latest_tech_sheet_id($pdo, $cid);
+        if ($lid !== null) $latest[$cid] = db_get_tech_sheet($pdo, $lid);
+    }
+    $sheetIds = array_merge(array_column(array_merge(...array_values($byCar ?: [[]])), 'id'), array_column(array_values($latest), 'id'));
+    $sheetDrivers = db_get_drivers_for_sheets($pdo, $sheetIds);
+    $selfs = db_get_self_drivers_for_users($pdo, array_column($cars, 'owner_user_id'));
+    $decls = db_get_declarations_for_cars($pdo, array_column($cars, 'id'));
+
+    $perCar = [];
+    $allIds = [];
+    foreach ($cars as $car) {
+        $cid = (int)$car['id'];
+        $owner = (int)$car['owner_user_id'];
+        $ids = mediaRosterDriverIds($byCar[$cid] ?? [], $latest[$cid] ?? null, $sheetDrivers, isset($selfs[$owner]) ? (int)$selfs[$owner]['id'] : null);
+        $perCar[$cid] = $ids;
+        array_push($allIds, ...$ids);
+    }
+    $bundles = db_get_media_bundle($pdo, $allIds);
+
+    $out = [];
+    foreach ($cars as $car) {
+        $cid = (int)$car['id'];
+        $eventSheets = $byCar[$cid] ?? [];
+        $class = $eventSheets ? (string)end($eventSheets)['class'] : mediaAcceptedClass($decls[$cid] ?? []);
+        $carLabel = mediaCarLabel($car);
+        $drivers = [];
+        foreach ($perCar[$cid] as $did) {
+            $driver = db_get_driver($pdo, $did);
+            if ($driver === null) continue;
+            $b = $bundles[$did];
+            $entry = mediaUsable($b['profile'], $b['consent'], 'club')
+                ? mediaEntry($driver, $b['profile'], $b['sponsors'], (string)$car['car_number'], $carLabel, $class, mediaUsable($b['profile'], $b['consent'], 'public'))
+                : null;
+            $drivers[] = ['name' => (string)$driver['name'], 'entry' => $entry];
+        }
+        $out[] = ['number' => (string)$car['car_number'], 'car' => $carLabel, 'class' => $class, 'drivers' => $drivers];
+    }
+    return $out;
+}
+
+/** mediaEntry() arrays for the drivers usable for clubs, car details from their latest sheet in $season. */
+function mediaEntriesForDrivers(PDO $pdo, array $driverIds, int $season): array {
+    $out = [];
+    foreach (db_get_media_bundle($pdo, $driverIds) as $did => $b) {
+        if (!mediaUsable($b['profile'], $b['consent'], 'club')) continue;
+        $driver = db_get_driver($pdo, $did);
+        if ($driver === null) continue;
+        $sheet = db_get_driver_latest_sheet($pdo, $did, $season);
+        $out[] = mediaEntry($driver, $b['profile'], $b['sponsors'], (string)($sheet['car_number'] ?? ''),
+            $sheet !== null ? mediaCarLabel($sheet) : '', (string)($sheet['class'] ?? ''), mediaUsable($b['profile'], $b['consent'], 'public'));
+    }
+    return $out;
+}
+
+/** $eventId 0 = every consented driver; otherwise the entries on that event's announcer roster. */
+function mediaKitEntries(PDO $pdo, int $eventId, int $season): array {
+    if ($eventId === 0) return mediaEntriesForDrivers($pdo, db_get_consented_driver_ids($pdo), $season);
+    $out = [];
+    foreach (mediaAnnouncerRoster($pdo, $eventId) as $car) {
+        foreach ($car['drivers'] as $d) {
+            if ($d['entry'] !== null) $out[] = $d['entry'];
+        }
+    }
+    return $out;
+}

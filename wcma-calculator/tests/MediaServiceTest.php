@@ -143,4 +143,50 @@ final class MediaServiceTest extends TestCase
         $this->assertFalse(mediaCurrentConsent(db_get_latest_media_consent($pdo, $d))['media']);
         $this->assertSame(2, (int)$pdo->query("SELECT COUNT(*) FROM media_consents")->fetchColumn());
     }
+
+    public function testAnnouncerRosterUsesSheetsThenOwnerAndOnlyShowsConsentedProfiles(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->user($pdo, 'j@example.com');
+        $e = db_create_event($pdo, 'Fall Sprint', date('Y') . '-10-11', null);
+        $sub = db_insert_submission($pdo, test_declaration_data($pdo, $u, '42'));
+        db_accept_declaration($pdo, $sub, $u);
+        $sheet = test_make_sheet($pdo, $u, $sub, $e, '42', 'Jordan Lee');
+        db_add_tech_sheet_driver($pdo, $sheet, 2, 'Sam Patel', '{}');
+        $car7 = test_make_car($pdo, $u, '7');
+        db_tag_event($pdo, $u, $e, $car7);   // tagged, never sheeted: falls back to the owner
+
+        $self = (int)db_get_self_driver($pdo, $u)['id'];
+        mediaSaveProfile($pdo, $u, $self, ['blurb' => 'Fast.', 'consent_media' => '1'], null, $this->base, 'rename');
+
+        $roster = mediaAnnouncerRoster($pdo, $e);
+        $this->assertSame(['7', '42'], array_column($roster, 'number'));
+        $this->assertSame('IT1', $roster[1]['class']);
+        $this->assertSame(['Jordan Lee', 'Sam Patel'], array_column($roster[1]['drivers'], 'name'));
+        $this->assertSame('Fast.', $roster[1]['drivers'][0]['entry']['blurb']);
+        $this->assertNull($roster[1]['drivers'][1]['entry']);   // Sam has no consent
+        $this->assertSame('Jordan Lee', $roster[0]['drivers'][0]['name']);
+        $this->assertSame('', $roster[0]['class']);   // no sheet and no accepted declaration
+    }
+
+    public function testKitEntriesListConsentedDriversWithTheirLatestCar(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->user($pdo, 'j@example.com');
+        $e = db_create_event($pdo, 'Fall Sprint', date('Y') . '-10-11', null);
+        $sub = db_insert_submission($pdo, test_declaration_data($pdo, $u, '42'));
+        test_make_sheet($pdo, $u, $sub, $e, '42', 'Jordan Lee');
+        $self = (int)db_get_self_driver($pdo, $u)['id'];
+        mediaSaveProfile($pdo, $u, $self, ['blurb' => 'Fast.', 'consent_media' => '1'], null, $this->base, 'rename');
+        $other = $this->user($pdo, 'o@example.com', 'Olive Odd');   // no consent
+
+        $all = mediaKitEntries($pdo, 0, (int)date('Y'));
+        $this->assertSame([$self], array_column($all, 'driver_id'));
+        $this->assertSame('42', $all[0]['number']);
+        $this->assertSame('Mazda MX-5 (Red)', $all[0]['car']);
+        $this->assertSame([$self], array_column(mediaKitEntries($pdo, $e, (int)date('Y')), 'driver_id'));
+
+        mediaWithdraw($pdo, $u, $self);
+        $this->assertSame([], mediaKitEntries($pdo, 0, (int)date('Y')));
+    }
 }

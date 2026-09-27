@@ -270,3 +270,18 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .media-check { display: flex; gap: .5rem; align-items: flex-start; margin: .75rem 0 .25rem; font-weight: 500; }
 .media-check input { margin-top: .25rem; flex: none; width: 1.25rem; height: 1.25rem; }
 .media-note { border-left: 4px solid var(--hub-warn); }
+
+.media-entry { display: flex; gap: 1rem; align-items: flex-start; }
+.media-entry-photo { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; flex: none; }
+@media (max-width: 480px) { .media-entry { flex-direction: column; } .media-entry-photo { width: 100%; height: auto; aspect-ratio: 1; } }
+.media-number { font-family: 'Archivo Narrow', sans-serif; font-weight: 700; }
+.media-car-block h2 { font-size: 1.6rem; margin-top: 1.5rem; }
+.media-class { font-size: 1rem; padding: .1rem .5rem; border: 2px solid currentColor; border-radius: 4px; vertical-align: middle; }
+.media-say { font-style: italic; }
+.media-blurb { font-size: 1.15rem; line-height: 1.5; }
+.media-bare { padding: .5rem 0; }
+@media print {
+  .hub-header, .hub-stripe, .hub-subnav, .hub-footer, .no-print, .media-picker, .hub-menu-btn { display: none !important; }
+  .media-car-block { break-inside: avoid; }
+  .media-entry { box-shadow: none; border: 1px solid #999; }
+}
