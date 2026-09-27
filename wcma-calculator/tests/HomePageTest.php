@@ -128,6 +128,31 @@ final class HomePageTest extends TestCase
         $this->assertStringContainsString('No upcoming events yet.', $noEvents);
     }
 
+    public function testAtAGlanceLabelsClassCarTechAndGearTech(): void
+    {
+        $html = renderHomeHtml($this->vm([
+            'garage' => [
+                ['car' => ['id' => 3, 'car_number' => '42', 'year' => '2004', 'make' => 'Honda', 'model' => 'S2000 <R>'],
+                 'declaration' => ['calculated_class' => 'GT3', 'review_status' => 'submitted'],
+                 'techLabel' => 'Needs tech at the track', 'techState' => 'none'],
+                ['car' => ['id' => 4, 'car_number' => '7', 'year' => '', 'make' => 'Mazda', 'model' => 'MX-5'],
+                 'declaration' => null, 'techLabel' => 'Teched 2099', 'techState' => 'accepted'],
+            ],
+            'drivers' => [['name' => 'Jordan <Lee>', 'isSelf' => true, 'gearLabel' => 'Needs gear check at the track', 'gearState' => 'none']],
+        ]));
+        $this->assertStringContainsString('<span class="hub-plate hub-plate--sm">42</span><span class="hub-glance-name">2004 Honda S2000 &lt;R&gt;</span><span class="hub-class">GT3</span>', $html);
+        $this->assertStringContainsString('<dt>Class</dt><dd><span class="hub-status hub-status--info">With an inspector</span></dd>', $html);
+        $this->assertStringContainsString('<dt>Car tech</dt><dd><span class="hub-status hub-status--warn">Needs tech at the track</span></dd>', $html);
+        $this->assertStringContainsString('<span class="hub-glance-name">Mazda MX-5</span></div>', $html);   // no class badge
+        $this->assertStringContainsString('Not declared</span> <a href="calculator.php?car=4">Declare class</a>', $html);
+        $this->assertStringContainsString('<dt>Car tech</dt><dd><span class="hub-status hub-status--ok">Teched 2099</span></dd>', $html);
+        $this->assertStringContainsString('<span class="hub-glance-name">Jordan &lt;Lee&gt; (you)</span>', $html);
+        $this->assertStringContainsString('<dt>Gear tech</dt><dd><span class="hub-status hub-status--warn">Needs gear check at the track</span></dd>', $html);
+        // The "doesn't register you" rule introduces the event cards instead of trailing after them.
+        $this->assertLessThan(strpos($html, '<h3>Fall Sprint</h3>'), strpos($html, EVENTS_NOT_REGISTERING));
+        $this->assertGreaterThan(strpos($html, '<h2>Upcoming events</h2>'), strpos($html, EVENTS_NOT_REGISTERING));
+    }
+
     public function testTagFormOffersOnlyCarsNotYetTaggedToAGoingToEvent(): void
     {
         $vm = $this->vm([

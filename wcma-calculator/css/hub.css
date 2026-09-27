@@ -146,7 +146,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .hub-todo-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
 
 /* Home sections */
-.hub-done { margin-top: 12px; padding: 4px 2px; }
+.hub-done { margin: 12px 0 28px; padding: 4px 2px; }
 .hub-done summary { font-weight: 600; color: var(--hub-ink-2); cursor: pointer; }
 .hub-done h3 { font-size: 16px; margin: 12px 0 4px; }
 .hub-done ul { margin: 0; padding-left: 1.2rem; color: var(--hub-ink-2); }
@@ -155,8 +155,26 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .hub-event-head h3 { margin: 0; }
 .hub-event-date { color: var(--hub-ink-2); }
 .hub-event-head .hub-status { margin-left: auto; }
+.hub-event .hub-line { gap: 8px 16px; }
+.hub-event .hub-line .hub-btn--link { white-space: nowrap; }
 .media-prompt h2 { font-size: 20px; margin-top: 0; }
-.hub-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.hub-section-intro { color: var(--hub-ink-2); margin: -4px 0 12px; }
+
+/* At a glance: one block per car or driver, with labelled status rows */
+.hub-glance-item { padding: 12px 0; border-top: 1px solid var(--hub-line); }
+.hub-glance-item:first-of-type { border-top: 0; padding-top: 4px; }
+.hub-glance-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.hub-glance-name { font-weight: 600; }
+.hub-plate--sm { width: 36px; height: 36px; font-size: 17px; border-width: 3px; flex: none; }
+.hub-glance-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; align-items: baseline; }
+.hub-glance-item:has(.hub-plate--sm) .hub-glance-facts { margin-left: 46px; }
+.hub-glance-facts dt { color: var(--hub-ink-2); font-size: 15px; }
+.hub-glance-facts dd { margin: 0; }
+.hub-glance-facts .hub-status { align-items: flex-start; }
+.hub-glance-facts .hub-status::before { flex: none; margin-top: 6px; }
+.hub-glance-item + .hub-btn, .hub-card > p + .hub-btn { margin-top: 12px; }
+.hub-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+.hub-grid-2 > .hub-card { margin-bottom: 0; }
 .hub-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--hub-line); }
 .hub-line:first-of-type { border-top: 0; }
 .hub-tag-form { flex-wrap: wrap; gap: 8px 12px; }

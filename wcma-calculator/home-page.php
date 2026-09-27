@@ -18,6 +18,11 @@ function homeStatusClass(string $state): string {
     }
 }
 
+/** A status word with its coloured dot. */
+function homeStatusHtml(string $state, string $label): string {
+    return '<span class="hub-status ' . h(homeStatusClass($state)) . '">' . h($label) . '</span>';
+}
+
 function homePlural(int $n, string $singular, string $plural): string {
     return $n === 1 ? $singular : $plural;
 }
@@ -234,6 +239,7 @@ function renderHomeHtml(array $vm): string
     if (!$events && !$untagged) {
         $out .= '<p>No upcoming events yet.</p>';
     } else {
+        $out .= '<p class="hub-section-intro">Say which events you\'re going to. ' . EVENTS_NOT_REGISTERING . '</p>';
         $cardsByDate = [];
         foreach ($events as $ev) $cardsByDate[] = [$ev['event'], $ev];
         foreach ($untagged as $event) $cardsByDate[] = [$event, null];
@@ -241,7 +247,6 @@ function renderHomeHtml(array $vm): string
         foreach ($cardsByDate as [$event, $readinessEvent]) {
             $out .= homeEventCardHtml($event, $readinessEvent, $cars, $csrf, $offerReminders);
         }
-        $out .= '<p class="form-hint">' . EVENTS_NOT_REGISTERING . '</p>';
     }
 
     // At a glance
@@ -253,13 +258,15 @@ function renderHomeHtml(array $vm): string
         foreach ($vm['garage'] as $g) {
             $car = $g['car'];
             $decl = $g['declaration'];
-            $out .= '<div class="hub-line"><span class="hub-plate">' . h((string)$car['car_number']) . '</span>'
-                . '<span>' . h(carDisplayName($car));
-            if ($decl !== null) {
-                $out .= ' <span class="hub-class">' . h((string)$decl['calculated_class']) . '</span>'
-                    . ' <span class="hub-status ' . h(homeStatusClass($decl['review_status'])) . '">' . h(declarationReviewLabel($decl['review_status'])) . '</span>';
-            }
-            $out .= '</span><span class="hub-status ' . h(homeStatusClass($g['techState'])) . '">' . h($g['techLabel']) . '</span></div>';
+            $name = trim(implode(' ', array_filter([(string)($car['year'] ?? ''), (string)$car['make'], (string)$car['model']], fn(string $p): bool => trim($p) !== '')));
+            $out .= '<div class="hub-glance-item"><div class="hub-glance-head"><span class="hub-plate hub-plate--sm">' . h((string)$car['car_number']) . '</span>'
+                . '<span class="hub-glance-name">' . h($name) . '</span>'
+                . ($decl !== null ? '<span class="hub-class">' . h((string)$decl['calculated_class']) . '</span>' : '') . '</div>'
+                . '<dl class="hub-glance-facts"><dt>Class</dt><dd>'
+                . ($decl !== null
+                    ? homeStatusHtml($decl['review_status'], declarationReviewLabel($decl['review_status']))
+                    : homeStatusHtml('none', 'Not declared') . ' <a href="calculator.php?car=' . (int)$car['id'] . '">Declare class</a>')
+                . '</dd><dt>Car tech</dt><dd>' . homeStatusHtml($g['techState'], $g['techLabel']) . '</dd></dl></div>';
         }
         $out .= '<a class="hub-btn hub-btn--secondary" href="garage.php">Open garage &rarr;</a>';
     }
@@ -267,8 +274,8 @@ function renderHomeHtml(array $vm): string
 
     $out .= '<div class="hub-card"><h3>Drivers</h3>';
     foreach ($vm['drivers'] as $d) {
-        $out .= '<div class="hub-line"><span>' . h($d['name']) . ($d['isSelf'] ? ' (you)' : '') . '</span>'
-            . '<span class="hub-status ' . h(homeStatusClass($d['gearState'])) . '">' . h($d['gearLabel']) . '</span></div>';
+        $out .= '<div class="hub-glance-item"><div class="hub-glance-head"><span class="hub-glance-name">' . h($d['name']) . ($d['isSelf'] ? ' (you)' : '') . '</span></div>'
+            . '<dl class="hub-glance-facts"><dt>Gear tech</dt><dd>' . homeStatusHtml($d['gearState'], $d['gearLabel']) . '</dd></dl></div>';
     }
     $out .= '<a class="hub-btn hub-btn--secondary" href="drivers.php">Manage drivers &rarr;</a></div>';
     $out .= '</div>';
