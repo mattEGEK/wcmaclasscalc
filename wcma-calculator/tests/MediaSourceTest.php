@@ -36,4 +36,14 @@ final class MediaSourceTest extends TestCase
         $this->assertStringContainsString('UPLOAD_ERR_NO_FILE', $src);
         $this->assertStringContainsString('js/photo-resize.js', $src);
     }
+
+    public function testPhotoEndpointChecksAccessAndNeverRevealsWhy(): void
+    {
+        $src = $this->src('media-photo.php');
+        $this->assertStringContainsString('mediaPhotoAllowed(current_user(), $driver, $profile, db_get_latest_media_consent($pdo, $driverId))', $src);
+        $this->assertStringContainsString("header('X-Content-Type-Options: nosniff');", $src);
+        $this->assertStringContainsString("header('Cache-Control: private, max-age=0, must-revalidate');", $src);
+        $this->assertSame(1, substr_count($src, 'readfile('));
+        $this->assertStringContainsString("str_starts_with(\$path, MEDIA_PHOTO_DIR . '/')", $src);
+    }
 }
