@@ -285,3 +285,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
   .media-car-block { break-inside: avoid; }
   .media-entry { box-shadow: none; border: 1px solid #999; }
 }
+
+.media-public { max-width: 42rem; }
+.media-public-photo { width: 100%; max-width: 420px; aspect-ratio: 1; object-fit: cover; border-radius: 12px; }
+.media-public-sponsors { padding-left: 1.2rem; }

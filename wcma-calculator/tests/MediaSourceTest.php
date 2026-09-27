@@ -82,4 +82,13 @@ final class MediaSourceTest extends TestCase
         $this->assertStringContainsString("mediaNotifyOwner(\$pdo, \$r['notify']", $src);
         $this->assertStringContainsString("'emailSmtpSend'", $src);
     }
+
+    public function testPublicPageOnlyShowsLiveProfilesAndOtherwise404s(): void
+    {
+        $src = $this->src('driver.php');
+        $this->assertStringContainsString("mediaUsable(\$profile, \$consent, 'public')", $src);
+        $this->assertStringContainsString('http_response_code(404);', $src);
+        $this->assertStringContainsString("This profile isn&#039;t available", $src);
+        $this->assertStringNotContainsString('require_role', $src);
+    }
 }

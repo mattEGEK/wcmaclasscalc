@@ -124,3 +124,26 @@ function renderMediaReviewHtml(array $vm): string {
     }
     return $out;
 }
+
+function renderPublicDriverHtml(array $e): string {
+    $id = (int)$e['driver_id'];
+    $out = '<article class="media-public">';
+    if ($e['has_photo']) $out .= '<img class="media-public-photo" src="media-photo.php?driver_id=' . $id . '" alt="' . h($e['name']) . '">';
+    $out .= '<h1>' . h($e['name']) . '</h1>';
+    $facts = mediaFactsLine($e);
+    if ($facts !== '') $out .= '<p class="hub-intro">' . h($facts) . '</p>';
+    if ($e['number'] !== '' || $e['car'] !== '') {
+        $out .= '<p class="media-car">' . ($e['number'] !== '' ? '<span class="media-number">#' . h($e['number']) . '</span> ' : '') . h($e['car'])
+            . ($e['class'] !== '' ? ' · ' . h($e['class']) : '') . '</p>';
+    }
+    if (trim($e['blurb']) !== '') $out .= '<p class="media-blurb">' . nl2br(h($e['blurb'])) . '</p>';
+    if ($e['sponsors']) {
+        $out .= '<h2>Sponsors</h2><ul class="media-public-sponsors">';
+        foreach ($e['sponsors'] as $s) {
+            $out .= '<li>' . ($s['url'] ? '<a href="' . h($s['url']) . '" target="_blank" rel="sponsored noopener">' . h($s['name']) . '</a>' : h($s['name'])) . '</li>';
+        }
+        $out .= '</ul>';
+    }
+    if ((string)$e['social_handle'] !== '') $out .= '<p>Follow: @' . h((string)$e['social_handle']) . '</p>';
+    return $out . '<p class="form-hint">Racing with the Western Canada Motorsport Association.</p></article>';
+}

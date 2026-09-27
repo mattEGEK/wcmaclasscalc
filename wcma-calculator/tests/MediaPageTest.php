@@ -89,4 +89,16 @@ final class MediaPageTest extends TestCase
         $this->assertStringContainsString('action="media.php?action=media-unhide"', $html);
         $this->assertStringContainsString('Dispute', $html);
     }
+
+    public function testPublicPageShowsTheProfileWithoutStaffControls(): void
+    {
+        $html = renderPublicDriverHtml($this->entry());
+        $this->assertStringContainsString('<h1>Jane &lt;Doe&gt;</h1>', $html);
+        $this->assertStringContainsString('src="media-photo.php?driver_id=5"', $html);
+        $this->assertStringContainsString('#42', $html);
+        $this->assertStringContainsString('rel="sponsored noopener"', $html);
+        $this->assertStringContainsString('@janed', $html);
+        $this->assertStringNotContainsString('data-copy', $html);
+        $this->assertStringNotContainsString('<form', $html);
+    }
 }
