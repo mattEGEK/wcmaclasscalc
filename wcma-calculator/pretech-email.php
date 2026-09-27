@@ -7,6 +7,7 @@
 require_once __DIR__ . '/view_helpers.php';        // h()
 require_once __DIR__ . '/photo-requirements.php';  // photoRequirementByKey()
 require_once __DIR__ . '/email-copy.php';
+require_once __DIR__ . '/ice-sheet-lib.php';       // techSheetIsIce(), techSheetClassLine()
 
 function pretechEmailCarLine(array $sheet, array $event): string {
     $when = !empty($event['event_date']) ? ', ' . date('F j, Y', strtotime($event['event_date'])) : '';
@@ -88,23 +89,27 @@ function pretechEmailSentBack(array $sheet, array $event, array $retakes, string
 function pretechEmailAccepted(array $sheet, array $event, string $viewUrl, string $adminUrl, bool $forClub, ?array $reviewer = null, string $via = 'photos'): array {
     $car = pretechEmailCarLine($sheet, $event);
     $season = (int)($sheet['season'] ?? date('Y'));
+    $isIce = techSheetIsIce($sheet);
+    $seasonText = $isIce ? 'Ice ' . $season : (string)$season;
+    $classLine = $isIce ? techSheetClassLine($sheet) : '';
     $byLine = reviewedByLine($reviewer);
     $inPerson = $via === 'in_person';
     $what = $inPerson
-        ? $car . ' was inspected in person and is teched for ' . $season . '.'
-        : 'The pre-tech photos for ' . $car . ' were reviewed and accepted. This car is pre-teched for ' . $season . '.';
+        ? $car . ' was inspected in person and is teched for ' . $seasonText . '.'
+        : 'The pre-tech photos for ' . $car . ' were reviewed and accepted. This car is pre-teched for ' . $seasonText . '.';
 
     if ($forClub) {
         $note = $inPerson ? 'The competitor collects their decals at the event.' : 'No in-person inspection is needed; the competitor will collect their decals at the event.';
-        $lines = array_values(array_filter([$what . ' ' . $note, $byLine, 'Open the review page:', $adminUrl]));
+        $lines = array_values(array_filter([$what . ' ' . $note, $classLine, $byLine, 'Open the review page:', $adminUrl]));
         $link = pretechEmailLink($adminUrl, 'Open the review page');
         $body = pretechEmailPara($what . ' ' . $note);
     } else {
         $note = $inPerson ? 'Collect your decals at the event.' : 'You do not need to be inspected at the track: just collect your decals at the event.';
-        $lines = array_values(array_filter([COPY_TECH_SHEET_ACCEPTED, $byLine, $what, $note, 'Your tech sheet:', $viewUrl]));
+        $lines = array_values(array_filter([COPY_TECH_SHEET_ACCEPTED, $byLine, $what, $classLine, $note, 'Your tech sheet:', $viewUrl]));
         $link = pretechEmailLink($viewUrl, 'View your tech sheet');
         $body = pretechEmailPara(COPY_TECH_SHEET_ACCEPTED) . pretechEmailPara($what) . pretechEmailPara($note);
     }
+    if ($classLine !== '') $body .= pretechEmailPara($classLine);
     if ($byLine !== '') $body .= pretechEmailPara($byLine);
 
     return [

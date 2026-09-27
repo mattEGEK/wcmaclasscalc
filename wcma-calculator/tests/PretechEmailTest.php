@@ -94,6 +94,36 @@ final class PretechEmailTest extends TestCase
         $this->assertStringContainsString('Tech Sheet Accepted', $inPerson['subject']);
     }
 
+    private function iceSheet(array $o = []): array {
+        return $this->sheet(array_merge(['discipline' => DISCIPLINE_ICE, 'season' => 2027, 'class' => 'LS', 'club' => 'NASCC'], $o));
+    }
+
+    public function testAcceptedEmailSaysIceForAnIceSheetAndIncludesTheClassLine(): void
+    {
+        $view = 'https://x.test/tech-sheets.php?action=view&id=12';
+        $admin = 'https://x.test/inspect.php?action=tech-sheet&id=12';
+
+        $competitor = pretechEmailAccepted($this->iceSheet(), $this->event(), $view, $admin, false, null, 'in_person');
+        $this->assertStringContainsString('Ice 2027', $competitor['text']);
+        $this->assertStringContainsString(techSheetClassLine($this->iceSheet()), $competitor['text']);
+        $this->assertStringContainsString('Ice 2027', $competitor['html']);
+        $this->assertStringContainsString(h(techSheetClassLine($this->iceSheet())), $competitor['html']);
+
+        $club = pretechEmailAccepted($this->iceSheet(), $this->event(), $view, $admin, true, null, 'in_person');
+        $this->assertStringContainsString('Ice 2027', $club['text']);
+        $this->assertStringContainsString(techSheetClassLine($this->iceSheet()), $club['text']);
+    }
+
+    public function testAcceptedEmailSummerTextIsUnchanged(): void
+    {
+        $view = 'https://x.test/tech-sheets.php?action=view&id=12';
+        $admin = 'https://x.test/inspect.php?action=tech-sheet&id=12';
+
+        $mail = pretechEmailAccepted($this->sheet(), $this->event(), $view, $admin, false, null, 'in_person');
+        $this->assertStringContainsString('teched for 2026.', $mail['text']);
+        $this->assertStringNotContainsString('Ice 2026', $mail['text']);
+    }
+
     public function testNoApprovalWordingOutsideTheDisclaimer(): void
     {
         $mails = [

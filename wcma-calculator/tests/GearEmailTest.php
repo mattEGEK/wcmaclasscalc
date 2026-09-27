@@ -90,6 +90,37 @@ final class GearEmailTest extends TestCase
         $this->assertStringNotContainsString('No gear check is needed', $inPerson['text']);
     }
 
+    private function iceGear(array $o = []): array {
+        return $this->gear(array_merge(['discipline' => DISCIPLINE_ICE, 'season' => 2027, 'level' => 'caged'], $o));
+    }
+
+    public function testAcceptedEmailSaysIceAndAddsTheLevelForAnIceRecord(): void
+    {
+        $owner = gearEmailAccepted($this->iceGear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/inspect.php?action=gear-record&id=4', false);
+        $this->assertStringContainsString('Ice 2027', $owner['text']);
+        $this->assertStringContainsString('Gear level: caged.', $owner['text']);
+        $this->assertStringContainsString('Ice 2027', $owner['html']);
+        $this->assertStringContainsString('Gear level: caged.', $owner['html']);
+
+        $club = gearEmailAccepted($this->iceGear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/inspect.php?action=gear-record&id=4', true);
+        $this->assertStringContainsString('Ice 2027', $club['text']);
+        $this->assertStringContainsString('Gear level: caged.', $club['text']);
+    }
+
+    public function testAcceptedEmailOmitsTheLevelLineWhenNoLevelIsSet(): void
+    {
+        $mail = gearEmailAccepted($this->iceGear(['level' => null]), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/inspect.php?action=gear-record&id=4', false);
+        $this->assertStringNotContainsString('Gear level:', $mail['text']);
+    }
+
+    public function testAcceptedEmailSummerTextIsUnchanged(): void
+    {
+        $mail = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/inspect.php?action=gear-record&id=4', false);
+        $this->assertStringContainsString('teched for 2026.', $mail['text']);
+        $this->assertStringNotContainsString('Ice 2026', $mail['text']);
+        $this->assertStringNotContainsString('Gear level:', $mail['text']);
+    }
+
     public function testNoBannedWordingOutsideTheDisclaimer(): void
     {
         $mails = [

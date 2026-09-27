@@ -6,6 +6,7 @@
 // function. Callers must have loaded db.php first.
 require_once __DIR__ . '/pretech-email.php';   // pretechEmailWrap/Para/Link, view_helpers, photo-requirements
 require_once __DIR__ . '/email-copy.php';
+require_once __DIR__ . '/ice-rules.php';       // ICE_GEAR_LEVEL_LABELS
 
 function gearEmailDriverLine(array $gear): string {
     return $gear['driver_name'] . ' — ' . (int)($gear['season'] ?? date('Y'));
@@ -68,22 +69,26 @@ function gearEmailSentBack(array $gear, array $retakes, string $pageUrl, ?array 
 function gearEmailAccepted(array $gear, string $pageUrl, string $adminUrl, bool $forClub, ?array $reviewer = null, string $via = 'photos'): array {
     $driver = gearEmailDriverLine($gear);
     $season = (int)($gear['season'] ?? date('Y'));
+    $isIce = ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
+    $seasonText = $isIce ? 'Ice ' . $season : (string)$season;
+    $levelLine = ($isIce && !empty($gear['level'])) ? 'Gear level: ' . (ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']) . '.' : '';
     $byLine = reviewedByLine($reviewer);
     $what = $via === 'in_person'
-        ? $driver . '\'s gear was checked in person and is teched for ' . $season . '.'
-        : 'The gear pre-tech photos for ' . $driver . ' were reviewed and accepted. This driver\'s gear is pre-teched for ' . $season . '.';
+        ? $driver . '\'s gear was checked in person and is teched for ' . $seasonText . '.'
+        : 'The gear pre-tech photos for ' . $driver . ' were reviewed and accepted. This driver\'s gear is pre-teched for ' . $seasonText . '.';
 
     if ($forClub) {
         $trackNote = $via === 'in_person' ? 'The gear was checked in person at the track.' : 'No gear check is needed at the track.';
-        $lines = array_values(array_filter([$what, $trackNote, $byLine, 'Review page:', $adminUrl]));
+        $lines = array_values(array_filter([$what, $levelLine, $trackNote, $byLine, 'Review page:', $adminUrl]));
         $body = pretechEmailPara($what) . pretechEmailPara($trackNote);
         $link = pretechEmailLink($adminUrl, 'Open the review page');
     } else {
         $note = 'You do not need your gear checked at the track: just collect your decals at the event.';
-        $lines = array_values(array_filter([COPY_GEAR_ACCEPTED, $byLine, $what, $note, 'Your gear page:', $pageUrl]));
+        $lines = array_values(array_filter([COPY_GEAR_ACCEPTED, $byLine, $what, $levelLine, $note, 'Your gear page:', $pageUrl]));
         $body = pretechEmailPara(COPY_GEAR_ACCEPTED) . pretechEmailPara($what) . pretechEmailPara($note);
         $link = pretechEmailLink($pageUrl, 'View your gear page');
     }
+    if ($levelLine !== '') $body .= pretechEmailPara($levelLine);
     if ($byLine !== '') $body .= pretechEmailPara($byLine);
 
     return [
