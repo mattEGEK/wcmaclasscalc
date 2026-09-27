@@ -21,9 +21,42 @@ function techSeasonFromDate(?string $eventDate): int {
     return (int)date('Y');
 }
 
-/** Groups sheets that belong to the same car in the same season. */
+const DISCIPLINE_SUMMER = 'summer';
+const DISCIPLINE_ICE = 'ice';
+/** Ice seasons are named for the year they end in: an event in or after this month counts toward next year. */
+const ICE_SEASON_ROLLOVER_MONTH = 7;
+
+/** Ice season of a date ('YYYY-MM-DD...'): its year, plus one from July on. The current date if unreadable. */
+function iceSeasonFromDate(?string $date): int {
+    if ($date === null || !preg_match('/^(\d{4})-(\d{2})-\d{2}/', $date, $m)) {
+        $date = date('Y-m-d');
+        preg_match('/^(\d{4})-(\d{2})/', $date, $m);
+    }
+    return (int)$m[1] + ((int)$m[2] >= ICE_SEASON_ROLLOVER_MONTH ? 1 : 0);
+}
+
+/**
+ * The single place an event's season key is derived. Events without a discipline (rows from before
+ * ice racing, or no event at all) are summer.
+ *
+ * @return array{discipline: string, season: int, club: ?string}
+ */
+function seasonForEvent(?array $event): array {
+    $date = $event['event_date'] ?? null;
+    if (($event['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) {
+        return ['discipline' => DISCIPLINE_ICE, 'season' => iceSeasonFromDate($date), 'club' => $event['host_club'] ?? null];
+    }
+    return ['discipline' => DISCIPLINE_SUMMER, 'season' => techSeasonFromDate($date), 'club' => null];
+}
+
+/** Groups sheets that belong to the same car in the same season (and, for ice, the same club). */
 function techCarKey(array $sheet): string {
-    return (int)($sheet['car_id'] ?? 0) . '|' . (int)($sheet['season'] ?? 0);
+    $car = (int)($sheet['car_id'] ?? 0);
+    $season = (int)($sheet['season'] ?? 0);
+    if (($sheet['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) {
+        return $car . '|ice|' . ($sheet['club'] ?? '') . '|' . $season;
+    }
+    return $car . '|' . $season;
 }
 
 /**
@@ -51,9 +84,10 @@ function techCarStatus(array $sheets): array {
     return ['state' => 'none', 'via' => null, 'sheet_id' => null];
 }
 
-function techCarStatusLabel(array $status, int $season): string {
+function techCarStatusLabel(array $status, int $season, string $discipline = DISCIPLINE_SUMMER): string {
+    $when = $discipline === DISCIPLINE_ICE ? 'Ice ' . $season : (string)$season;
     switch ($status['state']) {
-        case 'accepted':       return ($status['via'] === 'photos' ? 'Pre-teched ' : 'Teched ') . $season;
+        case 'accepted':       return ($status['via'] === 'photos' ? 'Pre-teched ' : 'Teched ') . $when;
         case 'needs_changes':  return 'Photos need changes';
         case 'pending_review': return 'Photos pending review';
         case 'photos_draft':   return 'Photos in progress';

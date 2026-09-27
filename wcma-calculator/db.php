@@ -326,6 +326,10 @@ function db_init(PDO $pdo): void {
 
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tech_sheets_car ON tech_sheets (car_id, season)");
 
+    // ── Ice racing (2026-09-27 spec). Added in place: no reset. ──
+    db_add_column_if_missing($pdo, 'events', 'discipline', "TEXT NOT NULL DEFAULT 'summer'");
+    db_add_column_if_missing($pdo, 'events', 'host_club', 'TEXT');
+
     // ── Driver media profiles (2026-09-27 spec). Added in place: no reset. ──
     db_add_column_if_missing($pdo, 'users', 'is_media', 'INTEGER NOT NULL DEFAULT 0');
     db_add_column_if_missing($pdo, 'users', 'media_prompt_dismissed', 'INTEGER NOT NULL DEFAULT 0');
@@ -647,13 +651,14 @@ function db_delete_draft(PDO $pdo, int $id, int $user_id): void {
 
 // ── Events ────────────────────────────────────────────────────────────────────
 
-function db_create_event(PDO $pdo, string $name, string $event_date, ?string $location): int {
+function db_create_event(PDO $pdo, string $name, string $event_date, ?string $location,
+                         string $discipline = 'summer', ?string $hostClub = null): int {
     $pdo->prepare("
-        INSERT INTO events (name, event_date, location, active, created_at)
-        VALUES (:name, :event_date, :location, 1, :created_at)
+        INSERT INTO events (name, event_date, location, active, created_at, discipline, host_club)
+        VALUES (:name, :event_date, :location, 1, :created_at, :discipline, :host_club)
     ")->execute([
         ':name' => $name, ':event_date' => $event_date, ':location' => $location,
-        ':created_at' => date('Y-m-d H:i:s'),
+        ':created_at' => date('Y-m-d H:i:s'), ':discipline' => $discipline, ':host_club' => $hostClub,
     ]);
     return (int)$pdo->lastInsertId();
 }
@@ -672,9 +677,14 @@ function db_get_event(PDO $pdo, int $id): ?array {
     return $stmt->fetch() ?: null;
 }
 
-function db_update_event(PDO $pdo, int $id, string $name, string $event_date, ?string $location): void {
-    $pdo->prepare("UPDATE events SET name = :name, event_date = :event_date, location = :location WHERE id = :id")
-        ->execute([':name' => $name, ':event_date' => $event_date, ':location' => $location, ':id' => $id]);
+function db_update_event(PDO $pdo, int $id, string $name, string $event_date, ?string $location,
+                         string $discipline, ?string $hostClub): void {
+    $pdo->prepare("
+        UPDATE events SET name = :name, event_date = :event_date, location = :location,
+            discipline = :discipline, host_club = :host_club
+        WHERE id = :id
+    ")->execute([':name' => $name, ':event_date' => $event_date, ':location' => $location,
+                 ':discipline' => $discipline, ':host_club' => $hostClub, ':id' => $id]);
 }
 
 function db_set_event_active(PDO $pdo, int $id, bool $active): void {

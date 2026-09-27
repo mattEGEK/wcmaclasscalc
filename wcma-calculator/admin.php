@@ -12,6 +12,7 @@ require __DIR__ . '/feedback-lib.php';
 require __DIR__ . '/admin-feedback.php';
 require __DIR__ . '/season-links-lib.php';
 require __DIR__ . '/admin-season-links.php';
+require __DIR__ . '/ice-rules.php';
 
 $pdo = db_connect();
 db_init($pdo);
@@ -314,7 +315,14 @@ function handleEventCreate(PDO $pdo): void {
         exit;
     }
 
-    db_create_event($pdo, $name, $date, $location !== '' ? $location : null);
+    $fields = iceEventFields($_POST);
+    if (!$fields['ok']) {
+        setFlash((string)$fields['error'], 'error');
+        header('Location: admin.php?action=events');
+        exit;
+    }
+
+    db_create_event($pdo, $name, $date, $location !== '' ? $location : null, $fields['discipline'], $fields['club']);
     setFlash('Event created.', 'success');
     header('Location: admin.php?action=events');
     exit;
@@ -331,7 +339,14 @@ function handleEventUpdate(PDO $pdo, int $id): void {
         exit;
     }
 
-    db_update_event($pdo, $id, $name, $date, $location !== '' ? $location : null);
+    $fields = iceEventFields($_POST);
+    if (!$fields['ok']) {
+        setFlash((string)$fields['error'], 'error');
+        header('Location: admin.php?action=events');
+        exit;
+    }
+
+    db_update_event($pdo, $id, $name, $date, $location !== '' ? $location : null, $fields['discipline'], $fields['club']);
     setFlash('Event updated.', 'success');
     header('Location: admin.php?action=events');
     exit;
@@ -372,6 +387,18 @@ function renderEventsPage(array $events, array $going, string $csrf, ?array $fla
       <input type="date" id="new-event-date" name="event_date" required>
       <label for="new-event-location">Location</label>
       <input type="text" id="new-event-location" name="location">
+      <fieldset class="radio-row">
+        <legend>Discipline</legend>
+        <label><input type="radio" name="discipline" value="summer" checked> Summer</label>
+        <label><input type="radio" name="discipline" value="ice"> Ice</label>
+      </fieldset>
+      <label for="new-event-club">Host club (ice events)</label>
+      <select id="new-event-club" name="host_club">
+        <option value="">—</option>
+        <?php foreach (iceClubCodes() as $code): ?>
+        <option value="<?= h($code) ?>"><?= h($code . ' — ' . iceClubLabel($code)) ?></option>
+        <?php endforeach; ?>
+      </select>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Add Event</button>
       </div>
@@ -386,7 +413,7 @@ function renderEventsPage(array $events, array $going, string $csrf, ?array $fla
     <?php else: foreach ($events as $e): ?>
       <tr>
         <td><?= h(date('M j, Y', strtotime($e['event_date']))) ?></td>
-        <td><?= h($e['name']) ?></td>
+        <td><?= h($e['name']) ?><?php if (($e['discipline'] ?? 'summer') === 'ice'): ?> <span class="badge-pending">Ice · <?= h((string)$e['host_club']) ?></span><?php endif; ?></td>
         <td><?= h($e['location'] ?? '—') ?></td>
         <?php $n = (int)($going[(int)$e['id']] ?? 0); ?>
         <td><?= $n ?> <?= $n === 1 ? 'car' : 'cars' ?></td>

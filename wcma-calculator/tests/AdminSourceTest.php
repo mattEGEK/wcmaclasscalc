@@ -63,4 +63,12 @@ final class AdminSourceTest extends TestCase
             $this->assertStringNotContainsString('adminActionMinRole(', $src, basename($f));
         }
     }
+
+    public function testEventFormHasDisciplineAndHostClub(): void
+    {
+        $src = $this->src('admin.php');
+        $this->assertStringContainsString('name="discipline"', $src);
+        $this->assertStringContainsString('name="host_club"', $src);
+        $this->assertStringContainsString('iceEventFields($_POST)', $src);
+    }
 }

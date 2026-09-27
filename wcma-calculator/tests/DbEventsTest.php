@@ -46,11 +46,31 @@ final class DbEventsTest extends TestCase
     {
         $pdo = make_temp_pdo();
         $id = db_create_event($pdo, 'Old Name', '2026-01-01', null);
-        db_update_event($pdo, $id, 'New Name', '2026-02-02', 'New Location');
+        db_update_event($pdo, $id, 'New Name', '2026-02-02', 'New Location', 'summer', null);
 
         $event = db_get_event($pdo, $id);
         $this->assertSame('New Name', $event['name']);
         $this->assertSame('2026-02-02', $event['event_date']);
         $this->assertSame('New Location', $event['location']);
+    }
+
+    public function testEventsDefaultToSummer(): void
+    {
+        $pdo = make_temp_pdo();
+        $event = db_get_event($pdo, db_create_event($pdo, 'Spring Sprint', '2026-05-10', null));
+        $this->assertSame('summer', $event['discipline']);
+        $this->assertNull($event['host_club']);
+    }
+
+    public function testCreateAndUpdateIceEvent(): void
+    {
+        $pdo = make_temp_pdo();
+        $id = db_create_event($pdo, 'Ice #1', '2027-01-04', 'Lake Shirley', 'ice', 'WSCC');
+        $event = db_get_event($pdo, $id);
+        $this->assertSame('ice', $event['discipline']);
+        $this->assertSame('WSCC', $event['host_club']);
+
+        db_update_event($pdo, $id, 'Ice #1', '2027-01-04', 'Lake Shirley', 'ice', 'NASCC');
+        $this->assertSame('NASCC', db_get_event($pdo, $id)['host_club']);
     }
 }

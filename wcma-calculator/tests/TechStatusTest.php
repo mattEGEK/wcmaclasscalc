@@ -221,4 +221,40 @@ final class TechStatusTest extends TestCase
         $this->assertCount(2, techRosterFilter($rows, 'needs_tech'));
         $this->assertCount(1, techRosterFilter($rows, 'pending_review'));
     }
+
+    public function testIceSeasonRollsOverInJuly(): void
+    {
+        $this->assertSame(2027, iceSeasonFromDate('2026-12-12'));
+        $this->assertSame(2027, iceSeasonFromDate('2027-01-04'));
+        $this->assertSame(2027, iceSeasonFromDate('2027-03-08'));
+        $this->assertSame(2027, iceSeasonFromDate('2027-06-30'));
+        $this->assertSame(2028, iceSeasonFromDate('2027-07-01'));
+    }
+
+    public function testSeasonForEvent(): void
+    {
+        $this->assertSame(['discipline' => 'summer', 'season' => 2026, 'club' => null],
+            seasonForEvent(['event_date' => '2026-12-12', 'discipline' => 'summer', 'host_club' => null]));
+        $this->assertSame(['discipline' => 'ice', 'season' => 2027, 'club' => 'NASCC'],
+            seasonForEvent(['event_date' => '2026-12-12', 'discipline' => 'ice', 'host_club' => 'NASCC']));
+        // Rows from before the migration have no discipline column: they are summer.
+        $this->assertSame('summer', seasonForEvent(['event_date' => '2026-05-10'])['discipline']);
+        $this->assertSame('summer', seasonForEvent(null)['discipline']);
+    }
+
+    public function testIceCarKeyIncludesClub(): void
+    {
+        $this->assertSame('500|2026', techCarKey($this->sheet(1, ['discipline' => 'summer', 'club' => null])));
+        $this->assertSame('500|ice|NASCC|2026', techCarKey($this->sheet(1, ['discipline' => 'ice', 'club' => 'NASCC'])));
+        $this->assertNotSame(
+            techCarKey($this->sheet(1, ['discipline' => 'ice', 'club' => 'NASCC'])),
+            techCarKey($this->sheet(2, ['discipline' => 'ice', 'club' => 'WSCC'])));
+    }
+
+    public function testIceStatusLabel(): void
+    {
+        $this->assertSame('Teched Ice 2027', techCarStatusLabel(['state' => 'accepted', 'via' => 'in_person', 'sheet_id' => 1], 2027, 'ice'));
+        $this->assertSame('Pre-teched Ice 2027', techCarStatusLabel(['state' => 'accepted', 'via' => 'photos', 'sheet_id' => 1], 2027, 'ice'));
+        $this->assertSame('Needs tech at the track', techCarStatusLabel(['state' => 'none', 'via' => null, 'sheet_id' => null], 2027, 'ice'));
+    }
 }
