@@ -127,6 +127,20 @@ final class InspectLibTest extends TestCase
         $this->assertSame(100, mb_strlen(inspectClassingFilters(['q' => str_repeat('é', 150)])['q'], 'UTF-8'));
     }
 
+    public function testIceRosterUsesTheClubsIceSheetsAndTheSheetClass(): void
+    {
+        $car = ['id' => 3, 'owner_user_id' => 4, 'car_number' => '7', 'year' => '1985', 'make' => 'Chevrolet', 'model' => 'Chevette', 'owner_name' => 'Sam', 'tagged' => 1];
+        $iceSheet = ['id' => 9, 'car_id' => 3, 'user_id' => 4, 'season' => 2027, 'discipline' => 'ice', 'club' => 'NASCC', 'class' => 'CH',
+                     'status' => 'teched', 'accepted_via' => 'in_person', 'photo_status' => null, 'driver_name' => 'Sam', 'event_id' => 20];
+        $otherClub = ['id' => 10] + ['club' => 'WSCC'] + $iceSheet;
+        $rows = inspectRosterRows([$car], [$iceSheet], [$iceSheet, $otherClub], [], [], [], [], 2027, ['discipline' => 'ice', 'club' => 'NASCC']);
+        $this->assertSame('accepted', $rows[0]['status']['state']);
+        $this->assertSame('CH — Chevette (NASCC)', $rows[0]['ice_class']);
+
+        $wscc = inspectRosterRows([$car], [], [$otherClub], [], [], [], [], 2027, ['discipline' => 'ice', 'club' => 'NASCC']);
+        $this->assertSame('none', $wscc[0]['status']['state']);   // a WSCC sheet doesn't tech the car for NASCC
+    }
+
     public function testClassingQueryKeepsOnlySetFilters(): void
     {
         $f = inspectClassingFilters(['q' => 'honda civic', 'class' => 'GT3']);

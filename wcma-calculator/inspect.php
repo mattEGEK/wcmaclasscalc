@@ -142,19 +142,20 @@ function inspectShowRoster(PDO $pdo): void {
     }
     $filter = is_string($_GET['filter'] ?? null) && isset(INSPECT_ROSTER_FILTERS[$_GET['filter']]) ? $_GET['filter'] : 'all';
     $event = $eventId > 0 ? db_get_event($pdo, $eventId) : null;
-    $season = techSeasonFromDate($event['event_date'] ?? null);
+    $key = seasonForEvent($event);
+    $season = $key['season'];
 
     $rows = [];
     if ($event !== null) {
         $cars = db_get_event_roster_cars($pdo, $eventId);
         $eventSheets = db_get_event_tech_sheets($pdo, $eventId);
         $rows = inspectRosterRows(
-            $cars, $eventSheets, db_get_season_sheets($pdo, $season),
+            $cars, $eventSheets, db_get_season_sheets($pdo, $season, $key['discipline']),
             db_get_declarations_for_cars($pdo, array_map(fn(array $c): int => (int)$c['id'], $cars)),
             db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $eventSheets)),
             db_get_self_drivers_for_users($pdo, array_map(fn(array $c): int => (int)$c['owner_user_id'], $cars)),
-            db_get_gear_records_for_season($pdo, $season),
-            $season
+            db_get_gear_records_for_season($pdo, $season, $key['discipline']),
+            $season, $key
         );
     }
 
@@ -162,7 +163,7 @@ function inspectShowRoster(PDO $pdo): void {
     echo renderInspectRosterHtml([
         'events' => $events, 'eventId' => $eventId, 'filter' => $filter,
         'rows' => inspectRosterFilter($rows, $filter), 'counts' => inspectRosterCounts($rows),
-        'season' => $season, 'csrf' => generateCsrfToken(),
+        'season' => $season, 'csrf' => generateCsrfToken(), 'discipline' => $key['discipline'],
     ]);
     renderPageEnd(['scripts' => '<script src="js/form-feedback.js"></script>']);
 }

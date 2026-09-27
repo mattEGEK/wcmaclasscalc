@@ -209,6 +209,18 @@ final class InspectPageTest extends TestCase
         $this->assertStringContainsString('<td data-label="Class">GT3</td>', $page);
     }
 
+    public function testIceRosterRowShowsTheIceClassAndIceSeason(): void
+    {
+        $row = $this->row(['id' => 5, 'status' => 'teched'], []);
+        $row['ice_class'] = 'CH — Chevette (NASCC)';
+        $row['class'] = ['current' => null, 'earlierAccepted' => null];
+        $row['status'] = ['state' => 'accepted', 'via' => 'in_person', 'sheet_id' => 5];
+        $vm = $this->vm([$row], ['season' => 2027, 'discipline' => 'ice']);
+        $html = inspectRosterRowHtml($row, $vm);
+        $this->assertStringContainsString('CH — Chevette (NASCC)', $html);
+        $this->assertStringContainsString('Teched Ice 2027', $html);
+    }
+
     public function testQueueListsItemsOldestFirstWithReviewLinks(): void
     {
         $car = ['kind' => 'car_photos', 'id' => 12, 'title' => 'Car pre-tech photos: #17 <Miata>', 'detail' => 'Jordan Lee · Fall Sprint',

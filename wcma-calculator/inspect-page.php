@@ -57,6 +57,7 @@ function inspectRosterRowHtml(array $row, array $vm): string {
     // instead of appending after the </p> where it wraps onto its own line.
     $classCell = $classLink === '' ? garageClassHtml($row['class'])
         : preg_replace('/<\/p>$/', $classLink . '</p>', garageClassHtml($row['class']));
+    if (($row['ice_class'] ?? '') !== '') $classCell = '<p>' . h($row['ice_class']) . '</p>';
     $sheetCell = $sheet === null
         ? '<span class="hub-status hub-status--todo">No sheet yet</span>'
         : '<span class="hub-status ' . ($sheet['status'] === 'teched' ? 'hub-status--ok">Accepted' : 'hub-status--info">Submitted') . '</span>'
@@ -74,7 +75,7 @@ function inspectRosterRowHtml(array $row, array $vm): string {
         . '<div><dt>Class</dt><dd>' . $classCell . '</dd></div>'
         . '<div><dt>Tech sheet</dt><dd>' . $sheetCell . '</dd></div>'
         . '<div><dt>Car tech</dt><dd><span class="hub-status ' . h(homeStatusClass($row['status']['state'])) . '">'
-        . h(techCarStatusLabel($row['status'], $vm['season'])) . '</span></dd></div>'
+        . h(techCarStatusLabel($row['status'], $vm['season'], (string)($vm['discipline'] ?? 'summer'))) . '</span></dd></div>'
         . '<div><dt>Gear</dt><dd>' . ($chips !== '' ? $chips : 'No drivers') . '</dd></div>'
         . '</dl></article>';
 }

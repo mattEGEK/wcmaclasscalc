@@ -4,6 +4,7 @@
 // Pure view models for the Inspector section (spec §5): the event roster, the review queue and the
 // Classing filters. No DB, no HTML. Callers must have loaded tech-status.php, gear-lib.php
 // (gearLinksForSheet()) and garage-lib.php (garageClassLine()).
+require_once __DIR__ . '/ice-sheet-lib.php';
 
 const INSPECT_ROSTER_FILTERS = [
     'all' => 'All cars',
@@ -28,16 +29,21 @@ const INSPECT_DECLARATION_STATUSES = ['submitted', 'needs_changes', 'accepted', 
  * @param array $sheetDrivers  sheet id => additional driver rows (db_get_drivers_for_sheets())
  * @param array $selfDrivers   owner user id => self driver row (db_get_self_drivers_for_users())
  * @param array $seasonGear    every gear record in the season (db_get_gear_records_for_season())
- * @return array<int, array{car: array, sheet: ?array, class: array, status: array, gear_links: array}>
+ * @param array $key           discipline/club identity for this roster (seasonForEvent()'s shape)
+ * @return array<int, array{car: array, sheet: ?array, class: array, status: array, gear_links: array, ice_class: string}>
  */
 function inspectRosterRows(array $cars, array $eventSheets, array $seasonSheets, array $declarations,
-                           array $sheetDrivers, array $selfDrivers, array $seasonGear, int $season): array {
+                           array $sheetDrivers, array $selfDrivers, array $seasonGear, int $season,
+                           array $key = ['discipline' => 'summer', 'club' => null]): array {
+    $isIce = ($key['discipline'] ?? 'summer') === 'ice';
     $sheetByCar = [];
     foreach ($eventSheets as $s) {
         $cid = (int)$s['car_id'];
         if (!isset($sheetByCar[$cid]) || (int)$s['id'] > (int)$sheetByCar[$cid]['id']) $sheetByCar[$cid] = $s;
     }
-    $groups = techGroupSheetsByCar($seasonSheets);
+    $groups = techGroupSheetsByCar($isIce
+        ? array_values(array_filter($seasonSheets, fn(array $s): bool => ($s['club'] ?? null) === $key['club']))
+        : $seasonSheets);
     $gearByOwner = [];
     foreach ($seasonGear as $g) {
         $gearByOwner[(int)$g['owner_user_id']][] = $g;
@@ -52,7 +58,8 @@ function inspectRosterRows(array $cars, array $eventSheets, array $seasonSheets,
         if ($sheet !== null) {
             $links = gearLinksForSheet($sheet, $sheetDrivers[(int)$sheet['id']] ?? [], $ownerGear);
         } elseif (isset($selfDrivers[$owner])) {
-            $links = gearLinksForSheet(['user_id' => $owner, 'season' => $season, 'driver_name' => (string)$selfDrivers[$owner]['name']], [], $ownerGear);
+            $links = gearLinksForSheet(['user_id' => $owner, 'season' => $season, 'driver_name' => (string)$selfDrivers[$owner]['name'],
+                'discipline' => $key['discipline'], 'club' => $key['club']], [], $ownerGear);
         } else {
             $links = [];
         }
@@ -60,8 +67,9 @@ function inspectRosterRows(array $cars, array $eventSheets, array $seasonSheets,
             'car' => $car,
             'sheet' => $sheet,
             'class' => garageClassLine($declarations[$cid] ?? []),
-            'status' => techCarStatus($groups[techCarKey(['car_id' => $cid, 'season' => $season])] ?? []),
+            'status' => techCarStatus($groups[techCarKey(['car_id' => $cid, 'season' => $season, 'discipline' => $key['discipline'], 'club' => $key['club']])] ?? []),
             'gear_links' => $links,
+            'ice_class' => ($isIce && $sheet !== null) ? techSheetClassLine($sheet) : '',
         ];
     }
     return $rows;
