@@ -111,6 +111,25 @@ final class PretechPageTest extends TestCase
         $this->assertMatchesRegularExpression('/data-applies-toggle[^>]*checked/', $html);
     }
 
+    public function testIceSheetRendersItsOwnRequirementsAndIceAcceptedBanner(): void
+    {
+        $iceSheet = $this->sheet(['discipline' => 'ice', 'club' => 'NASCC', 'class' => 'LS', 'season' => 2027]);
+
+        $html = $this->render($iceSheet, ['mode' => 'this_sheet', 'sheet_id' => null], $this->snapshot());
+        $this->assertStringContainsString('data-key="ice_cage"', $html);
+        $this->assertStringNotContainsString('data-key="front_34"', $html);
+        $this->assertStringNotContainsString('data-key="ice_airbags"', $html);
+
+        $accepted = $this->render($iceSheet, ['mode' => 'car_accepted', 'sheet_id' => 9], $this->snapshot());
+        $this->assertStringContainsString('already teched for Ice 2027', $accepted);
+    }
+
+    public function testCardUsesTheRequirementsOwnAppliesLabel(): void
+    {
+        $req = photoRequirementByKey('ice_fhr_label');
+        $this->assertStringContainsString('NASCC LS or AWD', pretechRenderCard('ice_fhr_label', $req, null, false, false, 'This applies to this driver'));
+    }
+
     public function testCopyAvoidsBannedWording(): void
     {
         $html = $this->render($this->sheet(), ['mode' => 'this_sheet', 'sheet_id' => null], $this->snapshot());

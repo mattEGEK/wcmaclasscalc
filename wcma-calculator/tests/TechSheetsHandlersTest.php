@@ -136,12 +136,12 @@ final class TechSheetsHandlersTest extends TestCase
         $this->assertStringContainsString('techSheetIsIce(', $this->body('handleEdit'));
     }
 
-    public function testPretechIsOffForIceSheets(): void
+    public function testPretechIsOnForIceSheets(): void
     {
         foreach (['handlePretech', 'handlePretechSubmit'] as $fn) {
-            $this->assertStringContainsString('techSheetIsIce(', $this->body($fn), $fn);
+            $this->assertStringNotContainsString("isn't available yet", $this->body($fn), $fn);
         }
-        $this->assertStringContainsString('!techSheetIsIce($sheet)', $this->body('handleView'));
+        $this->assertStringNotContainsString('!techSheetIsIce($sheet)', $this->body('handleView'));
     }
 
     public function testResendUsesTheRecipientHelper(): void
