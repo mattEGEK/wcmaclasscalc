@@ -1,8 +1,8 @@
 <?php
 // wcma-calculator/profile.php — User profile page for name and password
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
-require __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/view_helpers.php';
 require_once __DIR__ . '/email-copy.php';
 
 date_default_timezone_set('America/Denver');

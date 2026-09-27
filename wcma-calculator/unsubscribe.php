@@ -5,9 +5,9 @@
 // link scanners that open every URL in an email can't unsubscribe anyone. A POST with a valid token
 // turns reminders off; mail apps' one-click unsubscribe (List-Unsubscribe-Post) POSTs to the same URL.
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
-require __DIR__ . '/view_helpers.php';
-require __DIR__ . '/reminders-lib.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/reminders-lib.php';
 
 date_default_timezone_set('America/Denver');
 $pdo = db_connect();

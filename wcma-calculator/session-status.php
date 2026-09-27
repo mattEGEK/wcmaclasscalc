@@ -1,7 +1,7 @@
 <?php
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
-require __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/view_helpers.php';
 
 header('Content-Type: application/json');
 header('Cache-Control: no-store');

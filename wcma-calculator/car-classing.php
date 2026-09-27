@@ -13,7 +13,7 @@ use PHPMailer\PHPMailer\Exception;
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
 require __DIR__ . '/phpmailer/src/SMTP.php';
-require __DIR__ . '/db.php';
+require_once __DIR__ . '/db.php';
 require __DIR__ . '/session_bootstrap.php';
 require __DIR__ . '/config.php';
 require __DIR__ . '/email-helpers.php';

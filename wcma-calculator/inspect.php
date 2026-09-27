@@ -7,19 +7,19 @@
 require __DIR__ . '/session_bootstrap.php';
 date_default_timezone_set('America/Denver');
 
-require __DIR__ . '/db.php';
+require_once __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
-require __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/view_helpers.php';
 require __DIR__ . '/feedback-lib.php';          // feedbackBaseUrl()
 require __DIR__ . '/cars-lib.php';
-require __DIR__ . '/events-lib.php';
+require_once __DIR__ . '/events-lib.php';
 require __DIR__ . '/tech-sheet-files.php';
 require __DIR__ . '/tech-review-lib.php';
-require __DIR__ . '/photo-requirements.php';
-require __DIR__ . '/inspection-lib.php';
-require __DIR__ . '/pretech-lib.php';
-require __DIR__ . '/pretech-email.php';
-require __DIR__ . '/gear-lib.php';
+require_once __DIR__ . '/photo-requirements.php';
+require_once __DIR__ . '/inspection-lib.php';
+require_once __DIR__ . '/pretech-lib.php';
+require_once __DIR__ . '/pretech-email.php';
+require_once __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-email.php';
 require __DIR__ . '/gear-chips.php';
 require __DIR__ . '/tech-sheet-render.php';

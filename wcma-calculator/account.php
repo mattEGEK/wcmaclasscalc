@@ -3,8 +3,8 @@
 // only redirects, and keeps the calculator's draft JSON endpoints: js/ui-controller.js calls
 // account.php?action=draft-*, and fetches account.php (→ garage.php) for its csrf-token meta tag.
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
-require __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/view_helpers.php';
 
 $pdo = db_connect();
 db_init($pdo);

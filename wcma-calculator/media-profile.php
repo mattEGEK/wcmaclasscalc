@@ -2,10 +2,10 @@
 // wcma-calculator/media-profile.php — a driver's media profile (spec 2026-09-27 §3). Only the account
 // that manages the driver profile may open it; anyone else gets a 404.
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
-require __DIR__ . '/view_helpers.php';
-require __DIR__ . '/photo-requirements.php';
-require __DIR__ . '/inspection-lib.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/photo-requirements.php';
+require_once __DIR__ . '/inspection-lib.php';
 require __DIR__ . '/media-lib.php';
 require __DIR__ . '/media-service.php';
 require __DIR__ . '/media-profile-page.php';

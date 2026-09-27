@@ -3,10 +3,10 @@
 // this is the only way in. The owner and Media staff always see it; everyone else only while the
 // public page is live. Every refusal is the same bare 404.
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
+require_once __DIR__ . '/db.php';
 require __DIR__ . '/media-lib.php';
-require __DIR__ . '/photo-requirements.php';
-require __DIR__ . '/inspection-lib.php';
+require_once __DIR__ . '/photo-requirements.php';
+require_once __DIR__ . '/inspection-lib.php';
 require __DIR__ . '/media-service.php';
 
 $pdo = db_connect();

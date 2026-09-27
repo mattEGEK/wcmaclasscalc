@@ -19,7 +19,7 @@ foreach (array_slice($argv, 1) as $arg) {
 if ($opts['mail-log'] !== null) define('WCMA_MAIL_LOG', $opts['mail-log']);
 
 date_default_timezone_set('America/Denver');
-require __DIR__ . '/db.php';
+require_once __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';

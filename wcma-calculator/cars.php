@@ -1,7 +1,7 @@
 <?php
 // wcma-calculator/cars.php — JSON: the signed-in competitor's active cars (for the calculator's car picker).
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
+require_once __DIR__ . '/db.php';
 require __DIR__ . '/cars-lib.php';
 
 header('Content-Type: application/json');

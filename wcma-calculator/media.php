@@ -3,17 +3,17 @@
 // review, for accounts with Media staff access and admins. Review actions are POST-only and CSRF-checked.
 require __DIR__ . '/session_bootstrap.php';
 date_default_timezone_set('America/Denver');
-require __DIR__ . '/db.php';
+require_once __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
-require __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/view_helpers.php';
 require __DIR__ . '/feedback-lib.php';          // feedbackBaseUrl()
 require_once __DIR__ . '/tech-status.php';           // techDefaultEventId()
-require __DIR__ . '/photo-requirements.php';
-require __DIR__ . '/inspection-lib.php';
+require_once __DIR__ . '/photo-requirements.php';
+require_once __DIR__ . '/inspection-lib.php';
 require __DIR__ . '/media-lib.php';
 require __DIR__ . '/media-service.php';
 require __DIR__ . '/media-page.php';
-require __DIR__ . '/pretech-email.php';
+require_once __DIR__ . '/pretech-email.php';
 require __DIR__ . '/media-email.php';
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';

@@ -1,14 +1,14 @@
 <?php
 // wcma-calculator/index.php — the hub front door: landing page when signed out, Home when signed in.
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
+require_once __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
-require __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/view_helpers.php';
 require __DIR__ . '/cars-lib.php';
-require __DIR__ . '/gear-lib.php';
-require __DIR__ . '/events-lib.php';
-require __DIR__ . '/reminders-lib.php';
-require __DIR__ . '/readiness-lib.php';
+require_once __DIR__ . '/gear-lib.php';
+require_once __DIR__ . '/events-lib.php';
+require_once __DIR__ . '/reminders-lib.php';
+require_once __DIR__ . '/readiness-lib.php';
 require __DIR__ . '/media-lib.php';
 require __DIR__ . '/home-page.php';
 

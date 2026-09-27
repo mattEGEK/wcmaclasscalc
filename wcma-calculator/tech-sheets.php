@@ -1,24 +1,24 @@
 <?php
 // wcma-calculator/tech-sheets.php
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
+require_once __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
-require __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/view_helpers.php';
 require_once __DIR__ . '/tech-sheet-data.php';
 require __DIR__ . '/tech-sheet-render.php';
 require __DIR__ . '/email-helpers.php';
 require __DIR__ . '/tech-sheet-files.php';
 require __DIR__ . '/feedback-lib.php';
-require __DIR__ . '/photo-requirements.php';
-require __DIR__ . '/inspection-lib.php';
-require __DIR__ . '/pretech-lib.php';
-require __DIR__ . '/pretech-email.php';
+require_once __DIR__ . '/photo-requirements.php';
+require_once __DIR__ . '/inspection-lib.php';
+require_once __DIR__ . '/pretech-lib.php';
+require_once __DIR__ . '/pretech-email.php';
 require __DIR__ . '/pretech-page.php';
-require __DIR__ . '/gear-lib.php';
+require_once __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-chips.php';
 require __DIR__ . '/cars-lib.php';
 require __DIR__ . '/garage-page.php';
-require __DIR__ . '/events-lib.php';
+require_once __DIR__ . '/events-lib.php';
 require __DIR__ . '/ice-sheet-page.php';
 require_once __DIR__ . '/email-copy.php';
 

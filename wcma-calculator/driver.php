@@ -2,8 +2,8 @@
 // wcma-calculator/driver.php — a driver's public page (spec 2026-09-27 §5). Shown only while public
 // consent is on, Media staff accepted it and it isn't hidden; otherwise the same 404 whatever the reason.
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
-require __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/view_helpers.php';
 require __DIR__ . '/media-lib.php';
 require __DIR__ . '/media-page.php';
 

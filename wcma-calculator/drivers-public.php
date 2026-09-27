@@ -3,10 +3,10 @@
 // public pages (public consent, accepted by Media staff, not hidden): everyone, or the drivers planning to
 // attend one event (the same roster rules as the Announcer).
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
-require __DIR__ . '/view_helpers.php';
-require __DIR__ . '/photo-requirements.php';
-require __DIR__ . '/inspection-lib.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/photo-requirements.php';
+require_once __DIR__ . '/inspection-lib.php';
 require __DIR__ . '/media-lib.php';
 require __DIR__ . '/media-service.php';
 require __DIR__ . '/media-page.php';

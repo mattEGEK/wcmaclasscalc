@@ -2,11 +2,11 @@
 // wcma-calculator/drivers.php — the competitor's Drivers page (spec §4): their own profile, the
 // co-drivers they manage, licence numbers and this season's gear status. Gear photos stay on gear.php.
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
-require __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/view_helpers.php';
 require __DIR__ . '/cars-lib.php';
-require __DIR__ . '/events-lib.php';
-require __DIR__ . '/gear-lib.php';
+require_once __DIR__ . '/events-lib.php';
+require_once __DIR__ . '/gear-lib.php';
 require __DIR__ . '/media-lib.php';
 require __DIR__ . '/drivers-lib.php';
 require __DIR__ . '/home-page.php';

@@ -1,8 +1,8 @@
 <?php
 // wcma-calculator/calculator.php — the Class Calculator inside the hub layout.
 require __DIR__ . '/session_bootstrap.php';
-require __DIR__ . '/db.php';
-require __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/view_helpers.php';
 require __DIR__ . '/cars-lib.php';
 
 $pdo = db_connect();

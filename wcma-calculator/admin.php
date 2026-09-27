@@ -5,9 +5,9 @@
 require __DIR__ . '/session_bootstrap.php';
 date_default_timezone_set('America/Denver');
 
-require __DIR__ . '/db.php';
+require_once __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
-require __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/view_helpers.php';
 require __DIR__ . '/feedback-lib.php';
 require __DIR__ . '/admin-feedback.php';
 require __DIR__ . '/season-links-lib.php';
