@@ -182,8 +182,8 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="css/calculator.css">
-<link rel="stylesheet" href="css/hub.css">
+<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
+<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
 <style>
   .btn-role { background: none; border: 1px solid var(--secondary-color); color: var(--secondary-color); border-radius: var(--border-radius); padding: .3rem .7rem; cursor: pointer; font-size: .8rem; font-family: inherit; }
   .btn-role:hover { background: #f0f7ff; }
@@ -332,8 +332,8 @@ function renderEventsPage(array $events, array $going, string $csrf, ?array $fla
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="css/calculator.css">
-<link rel="stylesheet" href="css/hub.css">
+<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
+<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
 </head>
 <body class="hub">
 <div class="container">
@@ -455,8 +455,8 @@ function renderSettingsPage(array $values, string $csrf, ?array $flash): void {
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="css/calculator.css">
-<link rel="stylesheet" href="css/hub.css">
+<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
+<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
 </head>
 <body class="hub">
 <div class="container">

@@ -70,8 +70,8 @@ function renderFeedbackListPage(array $rows, ?array $flash): void {
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="css/calculator.css">
-<link rel="stylesheet" href="css/hub.css">
+<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
+<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
 </head>
 <body class="hub">
 <div class="container">
@@ -116,8 +116,8 @@ function renderFeedbackViewPage(array $f, string $csrf, ?array $flash, bool $git
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="css/calculator.css">
-<link rel="stylesheet" href="css/hub.css">
+<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
+<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
 </head>
 <body class="hub">
 <div class="container">

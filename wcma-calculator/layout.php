@@ -5,6 +5,12 @@
 // optional sub-navigation, flash message and footer. Callers must have loaded view_helpers.php
 // (h()) and roles.php (user_has_role()); current_user() comes from session_bootstrap.php.
 
+/** A local asset URL with its modification time appended, so browsers refetch it after each deploy. */
+function hubAsset(string $path): string {
+    $mtime = @filemtime(__DIR__ . '/' . $path);
+    return h($mtime ? "$path?v=$mtime" : $path);
+}
+
 function hubNavItems(?array $user): array {
     if ($user === null) {
         return [
@@ -117,8 +123,8 @@ function renderPageStart(string $title, string $section, array $opts = []): void
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="css/calculator.css">
-<link rel="stylesheet" href="css/hub.css">
+<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
+<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
 <?= $opts['extraHead'] ?? '' ?>
 </head>
 <body class="hub <?= h((string)($opts['bodyClass'] ?? '')) ?>">
