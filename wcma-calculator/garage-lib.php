@@ -110,26 +110,37 @@ function garageSummerSheets(array $sheets): array {
 }
 
 /**
- * The car's "Ice racing" rows: each active ice event with the car's newest ice sheet for it, then
- * the car's ice sheets for events no longer open ('past' => true).
+ * The car's "Ice racing" rows: each active ice event dated on or after $today with the car's
+ * newest ice sheet for it, then the car's ice sheets for events no longer open or dated before
+ * $today ('past' => true). Past rows use $eventsById (id => event row, e.g. db_get_all_events())
+ * for the real event name and date, falling back to "Earlier ice event" only when the event
+ * itself is missing (deleted, or never loaded).
  *
+ * @param array $eventsById id => event row (name, event_date, host_club)
  * @return array<int, array{event: array, sheet: ?array, past: bool}>
  */
-function garageIceRows(array $carSheets, array $iceEvents): array {
+function garageIceRows(array $carSheets, array $iceEvents, string $today, array $eventsById): array {
     $newest = [];
     foreach ($carSheets as $s) {
-        if (($s['discipline'] ?? 'summer') !== 'ice') continue;
+        if (!techSheetIsIce($s)) continue;
         $eid = (int)$s['event_id'];
         if (!isset($newest[$eid]) || (int)$s['id'] > (int)$newest[$eid]['id']) $newest[$eid] = $s;
     }
+    $upcoming = array_values(array_filter($iceEvents, fn(array $e): bool => (string)$e['event_date'] >= $today));
+
     $rows = [];
-    foreach ($iceEvents as $e) {
+    foreach ($upcoming as $e) {
         $rows[] = ['event' => $e, 'sheet' => $newest[(int)$e['id']] ?? null, 'past' => false];
         unset($newest[(int)$e['id']]);
     }
     foreach ($newest as $eid => $s) {
-        $rows[] = ['event' => ['id' => $eid, 'name' => (string)($s['event_name'] ?? 'Earlier ice event'), 'event_date' => (string)($s['event_date'] ?? ''), 'host_club' => (string)($s['club'] ?? '')],
-                   'sheet' => $s, 'past' => true];
+        $ev = $eventsById[$eid] ?? null;
+        $rows[] = ['event' => [
+            'id' => $eid,
+            'name' => $ev !== null ? (string)$ev['name'] : 'Earlier ice event',
+            'event_date' => $ev !== null ? (string)$ev['event_date'] : '',
+            'host_club' => (string)($ev['host_club'] ?? $s['club'] ?? ''),
+        ], 'sheet' => $s, 'past' => true];
     }
     return $rows;
 }

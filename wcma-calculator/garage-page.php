@@ -248,8 +248,7 @@ function renderGarageCarHtml(array $vm): string {
                 $out .= '<span class="hub-status ' . ($accepted ? 'hub-status--ok">Accepted' : 'hub-status--info">Submitted') . '</span> '
                     . h(techSheetClassLine($sheet)) . ' <a href="tech-sheets.php?action=view&amp;id=' . (int)$sheet['id'] . '">View</a>';
             } elseif (!$archived && empty($row['past'])) {
-                $out .= '<span class="hub-status hub-status--todo">No ice tech sheet yet</span> '
-                    . '<a class="hub-btn" href="tech-sheets.php?action=new-ice&amp;car_id=' . $id . '&amp;event_id=' . (int)$e['id'] . '">Submit ice tech sheet</a>';
+                $out .= '<a class="hub-btn" href="tech-sheets.php?action=new-ice&amp;car_id=' . $id . '&amp;event_id=' . (int)$e['id'] . '">Submit ice tech sheet</a>';
             }
             $out .= '</div>';
         }

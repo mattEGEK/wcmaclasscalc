@@ -201,6 +201,7 @@ final class GaragePageTest extends TestCase
         ]]));
         $this->assertStringContainsString('<h2>Ice racing</h2>', $html);
         $this->assertStringContainsString('href="tech-sheets.php?action=new-ice&amp;car_id=3&amp;event_id=20">Submit ice tech sheet</a>', $html);
+        $this->assertStringNotContainsString('No ice tech sheet yet', $html);
         $this->assertStringContainsString('WSCC &lt;Ice&gt;', $html);
         $this->assertStringContainsString('FOI-STD — Fire on Ice – Studded (WSCC)', $html);
         $this->assertStringContainsString('href="tech-sheets.php?action=view&amp;id=9">View</a>', $html);

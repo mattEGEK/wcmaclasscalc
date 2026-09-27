@@ -100,8 +100,13 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         if ((int)$p['car_id'] === $carId) $tagged[] = (int)$p['event_id'];
     }
     $eventNames = [];
-    foreach (db_get_all_events($pdo) as $e) $eventNames[(int)$e['id']] = (string)$e['name'];
-    $events = garageCarEvents($sheets, $tagged, db_get_active_events($pdo, DISCIPLINE_SUMMER), $eventNames, date('Y-m-d'));
+    $eventsById = [];
+    foreach (db_get_all_events($pdo) as $e) {
+        $eventNames[(int)$e['id']] = (string)$e['name'];
+        $eventsById[(int)$e['id']] = $e;
+    }
+    $today = date('Y-m-d');
+    $events = garageCarEvents($sheets, $tagged, db_get_active_events($pdo, DISCIPLINE_SUMMER), $eventNames, $today);
 
     $ownerGear = db_get_user_gear_records($pdo, $uid);
     $driversBySheet = db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $sheets));
@@ -122,7 +127,7 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         'techAction' => garageTechPhotosAction($seasonSheets, $status),
         'events' => $events, 'csrf' => generateCsrfToken(), 'detailsForm' => $detailsForm,
         'offerReminders' => remindersShouldOffer(db_find_user_by_id($pdo, $uid)),
-        'ice' => garageIceRows($allSheets, db_get_active_events($pdo, DISCIPLINE_ICE)),
+        'ice' => garageIceRows($allSheets, db_get_active_events($pdo, DISCIPLINE_ICE), $today, $eventsById),
     ]);
     renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script>']);
 }
