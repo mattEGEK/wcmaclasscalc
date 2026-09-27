@@ -58,7 +58,7 @@ function garageShowList(PDO $pdo, int $uid): void {
     $sheets = db_get_user_tech_sheets($pdo, $uid);
     $tagged = [];
     foreach (db_get_user_event_plans($pdo, $uid) as $p) $tagged[(int)$p['car_id']][] = (int)$p['event_id'];
-    $events = db_get_active_events($pdo);
+    $events = db_get_active_events($pdo, DISCIPLINE_SUMMER);
 
     $cards = [];
     foreach ($active as $car) {
@@ -99,7 +99,7 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
     }
     $eventNames = [];
     foreach (db_get_all_events($pdo) as $e) $eventNames[(int)$e['id']] = (string)$e['name'];
-    $events = garageCarEvents($sheets, $tagged, db_get_active_events($pdo), $eventNames, date('Y-m-d'));
+    $events = garageCarEvents($sheets, $tagged, db_get_active_events($pdo, DISCIPLINE_SUMMER), $eventNames, date('Y-m-d'));
 
     $ownerGear = db_get_user_gear_records($pdo, $uid);
     $driversBySheet = db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $sheets));

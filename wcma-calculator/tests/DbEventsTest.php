@@ -73,4 +73,22 @@ final class DbEventsTest extends TestCase
         db_update_event($pdo, $id, 'Ice #1', '2027-01-04', 'Lake Shirley', 'ice', 'NASCC');
         $this->assertSame('NASCC', db_get_event($pdo, $id)['host_club']);
     }
+
+    public function testActiveEventsFilteredByDisciplineExcludesIce(): void
+    {
+        $pdo = make_temp_pdo();
+        $summerId = db_create_event($pdo, 'Summer Sprint', '2026-06-01', null);
+        $iceId = db_create_event($pdo, 'Ice #1', '2027-01-04', 'Lake Shirley', 'ice', 'WSCC');
+
+        $summerOnly = db_get_active_events($pdo, 'summer');
+        $ids = array_column($summerOnly, 'id');
+        $this->assertContains($summerId, $ids);
+        $this->assertNotContains($iceId, $ids);
+
+        // No argument: unchanged behaviour, everything active comes back.
+        $all = db_get_active_events($pdo);
+        $allIds = array_column($all, 'id');
+        $this->assertContains($summerId, $allIds);
+        $this->assertContains($iceId, $allIds);
+    }
 }

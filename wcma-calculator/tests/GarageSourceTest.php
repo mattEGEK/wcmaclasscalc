@@ -94,4 +94,12 @@ final class GarageSourceTest extends TestCase
         $this->assertStringNotContainsString('account.php', $this->src('tech-sheets.php'));
         $this->assertStringNotContainsString('My Cars', $this->src('tech-sheets.php'));
     }
+
+    // Fix 1: ice events aren't tech-sheeted or readiness-tracked yet, so the tagging lists on the
+    // Garage list page and a car's own page must only offer summer events.
+    public function testGarageEventListsAreSummerOnly(): void
+    {
+        $this->assertStringContainsString('db_get_active_events($pdo, DISCIPLINE_SUMMER)', $this->body('garage.php', 'garageShowList'));
+        $this->assertStringContainsString('db_get_active_events($pdo, DISCIPLINE_SUMMER)', $this->body('garage.php', 'garageShowCar'));
+    }
 }

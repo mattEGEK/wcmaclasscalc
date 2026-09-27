@@ -46,4 +46,20 @@ final class ReadinessLoaderTest extends TestCase
         $result = buildReadiness($in);   // the shape is directly usable
         $this->assertCount(1, $result['events']);
     }
+
+    public function testTaggedIceEventProducesNoReadinessItems(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = db_create_user($pdo, ['email' => 'ice@example.com', 'name' => 'Ice Racer', 'password_hash' => 'x', 'google_id' => null]);
+        $car = test_make_car($pdo, $u, '7');
+        $iceEvent = db_create_event($pdo, 'NASCC Ice #1', '2026-12-12', null, 'ice', 'NASCC');
+        db_tag_event($pdo, $u, $iceEvent, $car);
+
+        $in = loadReadinessInputs($pdo, $u, '2026-09-26');
+        $this->assertSame([], $in['events']);   // the ice event is filtered out at the source
+
+        $result = buildReadiness($in);
+        $this->assertSame([], $result['events']);
+        $this->assertSame([], $result['untagged']);
+    }
 }

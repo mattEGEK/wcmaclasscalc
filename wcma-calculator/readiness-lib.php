@@ -153,7 +153,7 @@ function loadReadinessInputs(PDO $pdo, int $userId, string $today): array {
     foreach (db_get_user_drivers($pdo, $userId) as $d) $drivers[(int)$d['id']] = $d;
     $self = db_get_self_driver($pdo, $userId);
 
-    $events = db_get_active_events($pdo);
+    $events = db_get_active_events($pdo, DISCIPLINE_SUMMER);
     $seasons = array_values(array_unique(array_map(fn(array $e): int => techSeasonFromDate((string)$e['event_date']), $events)));
     $gear = [];
     foreach (array_keys($drivers) as $did) {

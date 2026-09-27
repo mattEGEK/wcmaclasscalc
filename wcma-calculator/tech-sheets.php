@@ -160,7 +160,7 @@ function handleNew(PDO $pdo, array $user, int $carId, int $eventId = 0): void {
         exit;
     }
 
-    $events = db_get_active_events($pdo);
+    $events = db_get_active_events($pdo, DISCIPLINE_SUMMER);
     if (empty($events)) {
         setFlash('There are no upcoming events open for tech sheet submission yet.', 'error');
         header('Location: garage.php?car=' . $carId);
@@ -286,7 +286,7 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
         exit;
     }
 
-    $events = db_get_active_events($pdo);
+    $events = db_get_active_events($pdo, DISCIPLINE_SUMMER);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
     $csrf = generateCsrfToken();
     renderTechSheetEditForm($sheet, $drivers, $events, $csrf, db_get_user_drivers($pdo, (int)$user['id']), $car);
@@ -627,16 +627,22 @@ function handleSubmit(PDO $pdo, array $user): void {
         exit;
     }
 
-    $id = db_insert_tech_sheet($pdo, [
-        'submission_id' => $submission['id'], 'user_id' => $user['id'], 'event_id' => $eventId, 'sheet_type' => $parsed['sheet_type'],
-        'entrant_name' => $parsed['entrant_name'], 'driver_name' => $parsed['driver_name'],
-        'car_make' => $car['make'], 'car_model' => $car['model'], 'car_colour' => $parsed['car_colour'],
-        'car_number' => $parsed['car_number'], 'class' => $submission['calculated_class'] ?? '',
-        'engine_cc' => $parsed['engine_cc'], 'engine_hp' => $parsed['engine_hp'],
-        'car_weight' => (int)$submission['competition_weight'],
-        'checklist_json' => json_encode($parsed['checklist']), 'driver1_equipment_json' => json_encode($parsed['equipment']),
-        'log_book_turned_in' => (int)$parsed['log_book'],
-    ]);
+    try {
+        $id = db_insert_tech_sheet($pdo, [
+            'submission_id' => $submission['id'], 'user_id' => $user['id'], 'event_id' => $eventId, 'sheet_type' => $parsed['sheet_type'],
+            'entrant_name' => $parsed['entrant_name'], 'driver_name' => $parsed['driver_name'],
+            'car_make' => $car['make'], 'car_model' => $car['model'], 'car_colour' => $parsed['car_colour'],
+            'car_number' => $parsed['car_number'], 'class' => $submission['calculated_class'] ?? '',
+            'engine_cc' => $parsed['engine_cc'], 'engine_hp' => $parsed['engine_hp'],
+            'car_weight' => (int)$submission['competition_weight'],
+            'checklist_json' => json_encode($parsed['checklist']), 'driver1_equipment_json' => json_encode($parsed['equipment']),
+            'log_book_turned_in' => (int)$parsed['log_book'],
+        ]);
+    } catch (InvalidArgumentException $e) {
+        setFlash($e->getMessage(), 'error');
+        header('Location: tech-sheets.php?action=new&car_id=' . $carId . ($eventId > 0 ? '&event_id=' . $eventId : ''));
+        exit;
+    }
 
     if ($snap['colour_for_car'] !== null) db_update_car($pdo, $carId, ['colour' => $snap['colour_for_car']]);
     db_tag_event($pdo, (int)$user['id'], $eventId, $carId);
@@ -715,16 +721,22 @@ function handleUpdate(PDO $pdo, array $user): void {
         exit;
     }
 
-    db_update_tech_sheet($pdo, $id, [
-        'event_id' => $eventId, 'sheet_type' => $parsed['sheet_type'],
-        'entrant_name' => $parsed['entrant_name'], 'driver_name' => $parsed['driver_name'],
-        'car_make' => $car['make'], 'car_model' => $car['model'], 'car_colour' => $parsed['car_colour'],
-        'car_number' => $parsed['car_number'], 'class' => $sheet['class'],
-        'engine_cc' => $parsed['engine_cc'], 'engine_hp' => $parsed['engine_hp'],
-        'car_weight' => (int)$sheet['car_weight'],
-        'checklist_json' => json_encode($parsed['checklist']), 'driver1_equipment_json' => json_encode($parsed['equipment']),
-        'log_book_turned_in' => (int)$parsed['log_book'],
-    ]);
+    try {
+        db_update_tech_sheet($pdo, $id, [
+            'event_id' => $eventId, 'sheet_type' => $parsed['sheet_type'],
+            'entrant_name' => $parsed['entrant_name'], 'driver_name' => $parsed['driver_name'],
+            'car_make' => $car['make'], 'car_model' => $car['model'], 'car_colour' => $parsed['car_colour'],
+            'car_number' => $parsed['car_number'], 'class' => $sheet['class'],
+            'engine_cc' => $parsed['engine_cc'], 'engine_hp' => $parsed['engine_hp'],
+            'car_weight' => (int)$sheet['car_weight'],
+            'checklist_json' => json_encode($parsed['checklist']), 'driver1_equipment_json' => json_encode($parsed['equipment']),
+            'log_book_turned_in' => (int)$parsed['log_book'],
+        ]);
+    } catch (InvalidArgumentException $e) {
+        setFlash($e->getMessage(), 'error');
+        header('Location: tech-sheets.php?action=edit&id=' . $id);
+        exit;
+    }
 
     if ($snap['colour_for_car'] !== null) db_update_car($pdo, (int)$car['id'], ['colour' => $snap['colour_for_car']]);
 

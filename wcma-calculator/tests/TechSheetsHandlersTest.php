@@ -75,4 +75,28 @@ final class TechSheetsHandlersTest extends TestCase
         $this->assertStringContainsString('getFlash(', $body);
         $this->assertStringContainsString("h(\$flash['message'])", $body);
     }
+
+    // Ice events are filtered out of the summer-facing pickers (fix wave, Fix 1): db_insert_tech_sheet
+    // /db_update_tech_sheet can still throw InvalidArgumentException for a mismatched event (a
+    // tampered request, since the picker itself no longer lists ice events), and that must become a
+    // flashed error + redirect, not an uncaught 500.
+    public function testNewAndEditEventListsAreSummerOnly(): void
+    {
+        $this->assertStringContainsString("db_get_active_events(\$pdo, DISCIPLINE_SUMMER)", $this->body('handleNew'));
+        $this->assertStringContainsString("db_get_active_events(\$pdo, DISCIPLINE_SUMMER)", $this->body('handleEdit'));
+    }
+
+    public function testSubmitAndUpdateCatchInvalidArgumentExceptionFromTheDbCall(): void
+    {
+        $submitBody = $this->body('handleSubmit');
+        $this->assertMatchesRegularExpression(
+            '/try \{.*?db_insert_tech_sheet\(.*?\} catch \(InvalidArgumentException \$e\) \{.*?setFlash\(\$e->getMessage\(\), \'error\'\);.*?exit;.*?\}/s',
+            $submitBody
+        );
+        $updateBody = $this->body('handleUpdate');
+        $this->assertMatchesRegularExpression(
+            '/try \{.*?db_update_tech_sheet\(.*?\} catch \(InvalidArgumentException \$e\) \{.*?setFlash\(\$e->getMessage\(\), \'error\'\);.*?exit;.*?\}/s',
+            $updateBody
+        );
+    }
 }

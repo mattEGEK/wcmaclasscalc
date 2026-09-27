@@ -680,8 +680,13 @@ function db_create_event(PDO $pdo, string $name, string $event_date, ?string $lo
     return (int)$pdo->lastInsertId();
 }
 
-function db_get_active_events(PDO $pdo): array {
-    return $pdo->query("SELECT * FROM events WHERE active = 1 ORDER BY event_date ASC")->fetchAll();
+function db_get_active_events(PDO $pdo, ?string $discipline = null): array {
+    if ($discipline === null) {
+        return $pdo->query("SELECT * FROM events WHERE active = 1 ORDER BY event_date ASC")->fetchAll();
+    }
+    $stmt = $pdo->prepare("SELECT * FROM events WHERE active = 1 AND discipline = :d ORDER BY event_date ASC");
+    $stmt->execute([':d' => $discipline]);
+    return $stmt->fetchAll();
 }
 
 function db_get_all_events(PDO $pdo): array {
