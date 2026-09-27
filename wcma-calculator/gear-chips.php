@@ -53,10 +53,9 @@ function renderGearChips(array $links, string $audience, array $opts = []): stri
         $seasonOk = $sheetSeason === 0 || $sheetSeason === gearSeasonNow($linkDiscipline);
         if ($gear === null) {
             if ($isIce && $audience === 'owner') {
-                $sheetIdOpt = (int)($opts['sheet_id'] ?? 0);
                 $html .= '<li class="gear-chip">' . $name . ': <span class="badge-pending">No gear record</span>'
-                    . ($seasonOk && $sheetIdOpt > 0
-                        ? ' <a href="gear.php?action=start-ice&amp;sheet_id=' . $sheetIdOpt . '">Add gear photos</a> or have it checked at the track.'
+                    . ($seasonOk && $sheetId > 0
+                        ? ' <a href="gear.php?action=start-ice&amp;sheet_id=' . $sheetId . '">Add gear photos</a> or have it checked at the track.'
                         : ' Gear is checked at the track.')
                     . '</li>';
                 continue;

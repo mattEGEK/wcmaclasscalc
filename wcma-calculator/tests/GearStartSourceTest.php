@@ -38,6 +38,11 @@ final class GearStartSourceTest extends TestCase
         $this->assertStringContainsString("case 'start-ice':", $src);
         $this->assertStringContainsString('db_get_user_tech_sheet(', $src);
         $this->assertStringContainsString('gearStartIceForSheet(', $src);
-        $this->assertStringNotContainsString("isn't available yet", $src);
+    }
+
+    public function testPretechHandlersAreDisciplineAgnostic(): void {
+        foreach (['handleGearPretech', 'handleGearPretechSubmit'] as $name) {
+            $this->assertStringNotContainsString('DISCIPLINE_ICE', $this->body($name), $name);
+        }
     }
 }
