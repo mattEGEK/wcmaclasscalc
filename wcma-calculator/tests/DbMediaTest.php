@@ -39,6 +39,45 @@ final class DbMediaTest extends TestCase
         db_add_column_if_missing($pdo, 'users; DROP TABLE users', 'x', 'INTEGER');
     }
 
+    /** A genuine race (two deploys running the same migration at once) can't be reproduced against
+     *  a single SQLite connection, so this pins the guard at the source level: the ALTER is wrapped
+     *  so a duplicate-column race returns false instead of throwing, and anything else still throws. */
+    public function testAddColumnCatchesOnlyTheDuplicateColumnRace(): void
+    {
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../db.php'));
+        $this->assertMatchesRegularExpression(
+            "/try \{\\s*\\\$pdo->exec\(\"ALTER TABLE \\\$table ADD COLUMN \\\$column \\\$definition\"\);\\s*\} catch \(PDOException \\\$e\) \{/",
+            $src
+        );
+        $this->assertStringContainsString("stripos(\$e->getMessage(), 'duplicate column name') !== false) return false;", $src);
+        $this->assertStringContainsString('throw $e;', $src);
+    }
+
+    public function testTombstoneClearsContentAndSponsorsButKeepsTheHide(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->user($pdo, 'j@example.com');
+        $d = (int)db_get_self_driver($pdo, $u)['id'];
+        db_save_media_profile($pdo, $d, $this->profile(['photo_path' => 'uploads/media/x.jpg']));
+        db_replace_sponsors($pdo, $d, [['name' => 'Acme', 'url' => null]]);
+        db_set_media_hidden($pdo, $d, $u, 'Sponsor dispute');
+
+        db_tombstone_media_profile($pdo, $d);
+
+        $p = db_get_media_profile($pdo, $d);
+        $this->assertNotNull($p);
+        $this->assertSame('', $p['blurb']);
+        $this->assertNull($p['pronunciation']);
+        $this->assertNull($p['hometown']);
+        $this->assertNull($p['racing_since']);
+        $this->assertNull($p['social_handle']);
+        $this->assertNull($p['photo_path']);
+        $this->assertSame('none', $p['public_status']);
+        $this->assertNotNull($p['hidden_at']);
+        $this->assertSame('Sponsor dispute', $p['hidden_reason']);
+        $this->assertSame([], db_get_sponsors($pdo, $d));
+    }
+
     public function testUsersGetMediaFlags(): void
     {
         $pdo = make_temp_pdo();

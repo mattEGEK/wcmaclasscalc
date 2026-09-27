@@ -25,7 +25,7 @@ function renderMediaEntryHtml(array $e, bool $forKit): string {
     if ($forKit) {
         $out .= '<textarea class="media-copy-src" readonly hidden>' . h(mediaCopyText($e)) . '</textarea>'
             . '<p class="hub-line"><button type="button" class="hub-btn hub-btn--secondary" data-copy>Copy text</button>'
-            . ($e['has_photo'] ? ' <a href="media-photo.php?driver_id=' . $id . '" download>Download photo</a>' : '')
+            . ($e['has_photo'] ? ' <a href="media-photo.php?driver_id=' . $id . '&amp;download=1" download>Download photo</a>' : '')
             . ((string)$e['social_handle'] !== '' ? ' <span class="form-hint">@' . h((string)$e['social_handle']) . '</span>' : '')
             . '</p>';
     }
@@ -93,10 +93,11 @@ function renderMediaReviewHtml(array $vm): string {
     if (!$vm['queue']) $out .= '<p>Nothing waiting for review.</p>';
     foreach ($vm['queue'] as $row) {
         $id = (int)$row['driver_id'];
+        $seen = '<input type="hidden" name="seen" value="' . h((string)($row['updated_at'] ?? '')) . '">';
         $out .= '<section class="media-review-item"><h2>' . h((string)$row['driver_name']) . '</h2>'
             . renderMediaEntryHtml($row['entry'], false)
-            . mediaPostFormHtml('media-accept', $id, $csrf, '<button type="submit" class="hub-btn">Accept for the public page</button>')
-            . mediaPostFormHtml('media-send-back', $id, $csrf, '<label for="sb-' . $id . '">Note for the driver</label>'
+            . mediaPostFormHtml('media-accept', $id, $csrf, $seen . '<button type="submit" class="hub-btn">Accept for the public page</button>')
+            . mediaPostFormHtml('media-send-back', $id, $csrf, $seen . '<label for="sb-' . $id . '">Note for the driver</label>'
                 . '<input type="text" id="sb-' . $id . '" name="note" required maxlength="500">'
                 . '<button type="submit" class="hub-btn hub-btn--secondary">Send back</button>')
             . mediaPostFormHtml('media-hide', $id, $csrf, '<label for="hd-' . $id . '">Reason for hiding</label>'

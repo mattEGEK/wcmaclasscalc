@@ -31,7 +31,7 @@ final class MediaPageTest extends TestCase
         $html = renderMediaEntryHtml($this->entry(), true);
         $this->assertStringContainsString('data-copy', $html);
         $this->assertStringContainsString(h(mediaCopyText($this->entry())), $html);
-        $this->assertStringContainsString('href="media-photo.php?driver_id=5" download', $html);
+        $this->assertStringContainsString('href="media-photo.php?driver_id=5&amp;download=1" download', $html);
     }
 
     public function testAnnouncerListsCarsWithAndWithoutProfiles(): void
@@ -68,12 +68,13 @@ final class MediaPageTest extends TestCase
     public function testReviewQueueHasAcceptSendBackAndHideForms(): void
     {
         $html = renderMediaReviewHtml(['csrf' => 'tok', 'q' => '', 'found' => [],
-            'queue' => [['driver_id' => 5, 'driver_name' => 'Jane <Doe>', 'entry' => $this->entry()]]]);
+            'queue' => [['driver_id' => 5, 'driver_name' => 'Jane <Doe>', 'updated_at' => '2026-09-27 10:00:00', 'entry' => $this->entry()]]]);
         $this->assertStringContainsString('Jane &lt;Doe&gt;', $html);
         foreach (['media-accept', 'media-send-back', 'media-hide'] as $a) {
             $this->assertStringContainsString('action="media.php?action=' . $a . '"', $html);
         }
         $this->assertSame(3, substr_count($html, 'name="csrf_token" value="tok"'));
+        $this->assertSame(2, substr_count($html, 'name="seen" value="2026-09-27 10:00:00"'));
         $this->assertStringContainsString('name="note" required', $html);
         $this->assertStringNotContainsString('approv', strtolower($html));
         $this->assertStringContainsString('Nothing waiting for review.', renderMediaReviewHtml(['csrf' => 't', 'q' => '', 'found' => [], 'queue' => []]));

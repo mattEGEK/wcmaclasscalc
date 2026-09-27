@@ -71,8 +71,10 @@ foreach ($in['drivers'] as $did => $d) {
 
 $userRow = db_find_user_by_id($pdo, $uid);
 $selfDriver = db_get_self_driver($pdo, $uid);
+// Only offer the prompt when the driver has never made a media consent choice at all: once they
+// withdraw, that withdrawal is a deliberate choice (a consent row with media off), not "not set up".
 $mediaPrompt = $selfDriver !== null && (int)($userRow['media_prompt_dismissed'] ?? 0) === 0
-    && !mediaCurrentConsent(db_get_latest_media_consent($pdo, (int)$selfDriver['id']))['media'];
+    && db_get_latest_media_consent($pdo, (int)$selfDriver['id']) === null;
 
 renderPageStart('Home', 'home', ['flash' => getFlash()]);
 echo renderHomeHtml([

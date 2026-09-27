@@ -1764,7 +1764,14 @@ function db_add_column_if_missing(PDO $pdo, string $table, string $column, strin
     foreach ($pdo->query("PRAGMA table_info($table)")->fetchAll() as $col) {
         if ($col['name'] === $column) return false;
     }
-    $pdo->exec("ALTER TABLE $table ADD COLUMN $column $definition");
+    try {
+        $pdo->exec("ALTER TABLE $table ADD COLUMN $column $definition");
+    } catch (PDOException $e) {
+        // Another deploy running the same migration got there first between the PRAGMA check
+        // above and this ALTER; the column exists either way, so treat it like the PRAGMA hit.
+        if (stripos($e->getMessage(), 'duplicate column name') !== false) return false;
+        throw $e;
+    }
     return true;
 }
 
@@ -1810,6 +1817,19 @@ function db_set_media_hidden(PDO $pdo, int $driverId, ?int $byUserId, ?string $r
 function db_delete_media_profile(PDO $pdo, int $driverId): void {
     $pdo->prepare("DELETE FROM driver_sponsors WHERE driver_id = :d")->execute([':d' => $driverId]);
     $pdo->prepare("DELETE FROM driver_media_profiles WHERE driver_id = :d")->execute([':d' => $driverId]);
+}
+
+/** Deleting a profile WCMA has hidden must not undo the hide: instead of removing the row, this
+ *  clears its content and sponsors but keeps the row and the hidden_* columns as a tombstone, so
+ *  the driver cannot re-create the profile and slip straight back onto the announcer/kit. */
+function db_tombstone_media_profile(PDO $pdo, int $driverId): void {
+    $pdo->prepare("DELETE FROM driver_sponsors WHERE driver_id = :d")->execute([':d' => $driverId]);
+    $pdo->prepare("
+        UPDATE driver_media_profiles
+        SET blurb = '', pronunciation = NULL, hometown = NULL, racing_since = NULL, social_handle = NULL,
+            photo_path = NULL, public_status = 'none', updated_at = :now
+        WHERE driver_id = :d
+    ")->execute([':now' => date('Y-m-d H:i:s'), ':d' => $driverId]);
 }
 
 function db_get_sponsors(PDO $pdo, int $driverId): array {

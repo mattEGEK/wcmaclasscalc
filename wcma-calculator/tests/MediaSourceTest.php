@@ -40,11 +40,29 @@ final class MediaSourceTest extends TestCase
     public function testPhotoEndpointChecksAccessAndNeverRevealsWhy(): void
     {
         $src = $this->src('media-photo.php');
-        $this->assertStringContainsString('mediaPhotoAllowed(current_user(), $driver, $profile, db_get_latest_media_consent($pdo, $driverId))', $src);
+        $this->assertStringContainsString('mediaPhotoAllowed($user, $driver, $profile, db_get_latest_media_consent($pdo, $driverId))', $src);
         $this->assertStringContainsString("header('X-Content-Type-Options: nosniff');", $src);
         $this->assertStringContainsString("header('Cache-Control: private, max-age=0, must-revalidate');", $src);
         $this->assertSame(1, substr_count($src, 'readfile('));
         $this->assertStringContainsString("str_starts_with(\$path, MEDIA_PHOTO_DIR . '/')", $src);
+    }
+
+    public function testAccessChecksRefreshTheMediaFlagFromTheDatabaseSoRevokingItTakesEffectImmediately(): void
+    {
+        foreach (['media.php', 'media-photo.php'] as $file) {
+            $src = $this->src($file);
+            $this->assertStringContainsString('$row = db_find_user_by_id($pdo, (int)$user[\'id\']);', $src);
+            $this->assertStringContainsString("if (\$row === null || (int)(\$row['active'] ?? 1) === 0) {", $src);
+            $this->assertStringContainsString('$user = null;', $src);
+            $this->assertStringContainsString("\$user['is_media'] = (int)(\$row['is_media'] ?? 0);", $src);
+        }
+    }
+
+    public function testMediaPhotoDownloadSendsAContentDispositionHeaderWithTheStoredExtension(): void
+    {
+        $src = $this->src('media-photo.php');
+        $this->assertStringContainsString("if ((\$_GET['download'] ?? '') === '1') {", $src);
+        $this->assertStringContainsString("header('Content-Disposition: attachment; filename=\"driver-' . \$driverId . '.' . \$ext . '\"');", $src);
     }
 
     public function testHomeDismissesThePromptAndDriversPageLoadsMediaStatus(): void
@@ -59,6 +77,19 @@ final class MediaSourceTest extends TestCase
         $this->assertStringContainsString("=== 'self'", $profile);
     }
 
+    public function testHomePromptOnlyShowsWhenTheDriverHasNoConsentRowAtAll(): void
+    {
+        $index = $this->src('index.php');
+        $this->assertStringContainsString("db_get_latest_media_consent(\$pdo, (int)\$selfDriver['id']) === null;", $index);
+    }
+
+    public function testAnnouncerAndKitPickerListActiveEventsUpcomingFirst(): void
+    {
+        $src = $this->src('media.php');
+        $this->assertStringContainsString('$pickerEvents = mediaPickerEvents($allEvents, $today);', $src);
+        $this->assertStringContainsString("'events' => \$pickerEvents,", $src);
+    }
+
     public function testMediaControllerIsGatedAndReviewActionsArePostOnly(): void
     {
         $src = $this->src('media.php');
@@ -67,10 +98,11 @@ final class MediaSourceTest extends TestCase
         $this->assertStringContainsString("class_exists('ZipArchive')", $src);
     }
 
-    public function testZipBuildChecksOpenAndAlwaysCleansUpTheTempFile(): void
+    public function testZipBuildChecksOpenAndCloseAndAlwaysCleansUpTheTempFile(): void
     {
         $src = $this->src('media.php');
         $this->assertStringContainsString('$zip->open($tmp, ZipArchive::OVERWRITE) === true', $src);
+        $this->assertStringContainsString('$ok = $zip->close() === true;', $src);
         $this->assertMatchesRegularExpression('/finally\s*\{.*?unlink\(\$tmp\);.*?\}/s', $src);
     }
 

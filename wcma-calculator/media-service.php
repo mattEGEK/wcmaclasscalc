@@ -23,7 +23,13 @@ function mediaSaveProfile(PDO $pdo, int $userId, int $driverId, array $post, ?st
     if ($driver === null) return $fail(['Choose one of your drivers.']);
 
     $v = mediaValidateFields($post, (int)date('Y'));
-    $c = mediaConsentInput($post, mediaIsSelf($driver, $userId));
+    $latestConsent = db_get_latest_media_consent($pdo, $driverId);
+    $isSelf = mediaIsSelf($driver, $userId);
+    // Only make the on-behalf confirmation box mandatory when the consent itself is actually
+    // changing; re-saving unrelated fields (a blurb tweak) with consent unchanged should not force
+    // the co-driver's manager to tick it again every time.
+    $probe = mediaConsentInput($post, $isSelf, false);
+    $c = mediaConsentChanged($latestConsent, $probe['consent']) ? mediaConsentInput($post, $isSelf, true) : $probe;
     $errors = $v['errors'];
     if (!$c['ok']) $errors[] = $c['error'];
     $image = null;
@@ -53,7 +59,7 @@ function mediaSaveProfile(PDO $pdo, int $userId, int $driverId, array $post, ?st
     try {
         db_save_media_profile($pdo, $driverId, $v['fields'] + ['photo_path' => $photoPath, 'public_status' => $status]);
         db_replace_sponsors($pdo, $driverId, $v['sponsors']);
-        if (mediaConsentChanged(db_get_latest_media_consent($pdo, $driverId), $c['consent'])) {
+        if (mediaConsentChanged($latestConsent, $c['consent'])) {
             db_insert_media_consent($pdo, $c['consent'] + ['driver_id' => $driverId, 'given_by_user_id' => $userId,
                 'wording_version' => MEDIA_CONSENT_WORDING_VERSION]);
         }
@@ -86,10 +92,18 @@ function mediaWithdraw(PDO $pdo, int $userId, int $driverId): bool {
     return true;
 }
 
+/** Hidden profiles delete as a tombstone (content and sponsors cleared, hidden_* kept) so the
+ *  driver cannot re-create the profile and put it straight back onto the announcer/kit. Unhidden
+ *  profiles delete outright, as before. */
 function mediaDeleteProfile(PDO $pdo, int $userId, int $driverId, string $baseDir): bool {
     if (!mediaWithdraw($pdo, $userId, $driverId)) return false;
-    $photo = db_get_media_profile($pdo, $driverId)['photo_path'] ?? null;
-    db_delete_media_profile($pdo, $driverId);
+    $profile = db_get_media_profile($pdo, $driverId);
+    $photo = $profile['photo_path'] ?? null;
+    if (!empty($profile['hidden_at'])) {
+        db_tombstone_media_profile($pdo, $driverId);
+    } else {
+        db_delete_media_profile($pdo, $driverId);
+    }
     if ($photo && is_file($baseDir . '/' . $photo)) unlink($baseDir . '/' . $photo);
     return true;
 }
@@ -169,16 +183,42 @@ function mediaKitEntries(PDO $pdo, int $eventId, int $season): array {
     return $out;
 }
 
+/** The public-review queue, skipping profiles with no photo and no blurb (nothing for a reviewer
+ *  to look at, and nothing that should have reached pending_review in the first place). Each row
+ *  carries the profile's updated_at so the review form can pin the version the reviewer saw. */
+function mediaReviewQueue(PDO $pdo, int $season): array {
+    $queue = [];
+    foreach (db_get_media_review_queue($pdo) as $row) {
+        if (!mediaHasContent($row)) continue;
+        $did = (int)$row['driver_id'];
+        $consent = db_get_latest_media_consent($pdo, $did);
+        if (!mediaCurrentConsent($consent)['public']) continue;
+        $driver = db_get_driver($pdo, $did);
+        $sheet = db_get_driver_latest_sheet($pdo, $did, $season);
+        $queue[] = ['driver_id' => $did, 'driver_name' => $row['driver_name'], 'updated_at' => (string)$row['updated_at'],
+            'entry' => mediaEntry($driver, $row, db_get_sponsors($pdo, $did), (string)($sheet['car_number'] ?? ''),
+                $sheet !== null ? mediaCarLabel($sheet) : '', (string)($sheet['class'] ?? ''), false)];
+    }
+    return $queue;
+}
+
 const MEDIA_POST_ACTIONS = ['media-accept', 'media-send-back', 'media-hide', 'media-unhide'];
 
 /** @return array{ok: bool, error: ?string, notify: ?string, note: string} note is the normalised note on
- *  success when the action carries one (send-back, hide); '' on failure or when not applicable. */
-function mediaReviewAction(PDO $pdo, string $action, int $driverId, int $reviewerId, string $note): array {
+ *  success when the action carries one (send-back, hide); '' on failure or when not applicable.
+ *  $seenUpdatedAt is the profile's updated_at as the reviewer last saw it (the review form's hidden
+ *  "seen" input); if it no longer matches, the driver changed the profile after the reviewer opened
+ *  it, so accept/send-back are refused rather than acting on a version the reviewer never looked at. */
+function mediaReviewAction(PDO $pdo, string $action, int $driverId, int $reviewerId, string $note, string $seenUpdatedAt = ''): array {
     $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'notify' => null, 'note' => ''];
     $ok = fn(?string $notify = null, string $n = ''): array => ['ok' => true, 'error' => null, 'notify' => $notify, 'note' => $n];
     if (!in_array($action, MEDIA_POST_ACTIONS, true)) return $fail('Unknown action.');
     $profile = db_get_media_profile($pdo, $driverId);
     if ($profile === null) return $fail('That profile no longer exists.');
+    if (in_array($action, ['media-accept', 'media-send-back'], true) && $seenUpdatedAt !== ''
+        && $seenUpdatedAt !== (string)$profile['updated_at']) {
+        return $fail('The driver changed this profile after you opened it. Review the new version.');
+    }
     $note = trim((string)preg_replace('/\s+/u', ' ', $note));
     if (mb_strlen($note, 'UTF-8') > 500) return $fail('Keep the note to 500 characters or fewer.');
     switch ($action) {

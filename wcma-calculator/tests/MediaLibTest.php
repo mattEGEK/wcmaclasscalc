@@ -178,6 +178,17 @@ final class MediaLibTest extends TestCase
         $this->assertSame([], mediaRosterDriverIds([], null, [], null));
     }
 
+    public function testPickerEventsListsActiveOnlyUpcomingFirstThenRecentPast(): void
+    {
+        $events = [
+            ['id' => 1, 'event_date' => '2026-01-01', 'active' => 1],
+            ['id' => 2, 'event_date' => '2026-12-01', 'active' => 1],
+            ['id' => 3, 'event_date' => '2026-06-01', 'active' => 0],   // inactive: excluded
+            ['id' => 4, 'event_date' => '2026-09-01', 'active' => 1],
+        ];
+        $this->assertSame([2, 4, 1], array_column(mediaPickerEvents($events, '2026-09-27'), 'id'));
+    }
+
     public function testAcceptedClassAndCarLabel(): void
     {
         $this->assertSame('GT3', mediaAcceptedClass([['review_status' => 'submitted', 'calculated_class' => 'GT2'], ['review_status' => 'accepted', 'calculated_class' => 'GT3']]));
@@ -209,5 +220,18 @@ final class MediaLibTest extends TestCase
         $this->assertSame(['42', 'Jane Doe', 'Doh', 'Red Deer, AB', '2015', '2004 Honda S2000 (Silver)', 'GT3', 'Loves the hairpin.',
             "Acme Tires (https://acme.test); Bob's Garage", 'janed', 'https://hub.test/driver.php?id=5'], $rows[1]);
         $this->assertSame('', $rows[2][10]);
+    }
+
+    public function testCsvRowsEscapeFormulaInjectionButNotTheHeader(): void
+    {
+        $formulaBlurb = $this->profile(['blurb' => '=HYPERLINK("https://evil.test","click")']);
+        $e = mediaEntry(['id' => 5, 'name' => '@bob'], $formulaBlurb, [], '', '', '', false);
+        $normal = mediaEntry(['id' => 6, 'name' => 'Bo Bell'], $this->profile(['blurb' => 'All good.']), [], '', '', '', false);
+
+        $rows = mediaCsvRows([$e, $normal], 'https://hub.test');
+        $this->assertSame(['number', 'name', 'pronunciation', 'hometown', 'racing_since', 'car', 'class', 'blurb', 'sponsors', 'social_handle', 'public_url'], $rows[0]);
+        $this->assertSame('\'@bob', $rows[1][1]);
+        $this->assertSame('\'=HYPERLINK("https://evil.test","click")', $rows[1][7]);
+        $this->assertSame('All good.', $rows[2][7]);
     }
 }

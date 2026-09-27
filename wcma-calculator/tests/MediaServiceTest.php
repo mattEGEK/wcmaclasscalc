@@ -146,6 +146,89 @@ final class MediaServiceTest extends TestCase
         $this->assertSame(2, (int)$pdo->query("SELECT COUNT(*) FROM media_consents")->fetchColumn());
     }
 
+    public function testDeletingAHiddenProfileKeepsTheHideAsATombstone(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->user($pdo, 'j@example.com');
+        $d = (int)db_get_self_driver($pdo, $u)['id'];
+        mediaSaveProfile($pdo, $u, $d, ['blurb' => 'Fast.', 'consent_media' => '1'], $this->png(), $this->base, 'rename');
+        $photo = db_get_media_profile($pdo, $d)['photo_path'];
+        mediaReviewAction($pdo, 'media-hide', $d, $u, 'Sponsor dispute');
+
+        $this->assertTrue(mediaDeleteProfile($pdo, $u, $d, $this->base));
+        $this->assertFileDoesNotExist($this->base . '/' . $photo);
+        $afterDelete = db_get_media_profile($pdo, $d);
+        $this->assertNotNull($afterDelete);
+        $this->assertNotNull($afterDelete['hidden_at']);
+        $this->assertSame('', $afterDelete['blurb']);
+        $this->assertNull($afterDelete['photo_path']);
+
+        // Re-creating the profile must not undo the hide.
+        $r = mediaSaveProfile($pdo, $u, $d, ['blurb' => 'Back again.', 'consent_media' => '1'], null, $this->base, 'rename');
+        $this->assertTrue($r['ok']);
+        $profile = db_get_media_profile($pdo, $d);
+        $this->assertNotNull($profile['hidden_at']);
+        $this->assertFalse(mediaUsable($profile, db_get_latest_media_consent($pdo, $d), 'club'));
+        $this->assertSame([$d], array_column(db_search_media_profiles($pdo, 'Jordan'), 'driver_id'));
+        $this->assertNotNull(db_search_media_profiles($pdo, 'Jordan')[0]['hidden_at']);
+    }
+
+    public function testAcceptAndSendBackRefuseAStaleSeenVersion(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->user($pdo, 'j@example.com');
+        $d = (int)db_get_self_driver($pdo, $u)['id'];
+        mediaSaveProfile($pdo, $u, $d, ['blurb' => 'Fast.', 'consent_media' => '1', 'consent_public' => '1'], null, $this->base, 'rename');
+        $seen = db_get_media_profile($pdo, $d)['updated_at'];
+
+        // The driver edits the profile after the reviewer opened it (bumps updated_at).
+        sleep(1);
+        mediaSaveProfile($pdo, $u, $d, ['blurb' => 'Faster.', 'consent_media' => '1', 'consent_public' => '1'], null, $this->base, 'rename');
+
+        $r = mediaReviewAction($pdo, 'media-accept', $d, $u, '', $seen);
+        $this->assertSame('The driver changed this profile after you opened it. Review the new version.', $r['error']);
+        $this->assertSame('pending_review', db_get_media_profile($pdo, $d)['public_status']);
+
+        $current = db_get_media_profile($pdo, $d)['updated_at'];
+        $r = mediaReviewAction($pdo, 'media-accept', $d, $u, '', $current);
+        $this->assertTrue($r['ok']);
+        $this->assertSame('accepted', db_get_media_profile($pdo, $d)['public_status']);
+    }
+
+    public function testReviewQueueSkipsProfilesWithNoContent(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->user($pdo, 'j@example.com');
+        $d = (int)db_get_self_driver($pdo, $u)['id'];
+        mediaSaveProfile($pdo, $u, $d, ['blurb' => 'Fast.', 'consent_media' => '1', 'consent_public' => '1'], null, $this->base, 'rename');
+        $this->assertCount(1, mediaReviewQueue($pdo, (int)date('Y')));
+
+        // Blank the content directly (a profile with no photo and no blurb should never show up).
+        db_save_media_profile($pdo, $d, ['blurb' => '', 'pronunciation' => null, 'hometown' => null, 'racing_since' => null,
+            'social_handle' => null, 'photo_path' => null, 'public_status' => 'pending_review']);
+        $this->assertSame([], mediaReviewQueue($pdo, (int)date('Y')));
+    }
+
+    public function testCoDriverConfirmationIsOnlyNeededWhenConsentActuallyChanges(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->user($pdo, 'j@example.com');
+        $sam = db_create_driver($pdo, $u, 'Sam Patel');
+        $r = mediaSaveProfile($pdo, $u, $sam, ['blurb' => 'Hi', 'consent_media' => '1', 'on_behalf_confirm' => '1'], null, $this->base, 'rename');
+        $this->assertTrue($r['ok']);
+
+        // Same consent, changed blurb, no confirm box on the form this time: must still succeed.
+        $r = mediaSaveProfile($pdo, $u, $sam, ['blurb' => 'Hi there', 'consent_media' => '1'], null, $this->base, 'rename');
+        $this->assertTrue($r['ok'], implode(' ', $r['errors']));
+        $this->assertSame('Hi there', db_get_media_profile($pdo, $sam)['blurb']);
+        $this->assertSame(1, (int)$pdo->query("SELECT COUNT(*) FROM media_consents")->fetchColumn());
+
+        // Actually changing the consent (adding public) without confirming is still refused.
+        $r = mediaSaveProfile($pdo, $u, $sam, ['blurb' => 'Hi there', 'consent_media' => '1', 'consent_public' => '1'], null, $this->base, 'rename');
+        $this->assertFalse($r['ok']);
+        $this->assertSame(['Confirm that this driver agreed, or untick the consent box.'], $r['errors']);
+    }
+
     public function testAnnouncerRosterUsesSheetsThenOwnerAndOnlyShowsConsentedProfiles(): void
     {
         $pdo = make_temp_pdo();

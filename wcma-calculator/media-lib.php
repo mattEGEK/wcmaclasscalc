@@ -42,7 +42,7 @@ function mediaOneLine(mixed $v): string {
 }
 
 /** @return array{ok: bool, error: ?string, consent: array} */
-function mediaConsentInput(array $post, bool $isSelf): array {
+function mediaConsentInput(array $post, bool $isSelf, bool $needsConfirm = true): array {
     $media = ($post['consent_media'] ?? '') === '1';
     $minor = ($post['is_minor'] ?? '') === '1';
     $guardian = mediaOneLine($post['guardian_name'] ?? '');
@@ -56,7 +56,7 @@ function mediaConsentInput(array $post, bool $isSelf): array {
     $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'consent' => $consent];
     if ($media && $minor && $guardian === '') return $fail("Enter the parent or guardian's name.");
     if (mb_strlen($guardian, 'UTF-8') > 100) return $fail("The parent or guardian's name is too long (100 characters at most).");
-    if ($media && !$isSelf && ($post['on_behalf_confirm'] ?? '') !== '1') return $fail('Confirm that this driver agreed, or untick the consent box.');
+    if ($media && !$isSelf && $needsConfirm && ($post['on_behalf_confirm'] ?? '') !== '1') return $fail('Confirm that this driver agreed, or untick the consent box.');
     return ['ok' => true, 'error' => null, 'consent' => $consent];
 }
 
@@ -220,13 +220,31 @@ function mediaSlug(string $s): string {
     return $slug === '' ? 'driver' : $slug;
 }
 
+/** Guards against CSV formula injection: a cell a spreadsheet would treat as a formula gets a leading
+ *  apostrophe so it opens as plain text instead of executing. */
+function mediaCsvEscapeCell(string $v): string {
+    return preg_match('/^[=+\-@\t\r]/', $v) === 1 ? "'" . $v : $v;
+}
+
 function mediaCsvRows(array $entries, string $baseUrl): array {
     $rows = [['number', 'name', 'pronunciation', 'hometown', 'racing_since', 'car', 'class', 'blurb', 'sponsors', 'social_handle', 'public_url']];
     foreach ($entries as $e) {
         $sponsors = implode('; ', array_map(fn(array $s): string => $s['name'] . ($s['url'] ? ' (' . $s['url'] . ')' : ''), $e['sponsors']));
-        $rows[] = [$e['number'], $e['name'], (string)$e['pronunciation'], (string)$e['hometown'], (string)($e['racing_since'] ?? ''),
-                   $e['car'], $e['class'], $e['blurb'], $sponsors, (string)$e['social_handle'],
-                   $e['public_live'] ? rtrim($baseUrl, '/') . '/driver.php?id=' . $e['driver_id'] : ''];
+        $row = [$e['number'], $e['name'], (string)$e['pronunciation'], (string)$e['hometown'], (string)($e['racing_since'] ?? ''),
+                $e['car'], $e['class'], $e['blurb'], $sponsors, (string)$e['social_handle'],
+                $e['public_live'] ? rtrim($baseUrl, '/') . '/driver.php?id=' . $e['driver_id'] : ''];
+        $rows[] = array_map('mediaCsvEscapeCell', $row);
     }
     return $rows;
+}
+
+/** Active events for the announcer/kit picker: upcoming ($event_date >= $today) ascending first,
+ *  then recent past descending. Pure; callers pass today's date so it can be tested deterministically. */
+function mediaPickerEvents(array $events, string $today): array {
+    $active = array_values(array_filter($events, fn(array $e): bool => (int)($e['active'] ?? 0) === 1));
+    $upcoming = array_values(array_filter($active, fn(array $e): bool => (string)$e['event_date'] >= $today));
+    $past = array_values(array_filter($active, fn(array $e): bool => (string)$e['event_date'] < $today));
+    usort($upcoming, fn(array $a, array $b): int => (string)$a['event_date'] <=> (string)$b['event_date']);
+    usort($past, fn(array $a, array $b): int => (string)$b['event_date'] <=> (string)$a['event_date']);
+    return array_merge($upcoming, $past);
 }

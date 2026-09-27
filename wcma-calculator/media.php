@@ -23,6 +23,17 @@ require __DIR__ . '/email-helpers.php';
 $pdo = db_connect();
 db_init($pdo);
 $user = require_role('user');
+// Re-read the media flag (and role) from the database rather than trusting the session, so revoking
+// Media access takes effect on the next request instead of only at the next sign-in.
+if ($user !== null) {
+    $row = db_find_user_by_id($pdo, (int)$user['id']);
+    if ($row === null || (int)($row['active'] ?? 1) === 0) {
+        $user = null;
+    } else {
+        $user['is_media'] = (int)($row['is_media'] ?? 0);
+        $user['role'] = $row['role'];
+    }
+}
 if (!mediaCanAccess($user)) {
     http_response_code(403);
     hubRenderForbidden();
@@ -35,7 +46,8 @@ if (in_array($action, MEDIA_POST_ACTIONS, true)) {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: media.php?action=review'); exit; }
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
     $driverId = (int)($_POST['driver_id'] ?? 0);
-    $r = mediaReviewAction($pdo, $action, $driverId, (int)$user['id'], is_string($_POST['note'] ?? null) ? $_POST['note'] : '');
+    $r = mediaReviewAction($pdo, $action, $driverId, (int)$user['id'], is_string($_POST['note'] ?? null) ? $_POST['note'] : '',
+        is_string($_POST['seen'] ?? null) ? $_POST['seen'] : '');
     if (!$r['ok']) {
         setFlash($r['error'], 'error');
     } else {
@@ -53,34 +65,28 @@ if (in_array($action, MEDIA_POST_ACTIONS, true)) {
 }
 
 $season = (int)date('Y');
-$events = db_get_all_events($pdo);
-$eventIds = array_map(fn(array $e): int => (int)$e['id'], $events);
+$today = date('Y-m-d');
+$allEvents = db_get_all_events($pdo);
+$pickerEvents = mediaPickerEvents($allEvents, $today);
+$pickerIds = array_map(fn(array $e): int => (int)$e['id'], $pickerEvents);
+$defaultEventId = techDefaultEventId($allEvents, $today);
 $eventParam = is_scalar($_GET['event'] ?? null) ? (int)$_GET['event'] : -1;
 
 switch ($action) {
     case 'kit':
     case 'kit-zip':
-        $eventId = in_array($eventParam, $eventIds, true) ? $eventParam : 0;
+        $eventId = in_array($eventParam, $pickerIds, true) ? $eventParam : 0;
         $entries = mediaKitEntries($pdo, $eventId, $season);
         if ($action === 'kit-zip' && class_exists('ZipArchive')) {
             mediaSendZip($pdo, $entries, feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', '')), $eventId);
         }
         renderPageStart('Media kit', 'media', ['flash' => getFlash(), 'subnav' => mediaSubnavHtml('kit')]);
-        echo renderMediaKitHtml(['events' => $events, 'eventId' => $eventId, 'entries' => $entries, 'zip' => class_exists('ZipArchive')]);
+        echo renderMediaKitHtml(['events' => $pickerEvents, 'eventId' => $eventId, 'entries' => $entries, 'zip' => class_exists('ZipArchive')]);
         renderPageEnd(['scripts' => '<script src="js/media-kit.js"></script>']);
         break;
 
     case 'review':
-        $queue = [];
-        foreach (db_get_media_review_queue($pdo) as $row) {
-            $did = (int)$row['driver_id'];
-            $consent = db_get_latest_media_consent($pdo, $did);
-            if (!mediaCurrentConsent($consent)['public']) continue;
-            $driver = db_get_driver($pdo, $did);
-            $sheet = db_get_driver_latest_sheet($pdo, $did, $season);
-            $queue[] = ['driver_id' => $did, 'driver_name' => $row['driver_name'], 'entry' => mediaEntry($driver, $row, db_get_sponsors($pdo, $did),
-                (string)($sheet['car_number'] ?? ''), $sheet !== null ? mediaCarLabel($sheet) : '', (string)($sheet['class'] ?? ''), false)];
-        }
+        $queue = mediaReviewQueue($pdo, $season);
         $q = is_string($_GET['q'] ?? null) ? mb_substr(trim($_GET['q']), 0, 100) : '';
         renderPageStart('Public review', 'media', ['flash' => getFlash(), 'subnav' => mediaSubnavHtml('review')]);
         echo renderMediaReviewHtml(['queue' => $queue, 'q' => $q, 'found' => $q === '' ? [] : db_search_media_profiles($pdo, $q), 'csrf' => generateCsrfToken()]);
@@ -88,11 +94,11 @@ switch ($action) {
         break;
 
     default:
-        $eventId = in_array($eventParam, $eventIds, true) ? $eventParam : techDefaultEventId($events, date('Y-m-d'));
+        $eventId = (in_array($eventParam, $pickerIds, true) || $eventParam === $defaultEventId) ? $eventParam : $defaultEventId;
         $q = is_string($_GET['q'] ?? null) ? mb_substr(trim($_GET['q']), 0, 100) : '';
         $extra = $q === '' ? [] : mediaEntriesForDrivers($pdo, array_map(fn(array $r): int => (int)$r['driver_id'], db_search_media_profiles($pdo, $q)), $season);
         renderPageStart('Announcer', 'media', ['flash' => getFlash(), 'subnav' => mediaSubnavHtml('announcer'), 'bodyClass' => 'media-announcer']);
-        echo renderAnnouncerHtml(['events' => $events, 'eventId' => $eventId, 'roster' => $eventId > 0 ? mediaAnnouncerRoster($pdo, $eventId) : [],
+        echo renderAnnouncerHtml(['events' => $pickerEvents, 'eventId' => $eventId, 'roster' => $eventId > 0 ? mediaAnnouncerRoster($pdo, $eventId) : [],
             'q' => $q, 'extra' => $extra]);
         renderPageEnd();
 }
@@ -119,8 +125,7 @@ function mediaSendZip(PDO $pdo, array $entries, string $baseUrl, int $eventId): 
                 $name = ($e['number'] !== '' ? mediaSlug($e['number']) . '-' : '') . mediaSlug($e['name']) . '-' . (int)$e['driver_id'] . '.' . pathinfo($path, PATHINFO_EXTENSION);
                 $zip->addFile(__DIR__ . '/' . $path, $name);
             }
-            $zip->close();
-            $ok = true;
+            $ok = $zip->close() === true;
         }
     } catch (Throwable $e) {
         $ok = false;
