@@ -115,10 +115,23 @@ final class DbTechSheetsIceTest extends TestCase
 
         $rows = $pdo->query("SELECT * FROM tech_sheets")->fetchAll();
         $this->assertCount(1, $rows);
+        $this->assertSame(1, (int)$rows[0]['id']);   // the migrated row keeps its original id
         $this->assertSame(9, (int)$rows[0]['submission_id']);
         $this->assertSame('summer', $rows[0]['discipline']);
         $this->assertNull($rows[0]['club']);
         $this->assertSame('accepted', techCarStatus(db_get_identity_sheets($pdo, 3, 2026))['state']);
         $this->assertSame('summer', db_get_event($pdo, 1)['discipline']);
+
+        // The car-lookup index survives the rebuild.
+        $idx = $pdo->query("SELECT name FROM sqlite_master WHERE type = 'index' AND name = 'idx_tech_sheets_car'")->fetchColumn();
+        $this->assertSame('idx_tech_sheets_car', $idx);
+
+        // The migrated table accepts an ice sheet (NULL submission_id) via a raw insert.
+        $pdo->exec("INSERT INTO tech_sheets (submission_id, car_id, user_id, event_id, sheet_type, entrant_name, driver_name,
+            car_make, car_model, car_colour, car_number, class, car_weight, checklist_json, driver1_equipment_json,
+            status, season, discipline, created_at, updated_at)
+            VALUES (NULL, 3, 1, 1, 'ice', 'B', 'B', 'Honda', 'Civic', 'Blue', '7', 'LS', 2300, '{}', '{}',
+            'submitted', 2026, 'ice', '2026-05-10', '2026-05-10')");
+        $this->assertSame(2, (int)$pdo->query("SELECT COUNT(*) FROM tech_sheets")->fetchColumn());
     }
 }
