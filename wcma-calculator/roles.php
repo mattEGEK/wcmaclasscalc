@@ -64,3 +64,9 @@ function adminMovedActionUrl(string $action, array $query): ?string {
 function userHasFirstAndLastName(string $name): bool {
     return count(preg_split('/\s+/', trim($name), -1, PREG_SPLIT_NO_EMPTY)) >= 2;
 }
+
+/** The Media section (announcer sheet, media kit, public review): admins, and accounts flagged is_media. */
+function mediaCanAccess(?array $user): bool {
+    if ($user === null) return false;
+    return user_has_role($user, 'admin') || !empty($user['is_media']);
+}
