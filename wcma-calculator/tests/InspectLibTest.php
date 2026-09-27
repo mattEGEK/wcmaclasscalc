@@ -71,12 +71,13 @@ final class InspectLibTest extends TestCase
         $this->assertSame([], $rows[1]['gear_links']);                           // owner 12 has no self profile
     }
 
-    private function filterRow(string $carState, bool $sheet, ?string $declStatus, array $gearStates): array {
+    private function filterRow(string $carState, bool $sheet, ?string $declStatus, array $gearStates, string $iceClass = ''): array {
         return [
             'car' => [], 'sheet' => $sheet ? ['id' => 1] : null,
             'class' => ['current' => $declStatus === null ? null : $this->decl(1, $declStatus), 'earlierAccepted' => null],
             'status' => ['state' => $carState, 'via' => null, 'sheet_id' => null],
             'gear_links' => array_map(fn(string $s): array => ['status' => ['state' => $s, 'via' => null]], $gearStates),
+            'ice_class' => $iceClass,
         ];
     }
 
@@ -139,6 +140,16 @@ final class InspectLibTest extends TestCase
 
         $wscc = inspectRosterRows([$car], [], [$otherClub], [], [], [], [], 2027, ['discipline' => 'ice', 'club' => 'NASCC']);
         $this->assertSame('none', $wscc[0]['status']['state']);   // a WSCC sheet doesn't tech the car for NASCC
+    }
+
+    public function testIceRowWithASheetIsNotCountedOrFilteredAsClassNotAccepted(): void
+    {
+        $iceRow = $this->filterRow('accepted', true, null, ['accepted'], 'CH — Chevette (NASCC)');
+        $summerNoClass = $this->filterRow('accepted', true, null, ['accepted']);
+        $rows = [$iceRow, $summerNoClass];
+
+        $this->assertSame([$summerNoClass], inspectRosterFilter($rows, 'class_not_accepted'));
+        $this->assertSame(['all' => 2, 'needs_decals' => 2, 'needs_tech' => 0, 'no_sheet' => 0, 'class_not_accepted' => 1], inspectRosterCounts($rows));
     }
 
     public function testClassingQueryKeepsOnlySetFilters(): void

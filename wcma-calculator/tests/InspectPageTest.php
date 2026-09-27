@@ -71,6 +71,18 @@ final class InspectPageTest extends TestCase
         $this->assertStringNotContainsString('gear-create-accept', $html);
     }
 
+    public function testIceEventsGetAnIceSuffixInThePicker(): void
+    {
+        $html = renderInspectRosterHtml($this->vm([], [
+            'events' => [
+                ['id' => 3, 'name' => 'Fall Sprint', 'event_date' => date('Y') . '-10-04'],
+                ['id' => 20, 'name' => 'Ice Race #1', 'event_date' => '2027-01-10', 'discipline' => 'ice', 'host_club' => 'NASCC'],
+            ],
+        ]));
+        $this->assertStringContainsString('>Fall Sprint (Oct 4, ' . date('Y') . ')</option>', $html);
+        $this->assertStringContainsString('>Ice Race #1 (Jan 10, 2027) · Ice NASCC</option>', $html);
+    }
+
     public function testEmptyStates(): void
     {
         $this->assertStringContainsString('No events yet.', renderInspectRosterHtml($this->vm([], ['events' => []])));

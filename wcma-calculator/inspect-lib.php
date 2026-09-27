@@ -85,7 +85,9 @@ function inspectRosterFilter(array $rows, string $filter): array {
             case 'needs_tech':   return !$carAccepted || techGearLinksNeedGear($r['gear_links']);
             case 'no_sheet':     return $r['sheet'] === null;
         }
-        $current = $r['class']['current'];   // class_not_accepted
+        // class_not_accepted: an ice row's class comes from its sheet, not the summer declaration.
+        if (($r['ice_class'] ?? '') !== '') return false;
+        $current = $r['class']['current'];
         return $current === null || $current['review_status'] !== 'accepted';
     }));
 }

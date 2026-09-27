@@ -158,9 +158,11 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
         $when = !empty($gear['reviewed_at']) ? ' on ' . date('M j, Y g:i A', strtotime($gear['reviewed_at'])) : '';
         $acceptedLine = 'Accepted ' . $how . $who . $when . '.';
     }
+    $isIce = ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
+    $backHref = $isIce ? 'inspect.php' : 'inspect.php?action=gear&amp;season=' . (int)$gear['season'];
     renderPageStart('Gear #' . $id, 'inspect', ['flash' => $flash, 'subnav' => inspectSubnavHtml('gear')]);
     ?>
-<p><a href="inspect.php?action=gear&amp;season=<?= (int)$gear['season'] ?>">&larr; Back to the gear list</a></p>
+<p><a href="<?= $backHref ?>">&larr; Back to <?= $isIce ? 'the roster' : 'the gear list' ?></a></p>
 <h1 class="hub-page-title">Gear #<?= $id ?></h1>
 
   <div class="detail-card">

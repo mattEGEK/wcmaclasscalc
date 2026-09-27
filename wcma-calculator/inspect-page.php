@@ -24,8 +24,9 @@ function renderInspectRosterHtml(array $vm): string {
     $out .= '<form method="get" action="inspect.php" class="hub-card inspect-filters">'
         . '<label for="roster-event">Event</label><select id="roster-event" name="event">';
     foreach ($vm['events'] as $e) {
+        $iceSuffix = ($e['discipline'] ?? 'summer') === 'ice' ? ' · Ice ' . (string)($e['host_club'] ?? '') : '';
         $out .= '<option value="' . (int)$e['id'] . '"' . ((int)$e['id'] === $vm['eventId'] ? ' selected' : '') . '>'
-            . h((string)$e['name']) . ' (' . h(date('M j, Y', strtotime((string)$e['event_date']))) . ')</option>';
+            . h((string)$e['name']) . ' (' . h(date('M j, Y', strtotime((string)$e['event_date']))) . ')' . h($iceSuffix) . '</option>';
     }
     $out .= '</select><label for="roster-filter">Show</label><select id="roster-filter" name="filter">';
     foreach (INSPECT_ROSTER_FILTERS as $key => $label) {

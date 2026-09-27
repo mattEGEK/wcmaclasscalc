@@ -31,6 +31,12 @@ final class AdminGearCopyTest extends TestCase
         }
     }
 
+    public function testIceGearRecordsBackLinkGoesToTheRosterNotTheGearList(): void
+    {
+        $src = $this->src('admin-gear.php');
+        $this->assertStringContainsString("\$isIce ? 'inspect.php' : 'inspect.php?action=gear&amp;season=' . (int)\$gear['season']", $src);
+    }
+
     public function testNoHardCodedAdminNavStringsRemain(): void
     {
         foreach (['admin.php', 'admin-feedback.php', 'admin-tech-sheets.php', 'admin-gear.php'] as $file) {
