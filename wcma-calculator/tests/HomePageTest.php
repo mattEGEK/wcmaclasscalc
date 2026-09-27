@@ -122,6 +122,13 @@ final class HomePageTest extends TestCase
         }
     }
 
+    public function testLandingHeadingIsShortWithTaglineBelow(): void
+    {
+        $html = renderLandingHtml([]);
+        $this->assertStringContainsString('<h1>WCMA Hub</h1>', $html);
+        $this->assertStringContainsString('<p class="hub-hero-tagline">Declare your class', $html);
+    }
+
     public function testTagFormsOfferRemindersOnlyWhenAsked(): void
     {
         $offered = renderHomeHtml($this->vm(['offerReminders' => true]));

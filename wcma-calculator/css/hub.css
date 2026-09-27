@@ -9,7 +9,7 @@
   --hub-font: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --hub-font-narrow: 'Archivo Narrow', 'Archivo', system-ui, sans-serif;
 }
-body.hub { font-family: var(--hub-font); font-size: 18px; line-height: 1.5; color: var(--hub-ink); background: var(--hub-paper); margin: 0; }
+body.hub { font-family: var(--hub-font); font-size: 18px; line-height: 1.5; color: var(--hub-ink); background: var(--hub-paper); margin: 0; padding: 0; }
 body.hub .container { max-width: 1180px; }
 .hub-wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
 .hub-main { padding-top: 24px; padding-bottom: 48px; }
@@ -154,8 +154,10 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .hub-tag-form { flex-wrap: wrap; gap: 8px 12px; }
 
 /* Landing */
-.hub-hero { background: var(--hub-ink); color: #fff; padding: 28px 0; }
-.hub-hero h1 { font-family: var(--hub-font-narrow); font-size: 36px; }
+.hub-hero { background: var(--hub-ink); color: #fff; padding: 32px 36px; border-radius: var(--hub-radius); margin-bottom: 18px; }
+.hub-hero h1 { font-family: var(--hub-font-narrow); font-size: 40px; margin: 0; }
+.hub-hero-tagline { margin: 8px 0 24px; max-width: 46ch; font-size: 18px; line-height: 1.45; color: #d6d9de; }
+.hub-hero-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
 /* Garage */
 .garage-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; margin-bottom: 24px; }
@@ -239,8 +241,13 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
   .hub-todo-item { flex-wrap: wrap; }
   .hub-todo-actions { width: 100%; }
   .hub-todo-actions .hub-btn { flex: 1; }
+  .hub-hero { padding: 24px 20px; }
+  .hub-hero h1 { font-size: 32px; }
+  .hub-hero-tagline { font-size: 17px; margin-bottom: 20px; }
+  .hub-hero-actions .hub-btn { flex: 1 1 auto; white-space: nowrap; }
+  .hub-hero-actions .hub-btn:first-child { flex-basis: 100%; }
   .hub-grid-2 { grid-template-columns: 1fr; }
-  .hub-wrap { padding: 0 16px; }
+  .hub-wrap { padding-left: 16px; padding-right: 16px; }
   /* contain: layout keeps the row/cell layout box (still computed via internal table
      layout, since thead/tbody/tr/td keep their table display types) from leaking its
      unclipped intrinsic width into the document's scrollWidth despite overflow-x: auto. */

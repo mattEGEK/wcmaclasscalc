@@ -248,8 +248,9 @@ function renderHomeHtml(array $vm): string
 
 function renderLandingHtml(array $seasonLinks): string
 {
-    $out = '<section class="hub-hero"><h1>The WCMA Hub: declare your class, submit tech sheets and track car and gear tech for the season.</h1>';
-    $out .= '<div class="hub-todo-actions">';
+    $out = '<section class="hub-hero"><h1>WCMA Hub</h1>';
+    $out .= '<p class="hub-hero-tagline">Declare your class, submit tech sheets and track car and gear tech for the season.</p>';
+    $out .= '<div class="hub-hero-actions">';
     $out .= '<a class="hub-btn" href="calculator.php">Class Calculator</a>';
     $out .= '<a class="hub-btn hub-btn--secondary" href="auth.php?action=login&amp;redirect=index.php">Sign in</a>';
     $out .= '<a class="hub-btn hub-btn--secondary" href="auth.php?action=register&amp;redirect=index.php">Create account</a>';
