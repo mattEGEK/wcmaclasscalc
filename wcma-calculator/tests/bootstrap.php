@@ -6,6 +6,7 @@ if (!function_exists('current_user')) {
     function current_user(): ?array { return $GLOBALS['TEST_CURRENT_USER'] ?? null; }
 }
 require_once __DIR__ . '/../roles.php';
+require_once __DIR__ . '/support/legacy_schema.php';
 
 function make_temp_pdo(): PDO {
     $path = sys_get_temp_dir() . '/wcma_test_' . uniqid() . '.db';

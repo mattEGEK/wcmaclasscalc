@@ -1785,6 +1785,50 @@ function db_add_column_if_missing(PDO $pdo, string $table, string $column, strin
     return true;
 }
 
+function db_has_column(PDO $pdo, string $table, string $column): bool {
+    if (!preg_match('/^[a-z_][a-z0-9_]*$/', $table)) throw new InvalidArgumentException('Unsafe identifier: ' . $table);
+    foreach ($pdo->query("PRAGMA table_info($table)")->fetchAll() as $col) {
+        if ($col['name'] === $column) return true;
+    }
+    return false;
+}
+
+/**
+ * Rebuilds $table from the `CREATE TABLE IF NOT EXISTS {table} (...)` template in $createSql, for
+ * changes SQLite can't make in place (dropping NOT NULL, changing UNIQUE). Every row and id is kept.
+ * Columns the old table lacks take their defaults. Guarded by $markerColumn (a column only the new
+ * schema has): does nothing if it is already there, including when a concurrent deploy migrated
+ * first, because it re-checks inside BEGIN IMMEDIATE. Recreate indexes after calling this.
+ * @return bool true if the table was rebuilt
+ */
+function db_rebuild_table(PDO $pdo, string $table, string $markerColumn, string $createSql): bool {
+    foreach ([$table, $markerColumn] as $ident) {
+        if (!preg_match('/^[a-z_][a-z0-9_]*$/', $ident)) throw new InvalidArgumentException('Unsafe identifier: ' . $ident);
+    }
+    if (db_has_column($pdo, $table, $markerColumn)) return false;
+    $pdo->exec('BEGIN IMMEDIATE');
+    try {
+        if (db_has_column($pdo, $table, $markerColumn)) {
+            $pdo->exec('ROLLBACK');
+            return false;
+        }
+        $tmp = $table . '__rebuild';
+        $old = array_column($pdo->query("PRAGMA table_info($table)")->fetchAll(), 'name');
+        $pdo->exec("DROP TABLE IF EXISTS $tmp");
+        $pdo->exec(str_replace('{table}', $tmp, $createSql));
+        $new = array_column($pdo->query("PRAGMA table_info($tmp)")->fetchAll(), 'name');
+        $cols = implode(', ', array_values(array_intersect($old, $new)));
+        $pdo->exec("INSERT INTO $tmp ($cols) SELECT $cols FROM $table");
+        $pdo->exec("DROP TABLE $table");
+        $pdo->exec("ALTER TABLE $tmp RENAME TO $table");
+        $pdo->exec('COMMIT');
+    } catch (Throwable $e) {
+        $pdo->exec('ROLLBACK');
+        throw $e;
+    }
+    return true;
+}
+
 // ── Media profiles (2026-09-27 spec) ──────────────────────────────────────────
 
 function db_get_media_profile(PDO $pdo, int $driverId): ?array {
