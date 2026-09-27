@@ -65,6 +65,7 @@ function pretechRenderCard(string $key, array $req, ?array $photoRow, bool $appl
 function renderPretechPage(array $sheet, array $event, array $mode, array $snapshot, string $csrf, ?array $flash): void {
     $id = (int)$sheet['id'];
     $requirements = photoRequirementsFor($sheet, 'car');
+    $noRequirements = $requirements === [];
     $photoStatus = $sheet['photo_status'] ?? null;
     $locked = in_array($photoStatus, ['submitted', 'accepted'], true) || ($sheet['status'] ?? '') === 'teched';
     $formMode = $mode['mode'] === 'this_sheet';
@@ -123,7 +124,9 @@ function renderPretechPage(array $sheet, array $event, array $mode, array $snaps
     <?php endif; ?>
   </div>
 
-<?php if ($formMode): ?>
+<?php if ($formMode && $noRequirements): ?>
+  <p class="badge-fail">This tech sheet's class isn't on the club's current list. Edit the sheet and pick a class before adding photos.</p>
+<?php elseif ($formMode): ?>
   <div class="checklist-progress-wrap">
     <div class="checklist-progress-label" id="pretech-progress"><?= (int)$done ?> of <?= (int)$requiredTotal ?> required photos</div>
     <div class="checklist-progress-bar"><div class="checklist-progress-fill" id="pretech-fill" style="width:<?= $requiredTotal > 0 ? (int)round($done / $requiredTotal * 100) : 0 ?>%"></div></div>

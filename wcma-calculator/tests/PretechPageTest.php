@@ -124,6 +124,19 @@ final class PretechPageTest extends TestCase
         $this->assertStringContainsString('already teched for Ice 2027', $accepted);
     }
 
+    public function testIceSheetWithAnUnresolvedClassShowsAMessageInsteadOfTheForm(): void
+    {
+        $iceSheet = $this->sheet(['discipline' => 'ice', 'club' => 'NASCC', 'class' => 'XX', 'season' => 2027]);
+        $html = $this->render($iceSheet, ['mode' => 'this_sheet', 'sheet_id' => null], $this->snapshot());
+
+        $this->assertStringContainsString(
+            "This tech sheet's class isn't on the club's current list. Edit the sheet and pick a class before adding photos.",
+            $html
+        );
+        $this->assertStringNotContainsString('pretech-card', $html);
+        $this->assertStringNotContainsString('pretech-submit-form', $html);
+    }
+
     public function testCardUsesTheRequirementsOwnAppliesLabel(): void
     {
         $req = photoRequirementByKey('ice_fhr_label');

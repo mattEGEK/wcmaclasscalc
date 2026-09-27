@@ -56,6 +56,10 @@ function pretechSubmit(PDO $pdo, int $sheetId): array {
     if ($photoStatus === 'submitted') return $fail('These photos have already been submitted for review.');
     if (!in_array($photoStatus, ['draft', 'needs_changes'], true)) return $fail('Add your photos before submitting.');
 
+    if (photoRequirementsFor($sheet, 'car') === []) {
+        return $fail("This tech sheet's class isn't on the club's current list. Edit the sheet and pick a class before adding photos.");
+    }
+
     $snapshot = pretechSnapshot($pdo, $sheetId);
     $missing = count($snapshot['missing']);
     if ($missing > 0) {

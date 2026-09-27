@@ -96,6 +96,24 @@ final class PretechLibTest extends TestCase
         $this->assertStringContainsString('already been submitted', $again['error']);
     }
 
+    public function testSubmitRefusesAnIceSheetWhoseClassNoLongerResolves(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = db_create_user($pdo, ['email' => 'ice-unknown@example.com', 'name' => 'Ice Racer', 'password_hash' => 'x', 'google_id' => null]);
+        $car = test_make_car($pdo, $u, '7');
+        $event = db_create_event($pdo, 'NASCC Ice #1', '2027-01-10', null, 'ice', 'NASCC');
+        $id = test_make_ice_sheet($pdo, $u, $car, $event, 'LS');
+        db_mark_tech_sheet_photos_draft($pdo, $id);
+        $pdo->prepare("UPDATE tech_sheets SET class = 'XX' WHERE id = :id")->execute([':id' => $id]);
+
+        $r = pretechSubmit($pdo, $id);
+        $this->assertFalse($r['ok']);
+        $this->assertSame(
+            "This tech sheet's class isn't on the club's current list. Edit the sheet and pick a class before adding photos.",
+            $r['error']
+        );
+    }
+
     public function testSubmitRefusesTechedSheetsAndUnknownSheets(): void
     {
         $pdo = make_temp_pdo();
