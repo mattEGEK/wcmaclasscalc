@@ -6,9 +6,10 @@
 // db.php loaded by the caller.
 require_once __DIR__ . '/ice-rules.php';
 require_once __DIR__ . '/tech-sheet-data.php';
+require_once __DIR__ . '/tech-status.php';
 
 function techSheetIsIce(array $sheet): bool {
-    return ($sheet['discipline'] ?? 'summer') === 'ice';
+    return ($sheet['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
 }
 
 /** The checklist sections a sheet is filled in and shown against. */
@@ -37,7 +38,7 @@ function techSheetClassLine(array $sheet): string {
 /** Decodes and trims the ice form's POST. No validation here (see iceSheetValidate()). */
 function iceSheetParsePost(array $post): array {
     $str = fn(string $k): string => is_string($post[$k] ?? null) ? trim($post[$k]) : '';
-    $json = fn(string $k): array => is_string($post[$k] ?? null) ? (json_decode($post[$k], true) ?: []) : [];
+    $json = fn(string $k): array => is_string($post[$k] ?? null) ? (($decoded = json_decode($post[$k], true)) && is_array($decoded) ? $decoded : []) : [];
     return [
         'class'        => $str('class'),
         'car_weight'   => $str('car_weight'),

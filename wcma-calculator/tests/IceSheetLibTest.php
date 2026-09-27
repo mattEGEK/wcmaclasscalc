@@ -63,6 +63,15 @@ final class IceSheetLibTest extends TestCase
         $this->assertSame('', iceSheetParsePost(['class' => ['LS']])['class']);
     }
 
+    public function testParsePostDegradesToEmptyArrayForNonArrayJson(): void
+    {
+        $p = iceSheetParsePost(['checklist_json' => '"hello"', 'driver1_equipment_json' => '5']);
+        $this->assertSame([], $p['checklist']);
+        $this->assertSame([], $p['equipment']);
+        $p2 = iceSheetParsePost(['checklist_json' => 'true']);
+        $this->assertSame([], $p2['checklist']);
+    }
+
     public function testValidSheetPasses(): void
     {
         $this->assertNull(iceSheetValidate($this->parsed('NASCC', 'LS'), 'NASCC'));
