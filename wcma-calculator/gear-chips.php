@@ -34,6 +34,8 @@ function gearChipCreateForm(string $csrf, int $sheetId, int $driverNumber, array
  *     are only offered when it is the current season (0 or absent = not restricted).
  *   csrf + sheet_id: admin only; when both are given a driver with no record gets a
  *     "Create and accept gear in person" form. hidden: extra hidden inputs for that form.
+ *   sheet_id: for the owner audience, an ice driver with no gear record gets an "Add gear photos"
+ *     link to start ice gear photos from that sheet.
  */
 function renderGearChips(array $links, string $audience, array $opts = []): string {
     if (!$links) return '';
@@ -51,7 +53,12 @@ function renderGearChips(array $links, string $audience, array $opts = []): stri
         $seasonOk = $sheetSeason === 0 || $sheetSeason === gearSeasonNow($linkDiscipline);
         if ($gear === null) {
             if ($isIce && $audience === 'owner') {
-                $html .= '<li class="gear-chip">' . $name . ': <span class="badge-pending">No gear record</span> Ice gear is checked at the track.</li>';
+                $sheetIdOpt = (int)($opts['sheet_id'] ?? 0);
+                $html .= '<li class="gear-chip">' . $name . ': <span class="badge-pending">No gear record</span>'
+                    . ($seasonOk && $sheetIdOpt > 0
+                        ? ' <a href="gear.php?action=start-ice&amp;sheet_id=' . $sheetIdOpt . '">Add gear photos</a> or have it checked at the track.'
+                        : ' Gear is checked at the track.')
+                    . '</li>';
                 continue;
             }
             $html .= '<li class="gear-chip">' . $name . ': <span class="badge-pending">No gear record</span>';
@@ -68,10 +75,6 @@ function renderGearChips(array $links, string $audience, array $opts = []): stri
             $label .= ' · ' . (ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']);
         }
         $class = gearStatusBadgeClass($l['status']['state']);
-        if ($isIce && $audience === 'owner') {
-            $html .= '<li class="gear-chip">' . $name . ': <span class="' . h($class) . '">' . h($label) . '</span></li>';
-            continue;
-        }
         $href = $audience === 'owner'
             ? 'gear.php?action=pretech&amp;id=' . (int)$gear['id']
             : 'inspect.php?action=gear-record&amp;id=' . (int)$gear['id'];

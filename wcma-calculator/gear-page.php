@@ -7,7 +7,7 @@
 
 function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?array $flash): void {
     $id = (int)$gear['id'];
-    $requirements = photoRequirements('gear');
+    $requirements = photoRequirementsFor($gear, 'gear');
     $photoStatus = $gear['photo_status'] ?? null;
     $accepted = ($gear['status'] ?? 'open') === 'accepted';
     $locked = $accepted || in_array($photoStatus, ['submitted', 'accepted'], true);
@@ -27,7 +27,7 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
         'subjectType' => 'gear_record', 'subjectId' => $id, 'csrf' => $csrf, 'locked' => $locked,
         'requirements' => $clientRequirements, 'photos' => (object)$clientPhotos, 'applicable' => $snapshot['applicable'],
     ];
-    $driverLine = $gear['driver_name'] . ' — ' . (int)$gear['season'];
+    $driverLine = $gear['driver_name'] . ' — ' . ((($gear['discipline'] ?? 'summer') === 'ice') ? 'Ice ' : '') . (int)$gear['season'];
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -48,7 +48,7 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
   <div class="detail-card">
     <h2><?= h($driverLine) ?></h2>
     <?php if ($accepted): ?>
-      <p>This driver's gear is already teched for <?= (int)$gear['season'] ?>. You do not need to submit photos.</p>
+      <p>This driver's gear is already teched for <?= h((($gear['discipline'] ?? 'summer') === 'ice' ? 'Ice ' : '') . (int)$gear['season']) ?>. You do not need to submit photos.</p>
     <?php else: ?>
       <p>Optional: submit photos of this driver's gear so an inspector can review them before the event. If they are accepted, the gear does not need to be checked at the track and you just collect your decals. The gear can still be checked in person instead.</p>
       <?php if ($photoStatus === 'submitted'): ?>

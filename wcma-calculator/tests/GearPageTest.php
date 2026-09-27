@@ -122,4 +122,15 @@ final class GearPageTest extends TestCase
         $text = strip_tags(preg_replace('/<script.*?<\/script>/s', '', $html));
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', $text);
     }
+
+    public function testIceGearRecordShowsIceRequirementsAndLabel(): void
+    {
+        $html = $this->renderPretech(
+            $this->gear(['id' => 3, 'discipline' => 'ice', 'season' => 2027, 'driver_name' => 'Sam', 'status' => 'open', 'photo_status' => null]),
+            $this->snapshot()
+        );
+        $this->assertStringContainsString('data-key="ice_helmet_label"', $html);
+        $this->assertStringNotContainsString('data-key="helmet_label"', $html);
+        $this->assertStringContainsString('Sam — Ice 2027', $html);
+    }
 }

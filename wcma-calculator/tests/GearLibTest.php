@@ -296,6 +296,31 @@ final class GearLibTest extends TestCase
         return db_create_user($pdo, ['email' => 'g' . uniqid() . '@example.com', 'name' => 'Owner', 'password_hash' => 'x', 'google_id' => null]);
     }
 
+    // Note: like the Phase 2 season tests, this fails in the ten days before 1 July, when the event
+    // rolls into the next ice season.
+    public function testStartIceForSheetCreatesOrReusesTheOwnersRecord(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->owner($pdo);
+        $car = test_make_car($pdo, $u, '7');
+        $event = db_create_event($pdo, 'NASCC Ice', date('Y-m-d', strtotime('+10 days')), null, 'ice', 'NASCC');
+        $sheet = db_get_tech_sheet($pdo, test_make_ice_sheet($pdo, $u, $car, $event, 'SS'));
+
+        $r = gearStartIceForSheet($pdo, $sheet, $u);
+        $this->assertTrue($r['ok'], (string)$r['error']);
+        $g = db_get_gear_record($pdo, (int)$r['id']);
+        $this->assertSame('ice', $g['discipline']);
+        $this->assertSame((int)$sheet['season'], (int)$g['season']);
+        $this->assertSame('Test Driver', $g['driver_name']);
+        $this->assertSame($r['id'], gearStartIceForSheet($pdo, $sheet, $u)['id']);   // reused, not duplicated
+
+        $this->assertFalse(gearStartIceForSheet($pdo, $sheet, $this->owner($pdo))['ok']);   // not the owner
+        $summer = ['discipline' => 'summer'] + $sheet;
+        $this->assertFalse(gearStartIceForSheet($pdo, $summer, $u)['ok']);
+        $old = ['season' => gearSeasonNow('ice') - 1] + $sheet;
+        $this->assertFalse(gearStartIceForSheet($pdo, $old, $u)['ok']);
+    }
+
     public function testIceSeasonNowAndIceLabels(): void
     {
         $this->assertSame(iceSeasonFromDate(date('Y-m-d')), gearSeasonNow('ice'));

@@ -2,8 +2,9 @@
 // wcma-calculator/tests/GearChipsActionsSourceTest.php
 //
 // Source-level guard: gear.php and admin-gear.php can't run under PHPUnit (they need
-// config.php), so this checks the ice discipline refusal is in the photo pre-tech handlers
-// (fix wave, Fix 1).
+// config.php). The gear pre-tech ice refusal (fix wave, Fix 1) was removed in ice-phase3
+// task 4 — gear.php's photo pre-tech now works for ice gear too — so only the admin-gear.php
+// photo review refusal (out of task 4's scope) is still checked here.
 use PHPUnit\Framework\TestCase;
 
 final class GearChipsActionsSourceTest extends TestCase
@@ -14,15 +15,6 @@ final class GearChipsActionsSourceTest extends TestCase
         $this->assertNotFalse($start, $name . ' must exist');
         $next = strpos($src, "\nfunction ", $start + 1);
         return $next === false ? substr($src, $start) : substr($src, $start, $next - $start);
-    }
-
-    public function testGearPretechHandlersRefuseIceRecords(): void {
-        foreach (['handleGearPretech', 'handleGearPretechSubmit'] as $fn) {
-            $body = $this->body('gear.php', $fn);
-            $this->assertStringContainsString('DISCIPLINE_ICE', $body, $fn);
-            $this->assertStringContainsString("isn\\'t available yet. Bring your gear to tech at the event.", $body, $fn);
-            $this->assertStringContainsString("Location: drivers.php", $body, $fn);
-        }
     }
 
     public function testGearAdminPhotosAcceptRefusesIceRecords(): void {

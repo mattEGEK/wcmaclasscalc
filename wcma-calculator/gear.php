@@ -77,6 +77,11 @@ switch ($action) {
         handleGearStart($pdo, $user, (int)($_GET['driver_id'] ?? 0));
         break;
 
+    case 'start-ice':
+        $user = requireGearLogin();
+        handleGearStartIce($pdo, $user, (int)($_GET['sheet_id'] ?? 0));
+        break;
+
     default:
         header('Location: drivers.php');
         exit;
@@ -84,21 +89,11 @@ switch ($action) {
 
 function handleGearPretech(PDO $pdo, array $user, int $id): void {
     $gear = loadOwnGearRecord($pdo, $user, $id);
-    if (($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) {
-        setFlash('Photo pre-tech for ice gear isn\'t available yet. Bring your gear to tech at the event.', 'error');
-        header('Location: drivers.php');
-        exit;
-    }
     renderGearPretechPage($gear, gearSnapshot($pdo, $id), generateCsrfToken(), getFlash());
 }
 
 function handleGearPretechSubmit(PDO $pdo, array $user, int $id): void {
     $gear = loadOwnGearRecord($pdo, $user, $id);
-    if (($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) {
-        setFlash('Photo pre-tech for ice gear isn\'t available yet. Bring your gear to tech at the event.', 'error');
-        header('Location: drivers.php');
-        exit;
-    }
 
     $result = gearSubmit($pdo, $id);
     if (!$result['ok']) {
@@ -112,6 +107,19 @@ function handleGearPretechSubmit(PDO $pdo, array $user, int $id): void {
         setFlash('Photos submitted for review.' . ($sent ? ' We emailed you a confirmation.' : ' The confirmation email could not be sent.'), $sent ? 'success' : 'error');
     }
     header('Location: gear.php?action=pretech&id=' . $id);
+    exit;
+}
+
+/** Opens ice gear photos for the driver on one of the user's ice tech sheets. */
+function handleGearStartIce(PDO $pdo, array $user, int $sheetId): void {
+    $sheet = db_get_user_tech_sheet($pdo, (int)$user['id'], $sheetId);
+    $r = $sheet === null ? ['ok' => false, 'error' => 'Tech sheet not found.'] : gearStartIceForSheet($pdo, $sheet, (int)$user['id']);
+    if (!$r['ok']) {
+        setFlash((string)$r['error'], 'error');
+        header('Location: ' . ($sheet === null ? 'garage.php' : 'tech-sheets.php?action=view&id=' . $sheetId));
+        exit;
+    }
+    header('Location: gear.php?action=pretech&id=' . (int)$r['id']);
     exit;
 }
 
