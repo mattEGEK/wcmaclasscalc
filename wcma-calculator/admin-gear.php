@@ -263,7 +263,7 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
         <option value="<?= h($value) ?>"<?= $value === $suggested ? ' selected' : '' ?>><?= h($label) ?></option>
         <?php endforeach; ?>
       </select>
-      <p class="form-hint">Suggested from the helmet standard in the photo. Caged: SA/FIA helmet. Uncaged classes: Snell M2015+ or ECE 22.05/22.06. WSCC Studded also accepts ECE 22.05 made 2015 or later, so choose caged there if the helmet qualifies.</p>
+      <p class="form-hint">Suggested from the helmet standard in the photo. Caged: Snell SA or FIA helmet (NASCC caged classes need SA2020 or newer). Uncaged classes: Snell M2015+ or ECE 22.05/22.06.</p>
       <?php endif; ?>
       <button type="submit" class="btn btn-primary" id="gear-accept-btn">Accept photos (pre-teched)</button>
     </form>
