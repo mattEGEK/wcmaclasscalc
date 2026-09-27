@@ -290,4 +290,26 @@ final class PretechLibTest extends TestCase
         foreach ($it as $f) { $f->isDir() ? rmdir($f->getPathname()) : unlink($f->getPathname()); }
         rmdir($dir);
     }
+
+    public function testIceSnapshotUsesTheSheetsGroupAndIgnoresOffListPhotos(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = db_create_user($pdo, ['email' => 'p' . uniqid() . '@example.com', 'name' => 'Ice', 'password_hash' => 'x', 'google_id' => null]);
+        $car = test_make_car($pdo, $u, '7');
+        $event = db_create_event($pdo, 'NASCC Ice', '2026-12-12', null, 'ice', 'NASCC');
+        $sheetId = test_make_ice_sheet($pdo, $u, $car, $event, 'LS');
+        $this->addPhoto($pdo, $sheetId, 'ice_cage');
+
+        $snap = pretechSnapshot($pdo, $sheetId);
+        $this->assertNotContains('ice_cage', $snap['missing']);
+        $this->assertContains('ice_mud_flaps', $snap['missing']);
+        $this->assertNotContains('front_34', $snap['missing']);
+
+        // The class changes to SS: the cage photo stays but is no longer on the list or missing.
+        $pdo->prepare("UPDATE tech_sheets SET class = 'SS' WHERE id = :id")->execute([':id' => $sheetId]);
+        $snap = pretechSnapshot($pdo, $sheetId);
+        $this->assertArrayHasKey('ice_cage', $snap['photos']);
+        $this->assertNotContains('ice_cage', $snap['missing']);
+        $this->assertContains('ice_airbags', $snap['missing']);
+    }
 }

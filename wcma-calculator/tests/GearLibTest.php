@@ -347,4 +347,11 @@ final class GearLibTest extends TestCase
         $this->assertSame(1, $summer[0]['gear']['id']);
         $this->assertNull($summer[0]['default_level']);
     }
+
+    public function testIceGearSnapshotUsesTheIceList(): void
+    {
+        $pdo = make_temp_pdo();
+        $id = (int)gearCreate($pdo, $this->owner($pdo), 'Sam', '', 2027, 'ice')['id'];
+        $this->assertSame(['ice_helmet_label', 'ice_suit_label', 'ice_gloves_shoes'], gearSnapshot($pdo, $id)['missing']);
+    }
 }

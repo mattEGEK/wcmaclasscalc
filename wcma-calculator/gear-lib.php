@@ -110,18 +110,19 @@ function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $
 /** Photos of a gear record, which are present, which conditional ones apply, and what is still missing. */
 function gearSnapshot(PDO $pdo, int $id): array {
     $photos = db_get_inspection_photos($pdo, 'gear_record', $id);
+    $requirements = photoRequirementsFor(db_get_gear_record($pdo, $id) ?? [], 'gear');
     $present = [];
     $applicable = [];
     foreach ($photos as $key => $row) {
         if ($row['file_path'] !== '') $present[] = $key;
-        $req = photoRequirementByKey($key);
+        $req = $requirements[$key] ?? null;
         if ($req !== null && $req['tier'] === 'conditional' && (int)$row['applies'] === 1) $applicable[] = $key;
     }
     return [
         'photos' => $photos,
         'present' => $present,
         'applicable' => $applicable,
-        'missing' => photoSetMissingRequired('gear', $present, $applicable),
+        'missing' => photoSetMissingFrom($requirements, $present, $applicable),
     ];
 }
 

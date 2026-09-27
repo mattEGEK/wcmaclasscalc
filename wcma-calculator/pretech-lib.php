@@ -8,18 +8,19 @@
 /** Photos of the sheet, which are present, which conditional ones apply, and what is still missing. */
 function pretechSnapshot(PDO $pdo, int $sheetId): array {
     $photos = db_get_inspection_photos($pdo, 'tech_sheet', $sheetId);
+    $requirements = photoRequirementsFor(db_get_tech_sheet($pdo, $sheetId) ?? [], 'car');
     $present = [];
     $applicable = [];
     foreach ($photos as $key => $row) {
         if ($row['file_path'] !== '') $present[] = $key;
-        $req = photoRequirementByKey($key);
+        $req = $requirements[$key] ?? null;
         if ($req !== null && $req['tier'] === 'conditional' && (int)$row['applies'] === 1) $applicable[] = $key;
     }
     return [
         'photos' => $photos,
         'present' => $present,
         'applicable' => $applicable,
-        'missing' => photoSetMissingRequired('car', $present, $applicable),
+        'missing' => photoSetMissingFrom($requirements, $present, $applicable),
     ];
 }
 

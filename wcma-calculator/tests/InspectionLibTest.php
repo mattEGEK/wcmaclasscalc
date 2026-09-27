@@ -2,6 +2,7 @@
 // wcma-calculator/tests/InspectionLibTest.php
 require_once __DIR__ . '/../photo-requirements.php';
 require_once __DIR__ . '/../inspection-lib.php';
+require_once __DIR__ . '/../gear-lib.php';
 
 use PHPUnit\Framework\TestCase;
 
@@ -232,5 +233,46 @@ final class InspectionLibTest extends TestCase
 
         $row['typed_value'] = null;
         $this->assertSame([], inspectionPublicPhoto($row)['typed']);
+    }
+
+    private function iceSheet(PDO $pdo, string $class = 'SS'): int {
+        $u = db_create_user($pdo, ['email' => 'i' . uniqid() . '@example.com', 'name' => 'Ice', 'password_hash' => 'x', 'google_id' => null]);
+        $car = test_make_car($pdo, $u, '7');
+        $event = db_create_event($pdo, 'NASCC Ice', '2026-12-12', null, 'ice', 'NASCC');
+        return test_make_ice_sheet($pdo, $u, $car, $event, $class);
+    }
+
+    public function testSaveRejectsKeysOutsideTheSubjectsList(): void
+    {
+        $pdo = make_temp_pdo();
+        $ss = $this->iceSheet($pdo, 'SS');
+        foreach (['front_34', 'ice_cage', 'ice_helmet_label'] as $key) {
+            $r = inspectionSavePhoto($pdo, $this->dir, 'tech_sheet', $ss, $key, $this->tmpFile($this->jpeg()), [], 'rename');
+            $this->assertFalse($r['ok'], $key);
+            $this->assertSame('Unknown photo type.', $r['error'], $key);
+        }
+        $ok = inspectionSavePhoto($pdo, $this->dir, 'tech_sheet', $ss, 'ice_airbags', $this->tmpFile($this->jpeg()), [], 'rename');
+        $this->assertTrue($ok['ok'], (string)$ok['error']);
+        $this->assertSame(ICE_PHOTO_REQUIREMENTS_VERSION, (int)$ok['photo']['requirement_version']);
+
+        // A summer (or unknown) subject still refuses ice keys.
+        $this->assertFalse(inspectionSavePhoto($pdo, $this->dir, 'tech_sheet', 999, 'ice_front_34', $this->tmpFile($this->jpeg()), [], 'rename')['ok']);
+    }
+
+    public function testIceGearAppliesAndTypedUseTheIceList(): void
+    {
+        $pdo = make_temp_pdo();
+        $owner = db_create_user($pdo, ['email' => 'g' . uniqid() . '@example.com', 'name' => 'O', 'password_hash' => 'x', 'google_id' => null]);
+        $gearId = (int)gearCreate($pdo, $owner, 'Sam', '', 2027, 'ice')['id'];
+        $this->assertTrue(inspectionSetApplies($pdo, $this->dir, 'gear_record', $gearId, 'ice_fhr_label', true)['ok']);
+        $this->assertFalse(inspectionSetApplies($pdo, $this->dir, 'gear_record', $gearId, 'fhr_label', true)['ok']);
+
+        $r = inspectionSavePhoto($pdo, $this->dir, 'gear_record', $gearId, 'ice_helmet_label', $this->tmpFile($this->jpeg()),
+            ['standard' => 'Snell M2015', 'date' => '03/2020'], 'rename');
+        $this->assertTrue($r['ok'], (string)$r['error']);
+        $bad = inspectionSavePhoto($pdo, $this->dir, 'gear_record', $gearId, 'ice_helmet_label', $this->tmpFile($this->jpeg()),
+            ['standard' => 'Bell Bike'], 'rename');
+        $this->assertFalse($bad['ok']);
+        $this->assertTrue(inspectionUpdateTyped($pdo, (int)$r['photo']['id'], ['standard' => 'Snell SA2020'])['ok']);
     }
 }
