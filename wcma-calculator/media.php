@@ -13,6 +13,12 @@ require __DIR__ . '/inspection-lib.php';
 require __DIR__ . '/media-lib.php';
 require __DIR__ . '/media-service.php';
 require __DIR__ . '/media-page.php';
+require __DIR__ . '/pretech-email.php';
+require __DIR__ . '/media-email.php';
+require __DIR__ . '/phpmailer/src/Exception.php';
+require __DIR__ . '/phpmailer/src/PHPMailer.php';
+require __DIR__ . '/phpmailer/src/SMTP.php';
+require __DIR__ . '/email-helpers.php';
 
 $pdo = db_connect();
 db_init($pdo);
@@ -29,6 +35,27 @@ $events = db_get_all_events($pdo);
 $eventIds = array_map(fn(array $e): int => (int)$e['id'], $events);
 $eventParam = is_scalar($_GET['event'] ?? null) ? (int)$_GET['event'] : -1;
 
+if (in_array($action, MEDIA_POST_ACTIONS, true)) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: media.php?action=review'); exit; }
+    if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+    $driverId = (int)($_POST['driver_id'] ?? 0);
+    $r = mediaReviewAction($pdo, $action, $driverId, (int)$user['id'], is_string($_POST['note'] ?? null) ? $_POST['note'] : '');
+    if (!$r['ok']) {
+        setFlash($r['error'], 'error');
+    } else {
+        $done = ['media-accept' => 'Accepted. The public page is live.', 'media-send-back' => 'Sent back with your note.',
+                 'media-hide' => 'Hidden everywhere.', 'media-unhide' => 'Unhidden.'][$action];
+        if ($r['notify'] !== null) {
+            $sent = mediaNotifyOwner($pdo, $r['notify'], $driverId, (string)$_POST['note'],
+                feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', '')), 'emailSmtpSend');
+            $done .= $sent ? ' The driver was emailed.' : ' The email could not be sent.';
+        }
+        setFlash($done, 'success');
+    }
+    header('Location: media.php?action=review');
+    exit;
+}
+
 switch ($action) {
     case 'kit':
     case 'kit-zip':
@@ -40,6 +67,23 @@ switch ($action) {
         renderPageStart('Media kit', 'media', ['flash' => getFlash(), 'subnav' => mediaSubnavHtml('kit')]);
         echo renderMediaKitHtml(['events' => $events, 'eventId' => $eventId, 'entries' => $entries, 'zip' => class_exists('ZipArchive')]);
         renderPageEnd(['scripts' => '<script src="js/media-kit.js"></script>']);
+        break;
+
+    case 'review':
+        $queue = [];
+        foreach (db_get_media_review_queue($pdo) as $row) {
+            $did = (int)$row['driver_id'];
+            $consent = db_get_latest_media_consent($pdo, $did);
+            if (!mediaCurrentConsent($consent)['public']) continue;
+            $driver = db_get_driver($pdo, $did);
+            $sheet = db_get_driver_latest_sheet($pdo, $did, $season);
+            $queue[] = ['driver_id' => $did, 'driver_name' => $row['driver_name'], 'entry' => mediaEntry($driver, $row, db_get_sponsors($pdo, $did),
+                (string)($sheet['car_number'] ?? ''), $sheet !== null ? mediaCarLabel($sheet) : '', (string)($sheet['class'] ?? ''), false)];
+        }
+        $q = is_string($_GET['q'] ?? null) ? mb_substr(trim($_GET['q']), 0, 100) : '';
+        renderPageStart('Public review', 'media', ['flash' => getFlash(), 'subnav' => mediaSubnavHtml('review')]);
+        echo renderMediaReviewHtml(['queue' => $queue, 'q' => $q, 'found' => $q === '' ? [] : db_search_media_profiles($pdo, $q), 'csrf' => generateCsrfToken()]);
+        renderPageEnd();
         break;
 
     default:

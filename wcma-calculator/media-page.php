@@ -80,3 +80,47 @@ function renderMediaKitHtml(array $vm): string {
     foreach ($vm['entries'] as $e) $out .= renderMediaEntryHtml($e, true);
     return $out;
 }
+
+function mediaPostFormHtml(string $action, int $driverId, string $csrf, string $inner, string $cls = 'hub-line'): string {
+    return '<form method="post" action="media.php?action=' . h($action) . '" class="' . h($cls) . '">'
+        . '<input type="hidden" name="csrf_token" value="' . h($csrf) . '">'
+        . '<input type="hidden" name="driver_id" value="' . $driverId . '">' . $inner . '</form>';
+}
+
+function renderMediaReviewHtml(array $vm): string {
+    $csrf = (string)$vm['csrf'];
+    $out = '<h1>Public review</h1><p class="hub-intro">Profiles that asked to go on the public page, oldest first. Announcing and the media kit already use them.</p>';
+    if (!$vm['queue']) $out .= '<p>Nothing waiting for review.</p>';
+    foreach ($vm['queue'] as $row) {
+        $id = (int)$row['driver_id'];
+        $out .= '<section class="media-review-item"><h2>' . h((string)$row['driver_name']) . '</h2>'
+            . renderMediaEntryHtml($row['entry'], false)
+            . mediaPostFormHtml('media-accept', $id, $csrf, '<button type="submit" class="hub-btn">Accept for the public page</button>')
+            . mediaPostFormHtml('media-send-back', $id, $csrf, '<label for="sb-' . $id . '">Note for the driver</label>'
+                . '<input type="text" id="sb-' . $id . '" name="note" required maxlength="500">'
+                . '<button type="submit" class="hub-btn hub-btn--secondary">Send back</button>')
+            . mediaPostFormHtml('media-hide', $id, $csrf, '<label for="hd-' . $id . '">Reason for hiding</label>'
+                . '<input type="text" id="hd-' . $id . '" name="note" required maxlength="500">'
+                . '<button type="submit" class="hub-btn hub-btn--link">Hide everywhere</button>')
+            . '</section>';
+    }
+    $out .= '<h2>Hide or unhide any profile</h2><form method="get" action="media.php" class="hub-line">'
+        . '<input type="hidden" name="action" value="review"><label for="rv-q">Driver name</label>'
+        . '<input type="search" id="rv-q" name="q" maxlength="100" value="' . h((string)$vm['q']) . '">'
+        . '<button type="submit" class="hub-btn hub-btn--secondary">Find</button></form>';
+    if ((string)$vm['q'] !== '' && !$vm['found']) $out .= '<p>No profiles match "' . h((string)$vm['q']) . '".</p>';
+    foreach ($vm['found'] as $p) {
+        $id = (int)$p['driver_id'];
+        $out .= '<div class="hub-card"><strong>' . h((string)$p['driver_name']) . '</strong> ';
+        if (!empty($p['hidden_at'])) {
+            $out .= '<span class="hub-status hub-status--todo">Hidden</span> ' . h((string)($p['hidden_reason'] ?? ''))
+                . mediaPostFormHtml('media-unhide', $id, $csrf, '<button type="submit" class="hub-btn hub-btn--secondary">Unhide</button>');
+        } else {
+            $out .= mediaPostFormHtml('media-hide', $id, $csrf, '<label for="hf-' . $id . '">Reason for hiding</label>'
+                . '<input type="text" id="hf-' . $id . '" name="note" required maxlength="500">'
+                . '<button type="submit" class="hub-btn hub-btn--link">Hide everywhere</button>');
+        }
+        $out .= '</div>';
+    }
+    return $out;
+}

@@ -4,6 +4,8 @@ require_once __DIR__ . '/../photo-requirements.php';
 require_once __DIR__ . '/../inspection-lib.php';
 require_once __DIR__ . '/../media-lib.php';
 require_once __DIR__ . '/../media-service.php';
+require_once __DIR__ . '/../pretech-email.php';
+require_once __DIR__ . '/../media-email.php';
 
 use PHPUnit\Framework\TestCase;
 
@@ -188,5 +190,46 @@ final class MediaServiceTest extends TestCase
 
         mediaWithdraw($pdo, $u, $self);
         $this->assertSame([], mediaKitEntries($pdo, 0, (int)date('Y')));
+    }
+
+    public function testReviewActions(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->user($pdo, 'j@example.com');
+        $d = (int)db_get_self_driver($pdo, $u)['id'];
+        $this->assertSame('That profile no longer exists.', mediaReviewAction($pdo, 'media-accept', $d, $u, '')['error']);
+        mediaSaveProfile($pdo, $u, $d, ['blurb' => 'Fast.', 'consent_media' => '1', 'consent_public' => '1'], null, $this->base, 'rename');
+
+        $this->assertSame('Add a note so the driver knows what to change.', mediaReviewAction($pdo, 'media-send-back', $d, $u, ' ')['error']);
+        $r = mediaReviewAction($pdo, 'media-send-back', $d, $u, 'Brighter photo');
+        $this->assertSame(['ok' => true, 'error' => null, 'notify' => 'sent_back'], $r);
+        $this->assertSame('That profile is not waiting for review.', mediaReviewAction($pdo, 'media-accept', $d, $u, '')['error']);
+
+        mediaSaveProfile($pdo, $u, $d, ['blurb' => 'Faster.', 'consent_media' => '1', 'consent_public' => '1'], null, $this->base, 'rename');
+        $this->assertSame(['ok' => true, 'error' => null, 'notify' => null], mediaReviewAction($pdo, 'media-accept', $d, $u, ''));
+        $this->assertSame('accepted', db_get_media_profile($pdo, $d)['public_status']);
+
+        $this->assertSame('Add a reason for hiding it.', mediaReviewAction($pdo, 'media-hide', $d, $u, '')['error']);
+        $this->assertSame('hidden', mediaReviewAction($pdo, 'media-hide', $d, $u, 'Sponsor dispute')['notify']);
+        $this->assertFalse(mediaUsable(db_get_media_profile($pdo, $d), db_get_latest_media_consent($pdo, $d), 'club'));
+        mediaReviewAction($pdo, 'media-unhide', $d, $u, '');
+        $this->assertTrue(mediaUsable(db_get_media_profile($pdo, $d), db_get_latest_media_consent($pdo, $d), 'public'));
+        $this->assertSame('Unknown action.', mediaReviewAction($pdo, 'media-nuke', $d, $u, '')['error']);
+    }
+
+    public function testNotifyOwnerEmailsTheManagingAccountAndSurvivesAFailedSend(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->user($pdo, 'j@example.com');
+        $sam = db_create_driver($pdo, $u, 'Sam Patel');
+        $sent = [];
+        $ok = mediaNotifyOwner($pdo, 'sent_back', $sam, 'Brighter photo', 'https://hub.test', function (array $to, array $m) use (&$sent): bool {
+            $sent[] = [$to, $m];
+            return true;
+        });
+        $this->assertTrue($ok);
+        $this->assertSame([['j@example.com', 'Jordan Lee']], $sent[0][0]);
+        $this->assertStringContainsString('https://hub.test/media-profile.php?driver_id=' . $sam, $sent[0][1]['text']);
+        $this->assertFalse(mediaNotifyOwner($pdo, 'hidden', $sam, 'x', 'https://hub.test', function (): bool { throw new RuntimeException('smtp down'); }));
     }
 }

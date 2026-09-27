@@ -64,4 +64,29 @@ final class MediaPageTest extends TestCase
         $this->assertStringNotContainsString('kit-zip', renderMediaKitHtml(['zip' => false] + $vm));
         $this->assertStringContainsString('No drivers have shared a profile yet.', renderMediaKitHtml(['entries' => []] + $vm));
     }
+
+    public function testReviewQueueHasAcceptSendBackAndHideForms(): void
+    {
+        $html = renderMediaReviewHtml(['csrf' => 'tok', 'q' => '', 'found' => [],
+            'queue' => [['driver_id' => 5, 'driver_name' => 'Jane <Doe>', 'entry' => $this->entry()]]]);
+        $this->assertStringContainsString('Jane &lt;Doe&gt;', $html);
+        foreach (['media-accept', 'media-send-back', 'media-hide'] as $a) {
+            $this->assertStringContainsString('action="media.php?action=' . $a . '"', $html);
+        }
+        $this->assertSame(3, substr_count($html, 'name="csrf_token" value="tok"'));
+        $this->assertStringContainsString('name="note" required', $html);
+        $this->assertStringNotContainsString('approv', strtolower($html));
+        $this->assertStringContainsString('Nothing waiting for review.', renderMediaReviewHtml(['csrf' => 't', 'q' => '', 'found' => [], 'queue' => []]));
+    }
+
+    public function testHideSearchOffersUnhideForHiddenProfiles(): void
+    {
+        $html = renderMediaReviewHtml(['csrf' => 'tok', 'q' => 'doe', 'queue' => [], 'found' => [
+            ['driver_id' => 5, 'driver_name' => 'Jane Doe', 'hidden_at' => null, 'public_status' => 'accepted'],
+            ['driver_id' => 6, 'driver_name' => 'John Doe', 'hidden_at' => '2026-09-27 10:00:00', 'hidden_reason' => 'Dispute', 'public_status' => 'none'],
+        ]]);
+        $this->assertStringContainsString('action="media.php?action=media-hide"', $html);
+        $this->assertStringContainsString('action="media.php?action=media-unhide"', $html);
+        $this->assertStringContainsString('Dispute', $html);
+    }
 }

@@ -73,4 +73,13 @@ final class MediaSourceTest extends TestCase
         $this->assertStringContainsString('$zip->open($tmp, ZipArchive::OVERWRITE) === true', $src);
         $this->assertMatchesRegularExpression('/finally\s*\{.*?unlink\(\$tmp\);.*?\}/s', $src);
     }
+
+    public function testReviewPostsAreCsrfCheckedAndEmailTheOwner(): void
+    {
+        $src = $this->src('media.php');
+        $this->assertMatchesRegularExpression("/if \(in_array\(\\\$action, MEDIA_POST_ACTIONS, true\)\) \{\s*if \(\\\$_SERVER\['REQUEST_METHOD'\] !== 'POST'\)/", $src);
+        $this->assertStringContainsString("if (!validateCsrfToken(\$_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }", $src);
+        $this->assertStringContainsString("mediaNotifyOwner(\$pdo, \$r['notify']", $src);
+        $this->assertStringContainsString("'emailSmtpSend'", $src);
+    }
 }
