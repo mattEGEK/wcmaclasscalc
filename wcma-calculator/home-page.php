@@ -67,18 +67,19 @@ function homeRenderTodoItem(int $n, array $item, string $csrf): string {
     return $out;
 }
 
-/** The tag ("I'm going") form for one untagged event. */
+/** The tag ("I'm going") form for one event, inside that event's card: pick the car (or name it). */
 function homeRenderTagForm(array $event, array $cars, string $csrf, bool $offerReminders = false): string {
     $eid = (int)$event['id'];
     $out = '<form method="post" action="index.php" class="hub-line hub-tag-form">' . homeCsrfField($csrf)
         . '<input type="hidden" name="action" value="tag">'
         . '<input type="hidden" name="event_id" value="' . h((string)$eid) . '">';
-    $out .= '<span>' . h((string)$event['name']) . '</span>';
     if (count($cars) === 1) {
         $car = array_values($cars)[0];
-        $out .= '<input type="hidden" name="car_id" value="' . h((string)$car['id']) . '">';
+        $out .= '<span>' . h(carDisplayName($car)) . '</span>'
+            . '<input type="hidden" name="car_id" value="' . h((string)$car['id']) . '">';
     } else {
-        $out .= '<select name="car_id">';
+        $out .= '<label class="visually-hidden" for="tag-car-' . $eid . '">Car for ' . h((string)$event['name']) . '</label>'
+            . '<select id="tag-car-' . $eid . '" name="car_id">';
         foreach ($cars as $car) {
             $out .= '<option value="' . h((string)$car['id']) . '">' . h(carDisplayName($car)) . '</option>';
         }
@@ -87,6 +88,47 @@ function homeRenderTagForm(array $event, array $cars, string $csrf, bool $offerR
     if ($offerReminders) $out .= reminderOptInFieldsHtml();
     $out .= '<button type="submit" class="hub-btn">I\'m going</button></form>';
     return $out;
+}
+
+/** Short event date for card headers ("Sat, Oct 11"); '' if the date can't be read. */
+function homeShortDate(string $eventDate): string {
+    try {
+        return (new DateTime(substr($eventDate, 0, 10)))->format('D, M j');
+    } catch (Exception $e) {
+        return '';
+    }
+}
+
+/**
+ * One upcoming event as a card: name, date and (when you're going) a to-do badge in the header;
+ * inside, each car you're taking with "Not going anymore", then an "I'm going" row for the rest.
+ * $readinessEvent is the buildReadiness() entry when you're going, null otherwise.
+ */
+function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, string $csrf, bool $offerReminders): string {
+    $out = '<section class="hub-card hub-event"><div class="hub-event-head"><h3>' . h((string)$event['name']) . '</h3>';
+    $date = homeShortDate((string)$event['event_date']);
+    if ($date !== '') $out .= '<span class="hub-event-date">' . h($date) . '</span>';
+    $goingCarIds = [];
+    if ($readinessEvent !== null) {
+        foreach ($readinessEvent['items'] as $item) {
+            if ($item['kind'] === 'tech_sheet') $goingCarIds[(int)$item['subject_id']] = true;
+        }
+        $todo = count(array_filter($readinessEvent['items'], fn(array $i): bool => $i['state'] === 'todo'));
+        $out .= $todo > 0
+            ? '<span class="hub-status hub-status--todo">' . h($todo . ' ' . homePlural($todo, 'thing', 'things') . ' to do') . '</span>'
+            : '<span class="hub-status hub-status--ok">All set</span>';
+    }
+    $out .= '</div>';
+    foreach (array_keys($goingCarIds) as $carId) {
+        if (isset($cars[$carId])) $out .= homeRenderUntagForm($event, $cars[$carId], $csrf);
+    }
+    $notGoing = array_diff_key($cars, $goingCarIds);
+    if ($notGoing) {
+        $out .= homeRenderTagForm($event, $notGoing, $csrf, $offerReminders);
+    } elseif (!$cars) {
+        $out .= '<p class="form-hint">Add a car to your garage to say you\'re going.</p>';
+    }
+    return $out . '</section>';
 }
 
 /** One-time invitation to add a media profile (spec 2026-09-27 §3). Not part of readiness. */
@@ -158,66 +200,48 @@ function renderHomeHtml(array $vm): string
             $out .= '</ol>';
         }
 
-        if ($infoItems) {
-            $out .= '<h2>With an inspector</h2>';
-            foreach ($infoItems as $item) {
-                $out .= '<div class="hub-card"><strong>' . h($item['label']) . '</strong>';
-                if ($item['detail'] !== '') {
-                    $out .= '<div>' . h($item['detail']) . '</div>';
+        if ($infoItems || $doneItems) {
+            $parts = [];
+            if ($infoItems) $parts[] = count($infoItems) . ' with an inspector';
+            if ($doneItems) $parts[] = count($doneItems) . ' already done';
+            $out .= '<details class="hub-done"><summary>' . h(implode(' · ', $parts)) . '</summary>';
+            if ($infoItems) {
+                $out .= '<h3>With an inspector</h3><ul>';
+                foreach ($infoItems as $item) {
+                    $out .= '<li>' . h($item['label']) . ($item['detail'] !== '' ? ' <span class="form-hint">' . h($item['detail']) . '</span>' : '') . '</li>';
                 }
-                $out .= '</div>';
+                $out .= '</ul>';
             }
-        }
-
-        if ($doneItems) {
-            $out .= '<details class="hub-done" open><summary>Already done for ' . h((string)$first['event']['name'])
-                . ' (' . h((string)count($doneItems)) . ')</summary><ul>';
-            foreach ($doneItems as $item) {
-                $out .= '<li>' . h($item['label']) . '</li>';
+            if ($doneItems) {
+                $out .= '<h3>Already done for ' . h((string)$first['event']['name']) . '</h3><ul>';
+                foreach ($doneItems as $item) {
+                    $out .= '<li>' . h($item['label']) . '</li>';
+                }
+                $out .= '</ul>';
             }
-            $out .= '</ul></details>';
+            $out .= '</details>';
         }
     }
 
-    // Tagged cars per event, derived from the first event's tech_sheet items (for "not going anymore").
-    $out .= '<h2>Upcoming events: are you going?</h2>';
+    // A media profile that was sent back or hidden is something to act on, so it sits with the to-dos.
+    $mediaPrompt = !empty($vm['mediaPrompt']) ? (is_array($vm['mediaPrompt']) ? $vm['mediaPrompt'] : ['kind' => 'invite']) : null;
+    if ($mediaPrompt !== null && $mediaPrompt['kind'] === 'attention') {
+        $out .= homeMediaPromptHtml($csrf, $mediaPrompt);
+    }
+
+    // Upcoming events: one card per event, soonest first.
+    $out .= '<h2>Upcoming events</h2>';
     if (!$events && !$untagged) {
         $out .= '<p>No upcoming events yet.</p>';
     } else {
-        if ($events) {
-            $out .= '<h3>Events you\'re going to</h3>';
-            foreach ($events as $ev) {
-                $eventCarIds = [];
-                foreach ($ev['items'] as $item) {
-                    if ($item['kind'] === 'tech_sheet') {
-                        $eventCarIds[(int)$item['subject_id']] = true;
-                    }
-                }
-                foreach (array_keys($eventCarIds) as $carId) {
-                    if (isset($cars[$carId])) {
-                        $out .= homeRenderUntagForm($ev['event'], $cars[$carId], $csrf);
-                    }
-                }
-                $untaggedCars = array_diff_key($cars, $eventCarIds);
-                if ($untaggedCars) {
-                    $out .= homeRenderTagForm($ev['event'], $untaggedCars, $csrf, $offerReminders);
-                }
-            }
-        }
-        if ($untagged) {
-            foreach ($untagged as $event) {
-                if ($cars) {
-                    $out .= homeRenderTagForm($event, $cars, $csrf, $offerReminders);
-                } else {
-                    $out .= '<p class="hub-line"><span>' . h((string)$event['name']) . '</span></p>';
-                }
-            }
+        $cardsByDate = [];
+        foreach ($events as $ev) $cardsByDate[] = [$ev['event'], $ev];
+        foreach ($untagged as $event) $cardsByDate[] = [$event, null];
+        usort($cardsByDate, fn(array $a, array $b): int => strcmp((string)$a[0]['event_date'], (string)$b[0]['event_date']));
+        foreach ($cardsByDate as [$event, $readinessEvent]) {
+            $out .= homeEventCardHtml($event, $readinessEvent, $cars, $csrf, $offerReminders);
         }
         $out .= '<p class="form-hint">' . EVENTS_NOT_REGISTERING . '</p>';
-    }
-
-    if (!empty($vm['mediaPrompt'])) {
-        $out .= homeMediaPromptHtml($csrf, is_array($vm['mediaPrompt']) ? $vm['mediaPrompt'] : ['kind' => 'invite']);
     }
 
     // At a glance
@@ -249,6 +273,10 @@ function renderHomeHtml(array $vm): string
     $out .= '<a class="hub-btn hub-btn--secondary" href="drivers.php">Manage drivers &rarr;</a></div>';
     $out .= '</div>';
 
+    if ($mediaPrompt !== null && $mediaPrompt['kind'] === 'invite') {
+        $out .= homeMediaPromptHtml($csrf, $mediaPrompt);
+    }
+
     // This season on MotorsportReg
     if ($vm['seasonLinks']) {
         $out .= '<div class="hub-card"><h3>This season on MotorsportReg</h3>';
@@ -257,14 +285,6 @@ function renderHomeHtml(array $vm): string
                 . '<a href="' . h((string)$link['url']) . '" target="_blank" rel="noopener">Open &#8599;</a></div>';
         }
         $out .= '</div>';
-    }
-
-    // Next after that
-    if (isset($events[1])) {
-        $second = $events[1];
-        $secondTodo = count(array_filter($second['items'], fn(array $i): bool => $i['state'] === 'todo'));
-        $out .= '<p class="hub-intro">Next after that: <strong>' . h((string)$second['event']['name']) . '</strong>, '
-            . h((string)$secondTodo) . ' ' . h(homePlural($secondTodo, 'thing', 'things')) . ' to do.</p>';
     }
 
     return $out;

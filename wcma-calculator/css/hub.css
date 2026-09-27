@@ -146,8 +146,16 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .hub-todo-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
 
 /* Home sections */
-.hub-done { background: var(--hub-card); border-radius: var(--hub-radius); padding: 14px 20px; }
-.hub-done summary { font-weight: 700; color: var(--hub-ok-ink); cursor: pointer; }
+.hub-done { margin-top: 12px; padding: 4px 2px; }
+.hub-done summary { font-weight: 600; color: var(--hub-ink-2); cursor: pointer; }
+.hub-done h3 { font-size: 16px; margin: 12px 0 4px; }
+.hub-done ul { margin: 0; padding-left: 1.2rem; color: var(--hub-ink-2); }
+.hub-event { margin-bottom: 12px; }
+.hub-event-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-bottom: 4px; }
+.hub-event-head h3 { margin: 0; }
+.hub-event-date { color: var(--hub-ink-2); }
+.hub-event-head .hub-status { margin-left: auto; }
+.media-prompt h2 { font-size: 20px; margin-top: 0; }
 .hub-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .hub-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--hub-line); }
 .hub-line:first-of-type { border-top: 0; }

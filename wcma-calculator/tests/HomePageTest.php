@@ -56,7 +56,14 @@ final class HomePageTest extends TestCase
         $this->assertStringContainsString('name="action" value="at-track"', $html);
         $this->assertStringContainsString('name="csrf_token" value="tok"', $html);
         $this->assertStringContainsString('With an inspector', $html);
-        $this->assertStringContainsString('Already done for Fall Sprint (1)', $html);
+        $this->assertStringContainsString('<details class="hub-done"><summary>1 with an inspector · 1 already done</summary>', $html);
+        $this->assertStringContainsString('Already done for Fall Sprint', $html);
+        $this->assertStringNotContainsString('<details class="hub-done" open', $html);   // starts closed
+        // One card per event, soonest first, with the event's to-do badge in its header.
+        $this->assertStringContainsString('<h3>Fall Sprint</h3><span class="hub-event-date">Sun, Oct 11</span><span class="hub-status hub-status--todo">2 things to do</span>', $html);
+        $this->assertLessThan(strpos($html, '<h3>Season Finale</h3>'), strpos($html, '<h3>Fall Sprint</h3>'));
+        $this->assertSame(1, substr_count($html, EVENTS_NOT_REGISTERING));
+        $this->assertStringNotContainsString('Next after that', $html);
         $this->assertStringContainsString('Season Finale', $html);
         $this->assertStringContainsString("I'm going", $html);
         $this->assertStringContainsString(EVENTS_NOT_REGISTERING, $html);
@@ -65,7 +72,9 @@ final class HomePageTest extends TestCase
 
         $withPrompt = renderHomeHtml($this->vm(['mediaPrompt' => true]));
         $this->assertStringContainsString('Clubs would like to feature you', $withPrompt);
-        $this->assertLessThan(strpos($withPrompt, '<h2>At a glance</h2>'), strpos($withPrompt, 'Clubs would like to feature you'));
+        // The invitation is a quiet strip after "At a glance", before the MotorsportReg links.
+        $this->assertGreaterThan(strpos($withPrompt, '<h2>At a glance</h2>'), strpos($withPrompt, 'Clubs would like to feature you'));
+        $this->assertLessThan(strpos($withPrompt, 'This season on MotorsportReg'), strpos($withPrompt, 'Clubs would like to feature you'));
     }
 
     public function testMediaPromptCardAppearsOnlyWhenAsked(): void
@@ -134,9 +143,16 @@ final class HomePageTest extends TestCase
         // ...while car 4 is not tagged, so it's offered a tag form for event 10, car 4 only.
         $this->assertStringContainsString(
             'name="action" value="tag"><input type="hidden" name="event_id" value="10">'
-            . '<span>Fall Sprint</span><input type="hidden" name="car_id" value="4">',
+            . '<span>#7 2010 Mazda MX-5</span><input type="hidden" name="car_id" value="4">',
             $html
         );
+        // Both are inside Fall Sprint's card, before the next event's card starts.
+        $fall = strpos($html, '<h3>Fall Sprint</h3>');
+        $finale = strpos($html, '<h3>Season Finale</h3>');
+        $this->assertGreaterThan($fall, strpos($html, 'Not going anymore'));
+        $this->assertLessThan($finale, strpos($html, 'value="4"><button type="submit" class="hub-btn">I\'m going'));
+        // An event you're not going to offers both cars in a labelled picker.
+        $this->assertStringContainsString('<label class="visually-hidden" for="tag-car-11">Car for Season Finale</label><select id="tag-car-11" name="car_id">', $html);
     }
 
     public function testAlreadyDoneSectionOmittedWhenNoDoneItems(): void
@@ -148,7 +164,14 @@ final class HomePageTest extends TestCase
         ));
         $html = renderHomeHtml($vm);
         $this->assertStringNotContainsString('Already done', $html);
-        $this->assertStringNotContainsString('hub-done', $html);
+        $this->assertStringContainsString('<summary>1 with an inspector</summary>', $html);
+
+        // With nothing with an inspector and nothing done, there is no summary line at all.
+        $vm['readiness']['events'][0]['items'] = array_values(array_filter(
+            $vm['readiness']['events'][0]['items'],
+            fn($i) => $i['state'] === 'todo'
+        ));
+        $this->assertStringNotContainsString('hub-done', renderHomeHtml($vm));
     }
 
     public function testLandingOffersCalculatorAndSignIn(): void
