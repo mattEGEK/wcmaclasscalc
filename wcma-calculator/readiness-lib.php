@@ -4,6 +4,7 @@
 // What a competitor still has to do for the events they tagged (spec §3). buildReadiness() is
 // pure: no DB, no HTML. loadReadinessInputs() (Task 5) gathers its input from the database.
 // Callers must have loaded tech-status.php and gear-lib.php.
+require_once __DIR__ . '/ice-sheet-lib.php';   // techSheetIsIce()
 
 function readinessItem(string $kind, string $subjectType, int $subjectId, string $state, string $label,
                        string $detail = '', ?array $action = null, ?array $atTrack = null): array {
@@ -144,7 +145,7 @@ function loadReadinessInputs(PDO $pdo, int $userId, string $today): array {
     foreach (db_get_user_cars($pdo, $userId) as $c) $cars[(int)$c['id']] = $c;
 
     // Summer readiness only (ice readiness is Phase 4): an ice sheet must never count as summer car tech.
-    $sheets = array_values(array_filter(db_get_user_tech_sheets($pdo, $userId), fn(array $s): bool => ($s['discipline'] ?? 'summer') !== 'ice'));
+    $sheets = array_values(array_filter(db_get_user_tech_sheets($pdo, $userId), fn(array $s): bool => !techSheetIsIce($s)));
     $sheetDrivers = [];
     foreach (db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $sheets)) as $sheetId => $rows) {
         $sheetDrivers[(int)$sheetId] = array_values(array_filter(array_map(fn(array $r): int => (int)($r['driver_id'] ?? 0), $rows)));

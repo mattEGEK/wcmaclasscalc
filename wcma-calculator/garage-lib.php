@@ -3,6 +3,7 @@
 //
 // Pure view-model builders for the Garage (spec §4): no DB, no HTML. Callers must have loaded
 // tech-status.php (techCarStatus(), techCarStatusLabel()).
+require_once __DIR__ . '/ice-sheet-lib.php';   // techSheetIsIce()
 
 /**
  * A car's class (spec §2): its newest non-superseded declaration. When that one isn't accepted,
@@ -105,7 +106,7 @@ function garageTechPhotosAction(array $seasonSheets, array $status): ?array {
 
 /** The summer sheets among $sheets: summer car tech, events and history never count ice sheets. */
 function garageSummerSheets(array $sheets): array {
-    return array_values(array_filter($sheets, fn(array $s): bool => ($s['discipline'] ?? 'summer') !== 'ice'));
+    return array_values(array_filter($sheets, fn(array $s): bool => !techSheetIsIce($s)));
 }
 
 /**
