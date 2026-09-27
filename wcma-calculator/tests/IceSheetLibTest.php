@@ -114,6 +114,24 @@ final class IceSheetLibTest extends TestCase
         $this->assertSame('Please complete every required field.', iceSheetValidate($this->parsed('NASCC', 'LS', ['log_book' => null]), 'NASCC'));
     }
 
+    public function testRowBuildsTheSharedDbColumnsFromAParsedFormAndTheCar(): void
+    {
+        $p = $this->parsed('NASCC', 'LS', ['engine_hp' => '90']);
+        $car = ['make' => 'Chevrolet', 'model' => 'Chevette'];
+        $row = iceSheetRow($p, $car);
+        $this->assertSame([
+            'sheet_type' => 'ice',
+            'entrant_name' => 'Sam', 'driver_name' => 'Sam',
+            'car_make' => 'Chevrolet', 'car_model' => 'Chevette', 'car_colour' => 'Blue',
+            'car_number' => '7', 'class' => 'LS',
+            'engine_cc' => null, 'engine_hp' => '90', 'car_weight' => 2300,
+            'checklist_json' => json_encode($p['checklist']), 'driver1_equipment_json' => json_encode($p['equipment']),
+            'log_book_turned_in' => 1,
+        ], $row);
+        $this->assertIsInt($row['car_weight']);
+        $this->assertIsInt($row['log_book_turned_in']);
+    }
+
     public function testRecipientFallsBackToTheAccountEmail(): void
     {
         $pdo = make_temp_pdo();

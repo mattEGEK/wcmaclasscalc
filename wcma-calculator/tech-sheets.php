@@ -883,15 +883,9 @@ function handleSubmitIce(PDO $pdo, array $user): void {
         exit;
     }
     try {
-        $id = db_insert_tech_sheet($pdo, [
-            'car_id' => $carId, 'user_id' => $user['id'], 'event_id' => $eventId, 'sheet_type' => 'ice',
-            'entrant_name' => $p['entrant_name'], 'driver_name' => $p['driver_name'],
-            'car_make' => $car['make'], 'car_model' => $car['model'], 'car_colour' => $p['car_colour'],
-            'car_number' => $p['car_number'], 'class' => $p['class'],
-            'engine_cc' => $p['engine_cc'], 'engine_hp' => $p['engine_hp'], 'car_weight' => (int)$p['car_weight'],
-            'checklist_json' => json_encode($p['checklist']), 'driver1_equipment_json' => json_encode($p['equipment']),
-            'log_book_turned_in' => (int)$p['log_book'],
-        ]);
+        $id = db_insert_tech_sheet($pdo, array_merge(iceSheetRow($p, $car), [
+            'car_id' => $carId, 'user_id' => $user['id'], 'event_id' => $eventId,
+        ]));
     } catch (InvalidArgumentException $e) {
         setFlash($e->getMessage(), 'error');
         header('Location: ' . $back);
@@ -934,15 +928,9 @@ function handleUpdateIce(PDO $pdo, array $user, array $sheet): void {
         exit;
     }
     try {
-        db_update_tech_sheet($pdo, $id, [
-            'event_id' => (int)$sheet['event_id'], 'sheet_type' => 'ice',
-            'entrant_name' => $p['entrant_name'], 'driver_name' => $p['driver_name'],
-            'car_make' => $car['make'], 'car_model' => $car['model'], 'car_colour' => $p['car_colour'],
-            'car_number' => $p['car_number'], 'class' => $p['class'],
-            'engine_cc' => $p['engine_cc'], 'engine_hp' => $p['engine_hp'], 'car_weight' => (int)$p['car_weight'],
-            'checklist_json' => json_encode($p['checklist']), 'driver1_equipment_json' => json_encode($p['equipment']),
-            'log_book_turned_in' => (int)$p['log_book'],
-        ]);
+        db_update_tech_sheet($pdo, $id, array_merge(iceSheetRow($p, $car), [
+            'event_id' => (int)$sheet['event_id'],
+        ]));
     } catch (InvalidArgumentException $e) {
         setFlash($e->getMessage(), 'error');
         header('Location: tech-sheets.php?action=edit&id=' . $id);

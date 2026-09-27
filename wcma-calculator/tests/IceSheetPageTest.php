@@ -55,6 +55,7 @@ final class IceSheetPageTest extends TestCase
         $this->assertStringContainsString('id="ice-class-note"', $html);
         $this->assertStringContainsString('id="ice-helmet-note"', $html);
         $this->assertStringContainsString('window.ICE_SECTIONS_BY_CLASS', $html);
+        $this->assertStringContainsString('window.ICE_RENDERED_CLASS = "";', $html);
         $this->assertStringContainsString('<script src="js/ice-class-picker.js"></script>', $html);
         $this->assertLessThan(strpos($html, 'js/tech-sheet-form.js'), strpos($html, 'js/ice-class-picker.js'));
         $this->assertStringNotContainsString('id="sheet_type"', $html);
@@ -73,6 +74,7 @@ final class IceSheetPageTest extends TestCase
         $this->assertStringContainsString('<option value="LS" selected>LS — Limited Stud</option>', $html);
         $this->assertStringContainsString('<input type="hidden" name="tech_sheet_id" value="9">', $html);
         $this->assertStringContainsString('value="2300"', $html);
+        $this->assertStringContainsString('window.ICE_RENDERED_CLASS = "LS";', $html);
         $this->assertStringContainsString('Leave the pads blank to keep the signatures already on file.', $html);
         $this->assertStringNotContainsString('action=new-ice', $html);   // the event can't change on an edit
     }

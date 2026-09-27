@@ -119,7 +119,7 @@ final class TechSheetsHandlersTest extends TestCase
         $submit = $this->body('handleSubmitIce');
         $this->assertStringContainsString('iceSheetValidate(', $submit);
         $this->assertStringContainsString("'car_id' => \$carId", $submit);
-        $this->assertStringContainsString("'sheet_type' => 'ice'", $submit);
+        $this->assertStringContainsString('iceSheetRow(', $submit);
         $this->assertStringContainsString('catch (InvalidArgumentException $e)', $submit);
         $this->assertStringContainsString('techSheetRecipientEmail(', $submit);
     }
@@ -130,6 +130,7 @@ final class TechSheetsHandlersTest extends TestCase
         $this->assertStringContainsString("'event_id' => (int)\$sheet['event_id']", $body);
         $this->assertStringNotContainsString("\$_POST['event_id']", $body);
         $this->assertStringContainsString('iceSheetValidate(', $body);
+        $this->assertStringContainsString('iceSheetRow(', $body);
         $this->assertStringContainsString('techSheetRecipientEmail(', $body);
         $this->assertStringContainsString('handleUpdateIce(', $this->body('handleUpdate'));
         $this->assertStringContainsString('techSheetIsIce(', $this->body('handleEdit'));

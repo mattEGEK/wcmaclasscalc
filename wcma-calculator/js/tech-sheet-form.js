@@ -93,7 +93,7 @@
     // Ice form: the checklist and the head & neck rule follow the chosen class.
     const iceClassSelect = document.getElementById('ice_class');
     if (iceClassSelect && window.ICE_SECTIONS_BY_CLASS && window.WcmaIceClass) {
-        iceClassSelect.addEventListener('change', function () {
+        function onIceClassChange() {
             const code = iceClassSelect.value;
             const sections = WcmaIceClass.sectionsFor(window.ICE_SECTIONS_BY_CLASS, code);
             const container = document.getElementById('checklist-container');
@@ -103,7 +103,13 @@
             TECH_DRIVER_EQUIPMENT_ITEMS.head_neck_restraints.optional = !WcmaIceClass.fhrRequired(window.ICE_FHR_BY_CLASS, code);
             document.getElementById('ice-class-note').textContent = (window.ICE_CLASS_NOTES || {})[code] || '';
             document.getElementById('ice-helmet-note').textContent = (window.ICE_HELMET_NOTES || {})[code] || '';
-        });
+        }
+        iceClassSelect.addEventListener('change', onIceClassChange);
+        // The browser can restore a <select> value on reload/back-navigation without firing
+        // `change`, leaving the checklist rendered for the page's original class (or empty, for a
+        // fresh form) while the select itself shows something else. Bring the checklist back in
+        // sync once on load when that happens.
+        if (iceClassSelect.value !== (window.ICE_RENDERED_CLASS || '')) onIceClassChange();
     }
 
     const entrantPad = WcmaSignaturePad.attach(document.getElementById('entrant-sig-canvas'));

@@ -133,6 +133,7 @@ function renderIceTechSheetFormHtml(array $vm): string {
         . 'window.ICE_FHR_BY_CLASS = ' . $json($vm['fhrByClass']) . ';'
         . 'window.ICE_CLASS_NOTES = ' . $json($vm['classNotes']) . ';'
         . 'window.ICE_HELMET_NOTES = ' . $json($vm['helmetNotes']) . ';'
+        . 'window.ICE_RENDERED_CLASS = ' . json_encode($sel, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ';'
         . 'window.TECH_SHEET_EXISTING_CHECKLIST = ' . $json($existingChecklist) . ';'
         . 'window.TECH_SHEET_EXISTING_EQUIPMENT = ' . $json($existingEquipment) . ';'
         . 'window.TECH_SHEET_EXISTING_DRIVERS = [];'

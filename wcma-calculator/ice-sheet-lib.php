@@ -74,6 +74,24 @@ function iceSheetValidate(array $parsed, string $club): ?string {
     return null;
 }
 
+/**
+ * The DB columns shared by handleSubmitIce() and handleUpdateIce(): everything from a validated,
+ * parsed ice form (see iceSheetParsePost()/iceSheetValidate()) plus the car's make/model. Callers
+ * merge in their own keys (car_id/user_id/event_id for a new sheet; event_id pinned to the sheet's
+ * existing one for an edit).
+ */
+function iceSheetRow(array $p, array $car): array {
+    return [
+        'sheet_type' => 'ice',
+        'entrant_name' => $p['entrant_name'], 'driver_name' => $p['driver_name'],
+        'car_make' => $car['make'], 'car_model' => $car['model'], 'car_colour' => $p['car_colour'],
+        'car_number' => $p['car_number'], 'class' => $p['class'],
+        'engine_cc' => $p['engine_cc'], 'engine_hp' => $p['engine_hp'], 'car_weight' => (int)$p['car_weight'],
+        'checklist_json' => json_encode($p['checklist']), 'driver1_equipment_json' => json_encode($p['equipment']),
+        'log_book_turned_in' => (int)$p['log_book'],
+    ];
+}
+
 /** Where a sheet's emails go: its declaration's email when it has one, otherwise the account holder's. */
 function techSheetRecipientEmail(PDO $pdo, array $sheet): ?string {
     if (!empty($sheet['submission_id'])) {
