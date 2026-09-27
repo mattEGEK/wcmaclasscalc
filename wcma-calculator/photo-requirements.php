@@ -6,6 +6,9 @@
 // when the list changes. Sources are the WCMA 2026 Technical Regulations
 // (Appendix references in each 'reg' field).
 
+require_once __DIR__ . '/tech-status.php';   // DISCIPLINE_ICE
+require_once __DIR__ . '/ice-rules.php';     // iceClass(), ICE_CLASS_GROUPS, iceClubCodes()
+
 const PHOTO_REQUIREMENTS_VERSION = 1;
 
 const PHOTO_HELMET_STANDARDS = ['SA2020', 'SA2025', 'FIA 8860-2010', 'FIA 8859-2015', 'FIA 8860-2018'];
@@ -167,16 +170,201 @@ const PHOTO_REQUIREMENTS = [
     ],
 ];
 
+// ── Ice (2026-09-27 spec §1). Keys are prefixed ice_ so a key alone identifies its requirement. ──
+const ICE_PHOTO_REQUIREMENTS_VERSION = 1;
+
+const ICE_HELMET_STANDARDS = [
+    'Snell SA2015', 'Snell SA2020', 'Snell SA2025', 'FIA 8860-2010', 'FIA 8859-2015', 'FIA 8860-2018',
+    'Snell M2015', 'Snell M2020', 'ECE 22.05', 'ECE 22.06',
+];
+
+const ICE_PHOTO_REQUIREMENTS = [
+    // ── Car ──
+    'ice_front_34' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['drift', 'street_safe', 'caged'], 'typed' => [],
+        'label' => 'Front three-quarter view',
+        'guidance' => 'Whole front of the car with the car number and the front tow hook visible.',
+    ],
+    'ice_rear_34' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['drift', 'street_safe', 'caged'], 'typed' => [],
+        'label' => 'Rear three-quarter view',
+        'guidance' => 'Whole rear of the car with the rear tow hook, the exhaust exit and the rear roof light visible.',
+    ],
+    'ice_side_driver' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['street_safe', 'caged'], 'typed' => [],
+        'label' => "Driver's side",
+        'guidance' => 'Full side view showing the car number and class decal.',
+    ],
+    'ice_side_passenger' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['street_safe', 'caged'], 'typed' => [],
+        'label' => "Passenger's side",
+        'guidance' => 'Full side view showing the car number and class decal.',
+    ],
+    'ice_tires' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['drift', 'street_safe', 'caged'], 'typed' => [],
+        'label' => 'Tire close-up',
+        'guidance' => 'One tire showing tread and sidewall: the snowflake mark and size for studless tires, or the stud pattern and how far the studs stick out for studded tires.',
+    ],
+    'ice_windshield' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['street_safe', 'caged'], 'typed' => [],
+        'label' => 'Windshield',
+        'guidance' => 'The whole windshield, so any cracks are visible.',
+    ],
+    'ice_interior' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['street_safe', 'caged'], 'typed' => [],
+        'label' => 'Interior, overall',
+        'guidance' => 'Seats with headrests, the belts, and no loose items.',
+    ],
+    'ice_airbags' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['street_safe'], 'typed' => [],
+        'label' => 'Airbags',
+        'guidance' => 'The steering wheel and dash where the airbags are.',
+        'club_guidance' => [
+            'NASCC' => 'The steering wheel and dash showing the airbags removed, not just disabled.',
+            'WSCC' => 'The steering wheel and dash showing the airbags removed or disabled.',
+        ],
+    ],
+    'ice_battery' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['street_safe', 'caged'], 'typed' => [],
+        'label' => 'Battery',
+        'guidance' => 'The battery hold-down and the insulated positive terminal.',
+    ],
+    'ice_brake_lights' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['street_safe', 'caged'], 'typed' => [],
+        'label' => 'Brake lights',
+        'guidance' => 'The rear of the car with the brake lights on.',
+        'club_guidance' => [
+            'NASCC' => 'The rear of the car with all 4 brake lights on (2 on or above the trunk lid).',
+            'WSCC' => 'The rear of the car with all 3 brake lights on (1 on or above the trunk lid).',
+        ],
+    ],
+    'ice_cage' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['caged'], 'typed' => [],
+        'label' => 'Roll cage, overall',
+        'guidance' => 'The whole cage from inside the car, including the roof reinforcement bar.',
+    ],
+    'ice_seat_harness' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['caged'], 'typed' => [],
+        'label' => 'Seat and harness, installed',
+        'guidance' => "The driver's seat with the harness installed and its mounting points visible.",
+    ],
+    'ice_harness_date' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['caged'],
+        'typed' => [['name' => 'date', 'label' => 'Date stamp (MM/YYYY)', 'type' => 'month_year']],
+        'label' => 'Harness date stamp',
+        'guidance' => 'Close-up of the harness label so the date stamp and the standard are readable.',
+    ],
+    'ice_window_net' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['caged'], 'typed' => [],
+        'label' => 'Window net',
+        'guidance' => "The driver-side window net installed, showing how it attaches.",
+    ],
+    'ice_kill_switch' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['caged'], 'typed' => [],
+        'label' => 'Kill switch and its marking',
+        'guidance' => 'The switch and the marking that identifies it.',
+    ],
+    'ice_engine_bay' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['caged'], 'typed' => [],
+        'label' => 'Engine bay',
+        'guidance' => 'The engine bay showing the firewall.',
+        'club_guidance' => [
+            'NASCC' => 'The engine bay showing the engine and radiator catch tanks and the firewall.',
+        ],
+    ],
+    'ice_mud_flaps' => [
+        'scope' => 'car', 'tier' => 'required', 'groups' => ['caged'], 'typed' => [],
+        'label' => 'Mud flaps',
+        'guidance' => 'The mud flaps behind the driven wheels.',
+    ],
+
+    // ── Gear ──
+    'ice_helmet_label' => [
+        'scope' => 'gear', 'tier' => 'required',
+        'typed' => [
+            ['name' => 'standard', 'label' => 'Standard', 'type' => 'select', 'options' => ICE_HELMET_STANDARDS],
+            ['name' => 'date', 'label' => 'Date (MM/YYYY)', 'type' => 'month_year'],
+        ],
+        'label' => 'Helmet certification label',
+        'guidance' => 'The inside label showing the certification standard and date.',
+    ],
+    'ice_suit_label' => [
+        'scope' => 'gear', 'tier' => 'required',
+        'typed' => [['name' => 'rating', 'label' => 'Rating (e.g. SFI 3.2A/1, or FR coveralls)', 'type' => 'text']],
+        'label' => 'Suit or coverall label',
+        'guidance' => 'The label showing the suit rating, or that the coveralls are fire resistant.',
+    ],
+    'ice_gloves_shoes' => [
+        'scope' => 'gear', 'tier' => 'required', 'typed' => [],
+        'label' => 'Gloves and shoes',
+        'guidance' => 'The gloves and shoes laid out together in one photo.',
+    ],
+    'ice_fhr_label' => [
+        'scope' => 'gear', 'tier' => 'conditional',
+        'typed' => [
+            ['name' => 'standard', 'label' => 'Standard', 'type' => 'select', 'options' => PHOTO_FHR_STANDARDS],
+            ['name' => 'date', 'label' => 'Date (MM/YYYY)', 'type' => 'month_year'],
+        ],
+        'label' => 'Frontal head restraint label',
+        'guidance' => 'The label on the frontal head restraint showing the standard and date.',
+        'applies_label' => 'This driver races a class that needs one (NASCC LS or AWD)',
+    ],
+];
+
 /** Requirements for one scope ('car' or 'gear'), or all of them, keyed by requirement key. */
 function photoRequirements(?string $scope = null): array {
     if ($scope === null) return PHOTO_REQUIREMENTS;
     return array_filter(PHOTO_REQUIREMENTS, fn(array $r): bool => $r['scope'] === $scope);
 }
 
-/** One requirement with its 'key' added, or null if the key is unknown. */
+/** One requirement (summer or ice) with its 'key' added, or null if the key is unknown. */
 function photoRequirementByKey(string $key): ?array {
-    if (!isset(PHOTO_REQUIREMENTS[$key])) return null;
-    return PHOTO_REQUIREMENTS[$key] + ['key' => $key];
+    if (isset(PHOTO_REQUIREMENTS[$key])) return PHOTO_REQUIREMENTS[$key] + ['key' => $key];
+    if (isset(ICE_PHOTO_REQUIREMENTS[$key])) return ICE_PHOTO_REQUIREMENTS[$key] + ['key' => $key];
+    return null;
+}
+
+/**
+ * The photos that apply to one subject: a tech_sheets row (scope 'car') or a gear_records row
+ * (scope 'gear'). Summer subjects (and an empty array) get the summer list. An ice tech sheet gets
+ * the car shots for its class group; an ice gear record gets the ice gear shots. Each def gets its
+ * club's guidance and the list 'version' it is stored under.
+ *
+ * @return array<string, array> key => requirement
+ */
+function photoRequirementsFor(array $subject, string $scope): array {
+    if (($subject['discipline'] ?? DISCIPLINE_SUMMER) !== DISCIPLINE_ICE) {
+        return array_map(fn(array $r): array => $r + ['version' => PHOTO_REQUIREMENTS_VERSION], photoRequirements($scope));
+    }
+    $club = (string)($subject['club'] ?? '');
+    $group = null;
+    if ($scope === 'car') {
+        $class = iceClass($club, (string)($subject['class'] ?? ''));
+        if ($class === null) return [];
+        $group = $class['group'];
+    }
+    $out = [];
+    foreach (ICE_PHOTO_REQUIREMENTS as $key => $def) {
+        if ($def['scope'] !== $scope) continue;
+        if ($group !== null && !in_array($group, $def['groups'], true)) continue;
+        $def['guidance'] = $def['club_guidance'][$club] ?? $def['guidance'];
+        unset($def['club_guidance']);
+        $out[$key] = $def + ['version' => ICE_PHOTO_REQUIREMENTS_VERSION];
+    }
+    return $out;
+}
+
+/** One requirement on $subject's list, with 'key' added, or null if the key is not on that list. */
+function photoRequirementForSubject(array $subject, string $scope, string $key): ?array {
+    $list = photoRequirementsFor($subject, $scope);
+    return isset($list[$key]) ? $list[$key] + ['key' => $key] : null;
+}
+
+/** The ice gear level a helmet standard suggests: SA/FIA → caged, M/ECE → street-safe. Null if unknown. */
+function iceGearLevelForHelmet(string $standard): ?string {
+    if (preg_match('/^(Snell SA|FIA )/', $standard)) return 'caged';
+    if (preg_match('/^(Snell M|ECE )/', $standard)) return 'street_safe';
+    return null;
 }
 
 /**
@@ -215,17 +403,14 @@ function photoValidateTypedValue(array $requirement, array $input): ?array {
 }
 
 /**
- * Requirement keys still missing for a complete pre-tech set: every
- * 'required' photo, plus any 'conditional' photo the competitor said applies.
- * 'recommended' photos never count.
+ * Requirement keys still missing from $requirements for a complete pre-tech set: every 'required'
+ * photo, plus any 'conditional' photo marked as applying. 'recommended' photos never count.
  *
- * @param string[] $presentKeys              keys that already have a photo
- * @param string[] $applicableConditionalKeys conditional keys marked "applies to my car"
  * @return string[]
  */
-function photoSetMissingRequired(string $scope, array $presentKeys, array $applicableConditionalKeys): array {
+function photoSetMissingFrom(array $requirements, array $presentKeys, array $applicableConditionalKeys): array {
     $missing = [];
-    foreach (photoRequirements($scope) as $key => $def) {
+    foreach ($requirements as $key => $def) {
         $needed = $def['tier'] === 'required'
             || ($def['tier'] === 'conditional' && in_array($key, $applicableConditionalKeys, true));
         if ($needed && !in_array($key, $presentKeys, true)) {
@@ -233,4 +418,9 @@ function photoSetMissingRequired(string $scope, array $presentKeys, array $appli
         }
     }
     return $missing;
+}
+
+/** The summer list's missing keys for $scope. Kept for callers that have no subject. */
+function photoSetMissingRequired(string $scope, array $presentKeys, array $applicableConditionalKeys): array {
+    return photoSetMissingFrom(photoRequirements($scope), $presentKeys, $applicableConditionalKeys);
 }
