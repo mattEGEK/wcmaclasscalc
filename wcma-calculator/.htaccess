@@ -7,3 +7,4 @@
         Deny from all
     </IfModule>
 </FilesMatch>
+RedirectMatch 404 (^|/)(logs|docs|tests)(/|$)
