@@ -99,9 +99,18 @@ CREATE INDEX idx_media_consents_driver ON media_consents (driver_id, id)
 Changes to `users`: add `is_media INTEGER NOT NULL DEFAULT 0` and
 `media_prompt_dismissed INTEGER NOT NULL DEFAULT 0`.
 
-The schema change follows the same route as the hub phases: `reset-hub-db.php` and the seed data
-are updated. The seed adds one fully consented driver, one without consent, one minor, and one
-public profile waiting for review.
+**No database reset.** The live data stays as it is:
+- The new tables are created by `db_init()`'s existing `CREATE TABLE IF NOT EXISTS` on the next
+  request.
+- The two `users` columns are added by a new, reusable helper,
+  `db_add_column_if_missing(PDO $pdo, string $table, string $column, string $definition)`. It
+  checks `PRAGMA table_info($table)` and runs `ALTER TABLE … ADD COLUMN` only when the column is
+  missing. It's called from `db_init()`, so running it again changes nothing.
+- It needs a test: run it twice on a table that already has data, and check the column exists
+  with its default and the existing rows are unchanged.
+
+`seed-hub-db.php` gets development data: one fully consented driver, one without consent, one
+minor, and one public profile waiting for review.
 
 ## 2. Consent rules (`media-lib.php`, pure functions)
 
