@@ -90,9 +90,9 @@ const TECH_DRIVER_EQUIPMENT_ITEMS = [
 ];
 
 /** Every checklist item key, mapped to null (unanswered) — the shape a fresh form starts from. */
-function emptyChecklist(): array {
+function emptyChecklist(array $sections = TECH_CHECKLIST_SECTIONS): array {
     $out = [];
-    foreach (TECH_CHECKLIST_SECTIONS as $section) {
+    foreach ($sections as $section) {
         foreach ($section['items'] as $key => $label) {
             $out[$key] = null;
         }
@@ -110,13 +110,13 @@ function emptyDriverEquipment(): array {
 }
 
 /**
- * True only if every checklist item key from TECH_CHECKLIST_SECTIONS is
+ * True only if every item in $sections (summer by default) is
  * present with status 'ok' or 'na'. fire_extinguisher/seat_belts may carry
  * extra free-text fields (type/age, expiry_date) but status still governs
  * completeness.
  */
-function validateChecklist(array $checklist): bool {
-    foreach (TECH_CHECKLIST_SECTIONS as $section) {
+function validateChecklist(array $checklist, array $sections = TECH_CHECKLIST_SECTIONS): bool {
+    foreach ($sections as $section) {
         foreach ($section['items'] as $key => $label) {
             if (!isset($checklist[$key]) || !is_array($checklist[$key])) return false;
             $status = $checklist[$key]['status'] ?? null;
@@ -127,12 +127,12 @@ function validateChecklist(array $checklist): bool {
 }
 
 /**
- * True only if: every non-optional item is either competitor_confirmed, and
+ * True only if: every non-optional item in $items (summer by default) is either competitor_confirmed, and
  * helmet/suit additionally carry a non-blank rating value. The optional
  * "underwear" item may be left unconfirmed.
  */
-function validateDriverEquipment(array $equipment): bool {
-    foreach (TECH_DRIVER_EQUIPMENT_ITEMS as $key => $def) {
+function validateDriverEquipment(array $equipment, array $items = TECH_DRIVER_EQUIPMENT_ITEMS): bool {
+    foreach ($items as $key => $def) {
         if (!isset($equipment[$key]) || !is_array($equipment[$key])) return false;
         $confirmed = $equipment[$key]['competitor_confirmed'] ?? false;
         if (!$def['optional'] && $confirmed !== true) return false;

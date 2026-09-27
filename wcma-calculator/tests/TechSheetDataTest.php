@@ -175,4 +175,26 @@ final class TechSheetDataTest extends TestCase
             $this->assertSame(['competitor_confirmed', 'value'], array_keys($item));
         }
     }
+
+    public function testChecklistValidatorsTakeASectionList(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-data.php';
+        $sections = ['s' => ['label' => 'S', 'items' => ['a' => 'A', 'b' => 'B']]];
+        $this->assertSame(['a' => null, 'b' => null], emptyChecklist($sections));
+        $this->assertTrue(validateChecklist(['a' => ['status' => 'ok'], 'b' => ['status' => 'na']], $sections));
+        $this->assertFalse(validateChecklist(['a' => ['status' => 'ok']], $sections));
+        // Default is still the summer list.
+        $this->assertFalse(validateChecklist(['a' => ['status' => 'ok'], 'b' => ['status' => 'ok']]));
+    }
+
+    public function testEquipmentValidatorTakesAnItemList(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-data.php';
+        $items = ['helmet' => ['label' => 'Helmet', 'has_rating' => true, 'optional' => false],
+                  'socks' => ['label' => 'Socks', 'has_rating' => false, 'optional' => true]];
+        $this->assertTrue(validateDriverEquipment(['helmet' => ['competitor_confirmed' => true, 'value' => 'SA2020'],
+                                                   'socks' => ['competitor_confirmed' => false, 'value' => null]], $items));
+        $this->assertFalse(validateDriverEquipment(['helmet' => ['competitor_confirmed' => true, 'value' => ''],
+                                                    'socks' => ['competitor_confirmed' => false, 'value' => null]], $items));
+    }
 }

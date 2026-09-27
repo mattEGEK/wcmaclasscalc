@@ -111,4 +111,54 @@ final class IceRulesTest extends TestCase
         $this->assertFalse(iceGearSatisfies(null, 'drift'));
         $this->assertFalse(iceGearSatisfies('bogus', 'drift'));
     }
+
+    public function testRulesVersionIsTwo(): void
+    {
+        $this->assertSame(2, ICE_RULES_VERSION);
+    }
+
+    public function testChecklistGapsFromPhaseOneAreFilled(): void
+    {
+        $flat = fn(array $sections): array => array_merge(...array_map(fn($s) => $s['items'], array_values($sections)));
+        $drift = $flat(iceChecklistSections('WSCC', 'drift'));
+        $this->assertArrayHasKey('windshield', $drift);
+        $this->assertStringContainsString('terminal', $drift['battery']);
+        $this->assertArrayHasKey('ballast', $flat(iceChecklistSections('NASCC', 'caged')));
+        $this->assertArrayHasKey('ballast', $flat(iceChecklistSections('WSCC', 'caged')));
+    }
+
+    public function testHelmetNoteFollowsGroupClubAndFhr(): void
+    {
+        $this->assertSame('Helmet: Snell SA2020 or newer. A frontal head restraint is required for this class.',
+            iceHelmetNote('NASCC', iceClass('NASCC', 'LS')));
+        $this->assertSame('Helmet: Snell SA2020 or newer.', iceHelmetNote('NASCC', iceClass('NASCC', 'NS')));
+        $this->assertSame('Helmet: Snell SA2015 or newer, or ECE 22.05 made 2015 or later.', iceHelmetNote('WSCC', iceClass('WSCC', 'FOI-STD')));
+        $this->assertSame('Helmet: Snell M2015 or newer, or ECE 22.05/22.06.', iceHelmetNote('NASCC', iceClass('NASCC', 'SS')));
+        $this->assertSame('Helmet: Snell M2015 or newer, or ECE 22.05/22.06.', iceHelmetNote('WSCC', iceClass('WSCC', 'DRIFT')));
+        $this->assertSame('', iceHelmetNote('NASCC', null));
+    }
+
+    public function testEquipmentItemsRelaxRecommendedItemsAndFollowFhr(): void
+    {
+        $ss = iceEquipmentItems(iceClass('NASCC', 'SS'));
+        $this->assertSame(array_keys(TECH_DRIVER_EQUIPMENT_ITEMS), array_keys($ss));
+        foreach (['goggles_visor', 'socks', 'balaclava', 'underwear', 'head_neck_restraints'] as $k) {
+            $this->assertTrue($ss[$k]['optional'], $k);
+        }
+        foreach (['helmet', 'suit', 'shoes', 'gloves'] as $k) {
+            $this->assertFalse($ss[$k]['optional'], $k);
+        }
+        $this->assertSame('Suit or FR coveralls', $ss['suit']['label']);
+        $this->assertFalse(iceEquipmentItems(iceClass('NASCC', 'LS'))['head_neck_restraints']['optional']);
+        $this->assertTrue(iceEquipmentItems(null)['head_neck_restraints']['optional']);
+    }
+
+    public function testGearLevelForClass(): void
+    {
+        $this->assertSame('caged', iceGearLevelForClass('NASCC', 'LS'));
+        $this->assertSame('street_safe', iceGearLevelForClass('NASCC', 'SS'));
+        $this->assertSame('street_safe', iceGearLevelForClass('WSCC', 'DRIFT'));
+        $this->assertNull(iceGearLevelForClass('WSCC', 'LS'));
+        $this->assertSame('street-safe', ICE_GEAR_LEVEL_LABELS['street_safe']);
+    }
 }

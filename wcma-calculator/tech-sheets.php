@@ -4,7 +4,7 @@ require __DIR__ . '/session_bootstrap.php';
 require __DIR__ . '/db.php';
 require __DIR__ . '/config.php';
 require __DIR__ . '/view_helpers.php';
-require __DIR__ . '/tech-sheet-data.php';
+require_once __DIR__ . '/tech-sheet-data.php';
 require __DIR__ . '/tech-sheet-render.php';
 require __DIR__ . '/email-helpers.php';
 require __DIR__ . '/tech-sheet-files.php';

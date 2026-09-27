@@ -12,7 +12,7 @@ require __DIR__ . '/feedback-lib.php';
 require __DIR__ . '/admin-feedback.php';
 require __DIR__ . '/season-links-lib.php';
 require __DIR__ . '/admin-season-links.php';
-require __DIR__ . '/ice-rules.php';
+require_once __DIR__ . '/ice-rules.php';
 
 $pdo = db_connect();
 db_init($pdo);

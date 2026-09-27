@@ -6,7 +6,9 @@
 // Supplementary Regulations. Update here when the regs change and bump ICE_RULES_VERSION.
 // Pure: no DB, no HTML.
 
-const ICE_RULES_VERSION = 1;
+const ICE_RULES_VERSION = 2;
+
+require_once __DIR__ . '/tech-sheet-data.php';
 
 const ICE_CLASS_GROUPS = ['drift', 'street_safe', 'caged'];
 
@@ -41,6 +43,7 @@ const ICE_CHECKLIST_SECTIONS = [
     'drift' => [
         'vehicle_exterior' => ['label' => 'Vehicle Exterior', 'items' => [
             'tow_hooks'              => 'Front and rear tow hooks, installed and easy to reach',
+            'windshield'             => 'Windshield: clear view; wiper works',
             'lights'                 => 'Headlights, tail lights and 2 red brake lights working',
             'rear_light_recommended' => 'Rear-facing roof light (recommended)',
             'body_secure'            => 'Body panels, bumpers and exhaust secure',
@@ -51,7 +54,7 @@ const ICE_CHECKLIST_SECTIONS = [
         ]],
         'mechanical' => ['label' => 'Mechanical & Interior', 'items' => [
             'brakes_steering' => 'Brakes, steering and suspension sound',
-            'battery'         => 'Battery securely mounted',
+            'battery'         => 'Battery securely mounted, positive terminal insulated',
             'no_leaks'        => 'No fluid leaks',
             'no_loose_items'  => 'Interior clean, no loose items or sharp edges',
         ]],
@@ -112,6 +115,7 @@ const ICE_CHECKLIST_SECTIONS = [
             'window_net'     => 'Window net and release',
             'kill_switch'    => 'Kill switch, clearly marked',
             'abs_disabled'   => 'ABS disabled',
+            'ballast'        => 'No ballast, or only ballast the class allows, bolted in',
             'no_loose_items' => 'No loose items or sharp edges',
             'mirrors'        => 'Mirrors (at least one outside and one inside)',
         ]],
@@ -215,4 +219,44 @@ function iceEventFields(array $post): array {
         return ['ok' => false, 'discipline' => 'ice', 'club' => null, 'error' => 'Choose the host club for an ice event.'];
     }
     return ['ok' => true, 'discipline' => 'ice', 'club' => $club, 'error' => null];
+}
+
+const ICE_GEAR_LEVEL_LABELS = ['street_safe' => 'street-safe', 'caged' => 'caged'];
+
+/**
+ * The helmet standard a class needs, for the form's equipment card. Uses the stricter NASCC
+ * street-safe floor for both clubs so one ice gear record is valid at either (spec §1).
+ */
+function iceHelmetNote(string $club, ?array $class): string {
+    if ($class === null) return '';
+    if ($class['group'] === 'caged') {
+        $note = $club === 'WSCC'
+            ? 'Helmet: Snell SA2015 or newer, or ECE 22.05 made 2015 or later.'
+            : 'Helmet: Snell SA2020 or newer.';
+    } else {
+        $note = 'Helmet: Snell M2015 or newer, or ECE 22.05/22.06.';
+    }
+    return $class['fhr'] ? $note . ' A frontal head restraint is required for this class.' : $note;
+}
+
+/**
+ * Driver equipment for an ice class. Same items as summer; goggles/visor, socks and balaclava are
+ * recommended (not required) on ice, the suit may be FR coveralls, and a head & neck restraint is
+ * required only for classes with an FHR rule.
+ */
+function iceEquipmentItems(?array $class): array {
+    $items = TECH_DRIVER_EQUIPMENT_ITEMS;
+    foreach (['goggles_visor', 'socks', 'balaclava'] as $key) {
+        $items[$key]['optional'] = true;
+    }
+    $items['suit']['label'] = 'Suit or FR coveralls';
+    $items['head_neck_restraints']['optional'] = !($class['fhr'] ?? false);
+    return $items;
+}
+
+/** The gear level an ice class needs: 'caged' for caged classes, 'street_safe' otherwise. Null if unknown. */
+function iceGearLevelForClass(string $club, string $code): ?string {
+    $class = iceClass($club, $code);
+    if ($class === null) return null;
+    return $class['group'] === 'caged' ? 'caged' : 'street_safe';
 }
