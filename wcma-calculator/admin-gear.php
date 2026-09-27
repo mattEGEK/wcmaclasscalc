@@ -57,7 +57,7 @@ function renderGearAdminListPage(array $records, int $season, string $filter, ar
         <td><?= h($g['driver_name']) ?></td>
         <td><?= h((string)($g['licence_no'] ?? '')) ?></td>
         <td><?= h((string)($g['owner_name'] ?? '')) ?></td>
-        <td class="<?= h(gearStatusBadgeClass($st['state'])) ?>"><?= h(gearStatusLabel($st, (int)$g['season'])) ?></td>
+        <td class="<?= h(gearStatusBadgeClass($st['state'])) ?>"><?= h(gearStatusLabel($st, (int)$g['season'], (string)($g['discipline'] ?? 'summer'))) ?></td>
         <td class="actions"><a href="inspect.php?action=gear-record&amp;id=<?= (int)$g['id'] ?>"><?= $st['state'] === 'accepted' ? 'View' : 'Review' ?></a></td>
       </tr>
     <?php endforeach; endif; ?>
@@ -85,7 +85,8 @@ function gearAdminBaseUrl(): string {
 
 function handleGearAdminAcceptInPerson(PDO $pdo, int $id): void {
     $user = current_user();
-    $r = gearAcceptInPerson($pdo, $id, (int)$user['id']);
+    $level = is_string($_POST['level'] ?? null) && $_POST['level'] !== '' ? $_POST['level'] : null;
+    $r = gearAcceptInPerson($pdo, $id, (int)$user['id'], $level);
     if ($r['ok']) {
         $sent = gearNotify($pdo, 'accepted_in_person', db_get_gear_record($pdo, $id), gearAdminBaseUrl(), ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend');
         setFlash('Gear accepted (teched in person).' . ($sent ? ' The driver\'s account holder was emailed.' : ' The email could not be sent.'), $sent ? 'success' : 'error');
@@ -160,7 +161,8 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
     <h2>Gear review</h2>
     <p><?= h($gear['driver_name']) ?> — <?= (int)$gear['season'] ?><?= !empty($gear['licence_no']) ? ' (licence ' . h($gear['licence_no']) . ')' : '' ?></p>
     <?php if ($owner): ?><p>Entered by <?= h($owner['name']) ?> (<?= h($owner['email']) ?>)</p><?php endif; ?>
-    <p>Gear status: <strong class="<?= h(gearStatusBadgeClass($st['state'])) ?>"><?= h(gearStatusLabel($st, (int)$gear['season'])) ?></strong></p>
+    <?php if (($gear['discipline'] ?? 'summer') === 'ice'): ?><p>Ice gear<?= !empty($gear['level']) ? ' — level: ' . h(ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']) : '' ?></p><?php endif; ?>
+    <p>Gear status: <strong class="<?= h(gearStatusBadgeClass($st['state'])) ?>"><?= h(gearStatusLabel($st, (int)$gear['season'], (string)($gear['discipline'] ?? 'summer'))) ?></strong></p>
 
     <?php if ($accepted): ?>
     <p><?= h($acceptedLine) ?></p>
@@ -174,6 +176,16 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
     <form method="post" action="inspect.php?action=gear-record-accept">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
+      <?php if (($gear['discipline'] ?? 'summer') === 'ice'): ?>
+      <label for="gear-level">Gear level</label>
+      <select id="gear-level" name="level" required>
+        <option value="">Choose</option>
+        <?php foreach (ICE_GEAR_LEVEL_LABELS as $value => $label): ?>
+        <option value="<?= h($value) ?>"><?= h($label) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <p class="form-hint">Caged: SA/FIA helmet (and a frontal head restraint where the class needs one). Uncaged classes: Snell M2015+ or ECE 22.05/22.06.</p>
+      <?php endif; ?>
       <button type="submit" class="btn btn-primary" id="gear-inperson-btn">Accept — gear teched in person</button>
     </form>
     <?php endif; ?>
@@ -259,7 +271,8 @@ function handleGearCreateAccept(PDO $pdo): void {
     }
 
     $user = current_user();
-    $result = gearCreateAndAcceptInPerson($pdo, $sheet, db_get_tech_sheet_drivers($pdo, $sheetId), $driverNumber, (int)$user['id']);
+    $level = is_string($_POST['level'] ?? null) && $_POST['level'] !== '' ? $_POST['level'] : null;
+    $result = gearCreateAndAcceptInPerson($pdo, $sheet, db_get_tech_sheet_drivers($pdo, $sheetId), $driverNumber, (int)$user['id'], $level);
     if ($result['ok']) {
         $sent = gearNotify($pdo, 'accepted_in_person', db_get_gear_record($pdo, (int)$result['id']), gearAdminBaseUrl(), ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend');
         setFlash('Gear accepted (teched in person).' . ($sent ? ' The driver\'s account holder was emailed.' : ' The email could not be sent.'), $sent ? 'success' : 'error');

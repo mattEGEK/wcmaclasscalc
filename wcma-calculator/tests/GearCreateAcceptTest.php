@@ -154,4 +154,22 @@ final class GearCreateAcceptTest extends TestCase
             $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', (string)$m);
         }
     }
+
+    public function testIceSheetCreatesAnIceRecordWithTheChosenLevel(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = db_create_user($pdo, ['email' => 'ica@example.com', 'name' => 'Owner', 'password_hash' => 'x', 'google_id' => null]);
+        $car = test_make_car($pdo, $u, '7');
+        $event = db_create_event($pdo, 'NASCC Ice', date('Y-m-d', strtotime('+10 days')), null, 'ice', 'NASCC');
+        $sheet = db_get_tech_sheet($pdo, test_make_ice_sheet($pdo, $u, $car, $event, 'SS'));
+
+        $this->assertFalse(gearCreateAndAcceptInPerson($pdo, $sheet, [], 1, $u)['ok']);   // no level
+        $r = gearCreateAndAcceptInPerson($pdo, $sheet, [], 1, $u, 'street_safe');
+        $this->assertTrue($r['ok'], (string)$r['error']);
+        $g = db_get_gear_record($pdo, (int)$r['id']);
+        $this->assertSame('ice', $g['discipline']);
+        $this->assertSame((int)$sheet['season'], (int)$g['season']);
+        $this->assertSame('street_safe', $g['level']);
+        $this->assertSame('accepted', $g['status']);
+    }
 }

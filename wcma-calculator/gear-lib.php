@@ -7,13 +7,14 @@ require_once __DIR__ . '/photo-requirements.php';
 require_once __DIR__ . '/inspection-lib.php';
 require_once __DIR__ . '/pretech-lib.php';   // pretechPlural(), pretechCapText()
 require_once __DIR__ . '/tech-status.php';   // techCarStatusBadgeClass()
+require_once __DIR__ . '/ice-rules.php';
 
 function gearNameNorm(string $name): string {
     return db_driver_name_norm($name);
 }
 
-function gearSeasonNow(): int {
-    return (int)date('Y');
+function gearSeasonNow(string $discipline = DISCIPLINE_SUMMER): int {
+    return $discipline === DISCIPLINE_ICE ? iceSeasonFromDate(date('Y-m-d')) : (int)date('Y');
 }
 
 /**
@@ -35,9 +36,9 @@ function gearStatus(array $gear): array {
     return ['state' => 'none', 'via' => null];
 }
 
-function gearStatusLabel(array $status, int $season): string {
+function gearStatusLabel(array $status, int $season, string $discipline = DISCIPLINE_SUMMER): string {
     switch ($status['state']) {
-        case 'accepted':       return ($status['via'] === 'photos' ? 'Gear pre-teched ' : 'Gear teched ') . $season;
+        case 'accepted':       return ($status['via'] === 'photos' ? 'Gear pre-teched ' : 'Gear teched ') . ($discipline === DISCIPLINE_ICE ? 'Ice ' : '') . $season;
         case 'needs_changes':  return 'Photos need changes';
         case 'pending_review': return 'Photos pending review';
         case 'photos_draft':   return 'Photos in progress';
@@ -83,7 +84,7 @@ function gearRosterFilter(array $records, string $filter): array {
 }
 
 /** Creates a gear record for the owner. @return array{ok: bool, error: ?string, id: ?int} */
-function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $season): array {
+function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $season, string $discipline = DISCIPLINE_SUMMER): array {
     $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'id' => null];
 
     $name = trim((string)preg_replace('/\s+/', ' ', $name));
@@ -93,13 +94,13 @@ function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $
     if (mb_strlen($licence, 'UTF-8') > 40) return $fail('That licence number is too long (40 characters at most).');
 
     $norm = gearNameNorm($name);
-    if (db_find_gear_record($pdo, $ownerId, $norm, $season) !== null) {
+    if (db_find_gear_record($pdo, $ownerId, $norm, $season, $discipline) !== null) {
         return $fail('You already have a gear record for ' . $name . ' this season.');
     }
     try {
         $driverId = db_find_or_create_driver($pdo, $ownerId, $name);
         if ($licence !== '') db_update_driver_licence($pdo, (int)$driverId, $licence);
-        $id = db_insert_gear_record($pdo, (int)$driverId, $season);
+        $id = db_insert_gear_record($pdo, (int)$driverId, $season, $discipline);
     } catch (PDOException $e) {
         return $fail('You already have a gear record for ' . $name . ' this season.');   // lost a race with a duplicate request
     }
@@ -214,12 +215,26 @@ function gearSendBack(PDO $pdo, int $id, array $notes): array {
     return ['ok' => true, 'error' => null, 'retakes' => $retakes];
 }
 
-/** Inspector accepts the driver's gear in person: no photos needed. @return array{ok: bool, error: ?string} */
-function gearAcceptInPerson(PDO $pdo, int $id, int $reviewerUserId): array {
+/** In-person acceptance. Ice records also record the gear level the inspector confirmed. @return array{ok: bool, error: ?string} */
+function gearAcceptInPerson(PDO $pdo, int $id, int $reviewerUserId, ?string $level = null): array {
     $gear = db_get_gear_record($pdo, $id);
     if ($gear === null) return ['ok' => false, 'error' => 'Gear record not found.'];
-    if (!db_accept_gear_in_person($pdo, $id, $reviewerUserId)) {
-        return ['ok' => false, 'error' => 'This driver\'s gear has already been teched.'];
+    $isIce = ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
+    if ($isIce && !isset(ICE_GEAR_LEVEL_LABELS[(string)$level])) {
+        return ['ok' => false, 'error' => 'Choose the gear level: street-safe or caged.'];
+    }
+    $own = !$pdo->inTransaction();
+    if ($own) $pdo->beginTransaction();
+    try {
+        if (!db_accept_gear_in_person($pdo, $id, $reviewerUserId)) {
+            if ($own) $pdo->rollBack();
+            return ['ok' => false, 'error' => 'This driver\'s gear has already been teched.'];
+        }
+        if ($isIce) db_set_gear_level($pdo, $id, $level);
+        if ($own) $pdo->commit();
+    } catch (Throwable $e) {
+        if ($own && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
     }
     return ['ok' => true, 'error' => null];
 }
@@ -239,6 +254,7 @@ function gearRevoke(PDO $pdo, int $id): array {
         }
         // The photos go back to awaiting review along with the record.
         if ($viaPhotos) db_set_all_photos_review_status($pdo, 'gear_record', $id, 'pending');
+        if (($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) db_set_gear_level($pdo, $id, null);
         if ($own) $pdo->commit();
     } catch (Throwable $e) {
         if ($own && $pdo->inTransaction()) $pdo->rollBack();
@@ -249,18 +265,22 @@ function gearRevoke(PDO $pdo, int $id): array {
 
 /**
  * Each driver on a sheet (driver 1, then the additional drivers) matched to the sheet owner's
- * gear record for the sheet's season, by normalised name. $ownerGear may hold any owner's and any
- * season's records: only the owner's, same-season records are considered.
+ * gear record for the sheet's season and discipline, by normalised name. $ownerGear may hold any
+ * owner's, any season's and any discipline's records: only the owner's, same-season, same-discipline
+ * records are considered.
  *
- * @return array<int, array{driver_number: int, name: string, name_norm: string, gear: ?array, status: array{state: string, via: ?string}}>
+ * @return array<int, array{driver_number: int, name: string, name_norm: string, discipline: string, default_level: ?string, gear: ?array, status: array{state: string, via: ?string}}>
  */
 function gearLinksForSheet(array $sheet, array $drivers, array $ownerGear): array {
-    $season = (int)($sheet['season'] ?? 0) ?: gearSeasonNow();
+    $discipline = (string)($sheet['discipline'] ?? DISCIPLINE_SUMMER);
+    $season = (int)($sheet['season'] ?? 0) ?: gearSeasonNow($discipline);
     $ownerId = (int)($sheet['user_id'] ?? 0);
+    $defaultLevel = $discipline === DISCIPLINE_ICE ? iceGearLevelForClass((string)($sheet['club'] ?? ''), (string)($sheet['class'] ?? '')) : null;
 
     $byName = [];
     foreach ($ownerGear as $g) {
-        if ((int)$g['owner_user_id'] === $ownerId && (int)$g['season'] === $season) {
+        if ((int)$g['owner_user_id'] === $ownerId && (int)$g['season'] === $season
+            && ($g['discipline'] ?? DISCIPLINE_SUMMER) === $discipline) {
             $byName[$g['driver_name_norm']] = $g;
         }
     }
@@ -280,6 +300,8 @@ function gearLinksForSheet(array $sheet, array $drivers, array $ownerGear): arra
             'driver_number' => $number,
             'name' => $name,
             'name_norm' => $norm,
+            'discipline' => $discipline,
+            'default_level' => $defaultLevel,
             'gear' => $gear,
             'status' => $gear !== null ? gearStatus($gear) : ['state' => 'none', 'via' => null],
         ];
@@ -313,7 +335,7 @@ function gearAttachToRoster(array $rows, array $driversBySheet, array $seasonGea
  * @param array $drivers  db_get_tech_sheet_drivers() rows (driver_number, driver_name)
  * @return array{ok: bool, error: ?string, id: ?int}
  */
-function gearCreateAndAcceptInPerson(PDO $pdo, array $sheet, array $drivers, int $driverNumber, int $reviewerUserId): array {
+function gearCreateAndAcceptInPerson(PDO $pdo, array $sheet, array $drivers, int $driverNumber, int $reviewerUserId, ?string $level = null): array {
     $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'id' => null];
 
     $name = null;
@@ -330,26 +352,30 @@ function gearCreateAndAcceptInPerson(PDO $pdo, array $sheet, array $drivers, int
     $name = trim((string)preg_replace('/\s+/', ' ', (string)$name));
     if ($name === '') return $fail('That driver is not on this sheet.');
 
-    $season = (int)($sheet['season'] ?? 0) ?: gearSeasonNow();
-    if ($season !== gearSeasonNow()) return $fail('Gear can only be added for the current season.');
+    $discipline = (string)($sheet['discipline'] ?? DISCIPLINE_SUMMER);
+    $season = (int)($sheet['season'] ?? 0) ?: gearSeasonNow($discipline);
+    if ($season !== gearSeasonNow($discipline)) return $fail('Gear can only be added for the current season.');
+    if ($discipline === DISCIPLINE_ICE && !isset(ICE_GEAR_LEVEL_LABELS[(string)$level])) {
+        return $fail('Choose the gear level: street-safe or caged.');
+    }
 
     $ownerId = (int)($sheet['user_id'] ?? 0);
 
     $own = !$pdo->inTransaction();
     if ($own) $pdo->beginTransaction();
     try {
-        $existing = db_find_gear_record($pdo, $ownerId, gearNameNorm($name), $season);
+        $existing = db_find_gear_record($pdo, $ownerId, gearNameNorm($name), $season, $discipline);
         if ($existing !== null) {
             $id = (int)$existing['id'];
         } else {
-            $created = gearCreate($pdo, $ownerId, $name, '', $season);
+            $created = gearCreate($pdo, $ownerId, $name, '', $season, $discipline);
             if (!$created['ok']) {
                 if ($own) $pdo->rollBack();
                 return $fail((string)$created['error']);
             }
             $id = (int)$created['id'];
         }
-        $accepted = gearAcceptInPerson($pdo, $id, $reviewerUserId);
+        $accepted = gearAcceptInPerson($pdo, $id, $reviewerUserId, $level);
         if (!$accepted['ok']) {
             if ($own) $pdo->rollBack();
             return $fail((string)$accepted['error']);

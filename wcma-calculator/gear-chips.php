@@ -7,13 +7,20 @@ require_once __DIR__ . '/view_helpers.php';
 require_once __DIR__ . '/gear-lib.php';
 
 /** The inspector's one-tap form for a driver with no gear record (posts to inspect.php). */
-function gearChipCreateForm(string $csrf, int $sheetId, int $driverNumber, array $hidden): string {
+function gearChipCreateForm(string $csrf, int $sheetId, int $driverNumber, array $hidden, ?string $defaultLevel = null): string {
     $out = '<form method="post" action="inspect.php?action=gear-create-accept" class="gear-inline-form">'
         . '<input type="hidden" name="csrf_token" value="' . h($csrf) . '">'
         . '<input type="hidden" name="sheet_id" value="' . $sheetId . '">'
         . '<input type="hidden" name="driver_number" value="' . $driverNumber . '">';
     foreach ($hidden as $name => $value) {
         $out .= '<input type="hidden" name="' . h((string)$name) . '" value="' . h((string)$value) . '">';
+    }
+    if ($defaultLevel !== null) {
+        $out .= '<label class="gear-level-label">Gear level <select name="level" required>';
+        foreach (ICE_GEAR_LEVEL_LABELS as $value => $label) {
+            $out .= '<option value="' . h($value) . '"' . ($value === $defaultLevel ? ' selected' : '') . '>' . h($label) . '</option>';
+        }
+        $out .= '</select></label> ';
     }
     return $out . '<button type="submit" class="btn btn-secondary">Create and accept gear in person</button></form>';
 }
@@ -30,7 +37,6 @@ function gearChipCreateForm(string $csrf, int $sheetId, int $driverNumber, array
 function renderGearChips(array $links, string $audience, array $opts = []): string {
     if (!$links) return '';
     $sheetSeason = (int)($opts['sheet_season'] ?? 0);
-    $seasonOk = $sheetSeason === 0 || $sheetSeason === gearSeasonNow();
     $csrf = (string)($opts['csrf'] ?? '');
     $sheetId = (int)($opts['sheet_id'] ?? 0);
     $hidden = is_array($opts['hidden'] ?? null) ? $opts['hidden'] : [];
@@ -39,17 +45,22 @@ function renderGearChips(array $links, string $audience, array $opts = []): stri
     foreach ($links as $l) {
         $name = h($l['name']);
         $gear = $l['gear'];
+        $linkDiscipline = (string)($l['discipline'] ?? DISCIPLINE_SUMMER);
+        $seasonOk = $sheetSeason === 0 || $sheetSeason === gearSeasonNow($linkDiscipline);
         if ($gear === null) {
             $html .= '<li class="gear-chip">' . $name . ': <span class="badge-pending">No gear record</span>';
             if ($audience === 'owner' && $seasonOk) {
                 $html .= ' <a href="drivers.php">Go to Drivers</a>';
             } elseif ($audience === 'admin' && $seasonOk && $csrf !== '' && $sheetId > 0) {
-                $html .= ' ' . gearChipCreateForm($csrf, $sheetId, (int)$l['driver_number'], $hidden);
+                $html .= ' ' . gearChipCreateForm($csrf, $sheetId, (int)$l['driver_number'], $hidden, $l['default_level'] ?? null);
             }
             $html .= '</li>';
             continue;
         }
-        $label = gearStatusLabel($l['status'], (int)$gear['season']);
+        $label = gearStatusLabel($l['status'], (int)$gear['season'], (string)($gear['discipline'] ?? DISCIPLINE_SUMMER));
+        if (($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE && !empty($gear['level']) && $l['status']['state'] === 'accepted') {
+            $label .= ' · ' . (ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']);
+        }
         $class = gearStatusBadgeClass($l['status']['state']);
         $href = $audience === 'owner'
             ? 'gear.php?action=pretech&amp;id=' . (int)$gear['id']

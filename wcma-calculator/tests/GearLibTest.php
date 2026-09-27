@@ -291,4 +291,60 @@ final class GearLibTest extends TestCase
             $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', (string)$m);
         }
     }
+
+    private function owner(PDO $pdo): int {
+        return db_create_user($pdo, ['email' => 'g' . uniqid() . '@example.com', 'name' => 'Owner', 'password_hash' => 'x', 'google_id' => null]);
+    }
+
+    public function testIceSeasonNowAndIceLabels(): void
+    {
+        $this->assertSame(iceSeasonFromDate(date('Y-m-d')), gearSeasonNow('ice'));
+        $this->assertSame((int)date('Y'), gearSeasonNow());
+        $this->assertSame('Gear teched Ice 2027', gearStatusLabel(['state' => 'accepted', 'via' => 'in_person'], 2027, 'ice'));
+        $this->assertSame('Gear teched 2026', gearStatusLabel(['state' => 'accepted', 'via' => 'in_person'], 2026));
+    }
+
+    public function testIceGearAcceptNeedsALevelAndRevokeClearsIt(): void
+    {
+        $pdo = make_temp_pdo();
+        $owner = $this->owner($pdo);
+        $r = gearCreate($pdo, $owner, 'Sam', '', 2027, 'ice');
+        $this->assertTrue($r['ok']);
+        $id = (int)$r['id'];
+        $this->assertSame('ice', db_get_gear_record($pdo, $id)['discipline']);
+
+        $this->assertFalse(gearAcceptInPerson($pdo, $id, $owner)['ok']);
+        $this->assertFalse(gearAcceptInPerson($pdo, $id, $owner, 'bogus')['ok']);
+        $this->assertSame('open', db_get_gear_record($pdo, $id)['status']);
+
+        $this->assertTrue(gearAcceptInPerson($pdo, $id, $owner, 'caged')['ok']);
+        $this->assertSame('caged', db_get_gear_record($pdo, $id)['level']);
+
+        $this->assertTrue(gearRevoke($pdo, $id)['ok']);
+        $this->assertNull(db_get_gear_record($pdo, $id)['level']);
+    }
+
+    public function testSummerGearAcceptIgnoresLevel(): void
+    {
+        $pdo = make_temp_pdo();
+        $owner = $this->owner($pdo);
+        $id = (int)gearCreate($pdo, $owner, 'Sam', '', 2026)['id'];
+        $this->assertTrue(gearAcceptInPerson($pdo, $id, $owner)['ok']);
+        $this->assertNull(db_get_gear_record($pdo, $id)['level']);
+    }
+
+    public function testSheetLinksOnlyMatchGearOfTheSheetsDiscipline(): void
+    {
+        $gear = [
+            ['id' => 1, 'owner_user_id' => 4, 'season' => 2027, 'discipline' => 'summer', 'driver_name_norm' => 'sam', 'status' => 'accepted', 'accepted_via' => 'in_person', 'photo_status' => null],
+            ['id' => 2, 'owner_user_id' => 4, 'season' => 2027, 'discipline' => 'ice', 'driver_name_norm' => 'sam', 'status' => 'open', 'accepted_via' => null, 'photo_status' => null],
+        ];
+        $ice = gearLinksForSheet(['user_id' => 4, 'season' => 2027, 'driver_name' => 'Sam', 'discipline' => 'ice', 'club' => 'NASCC', 'class' => 'LS'], [], $gear);
+        $this->assertSame(2, $ice[0]['gear']['id']);
+        $this->assertSame('ice', $ice[0]['discipline']);
+        $this->assertSame('caged', $ice[0]['default_level']);
+        $summer = gearLinksForSheet(['user_id' => 4, 'season' => 2027, 'driver_name' => 'Sam'], [], $gear);
+        $this->assertSame(1, $summer[0]['gear']['id']);
+        $this->assertNull($summer[0]['default_level']);
+    }
 }

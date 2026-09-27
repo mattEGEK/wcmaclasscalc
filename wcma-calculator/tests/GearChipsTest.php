@@ -87,4 +87,25 @@ final class GearChipsTest extends TestCase
         }
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', strip_tags($html));
     }
+
+    public function testIceChipsShowLevelAndTheCreateFormHasALevelPicker(): void
+    {
+        $accepted = ['driver_number' => 1, 'name' => 'Sam', 'name_norm' => 'sam', 'discipline' => 'ice', 'default_level' => 'caged',
+                     'gear' => ['id' => 3, 'season' => 2027, 'discipline' => 'ice', 'level' => 'street_safe'],
+                     'status' => ['state' => 'accepted', 'via' => 'in_person']];
+        $this->assertStringContainsString('Gear teched Ice 2027 · street-safe', renderGearChips([$accepted], 'owner'));
+
+        $none = ['driver_number' => 1, 'name' => 'Sam', 'name_norm' => 'sam', 'discipline' => 'ice', 'default_level' => 'caged',
+                 'gear' => null, 'status' => ['state' => 'none', 'via' => null]];
+        $html = renderGearChips([$none], 'admin', ['csrf' => 'tok', 'sheet_id' => 9, 'sheet_season' => gearSeasonNow('ice')]);
+        $this->assertStringContainsString('<select name="level"', $html);
+        $this->assertStringContainsString('<option value="caged" selected>caged</option>', $html);
+        $this->assertStringContainsString('<option value="street_safe">street-safe</option>', $html);
+    }
+
+    public function testSummerCreateFormHasNoLevelPicker(): void
+    {
+        $none = ['driver_number' => 1, 'name' => 'Sam', 'name_norm' => 'sam', 'gear' => null, 'status' => ['state' => 'none', 'via' => null]];
+        $this->assertStringNotContainsString('name="level"', renderGearChips([$none], 'admin', ['csrf' => 'tok', 'sheet_id' => 9]));
+    }
 }
