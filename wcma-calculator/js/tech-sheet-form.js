@@ -1,6 +1,6 @@
 // wcma-calculator/js/tech-sheet-form.js
 (function () {
-    const checklistWidget = WcmaTechChecklist.render(
+    let checklistWidget = WcmaTechChecklist.render(
         document.getElementById('checklist-container'), TECH_CHECKLIST_SECTIONS, window.TECH_SHEET_EXISTING_CHECKLIST || {}
     );
 
@@ -90,6 +90,22 @@
     const driver1Equipment = renderEquipmentInto(document.getElementById('equipment-container'), 'driver1', window.TECH_SHEET_EXISTING_EQUIPMENT);
     const driver1State = driver1Equipment.state;
 
+    // Ice form: the checklist and the head & neck rule follow the chosen class.
+    const iceClassSelect = document.getElementById('ice_class');
+    if (iceClassSelect && window.ICE_SECTIONS_BY_CLASS && window.WcmaIceClass) {
+        iceClassSelect.addEventListener('change', function () {
+            const code = iceClassSelect.value;
+            const sections = WcmaIceClass.sectionsFor(window.ICE_SECTIONS_BY_CLASS, code);
+            const container = document.getElementById('checklist-container');
+            const carried = WcmaIceClass.carryChecklistState(checklistWidget.getState(), sections);
+            container.innerHTML = '';
+            checklistWidget = WcmaTechChecklist.render(container, sections, carried);
+            TECH_DRIVER_EQUIPMENT_ITEMS.head_neck_restraints.optional = !WcmaIceClass.fhrRequired(window.ICE_FHR_BY_CLASS, code);
+            document.getElementById('ice-class-note').textContent = (window.ICE_CLASS_NOTES || {})[code] || '';
+            document.getElementById('ice-helmet-note').textContent = (window.ICE_HELMET_NOTES || {})[code] || '';
+        });
+    }
+
     const entrantPad = WcmaSignaturePad.attach(document.getElementById('entrant-sig-canvas'));
     const driverPad = WcmaSignaturePad.attach(document.getElementById('driver-sig-canvas'));
     document.querySelectorAll('[data-clear-sig]').forEach(function (btn) {
@@ -112,14 +128,16 @@
     // HTML5 constraint validation silently (a required-but-hidden field
     // blocks submit with no visible error). Disabling excludes them from
     // constraint validation entirely; re-enable on toggle back.
-    sheetTypeSelect.addEventListener('change', function () {
-        const isEndurance = sheetTypeSelect.value === 'endurance';
-        enduranceCard.hidden = !isEndurance;
-        additionalDrivers.forEach(function (d) {
-            d.picker.select.disabled = !isEndurance;
-            d.picker.sync();
+    if (sheetTypeSelect) {
+        sheetTypeSelect.addEventListener('change', function () {
+            const isEndurance = sheetTypeSelect.value === 'endurance';
+            enduranceCard.hidden = !isEndurance;
+            additionalDrivers.forEach(function (d) {
+                d.picker.select.disabled = !isEndurance;
+                d.picker.sync();
+            });
         });
-    });
+    }
 
     function renumberDriverRows() {
         additionalDrivers.forEach(function (d, i) {
@@ -182,9 +200,12 @@
         });
     }
 
-    document.getElementById('add-driver-btn').addEventListener('click', function () {
-        addDriverRow(null);
-    });
+    const addDriverBtn = document.getElementById('add-driver-btn');
+    if (addDriverBtn) {
+        addDriverBtn.addEventListener('click', function () {
+            addDriverRow(null);
+        });
+    }
 
     const existingDrivers = window.TECH_SHEET_EXISTING_DRIVERS || [];
     if (existingDrivers.length > 0) {
@@ -237,7 +258,7 @@
             errorEl.classList.add('show');
             return;
         }
-        if (sheetTypeSelect.value === 'endurance') {
+        if (sheetTypeSelect && sheetTypeSelect.value === 'endurance') {
             const incompleteDriver = additionalDrivers.find(function (d) {
                 return !WcmaDriverChoice.driverChoiceComplete(d.picker.select.value, d.picker.nameInput.value) || !isEquipmentComplete(d.state);
             });
