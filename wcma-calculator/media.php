@@ -35,7 +35,7 @@ switch ($action) {
         $eventId = in_array($eventParam, $eventIds, true) ? $eventParam : 0;
         $entries = mediaKitEntries($pdo, $eventId, $season);
         if ($action === 'kit-zip' && class_exists('ZipArchive')) {
-            mediaSendZip($pdo, $entries, feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', '')));
+            mediaSendZip($pdo, $entries, feedbackBaseUrl($_SERVER, (string)config_default('SITE_BASE_URL', '')), $eventId);
         }
         renderPageStart('Media kit', 'media', ['flash' => getFlash(), 'subnav' => mediaSubnavHtml('kit')]);
         echo renderMediaKitHtml(['events' => $events, 'eventId' => $eventId, 'entries' => $entries, 'zip' => class_exists('ZipArchive')]);
@@ -52,27 +52,45 @@ switch ($action) {
         renderPageEnd();
 }
 
-/** Streams a zip of photos ({number}-{name}.{ext}) and profiles.csv, then exits. */
-function mediaSendZip(PDO $pdo, array $entries, string $baseUrl): void {
+/**
+ * Streams a zip of photos ({number}-{name}.{ext}) and profiles.csv, then exits. If the zip can't be
+ * built (open()/addFromString()/addFile() fails or throws), nothing is streamed: the caller lands back
+ * on the kit page with an error flash instead. The temp file is always removed.
+ */
+function mediaSendZip(PDO $pdo, array $entries, string $baseUrl, int $eventId): void {
     $tmp = tempnam(sys_get_temp_dir(), 'wcmakit');
-    $zip = new ZipArchive();
-    $zip->open($tmp, ZipArchive::OVERWRITE);
-    $csv = fopen('php://temp', 'r+');
-    foreach (mediaCsvRows($entries, $baseUrl) as $row) fputcsv($csv, $row);
-    rewind($csv);
-    $zip->addFromString('profiles.csv', stream_get_contents($csv));
-    fclose($csv);
-    foreach ($entries as $e) {
-        $path = (string)(db_get_media_profile($pdo, (int)$e['driver_id'])['photo_path'] ?? '');
-        if ($path === '' || !is_file(__DIR__ . '/' . $path)) continue;
-        $name = ($e['number'] !== '' ? mediaSlug($e['number']) . '-' : '') . mediaSlug($e['name']) . '-' . (int)$e['driver_id'] . '.' . pathinfo($path, PATHINFO_EXTENSION);
-        $zip->addFile(__DIR__ . '/' . $path, $name);
+    $ok = false;
+    try {
+        $zip = new ZipArchive();
+        if ($zip->open($tmp, ZipArchive::OVERWRITE) === true) {
+            $csv = fopen('php://temp', 'r+');
+            foreach (mediaCsvRows($entries, $baseUrl) as $row) fputcsv($csv, $row);
+            rewind($csv);
+            $zip->addFromString('profiles.csv', stream_get_contents($csv));
+            fclose($csv);
+            foreach ($entries as $e) {
+                $path = (string)(db_get_media_profile($pdo, (int)$e['driver_id'])['photo_path'] ?? '');
+                if ($path === '' || !is_file(__DIR__ . '/' . $path)) continue;
+                $name = ($e['number'] !== '' ? mediaSlug($e['number']) . '-' : '') . mediaSlug($e['name']) . '-' . (int)$e['driver_id'] . '.' . pathinfo($path, PATHINFO_EXTENSION);
+                $zip->addFile(__DIR__ . '/' . $path, $name);
+            }
+            $zip->close();
+            $ok = true;
+        }
+    } catch (Throwable $e) {
+        $ok = false;
+    } finally {
+        if ($ok) {
+            header('Content-Type: application/zip');
+            header('Content-Disposition: attachment; filename="wcma-media-kit-' . date('Y-m-d') . '.zip"');
+            header('Content-Length: ' . filesize($tmp));
+            readfile($tmp);
+        }
+        if (is_file($tmp)) unlink($tmp);
     }
-    $zip->close();
-    header('Content-Type: application/zip');
-    header('Content-Disposition: attachment; filename="wcma-media-kit-' . date('Y-m-d') . '.zip"');
-    header('Content-Length: ' . filesize($tmp));
-    readfile($tmp);
-    unlink($tmp);
+    if (!$ok) {
+        setFlash('Could not build the zip. Try again, or copy the text below.', 'error');
+        header('Location: media.php?action=kit&event=' . $eventId);
+    }
     exit;
 }

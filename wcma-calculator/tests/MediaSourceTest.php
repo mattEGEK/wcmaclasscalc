@@ -66,4 +66,11 @@ final class MediaSourceTest extends TestCase
         $this->assertMatchesRegularExpression('/if \(!mediaCanAccess\(\$user\)\) \{\s*http_response_code\(403\);\s*hubRenderForbidden\(\);\s*exit;/', $src);
         $this->assertStringContainsString("class_exists('ZipArchive')", $src);
     }
+
+    public function testZipBuildChecksOpenAndAlwaysCleansUpTheTempFile(): void
+    {
+        $src = $this->src('media.php');
+        $this->assertStringContainsString('$zip->open($tmp, ZipArchive::OVERWRITE) === true', $src);
+        $this->assertMatchesRegularExpression('/finally\s*\{.*?unlink\(\$tmp\);.*?\}/s', $src);
+    }
 }
