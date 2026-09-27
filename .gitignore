@@ -1,0 +1,6 @@
+# Local scratch work (e2e scripts, logs, screenshots, mockups)
+/scratch/
+
+# Stray local SQLite files; the real DB is data/submissions.db (see wcma-calculator/.gitignore)
+*.sqlite
+*.sqlite3
