@@ -40,6 +40,8 @@ does not change.
 | Where rules live | PHP data files in the repo (like `TECH_CHECKLIST_SECTIONS` / `PHOTO_REQUIREMENTS`), updated when the regs change each year |
 | Ice season rollover | July. An event on or after 1 July belongs to the next year's ice season. |
 | Passengers | Out of scope. They stay on site under each club's rules. |
+| Summer gear on ice | Accepted summer gear for year Y counts as caged ice gear for ice season Y+1 |
+| Car numbers | One number per car; summer and ice cars are usually different cars |
 
 ---
 
@@ -57,7 +59,7 @@ const ICE_CLUBS = [
         'NS'   => ['label' => 'No-Stud',               'group' => 'caged',       'note' => '2WD, caged, studless DOT winter tire ≤ $160, min 165 mm'],
         'LS'   => ['label' => 'Limited Stud',          'group' => 'caged',       'note' => '2WD, caged, spec bolted tires: 9 bolts/ft, 12 mm max protrusion'],
         'CH'   => ['label' => 'Chevette',              'group' => 'caged',       'note' => 'Chevette/Acadian/Scooter/T1000 1976–87, stock 1.4/1.6, 155/80R13 bolted tires'],
-        'CHSS' => ['label' => 'Chevette Street Stud',  'group' => 'caged',       'note' => 'Chevette family, street stud tire'],
+        'CHSS' => ['label' => 'Chevette Street Stud',  'group' => 'caged',       'note' => 'Same as CH: Chevette/Acadian/Scooter/T1000 1976–87, stock 1.4/1.6, same bolted tire'],
         'AWD'  => ['label' => 'AWD',                   'group' => 'caged',       'note' => 'AWD, caged, ≤ 3,150 lb; tire type set with organizers in advance'],
     ]],
     'WSCC' => ['label' => 'Winnipeg Sports Car Club', 'classes' => [
@@ -71,8 +73,8 @@ const ICE_CLUBS = [
 Class codes are stored on the tech sheet's `class` column. Labels and notes are shown in the
 dropdown and under it.
 
-> The CHSS tire definition is not spelled out in the 2026 NASCC regs. Its note needs confirming
-> before release.
+CHSS runs under the same rules and the same bolted tire as CH (confirmed by NASCC). It is a separate
+class code only because it is scored separately.
 
 ### Groups and gear levels
 
@@ -181,8 +183,11 @@ Added with the existing `ADD COLUMN` migration helper.
 
 ### `tech_sheets`
 
-- `submission_id` becomes **nullable**. Ice sheets have no declaration, and summer sheets still
-  require one (enforced in code).
+- `submission_id` becomes **nullable** at the schema level only. The rule is enforced in
+  `db_insert_tech_sheet()` and covered by tests:
+  - **Summer:** a sheet requires a declaration (a `submission_id` for that car). Inserting a
+    summer sheet without one throws, exactly as today.
+  - **Ice:** a sheet must *not* carry a declaration. It takes `car_id` directly.
 - New `discipline` column (TEXT NOT NULL DEFAULT 'summer') and new `club` column (TEXT NULL).
 - `sheet_type` for ice is `'ice'`, and `class` holds the ice class code.
 - `season` holds the ice season for ice sheets.
@@ -279,7 +284,7 @@ For each car tagged to an **ice** event:
 - **Car tech item:** "Ice tech for {car} at {club}", with its status from `car|ice|club|season`.
   The at-track choice is keyed the same way.
 - **Gear item for each driver:** "Ice gear for {name}", from the driver's `ice` gear record for the
-  season.
+  season, or from the summer carry-over (§4a), which counts as `caged`.
   - If the car has an ice sheet (so its class is known) and the gear is accepted, compare the gear
     level with the class group, and the FHR flag.
   - A shortfall is a to-do, for example: "{name}'s gear is checked for street-safe; LS needs an
@@ -309,6 +314,63 @@ that the copy reads correctly with the ice labels.
 
 ---
 
+## 4a. Running both seasons
+
+A driver may race summer and ice. **Usually they use different cars:** a summer car and an ice car.
+A car that does both is supported, but it is the rare case.
+
+### Summer gear counts for ice
+
+An **accepted summer gear record for season Y** counts as **caged-level ice gear for ice season
+Y+1** (summer 2026 → ice 2027).
+
+- Summer gear already requires an SA/FIA helmet, an FHR and a rated suit, so it meets every ice
+  class, including NASCC LS/AWD's FHR requirement.
+- **In readiness:** an ice gear item is done if the driver has an accepted ice gear record for the
+  season, *or* an accepted summer record for the season before. The label says which, e.g.
+  "Gear: from summer 2026 ✓".
+- **It never works the other way.** Ice gear may be street-safe level only, and summer needs a
+  rated suit, not coveralls.
+- An ice gear record is only created when the driver needs one, i.e. no summer carry-over applies,
+  or the driver chooses to do ice gear photos anyway.
+
+### Car numbers
+
+Each car keeps its own `car_number`. The tech sheet's number field defaults from the car, as it
+does today. There is no separate ice number.
+
+### Cars that are summer-only or ice-only
+
+A car's **disciplines** are the ones it has events tagged, tech sheets or declarations in.
+
+- **Garage card:** shows a chip only for the car's disciplines.
+  - A summer chip ("Teched 2026" / "Needs tech at the track") only for summer cars.
+  - An ice chip ("Ice 2027 · NASCC · LS") only for ice cars.
+  - A car with no activity yet shows the summer chip, as today.
+- **Class line on the Garage card:** an ice-only car shows its latest ice class, e.g. "LS at
+  NASCC", instead of the summer "Not declared / Declare class" prompt.
+
+### Places that currently assume "this calendar year"
+
+These all move to `seasonForEvent()` for event-based pages, or to a discipline-aware "current
+season" for pages without an event. Summer behaviour stays identical.
+
+| Where | Change |
+|---|---|
+| `index.php` Garage status | A chip per discipline the car uses, each for its own current season (above) |
+| `gear-lib.php` `gearSeasonNow()` | Becomes `gearSeasonNow(string $discipline)`. The current ice season uses the July rollover. |
+| `drivers.php` gear chip | One chip per discipline the driver has events or records in. The ice chip shows the summer carry-over when it applies. |
+| `gear.php` start gear photos | The link carries the `discipline` and creates the record for that discipline's current season |
+| `admin-tech-sheets.php`, `tech-sheets.php`, `pretech-lib.php` status | `db_get_identity_sheets()` takes discipline and club, read from the sheet |
+| `inspect.php` roster | `seasonForEvent($event)` for the season, discipline and club |
+| `media.php`, `drivers-public.php` | Car number and class come from the driver's sheet for the chosen event's season key |
+| `driver.php` public page | The driver's most recent sheet of either discipline |
+| `techCarStatusLabel()` | Summer "Teched 2026"; ice "Ice 2027" |
+
+Readiness items, reminders (keyed per event) and summer declarations need no change for this.
+
+---
+
 ## 5. Admin: ice events (`admin.php`)
 
 - **Event form:**
@@ -333,6 +395,7 @@ that the copy reads correctly with the ice labels.
   class is rejected; the summer validation regression still passes.
 - **DB:**
   - an ice sheet can be inserted with no submission
+  - a summer sheet with no submission is still rejected
   - status keying keeps summer and ice apart, and NASCC and WSCC apart
   - gear uniqueness is per discipline
   - at-track choices are keyed by discipline and club
@@ -346,7 +409,15 @@ that the copy reads correctly with the ice labels.
   - car tech is per club
   - a gear level shortfall produces a to-do
   - an FHR shortfall for NASCC LS produces a to-do
+  - accepted summer 2026 gear satisfies ice 2027 gear (caged, FHR included), but not ice 2026 or
+    ice 2028
+  - ice gear never satisfies summer gear
   - summer readiness is unchanged
+- **Running both seasons:**
+  - an ice-only car shows only an ice chip and its ice class, with no declare prompt
+  - a car with both shows two chips
+  - `gearSeasonNow('ice')` rolls over in July
+  - the media roster for an ice event reads the ice sheet's number and class
 - **Admin:** creating an ice event requires a club.
 
 ---
