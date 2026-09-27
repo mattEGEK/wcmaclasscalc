@@ -15,7 +15,8 @@ $pdo = db_connect();
 db_init($pdo);
 $user = require_role('user');
 $uid = (int)$user['id'];
-$driverId = (int)($_POST['driver_id'] ?? $_GET['driver_id'] ?? 0);
+$rawDriver = $_POST['driver_id'] ?? $_GET['driver_id'] ?? '';
+$driverId = $rawDriver === 'self' ? (int)(db_get_self_driver($pdo, $uid)['id'] ?? 0) : (int)$rawDriver;
 $driver = mediaOwnedDriver($pdo, $uid, $driverId);
 if ($driver === null) {
     http_response_code(404);

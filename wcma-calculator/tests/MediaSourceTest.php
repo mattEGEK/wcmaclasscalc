@@ -46,4 +46,16 @@ final class MediaSourceTest extends TestCase
         $this->assertSame(1, substr_count($src, 'readfile('));
         $this->assertStringContainsString("str_starts_with(\$path, MEDIA_PHOTO_DIR . '/')", $src);
     }
+
+    public function testHomeDismissesThePromptAndDriversPageLoadsMediaStatus(): void
+    {
+        $index = $this->src('index.php');
+        $this->assertStringContainsString("case 'media-prompt-dismiss':", $index);
+        $this->assertStringContainsString('db_dismiss_media_prompt($pdo, $uid);', $index);
+        $this->assertStringContainsString("'mediaPrompt' =>", $index);
+        $drivers = $this->src('drivers.php');
+        $this->assertStringContainsString('db_get_media_bundle($pdo, array_map(fn(array $d): int => (int)$d[\'id\'], $drivers))', $drivers);
+        $profile = $this->src('media-profile.php');
+        $this->assertStringContainsString("=== 'self'", $profile);
+    }
 }

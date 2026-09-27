@@ -14,9 +14,12 @@ final class RemindersUiSourceTest extends TestCase
             $src = $this->src($file);
             $this->assertStringContainsString("\$extra = \$r['ok'] ? remindersRecordTagChoice(\$pdo, \$uid, \$_POST) : '';", $src, $file);
             $this->assertStringContainsString("'Added to your events. ' . EVENTS_NOT_REGISTERING . \$extra", $src, $file);
-            $this->assertStringContainsString("'offerReminders' => remindersShouldOffer(db_find_user_by_id(\$pdo, \$uid))", $src, $file);
             $this->assertStringContainsString("/reminders-lib.php'", $src, $file);
         }
+        // garage.php still looks the user up inline for this one value.
+        $this->assertStringContainsString("'offerReminders' => remindersShouldOffer(db_find_user_by_id(\$pdo, \$uid))", $this->src('garage.php'));
+        // index.php reuses the $userRow it also needs for the Home media prompt (spec 2026-09-27 §3).
+        $this->assertStringContainsString("'offerReminders' => remindersShouldOffer(\$userRow)", $this->src('index.php'));
     }
 
     public function testProfileTurnsRemindersOnAndOff(): void

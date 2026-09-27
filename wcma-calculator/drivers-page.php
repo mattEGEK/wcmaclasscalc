@@ -16,6 +16,9 @@ function driversRenderRow(array $row, string $csrf): string {
         . '<label for="licence-' . $id . '">Licence number</label>'
         . '<input type="text" id="licence-' . $id . '" name="licence_no" maxlength="40" value="' . h((string)($d['licence_no'] ?? '')) . '">'
         . '<button type="submit" class="hub-btn hub-btn--link">Save</button></form>';
+    $m = $row['media'];
+    $out .= '<p class="hub-line">Media profile: <span class="hub-status ' . h($m['class']) . '">' . h($m['label']) . '</span> '
+        . '<a href="media-profile.php?driver_id=' . $id . '">' . ($m['state'] === 'none' ? 'Set up media profile' : 'Edit media profile') . '</a></p>';
     if ($row['isSelf']) {
         $out .= '<p class="form-hint">Your name comes from your account. <a href="profile.php">Change it in Profile</a>.</p>';
     }
