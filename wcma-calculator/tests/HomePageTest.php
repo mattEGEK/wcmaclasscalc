@@ -61,6 +61,20 @@ final class HomePageTest extends TestCase
         $this->assertStringContainsString("I'm going", $html);
         $this->assertStringContainsString(EVENTS_NOT_REGISTERING, $html);
         $this->assertStringContainsString('href="garage.php">Open garage', $html);
+        $this->assertStringNotContainsString('Clubs would like to feature you', $html);
+
+        $withPrompt = renderHomeHtml($this->vm(['mediaPrompt' => true]));
+        $this->assertStringContainsString('Clubs would like to feature you', $withPrompt);
+        $this->assertLessThan(strpos($withPrompt, '<h2>At a glance</h2>'), strpos($withPrompt, 'Clubs would like to feature you'));
+    }
+
+    public function testMediaPromptCardAppearsOnlyWhenAsked(): void
+    {
+        $html = homeMediaPromptHtml('tok');
+        $this->assertStringContainsString('Clubs would like to feature you', $html);
+        $this->assertStringContainsString('href="media-profile.php?driver_id=self"', $html);
+        $this->assertStringContainsString('name="action" value="media-prompt-dismiss"', $html);
+        $this->assertStringContainsString('name="csrf_token" value="tok"', $html);
     }
 
     public function testSeasonLinksAreEscapedAndOmittedWhenEmpty(): void

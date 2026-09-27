@@ -42,6 +42,8 @@ function hubSeed(PDO $pdo, string $password): array {
     $inspector = $user('inspector@example.com', 'Ivy Inspector');
     db_set_user_role($pdo, $inspector, 'inspector');
     $jordan = $user('jordan@example.com', 'Jordan Lee');
+    $media = $user('media@example.com', 'Mia Media');
+    db_set_user_media($pdo, $media, true);
 
     $year = (int)date('Y');
     $fall = db_create_event($pdo, 'Fall Sprint', date('Y-m-d', strtotime('+17 days')), 'Castrol Raceway');
@@ -96,5 +98,20 @@ function hubSeed(PDO $pdo, string $password): array {
     db_create_season_link($pdo, $year . ' Race Licences', 'https://www.motorsportreg.com/orgs/western-canada-motorsport-associati', 2);
     db_create_season_link($pdo, 'Car Classing & Number Reservation', 'https://www.motorsportreg.com/orgs/western-canada-motorsport-associati', 3);
 
-    return ['users' => 3, 'cars' => 2, 'events' => 2, 'tech_sheets' => 1, 'season_links' => 3, 'event_plans' => 1];
+    // Media profiles: Jordan fully consented and waiting for public review; Sam a minor, club use only,
+    // consent confirmed by Jordan on Sam's behalf. The inspector's own profile has no consent.
+    $jordanDriver = (int)db_get_self_driver($pdo, $jordan)['id'];
+    db_save_media_profile($pdo, $jordanDriver, ['blurb' => 'Jordan has raced the S2000 at Castrol since 2015 and still brakes too late into turn 1.',
+        'pronunciation' => null, 'hometown' => 'Red Deer, AB', 'racing_since' => 2015, 'social_handle' => 'jordanlee42',
+        'photo_path' => null, 'public_status' => 'pending_review']);
+    db_replace_sponsors($pdo, $jordanDriver, [['name' => 'Acme Tires', 'url' => 'https://example.com'], ['name' => "Bob's Garage", 'url' => null]]);
+    db_insert_media_consent($pdo, ['driver_id' => $jordanDriver, 'consent_media' => 1, 'consent_public' => 1, 'is_minor' => 0,
+        'guardian_name' => null, 'given_by_user_id' => $jordan, 'on_behalf' => 0, 'wording_version' => 1]);
+    $samDriver = (int)db_find_driver($pdo, $jordan, 'Sam Patel')['id'];
+    db_save_media_profile($pdo, $samDriver, ['blurb' => 'Sam is 16 and in a first season moving up from karts.', 'pronunciation' => null,
+        'hometown' => 'Olds, AB', 'racing_since' => (int)date('Y'), 'social_handle' => null, 'photo_path' => null, 'public_status' => 'none']);
+    db_insert_media_consent($pdo, ['driver_id' => $samDriver, 'consent_media' => 1, 'consent_public' => 0, 'is_minor' => 1,
+        'guardian_name' => 'Priya Patel', 'given_by_user_id' => $jordan, 'on_behalf' => 1, 'wording_version' => 1]);
+
+    return ['users' => 4, 'cars' => 2, 'events' => 2, 'tech_sheets' => 1, 'season_links' => 3, 'event_plans' => 1, 'media_profiles' => 2];
 }

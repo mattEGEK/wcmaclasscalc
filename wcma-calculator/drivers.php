@@ -7,6 +7,7 @@ require __DIR__ . '/view_helpers.php';
 require __DIR__ . '/cars-lib.php';
 require __DIR__ . '/events-lib.php';
 require __DIR__ . '/gear-lib.php';
+require __DIR__ . '/media-lib.php';
 require __DIR__ . '/drivers-lib.php';
 require __DIR__ . '/home-page.php';
 require __DIR__ . '/drivers-page.php';
@@ -44,7 +45,8 @@ $self = db_get_self_driver($pdo, $uid);
 
 renderPageStart('Drivers', 'drivers', ['flash' => getFlash()]);
 echo renderDriversHtml([
-    'rows' => driversRows($drivers, $gear, $self !== null ? (int)$self['id'] : 0, $season),
+    'rows' => driversRows($drivers, $gear, $self !== null ? (int)$self['id'] : 0, $season,
+        db_get_media_bundle($pdo, array_map(fn(array $d): int => (int)$d['id'], $drivers))),
     'season' => $season, 'csrf' => generateCsrfToken(),
     'licenceLink' => seasonLinkMatching(db_get_season_links($pdo, true), 'Licen'),
 ]);

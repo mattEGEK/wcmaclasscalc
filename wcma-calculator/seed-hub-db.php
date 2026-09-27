@@ -15,4 +15,4 @@ try {
     exit(1);
 }
 foreach ($summary as $label => $count) echo str_pad($label, 14) . $count . "\n";
-echo "Accounts: " . BOOTSTRAP_ADMIN_EMAIL . " (admin), inspector@example.com, jordan@example.com. Password: {$password}\n";
+echo "Accounts: " . BOOTSTRAP_ADMIN_EMAIL . " (admin), inspector@example.com, jordan@example.com, media@example.com (media). Password: {$password}\n";

@@ -115,6 +115,17 @@ To adjust the calculation formula, modify the functions in `js/calculator.js`:
 - Export results as PDF
 - Integration with WCMA database for automatic class verification
 
+## Driver media profiles
+
+Drivers add a photo, a blurb and sponsors from **Drivers → Set up media profile**, and give consent there.
+Media staff (tick **Media staff** on Admin → Users & roles; it applies at their next sign-in) get a
+**Media** section: Announcer (event roster with profiles, printable), Media kit (copy text, photos,
+zip with `profiles.csv`) and Public review. Public pages live at `driver.php?id=N` once accepted.
+
+- No database reset: `db_init()` adds the new tables and `users` columns in place.
+- Photos are stored in `uploads/media/` and only served through `media-photo.php`.
+- The zip download needs PHP's `zip` extension; without it the button is hidden.
+
 ## Reminder emails (daily cron)
 
 Competitors can turn on reminder emails in their Profile, or with the checkbox shown the first time

@@ -41,6 +41,11 @@ switch ($action) {
         handleSetName($pdo, $postId, (string)($_POST['name'] ?? ''));
         break;
 
+    case 'set-media':
+        adminRequirePost('admin.php?action=users');
+        handleSetMedia($pdo, $postId, ($_POST['is_media'] ?? '') === '1');
+        break;
+
     case 'deactivate':
         adminRequirePost('admin.php?action=users');
         handleSetActive($pdo, $postId, false);
@@ -156,6 +161,17 @@ function handleSetName(PDO $pdo, int $id, string $name): void {
     exit;
 }
 
+function handleSetMedia(PDO $pdo, int $id, bool $on): void {
+    if (db_find_user_by_id($pdo, $id) === null) {
+        setFlash('Choose a valid user.', 'error');
+    } else {
+        db_set_user_media($pdo, $id, $on);
+        setFlash('Media access ' . ($on ? 'given' : 'removed') . '. They will see the change the next time they sign in.', 'success');
+    }
+    header('Location: admin.php?action=users');
+    exit;
+}
+
 function handleSetActive(PDO $pdo, int $id, bool $active): void {
     if (!$active && db_count_active_admins($pdo) <= 1) {
         $target = db_find_user_by_id($pdo, $id);
@@ -243,6 +259,12 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
             <label class="visually-hidden" for="name-<?= (int)$u['id'] ?>">Name for <?= h($u['email']) ?></label>
             <input type="text" id="name-<?= (int)$u['id'] ?>" name="name" value="<?= h($u['name']) ?>" maxlength="100" required>
             <button type="submit" class="btn-role">Save name</button>
+          </form>
+          <form method="post" action="admin.php?action=set-media" style="display:inline">
+            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
+            <label><input type="checkbox" name="is_media" value="1"<?= (int)($u['is_media'] ?? 0) === 1 ? ' checked' : '' ?>> Media staff</label>
+            <button type="submit" class="btn-role">Save media</button>
           </form>
           <?php if ($u['active']): ?>
           <form method="post" action="admin.php?action=deactivate" style="display:inline" data-confirm="Deactivate <?= h($u['email']) ?>? They won't be able to sign in until reactivated.">

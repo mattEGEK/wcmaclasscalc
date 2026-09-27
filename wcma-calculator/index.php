@@ -9,6 +9,7 @@ require __DIR__ . '/gear-lib.php';
 require __DIR__ . '/events-lib.php';
 require __DIR__ . '/reminders-lib.php';
 require __DIR__ . '/readiness-lib.php';
+require __DIR__ . '/media-lib.php';
 require __DIR__ . '/home-page.php';
 
 date_default_timezone_set('America/Denver');
@@ -33,6 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case 'at-track':
             $r = eventsSetAtTrack($pdo, $uid, (string)($_POST['subject_type'] ?? ''), (int)($_POST['subject_id'] ?? 0), (int)($_POST['season'] ?? 0));
             setFlash($r['ok'] ? 'Noted: you\'ll get it checked at the track.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
+            break;
+        case 'media-prompt-dismiss':
+            db_dismiss_media_prompt($pdo, $uid);
+            setFlash('OK. You can add one any time from the Drivers page.', 'success');
             break;
     }
     header('Location: index.php');
@@ -64,10 +69,18 @@ foreach ($in['drivers'] as $did => $d) {
                   'gearLabel' => gearStatusLabel($st, $season), 'gearState' => $st['state']];
 }
 
+$userRow = db_find_user_by_id($pdo, $uid);
+$selfDriver = db_get_self_driver($pdo, $uid);
+// Only offer the prompt when the driver has never made a media consent choice at all: once they
+// withdraw, that withdrawal is a deliberate choice (a consent row with media off), not "not set up".
+$mediaPrompt = $selfDriver !== null && (int)($userRow['media_prompt_dismissed'] ?? 0) === 0
+    && db_get_latest_media_consent($pdo, (int)$selfDriver['id']) === null;
+
 renderPageStart('Home', 'home', ['flash' => getFlash()]);
 echo renderHomeHtml([
     'name' => (string)$user['name'], 'readiness' => buildReadiness($in), 'cars' => $in['cars'],
     'garage' => $garage, 'drivers' => $drivers, 'seasonLinks' => db_get_season_links($pdo, true),
-    'csrf' => generateCsrfToken(), 'offerReminders' => remindersShouldOffer(db_find_user_by_id($pdo, $uid)),
+    'csrf' => generateCsrfToken(), 'offerReminders' => remindersShouldOffer($userRow),
+    'mediaPrompt' => $mediaPrompt,
 ]);
 renderPageEnd();

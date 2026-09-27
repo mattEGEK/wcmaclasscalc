@@ -1,9 +1,10 @@
 <?php
 // wcma-calculator/drivers-lib.php
 //
-// Driver profiles for the Drivers page (spec §4): co-drivers, licence numbers, and each driver's
-// gear status for the season. The profile carries over year to year; the gear check does not.
-// Callers must have loaded db.php and gear-lib.php.
+// Driver profiles for the Drivers page (spec §4): co-drivers, licence numbers, each driver's
+// gear status for the season, and each driver's media profile status (spec 2026-09-27 §3). The
+// profile carries over year to year; the gear check does not.
+// Callers must have loaded db.php, gear-lib.php and media-lib.php.
 
 /** From January 1 every driver shows "Needs gear tech {season}" until there is gear activity. */
 function driversGearLabel(array $status, int $season): string {
@@ -16,14 +17,16 @@ function driversGearAction(int $driverId, array $status): array {
     return ['label' => $labels[$status['state']] ?? 'Add photos', 'url' => 'gear.php?action=start&driver_id=' . $driverId];
 }
 
-/** @param array $gear driver id => that driver's gear_records row for $season */
-function driversRows(array $drivers, array $gear, int $selfId, int $season): array {
+/** @param array $gear driver id => that driver's gear_records row for $season
+ *  @param array $media driver id => db_get_media_bundle() entry */
+function driversRows(array $drivers, array $gear, int $selfId, int $season, array $media = []): array {
     $rows = [];
     foreach ($drivers as $d) {
         $id = (int)$d['id'];
         $status = isset($gear[$id]) ? gearStatus($gear[$id]) : ['state' => 'none', 'via' => null];
         $rows[] = ['driver' => $d, 'isSelf' => $id === $selfId, 'state' => $status['state'],
-                   'label' => driversGearLabel($status, $season), 'action' => driversGearAction($id, $status)];
+                   'label' => driversGearLabel($status, $season), 'action' => driversGearAction($id, $status),
+                   'media' => mediaProfileStatus($media[$id]['profile'] ?? null, $media[$id]['consent'] ?? null)];
     }
     return $rows;
 }

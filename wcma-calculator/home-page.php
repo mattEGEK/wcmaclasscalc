@@ -89,6 +89,16 @@ function homeRenderTagForm(array $event, array $cars, string $csrf, bool $offerR
     return $out;
 }
 
+/** One-time invitation to add a media profile (spec 2026-09-27 §3). Not part of readiness. */
+function homeMediaPromptHtml(string $csrf): string {
+    return '<div class="hub-card media-prompt"><h2>Clubs would like to feature you</h2>'
+        . '<p>Add a photo and a line about yourself. Announcers read it out at events, and clubs use it to promote racing. You choose whether it goes on a public page.</p>'
+        . '<p><a class="hub-btn" href="media-profile.php?driver_id=self">Add profile</a></p>'
+        . '<form method="post" action="index.php"><input type="hidden" name="csrf_token" value="' . h($csrf) . '">'
+        . '<input type="hidden" name="action" value="media-prompt-dismiss">'
+        . '<button type="submit" class="hub-btn hub-btn--link">No thanks</button></form></div>';
+}
+
 /** The untag ("Not going anymore") form for one car already tagged to an event. */
 function homeRenderUntagForm(array $event, array $car, string $csrf): string {
     return '<form method="post" action="index.php" class="hub-line">' . homeCsrfField($csrf)
@@ -195,6 +205,8 @@ function renderHomeHtml(array $vm): string
         }
         $out .= '<p class="form-hint">' . EVENTS_NOT_REGISTERING . '</p>';
     }
+
+    if (!empty($vm['mediaPrompt'])) $out .= homeMediaPromptHtml($csrf);
 
     // At a glance
     $out .= '<h2>At a glance</h2><div class="hub-grid-2">';

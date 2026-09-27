@@ -7,6 +7,7 @@ require_once __DIR__ . '/../home-page.php';
 require_once __DIR__ . '/../gear-lib.php';
 require_once __DIR__ . '/../drivers-lib.php';
 require_once __DIR__ . '/../drivers-page.php';
+require_once __DIR__ . '/../media-lib.php';
 
 use PHPUnit\Framework\TestCase;
 
@@ -46,6 +47,21 @@ final class DriversPageTest extends TestCase
         $this->assertStringContainsString('href="profile.php"', $html);
         $this->assertStringNotContainsString('Renew', $html);
         $this->assertStringNotContainsString('target="_blank"', renderDriversHtml($this->vm([['id' => 1, 'name' => 'J', 'licence_no' => null]], ['licenceLink' => null])));
+    }
+
+    public function testEachDriverShowsItsMediaProfileStatusAndLink(): void
+    {
+        $consent = ['consent_media' => 1, 'consent_public' => 0, 'is_minor' => 0, 'guardian_name' => null];
+        $rows = driversRows(
+            [['id' => 1, 'name' => 'Jordan Lee', 'licence_no' => null], ['id' => 2, 'name' => 'Sam Patel', 'licence_no' => null]],
+            [], 1, 2026,
+            [1 => ['profile' => ['blurb' => 'Fast.', 'photo_path' => null, 'hidden_at' => null, 'public_status' => 'none'], 'consent' => $consent, 'sponsors' => []]]
+        );
+        $html = renderDriversHtml($this->vm([], ['rows' => $rows]));
+        $this->assertStringContainsString('Shared with clubs', $html);
+        $this->assertStringContainsString('href="media-profile.php?driver_id=1">Edit media profile</a>', $html);
+        $this->assertStringContainsString('Not set up', $html);
+        $this->assertStringContainsString('href="media-profile.php?driver_id=2">Set up media profile</a>', $html);
     }
 
     public function testNoBannedWording(): void

@@ -14,21 +14,23 @@ final class LayoutTest extends TestCase
     public function testNavItemsByAudience(): void
     {
         $this->assertSame(['home', 'calculator', 'signin'], $this->keys(null));
-        $this->assertSame(['home', 'garage', 'drivers', 'calculator'], $this->keys(['id' => 1, 'name' => 'Jordan Lee', 'role' => 'user']));
-        $this->assertSame(['home', 'garage', 'drivers', 'calculator', 'inspect'], $this->keys(['id' => 1, 'name' => 'Ivy Inspector', 'role' => 'inspector']));
-        $this->assertSame(['home', 'garage', 'drivers', 'calculator', 'inspect', 'admin'], $this->keys(['id' => 1, 'name' => 'Site Admin', 'role' => 'admin']));
+        $this->assertSame(['home', 'garage', 'drivers', 'calculator'], $this->keys(['id' => 1, 'name' => 'Jordan Lee', 'role' => 'user', 'is_media' => 0]));
+        $this->assertSame(['home', 'garage', 'drivers', 'calculator', 'inspect'], $this->keys(['id' => 1, 'name' => 'Ivy Inspector', 'role' => 'inspector', 'is_media' => 0]));
+        $this->assertSame(['home', 'garage', 'drivers', 'calculator', 'inspect', 'media', 'admin'], $this->keys(['id' => 1, 'name' => 'Site Admin', 'role' => 'admin', 'is_media' => 0]));
 
-        $admin = array_column(hubNavItems(['id' => 1, 'name' => 'Site Admin', 'role' => 'admin']), 'href', 'label');
+        $admin = array_column(hubNavItems(['id' => 1, 'name' => 'Site Admin', 'role' => 'admin', 'is_media' => 0]), 'href', 'label');
         $this->assertSame('inspect.php', $admin['Inspector']);
+        $this->assertSame('media.php', $admin['Media']);
         $this->assertSame('admin.php', $admin['Admin']);
         $this->assertSame('calculator.php', $admin['Class Calculator']);
     }
 
     public function testStaffSectionsSitAfterADivider(): void
     {
-        $html = hubNavHtml(['id' => 1, 'name' => 'Site Admin', 'role' => 'admin'], 'inspect');
-        $this->assertSame(2, substr_count($html, '<li class="hub-nav-staff">'));
+        $html = hubNavHtml(['id' => 1, 'name' => 'Site Admin', 'role' => 'admin', 'is_media' => 0], 'inspect');
+        $this->assertSame(3, substr_count($html, '<li class="hub-nav-staff">'));
         $this->assertStringContainsString('<li class="hub-nav-staff"><span class="hub-nav-current" aria-current="page">Inspector</span></li>', $html);
+        $this->assertStringContainsString('<li class="hub-nav-staff"><a href="media.php">Media</a></li>', $html);
         $this->assertStringContainsString('<li class="hub-nav-staff"><a href="admin.php">Admin</a></li>', $html);
         $this->assertStringContainsString('<li><a href="garage.php">Garage</a></li>', $html);
     }
@@ -84,7 +86,7 @@ final class LayoutTest extends TestCase
 
     public function testCurrentSectionIsInertText(): void
     {
-        $html = hubNavHtml(['id' => 1, 'name' => 'Jordan Lee', 'role' => 'user'], 'home');
+        $html = hubNavHtml(['id' => 1, 'name' => 'Jordan Lee', 'role' => 'user', 'is_media' => 0], 'home');
         $this->assertStringContainsString('<span class="hub-nav-current" aria-current="page">Home</span>', $html);
         $this->assertStringNotContainsString('href="index.php"', $html);
         $this->assertStringContainsString('href="garage.php"', $html);
@@ -94,7 +96,7 @@ final class LayoutTest extends TestCase
 
     public function testAccountAndFooterAreEscapedAndComplete(): void
     {
-        $html = hubAccountHtml(['id' => 1, 'name' => 'A <b>', 'role' => 'user']);
+        $html = hubAccountHtml(['id' => 1, 'name' => 'A <b>', 'role' => 'user', 'is_media' => 0]);
         $this->assertStringContainsString('A &lt;b&gt;', $html);
         $this->assertStringContainsString('href="profile.php"', $html);
         $this->assertStringContainsString('action=logout', $html);
@@ -119,5 +121,23 @@ final class LayoutTest extends TestCase
         $this->assertStringContainsString('js/nav.js', $html);
         $this->assertStringContainsString('class="hub-stripe"', $html);
         $this->assertStringContainsString('fonts.googleapis.com', $html);
+    }
+
+    public function testMediaNavShowsForMediaStaffAndAdminsOnly(): void
+    {
+        $keys = fn(?array $u): array => array_column(hubNavItems($u), 'key');
+        $this->assertNotContains('media', $keys(['id' => 1, 'name' => 'A', 'role' => 'inspector', 'is_media' => 0]));
+        $this->assertContains('media', $keys(['id' => 1, 'name' => 'A', 'role' => 'user', 'is_media' => 1]));
+        $this->assertContains('media', $keys(['id' => 1, 'name' => 'A', 'role' => 'admin', 'is_media' => 0]));
+        $admin = $keys(['id' => 1, 'name' => 'A', 'role' => 'admin', 'is_media' => 0]);
+        $this->assertLessThan(array_search('admin', $admin, true), array_search('media', $admin, true));
+    }
+
+    public function testMediaTabs(): void
+    {
+        $html = mediaSubnavHtml('kit');
+        $this->assertStringContainsString('<a href="media.php">Announcer</a>', $html);
+        $this->assertStringContainsString('<span class="hub-tab-current" aria-current="page">Media kit</span>', $html);
+        $this->assertStringContainsString('<a href="media.php?action=review">Public review</a>', $html);
     }
 }
