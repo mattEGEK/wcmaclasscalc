@@ -213,7 +213,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
     </form>
     <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
   </div>
-  <p class="no-print">Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h(techCarStatusLabel($carStatus, (int)($sheet['season'] ?? date('Y')))) ?></strong></p>
+  <p class="no-print">Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h(techCarStatusLabel($carStatus, (int)($sheet['season'] ?? date('Y')), (string)($sheet['discipline'] ?? 'summer'))) ?></strong></p>
   <?php if ($gearLinks): ?>
   <div class="no-print"><p><strong>Driver gear</strong></p><?= renderGearChips($gearLinks, 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0)]) ?></div>
   <?php endif; ?>
@@ -233,7 +233,7 @@ function handlePretech(PDO $pdo, array $user, int $id): void {
         exit;
     }
     $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
-    $identity = db_get_identity_sheets($pdo, (int)$sheet['car_id'], (int)$sheet['season']);
+    $identity = db_get_sheet_identity_sheets($pdo, $sheet);
     renderPretechPage($sheet, $event, pretechPageMode($sheet, $identity), pretechSnapshot($pdo, $id), generateCsrfToken(), getFlash());
 }
 

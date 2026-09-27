@@ -25,6 +25,58 @@ function db_connect(): PDO {
     return $pdo;
 }
 
+/** tech_sheets schema. {table} is filled in by db_init() and db_rebuild_table(). */
+const DB_TECH_SHEETS_SQL = "
+    CREATE TABLE IF NOT EXISTS {table} (
+        id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+        submission_id           INTEGER,
+        car_id                  INTEGER NOT NULL,
+        user_id                 INTEGER NOT NULL,
+        event_id                INTEGER NOT NULL,
+        sheet_type              TEXT NOT NULL,
+
+        entrant_name            TEXT NOT NULL,
+        driver_name             TEXT NOT NULL,
+        driver_id               INTEGER,
+        car_make                TEXT NOT NULL,
+        car_model               TEXT NOT NULL,
+        car_colour              TEXT NOT NULL,
+        car_number              TEXT NOT NULL,
+        class                   TEXT NOT NULL,
+        engine_cc               TEXT,
+        engine_hp               TEXT,
+        car_weight              INTEGER NOT NULL,
+
+        checklist_json          TEXT NOT NULL,
+        driver1_equipment_json  TEXT NOT NULL,
+        log_book_turned_in      INTEGER,
+
+        entrant_signature_path  TEXT,
+        entrant_signed_at       DATETIME,
+        driver_signature_path   TEXT,
+        driver_signed_at        DATETIME,
+        tech_signature_path     TEXT,
+        tech_signed_at          DATETIME,
+
+        status                  TEXT NOT NULL DEFAULT 'submitted',
+        reviewed_by_user_id     INTEGER,
+        reviewed_at             DATETIME,
+
+        email_sent              INTEGER DEFAULT 0,
+        email_send_count        INTEGER NOT NULL DEFAULT 0,
+        last_emailed_at         DATETIME,
+
+        accepted_via            TEXT,
+        photo_status            TEXT,
+        car_number_norm         TEXT,
+        season                  INTEGER,
+        discipline              TEXT NOT NULL DEFAULT 'summer',
+        club                    TEXT,
+
+        created_at              DATETIME NOT NULL,
+        updated_at              DATETIME NOT NULL
+    )";
+
 function db_init(PDO $pdo): void {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS submissions (
@@ -126,55 +178,9 @@ function db_init(PDO $pdo): void {
         )
     ");
 
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS tech_sheets (
-            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
-            submission_id           INTEGER NOT NULL,
-            car_id                  INTEGER NOT NULL,
-            user_id                 INTEGER NOT NULL,
-            event_id                INTEGER NOT NULL,
-            sheet_type              TEXT NOT NULL,
-
-            entrant_name            TEXT NOT NULL,
-            driver_name             TEXT NOT NULL,
-            driver_id               INTEGER,
-            car_make                TEXT NOT NULL,
-            car_model               TEXT NOT NULL,
-            car_colour              TEXT NOT NULL,
-            car_number              TEXT NOT NULL,
-            class                   TEXT NOT NULL,
-            engine_cc               TEXT,
-            engine_hp               TEXT,
-            car_weight              INTEGER NOT NULL,
-
-            checklist_json          TEXT NOT NULL,
-            driver1_equipment_json  TEXT NOT NULL,
-            log_book_turned_in      INTEGER,
-
-            entrant_signature_path  TEXT,
-            entrant_signed_at       DATETIME,
-            driver_signature_path   TEXT,
-            driver_signed_at        DATETIME,
-            tech_signature_path     TEXT,
-            tech_signed_at          DATETIME,
-
-            status                  TEXT NOT NULL DEFAULT 'submitted',
-            reviewed_by_user_id     INTEGER,
-            reviewed_at             DATETIME,
-
-            email_sent              INTEGER DEFAULT 0,
-            email_send_count        INTEGER NOT NULL DEFAULT 0,
-            last_emailed_at         DATETIME,
-
-            accepted_via            TEXT,
-            photo_status            TEXT,
-            car_number_norm         TEXT,
-            season                  INTEGER,
-
-            created_at              DATETIME NOT NULL,
-            updated_at              DATETIME NOT NULL
-        )
-    ");
+    $pdo->exec(str_replace('{table}', 'tech_sheets', DB_TECH_SHEETS_SQL));
+    // Pre-ice databases: submission_id was NOT NULL and there was no discipline/club (2026-09-27 spec).
+    db_rebuild_table($pdo, 'tech_sheets', 'discipline', DB_TECH_SHEETS_SQL);
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS settings (
@@ -742,9 +748,23 @@ function db_get_gear_record_for_driver(PDO $pdo, int $driverId, int $season): ?a
 function db_insert_tech_sheet(PDO $pdo, array $data): int {
     $now = date('Y-m-d H:i:s');
     $identity = db_tech_sheet_identity($pdo, (string)$data['car_number'], (int)$data['event_id']);
-    $submission = db_get_submission($pdo, (int)$data['submission_id']);
-    if ($submission === null) {
-        throw new InvalidArgumentException('A tech sheet needs an existing class declaration.');
+    if ($identity['discipline'] === DISCIPLINE_ICE) {
+        if (!empty($data['submission_id'])) {
+            throw new InvalidArgumentException('An ice tech sheet does not take a class declaration.');
+        }
+        $car = db_get_user_car($pdo, (int)$data['user_id'], (int)($data['car_id'] ?? 0));
+        if ($car === null) {
+            throw new InvalidArgumentException('An ice tech sheet needs one of your cars.');
+        }
+        $submissionId = null;
+        $carId = (int)$car['id'];
+    } else {
+        $submission = db_get_submission($pdo, (int)($data['submission_id'] ?? 0));
+        if ($submission === null) {
+            throw new InvalidArgumentException('A tech sheet needs an existing class declaration.');
+        }
+        $submissionId = (int)$submission['id'];
+        $carId = (int)$submission['car_id'];
     }
     $driverId = db_find_or_create_driver($pdo, (int)$data['user_id'], (string)$data['driver_name']);
     $stmt = $pdo->prepare("
@@ -753,19 +773,19 @@ function db_insert_tech_sheet(PDO $pdo, array $data): int {
             entrant_name, driver_name, driver_id, car_make, car_model, car_colour, car_number,
             class, engine_cc, engine_hp, car_weight,
             checklist_json, driver1_equipment_json, log_book_turned_in,
-            car_number_norm, season,
+            car_number_norm, season, discipline, club,
             status, created_at, updated_at
         ) VALUES (
             :submission_id, :car_id, :user_id, :event_id, :sheet_type,
             :entrant_name, :driver_name, :driver_id, :car_make, :car_model, :car_colour, :car_number,
             :class, :engine_cc, :engine_hp, :car_weight,
             :checklist_json, :driver1_equipment_json, :log_book_turned_in,
-            :car_number_norm, :season,
+            :car_number_norm, :season, :discipline, :club,
             'submitted', :created_at, :updated_at
         )
     ");
     $stmt->execute([
-        ':submission_id' => $data['submission_id'], ':car_id' => (int)$submission['car_id'], ':user_id' => $data['user_id'], ':event_id' => $data['event_id'],
+        ':submission_id' => $submissionId, ':car_id' => $carId, ':user_id' => $data['user_id'], ':event_id' => $data['event_id'],
         ':sheet_type' => $data['sheet_type'], ':entrant_name' => $data['entrant_name'], ':driver_name' => $data['driver_name'],
         ':driver_id' => $driverId,
         ':car_make' => $data['car_make'], ':car_model' => $data['car_model'], ':car_colour' => $data['car_colour'],
@@ -774,6 +794,7 @@ function db_insert_tech_sheet(PDO $pdo, array $data): int {
         ':checklist_json' => $data['checklist_json'], ':driver1_equipment_json' => $data['driver1_equipment_json'],
         ':log_book_turned_in' => $data['log_book_turned_in'] ?? null,
         ':car_number_norm' => $identity['car_number_norm'], ':season' => $identity['season'],
+        ':discipline' => $identity['discipline'], ':club' => $identity['club'],
         ':created_at' => $now, ':updated_at' => $now,
     ]);
     return (int)$pdo->lastInsertId();
@@ -806,8 +827,12 @@ function db_get_user_tech_sheets(PDO $pdo, int $user_id): array {
 }
 
 function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
+    $current = db_get_tech_sheet($pdo, $id);
     $identity = db_tech_sheet_identity($pdo, (string)$data['car_number'], (int)$data['event_id']);
-    $owner = (int)(db_get_tech_sheet($pdo, $id)['user_id'] ?? 0);
+    if ($current !== null && ($current['discipline'] ?? DISCIPLINE_SUMMER) !== $identity['discipline']) {
+        throw new InvalidArgumentException('A tech sheet cannot move between summer and ice events.');
+    }
+    $owner = (int)($current['user_id'] ?? 0);
     $driverId = db_find_or_create_driver($pdo, $owner, (string)$data['driver_name']);
     $pdo->prepare("
         UPDATE tech_sheets SET
@@ -817,7 +842,7 @@ function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
             class = :class, engine_cc = :engine_cc, engine_hp = :engine_hp, car_weight = :car_weight,
             checklist_json = :checklist_json, driver1_equipment_json = :driver1_equipment_json,
             log_book_turned_in = :log_book_turned_in,
-            car_number_norm = :car_number_norm, season = :season, updated_at = :updated_at
+            car_number_norm = :car_number_norm, season = :season, club = :club, updated_at = :updated_at
         WHERE id = :id
     ")->execute([
         ':event_id' => $data['event_id'], ':sheet_type' => $data['sheet_type'],
@@ -828,6 +853,7 @@ function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
         ':checklist_json' => $data['checklist_json'], ':driver1_equipment_json' => $data['driver1_equipment_json'],
         ':log_book_turned_in' => $data['log_book_turned_in'] ?? null,
         ':car_number_norm' => $identity['car_number_norm'], ':season' => $identity['season'],
+        ':club' => $identity['club'],
         ':updated_at' => date('Y-m-d H:i:s'), ':id' => $id,
     ]);
 }
@@ -1318,12 +1344,12 @@ function db_delete_inspection_photo(PDO $pdo, int $id): void {
     $pdo->prepare("DELETE FROM inspection_photos WHERE id = :id")->execute([':id' => $id]);
 }
 
-/** Normalised car number and season (calendar year of the sheet's event) for a tech sheet. */
+/** Normalised car number and season key (season, discipline, club) of the sheet's event. */
 function db_tech_sheet_identity(PDO $pdo, string $carNumber, int $eventId): array {
-    $event = db_get_event($pdo, $eventId);
+    $key = seasonForEvent(db_get_event($pdo, $eventId));
     return [
         'car_number_norm' => techCarNumberNorm($carNumber),
-        'season' => techSeasonFromDate($event['event_date'] ?? null),
+        'season' => $key['season'], 'discipline' => $key['discipline'], 'club' => $key['club'],
     ];
 }
 
@@ -1358,17 +1384,27 @@ function db_revoke_tech_sheet_acceptance(PDO $pdo, int $id): bool {
     return $stmt->rowCount() === 1;
 }
 
-/** All sheets for one car in one season. */
-function db_get_identity_sheets(PDO $pdo, int $carId, int $season): array {
-    $stmt = $pdo->prepare("SELECT * FROM tech_sheets WHERE car_id = :c AND season = :s ORDER BY id ASC");
-    $stmt->execute([':c' => $carId, ':s' => $season]);
+/** All sheets for one car in one season (and discipline, and club for ice). */
+function db_get_identity_sheets(PDO $pdo, int $carId, int $season, string $discipline = DISCIPLINE_SUMMER, ?string $club = null): array {
+    $stmt = $pdo->prepare("
+        SELECT * FROM tech_sheets
+        WHERE car_id = :c AND season = :s AND discipline = :d AND club IS :club
+        ORDER BY id ASC
+    ");
+    $stmt->execute([':c' => $carId, ':s' => $season, ':d' => $discipline, ':club' => $club]);
     return $stmt->fetchAll();
 }
 
-/** Every tech sheet in a season (used to derive each car's status on a roster). */
-function db_get_season_sheets(PDO $pdo, int $season): array {
-    $stmt = $pdo->prepare("SELECT * FROM tech_sheets WHERE season = :s ORDER BY id ASC");
-    $stmt->execute([':s' => $season]);
+/** Every sheet that shares $sheet's car and season key: the sheets that decide its car's status. */
+function db_get_sheet_identity_sheets(PDO $pdo, array $sheet): array {
+    return db_get_identity_sheets($pdo, (int)$sheet['car_id'], (int)$sheet['season'],
+        (string)($sheet['discipline'] ?? DISCIPLINE_SUMMER), $sheet['club'] ?? null);
+}
+
+/** Every tech sheet in a season of one discipline (used to derive each car's status on a roster). */
+function db_get_season_sheets(PDO $pdo, int $season, string $discipline = DISCIPLINE_SUMMER): array {
+    $stmt = $pdo->prepare("SELECT * FROM tech_sheets WHERE season = :s AND discipline = :d ORDER BY id ASC");
+    $stmt->execute([':s' => $season, ':d' => $discipline]);
     return $stmt->fetchAll();
 }
 

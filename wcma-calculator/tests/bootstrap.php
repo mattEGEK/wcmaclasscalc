@@ -52,3 +52,13 @@ function test_make_sheet(PDO $pdo, int $userId, int $subId, int $eventId, string
         'car_weight' => 2200, 'checklist_json' => '{}', 'driver1_equipment_json' => '{}', 'log_book_turned_in' => 1,
     ]);
 }
+
+/** A submitted ice tech sheet (no declaration) for car $carId at ice event $eventId. */
+function test_make_ice_sheet(PDO $pdo, int $userId, int $carId, int $eventId, string $class = 'LS'): int {
+    return db_insert_tech_sheet($pdo, [
+        'car_id' => $carId, 'user_id' => $userId, 'event_id' => $eventId, 'sheet_type' => 'ice',
+        'entrant_name' => 'Test Driver', 'driver_name' => 'Test Driver', 'car_make' => 'Honda', 'car_model' => 'Civic',
+        'car_colour' => 'Blue', 'car_number' => '7', 'class' => $class, 'engine_cc' => '1600', 'engine_hp' => '110',
+        'car_weight' => 2300, 'checklist_json' => '{}', 'driver1_equipment_json' => '{}', 'log_book_turned_in' => 1,
+    ]);
+}
