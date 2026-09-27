@@ -27,7 +27,9 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
         'subjectType' => 'gear_record', 'subjectId' => $id, 'csrf' => $csrf, 'locked' => $locked,
         'requirements' => $clientRequirements, 'photos' => (object)$clientPhotos, 'applicable' => $snapshot['applicable'],
     ];
-    $driverLine = $gear['driver_name'] . ' — ' . ((($gear['discipline'] ?? 'summer') === 'ice') ? 'Ice ' : '') . (int)$gear['season'];
+    $isIce = ($gear['discipline'] ?? 'summer') === 'ice';
+    $driverLine = $gear['driver_name'] . ' — ' . ($isIce ? 'Ice ' : '') . (int)$gear['season'];
+    $backLink = $isIce ? '<a href="garage.php">← Back to Garage</a>' : '<a href="drivers.php">← Back to Drivers</a>';
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -42,7 +44,7 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
 </head>
 <body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Gear pre-tech', '<a href="drivers.php">← Back to Drivers</a>', 'drivers'); ?>
+  <?php renderSiteHeader('Gear pre-tech', $backLink, $isIce ? 'garage' : 'drivers'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
 
   <div class="detail-card">

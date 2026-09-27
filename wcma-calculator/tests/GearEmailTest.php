@@ -11,6 +11,15 @@ final class GearEmailTest extends TestCase
         return array_merge(['id' => 4, 'owner_user_id' => 1, 'driver_name' => 'Jane <Racer>', 'season' => 2026], $o);
     }
 
+    public function testDriverLineSaysIceForIceGearAndStaysPlainForSummer(): void
+    {
+        $ice = ['id' => 4, 'owner_user_id' => 1, 'driver_name' => 'Jane', 'season' => 2027, 'discipline' => DISCIPLINE_ICE];
+        $this->assertSame('Jane — Ice 2027', gearEmailDriverLine($ice));
+
+        $summer = ['id' => 4, 'owner_user_id' => 1, 'driver_name' => 'Jane', 'season' => 2026];
+        $this->assertSame('Jane — 2026', gearEmailDriverLine($summer));
+    }
+
     public function testSubmittedEmailsForClubAndOwner(): void
     {
         $club = gearEmailSubmitted($this->gear(), 'https://x.test/inspect.php?action=gear-record&id=4', 'https://x.test/gear.php?action=pretech&id=4', 5, true);

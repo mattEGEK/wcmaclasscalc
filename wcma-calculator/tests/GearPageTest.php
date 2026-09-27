@@ -133,4 +133,19 @@ final class GearPageTest extends TestCase
         $this->assertStringNotContainsString('data-key="helmet_label"', $html);
         $this->assertStringContainsString('Sam — Ice 2027', $html);
     }
+
+    public function testIceGearRecordLinksBackToTheGarageNotDrivers(): void
+    {
+        $html = $this->renderPretech($this->gear(['discipline' => 'ice', 'season' => 2027]), $this->snapshot());
+        $this->assertStringContainsString('href="garage.php"', $html);
+        $this->assertStringContainsString('Back to Garage', $html);
+        $this->assertStringNotContainsString('Back to Drivers', $html);
+    }
+
+    public function testSummerGearRecordStillLinksBackToDrivers(): void
+    {
+        $html = $this->renderPretech($this->gear(), $this->snapshot());
+        $this->assertStringContainsString('href="drivers.php"', $html);
+        $this->assertStringContainsString('Back to Drivers', $html);
+    }
 }

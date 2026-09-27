@@ -9,7 +9,9 @@ require_once __DIR__ . '/email-copy.php';
 require_once __DIR__ . '/ice-rules.php';       // ICE_GEAR_LEVEL_LABELS
 
 function gearEmailDriverLine(array $gear): string {
-    return $gear['driver_name'] . ' — ' . (int)($gear['season'] ?? date('Y'));
+    $season = (int)($gear['season'] ?? date('Y'));
+    $isIce = ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
+    return $gear['driver_name'] . ' — ' . ($isIce ? 'Ice ' : '') . $season;
 }
 
 /** @return array{subject: string, html: string, text: string} */
