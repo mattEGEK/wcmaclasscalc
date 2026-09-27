@@ -1882,6 +1882,10 @@ function db_rebuild_table(PDO $pdo, string $table, string $markerColumn, string 
         $pdo->exec("DROP TABLE IF EXISTS $tmp");
         $pdo->exec(str_replace('{table}', $tmp, $createSql));
         $new = array_column($pdo->query("PRAGMA table_info($tmp)")->fetchAll(), 'name');
+        $missing = array_diff($old, $new);
+        if (!empty($missing)) {
+            throw new RuntimeException('db_rebuild_table would drop column(s): ' . implode(', ', $missing));
+        }
         $cols = implode(', ', array_values(array_intersect($old, $new)));
         $pdo->exec("INSERT INTO $tmp ($cols) SELECT $cols FROM $table");
         $pdo->exec("DROP TABLE $table");

@@ -51,4 +51,26 @@ final class DbRebuildTableTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         db_rebuild_table($this->pdo(), 'things; DROP', 'flavour', self::SQL);
     }
+
+    public function testRebuildNeverSilentlyDropsAColumn(): void
+    {
+        $pdo = $this->pdo();
+        // The live table has an extra column ("legacy_note") that the new schema doesn't carry.
+        $pdo->exec("ALTER TABLE things ADD COLUMN legacy_note TEXT");
+        $pdo->exec("UPDATE things SET legacy_note = 'keep me'");
+
+        try {
+            db_rebuild_table($pdo, 'things', 'flavour', self::SQL);
+            $this->fail('Expected a RuntimeException for the dropped column');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('legacy_note', $e->getMessage());
+        }
+
+        // Rolled back: the live table (schema and rows) is untouched.
+        $this->assertTrue(db_has_column($pdo, 'things', 'legacy_note'));
+        $this->assertFalse(db_has_column($pdo, 'things', 'flavour'));
+        $rows = $pdo->query("SELECT id, name, legacy_note FROM things ORDER BY id")->fetchAll();
+        $this->assertSame([['id' => 1, 'name' => 'a', 'legacy_note' => 'keep me'], ['id' => 2, 'name' => 'b', 'legacy_note' => 'keep me']], $rows);
+        $this->assertFalse($pdo->query("SELECT name FROM sqlite_master WHERE type='table' AND name='things__rebuild'")->fetchColumn());
+    }
 }
