@@ -16,4 +16,13 @@ final class MediaSourceTest extends TestCase
         $this->assertStringContainsString("'is_media' => (int)(\$_SESSION['user_is_media'] ?? 0)", $src);
         $this->assertStringContainsString("\$_SESSION['user_is_media'] = (int)(\$user['is_media'] ?? 0);", $src);
     }
+
+    public function testAdminCanSetTheMediaFlagByCsrfCheckedPost(): void
+    {
+        $src = $this->src('admin.php');
+        $this->assertMatchesRegularExpression("/case 'set-media':\s*adminRequirePost\('admin.php\?action=users'\);\s*handleSetMedia\(\\\$pdo, \\\$postId, \(\\\$_POST\['is_media'\] \?\? ''\) === '1'\);/", $src);
+        $this->assertStringContainsString('function handleSetMedia(PDO $pdo, int $id, bool $on): void', $src);
+        $this->assertStringContainsString('action="admin.php?action=set-media"', $src);
+        $this->assertStringContainsString('name="is_media" value="1"', $src);
+    }
 }
