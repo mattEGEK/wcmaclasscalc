@@ -79,6 +79,7 @@ final class MediaSourceTest extends TestCase
         $this->assertStringContainsString("case 'media-prompt-dismiss':", $index);
         $this->assertStringContainsString('db_dismiss_media_prompt($pdo, $uid);', $index);
         $this->assertStringContainsString("'mediaPrompt' =>", $index);
+        $this->assertStringContainsString('$mediaPrompt = mediaHomePrompt($mediaInvite, $managedDrivers,', $index);
         $drivers = $this->src('drivers.php');
         $this->assertStringContainsString('db_get_media_bundle($pdo, array_map(fn(array $d): int => (int)$d[\'id\'], $drivers))', $drivers);
         $profile = $this->src('media-profile.php');

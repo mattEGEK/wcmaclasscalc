@@ -90,7 +90,17 @@ function homeRenderTagForm(array $event, array $cars, string $csrf, bool $offerR
 }
 
 /** One-time invitation to add a media profile (spec 2026-09-27 §3). Not part of readiness. */
-function homeMediaPromptHtml(string $csrf): string {
+function homeMediaPromptHtml(string $csrf, array $prompt = ['kind' => 'invite']): string {
+    if ($prompt['kind'] === 'attention') {
+        $labels = ['sent_back' => 'Public page sent back', 'hidden' => 'Hidden by WCMA'];
+        $out = '<div class="hub-card media-prompt"><h2>Media profile needs attention</h2>';
+        foreach ($prompt['items'] as $i) {
+            $out .= '<p><strong>' . h($i['name']) . '</strong> · ' . h($labels[$i['state']] ?? '')
+                . ($i['note'] !== '' ? ': ' . h($i['note']) : '') . '</p>'
+                . '<p><a class="hub-btn" href="media-profile.php?driver_id=' . (int)$i['driverId'] . '">Fix profile</a></p>';
+        }
+        return $out . '</div>';
+    }
     return '<div class="hub-card media-prompt"><h2>Clubs would like to feature you</h2>'
         . '<p>Add a photo and a line about yourself. Announcers read it out at events, and clubs use it to promote racing. You choose whether it goes on a public page.</p>'
         . '<p><a class="hub-btn" href="media-profile.php?driver_id=self">Add profile</a></p>'
@@ -206,7 +216,9 @@ function renderHomeHtml(array $vm): string
         $out .= '<p class="form-hint">' . EVENTS_NOT_REGISTERING . '</p>';
     }
 
-    if (!empty($vm['mediaPrompt'])) $out .= homeMediaPromptHtml($csrf);
+    if (!empty($vm['mediaPrompt'])) {
+        $out .= homeMediaPromptHtml($csrf, is_array($vm['mediaPrompt']) ? $vm['mediaPrompt'] : ['kind' => 'invite']);
+    }
 
     // At a glance
     $out .= '<h2>At a glance</h2><div class="hub-grid-2">';

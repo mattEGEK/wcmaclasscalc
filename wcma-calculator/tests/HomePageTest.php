@@ -77,6 +77,29 @@ final class HomePageTest extends TestCase
         $this->assertStringContainsString('name="csrf_token" value="tok"', $html);
     }
 
+    public function testMediaPromptInAttentionModeShowsEachDriverNoteAndNoDismiss(): void
+    {
+        $html = homeMediaPromptHtml('tok', ['kind' => 'attention', 'items' => [
+            ['driverId' => 5, 'name' => 'Jordan <Lee>', 'state' => 'sent_back', 'note' => 'Brighter <photo> please'],
+            ['driverId' => 6, 'name' => 'Sam Patel', 'state' => 'hidden', 'note' => 'Sponsor dispute'],
+        ]]);
+        $this->assertStringContainsString('media-prompt', $html);
+        $this->assertStringContainsString('Jordan &lt;Lee&gt;', $html);
+        $this->assertStringContainsString('Brighter &lt;photo&gt; please', $html);
+        $this->assertStringContainsString('Public page sent back', $html);
+        $this->assertStringContainsString('Hidden by WCMA', $html);
+        $this->assertStringContainsString('Sponsor dispute', $html);
+        $this->assertStringContainsString('href="media-profile.php?driver_id=5">Fix profile</a>', $html);
+        $this->assertStringContainsString('href="media-profile.php?driver_id=6">Fix profile</a>', $html);
+        $this->assertStringNotContainsString('media-prompt-dismiss', $html);
+        $this->assertStringNotContainsString('Clubs would like to feature you', $html);
+        $this->assertStringNotContainsString('approv', strtolower($html));
+
+        $home = renderHomeHtml($this->vm(['mediaPrompt' => ['kind' => 'attention', 'items' => [
+            ['driverId' => 5, 'name' => 'Jordan Lee', 'state' => 'sent_back', 'note' => 'x']]]]));
+        $this->assertLessThan(strpos($home, '<h2>At a glance</h2>'), strpos($home, 'Fix profile'));
+    }
+
     public function testSeasonLinksAreEscapedAndOmittedWhenEmpty(): void
     {
         $html = renderHomeHtml($this->vm());

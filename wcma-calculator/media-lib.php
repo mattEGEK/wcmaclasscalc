@@ -152,6 +152,29 @@ function mediaProfileStatus(?array $profile, ?array $consent): array {
 }
 
 /**
+ * What the Home media card shows, using the same states as the Drivers page. Any managed driver
+ * whose public page was sent back or who was hidden by WCMA comes first ('attention', no dismiss);
+ * otherwise the one-time invitation when $inviteEligible; otherwise nothing.
+ *
+ * @param array $drivers driver rows (id, name) the account manages
+ * @param array $bundles driver id => db_get_media_bundle() entry
+ * @return ?array{kind: string, items?: array}
+ */
+function mediaHomePrompt(bool $inviteEligible, array $drivers, array $bundles): ?array {
+    $items = [];
+    foreach ($drivers as $d) {
+        $b = $bundles[(int)$d['id']] ?? null;
+        if ($b === null) continue;
+        $state = mediaProfileStatus($b['profile'], $b['consent'])['state'];
+        if ($state !== 'sent_back' && $state !== 'hidden') continue;
+        $note = $state === 'hidden' ? ($b['profile']['hidden_reason'] ?? '') : ($b['profile']['public_note'] ?? '');
+        $items[] = ['driverId' => (int)$d['id'], 'name' => (string)$d['name'], 'state' => $state, 'note' => (string)$note];
+    }
+    if ($items) return ['kind' => 'attention', 'items' => $items];
+    return $inviteEligible ? ['kind' => 'invite'] : null;
+}
+
+/**
  * The drivers to show for one roster car: this event's sheets for the car, else the car's latest
  * sheet, else the car owner's own profile. Sheets carry driver 1 in driver_id; $sheetDrivers maps
  * sheet id => tech_sheet_drivers rows (additional drivers). @return int[]

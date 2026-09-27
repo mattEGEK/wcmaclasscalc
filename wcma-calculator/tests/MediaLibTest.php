@@ -16,6 +16,26 @@ final class MediaLibTest extends TestCase
             'hidden_at' => null, 'public_note' => null], $o);
     }
 
+    public function testHomePromptPrefersAttentionThenInvite(): void
+    {
+        $consent = $this->consentRow(1, 1);
+        $drivers = [['id' => 5, 'name' => 'Jordan Lee'], ['id' => 6, 'name' => 'Sam Patel'], ['id' => 7, 'name' => 'Ok Driver']];
+        $bundles = [
+            5 => ['profile' => $this->profile(['public_status' => 'sent_back', 'public_note' => 'Brighter photo']), 'consent' => $consent, 'sponsors' => []],
+            6 => ['profile' => $this->profile(['hidden_at' => '2026-09-27 10:00:00', 'hidden_reason' => 'Dispute']), 'consent' => $consent, 'sponsors' => []],
+            7 => ['profile' => $this->profile(['public_status' => 'accepted']), 'consent' => $consent, 'sponsors' => []],
+        ];
+        $this->assertSame(['kind' => 'attention', 'items' => [
+            ['driverId' => 5, 'name' => 'Jordan Lee', 'state' => 'sent_back', 'note' => 'Brighter photo'],
+            ['driverId' => 6, 'name' => 'Sam Patel', 'state' => 'hidden', 'note' => 'Dispute'],
+        ]], mediaHomePrompt(true, $drivers, $bundles));   // attention wins over the invite
+
+        $calm = [7 => $bundles[7]];
+        $this->assertSame(['kind' => 'invite'], mediaHomePrompt(true, $drivers, $calm));
+        $this->assertNull(mediaHomePrompt(false, $drivers, $calm));
+        $this->assertNull(mediaHomePrompt(false, [], []));
+    }
+
     public function testMediaCanAccess(): void
     {
         $this->assertFalse(mediaCanAccess(null));

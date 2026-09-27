@@ -73,8 +73,12 @@ $userRow = db_find_user_by_id($pdo, $uid);
 $selfDriver = db_get_self_driver($pdo, $uid);
 // Only offer the prompt when the driver has never made a media consent choice at all: once they
 // withdraw, that withdrawal is a deliberate choice (a consent row with media off), not "not set up".
-$mediaPrompt = $selfDriver !== null && (int)($userRow['media_prompt_dismissed'] ?? 0) === 0
+$mediaInvite = $selfDriver !== null && (int)($userRow['media_prompt_dismissed'] ?? 0) === 0
     && db_get_latest_media_consent($pdo, (int)$selfDriver['id']) === null;
+// Sent back / hidden profiles for any driver this account manages take over the same card.
+$managedDrivers = db_get_user_drivers($pdo, $uid);
+$mediaPrompt = mediaHomePrompt($mediaInvite, $managedDrivers,
+    db_get_media_bundle($pdo, array_map(fn(array $d): int => (int)$d['id'], $managedDrivers)));
 
 renderPageStart('Home', 'home', ['flash' => getFlash()]);
 echo renderHomeHtml([
