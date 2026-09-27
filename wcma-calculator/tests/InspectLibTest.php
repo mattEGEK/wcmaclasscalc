@@ -159,4 +159,18 @@ final class InspectLibTest extends TestCase
         $this->assertSame('inspect.php?action=classing&q=honda+civic&class=GT3&page=3', inspectClassingQuery($f, ['page' => 3]));
         $this->assertSame('inspect.php?action=classing', inspectClassingQuery(inspectClassingFilters([])));
     }
+
+    public function testReviewQueueMarksIcePhotoSets(): void
+    {
+        $sheet = ['id' => 9, 'car_number' => '7', 'car_make' => 'Honda', 'car_model' => 'Civic', 'entrant_name' => 'Sam',
+                  'event_name' => 'NASCC Ice #1', 'updated_at' => '2026-12-01 10:00:00',
+                  'discipline' => 'ice', 'club' => 'NASCC', 'class' => 'LS'];
+        $gear = ['id' => 4, 'driver_name' => 'Sam', 'owner_name' => 'Jordan', 'season' => 2027, 'updated_at' => '2026-12-02 10:00:00', 'discipline' => 'ice'];
+        $items = inspectReviewQueue([], [$sheet], [$gear]);
+        $this->assertSame('Sam · NASCC Ice #1 · Ice · LS — Limited Stud (NASCC)', $items[0]['detail']);
+        $this->assertSame('Entered by Jordan · Ice 2027', $items[1]['detail']);
+
+        $summer = inspectReviewQueue([], [['discipline' => 'summer', 'club' => null, 'class' => 'IT1'] + $sheet], []);
+        $this->assertSame('Sam · NASCC Ice #1', $summer[0]['detail']);
+    }
 }
