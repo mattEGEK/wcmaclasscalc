@@ -19,6 +19,8 @@ final class IceMigrationTest extends TestCase
         $before = techCarStatus($pdo->query("SELECT * FROM tech_sheets")->fetchAll());
         db_init($pdo);
         db_init($pdo);
+        // Insert driver 5 so the migrated gear_record can be accessed through db_get_gear_record_for_driver (which JOINs drivers)
+        $pdo->exec("INSERT INTO drivers (id, owner_user_id, name, name_norm, created_at, updated_at) VALUES (5, 1, 'Test Driver', 'test driver', '2026-05-10', '2026-05-10')");
 
         foreach (['tech_sheets', 'gear_records', 'at_track_choices', 'events'] as $table) {
             $this->assertSame(1, (int)$pdo->query("SELECT COUNT(*) FROM $table")->fetchColumn(), $table);
@@ -26,8 +28,7 @@ final class IceMigrationTest extends TestCase
         }
         $this->assertSame($before, techCarStatus(db_get_identity_sheets($pdo, 3, 2026)));
         $this->assertSame(['driver:5@2026'], db_get_at_track_keys($pdo, [], [5], 2026));
-        // Skip checking gear_record with driver JOIN since orphaned driver_id refs don't have matching drivers
-        $this->assertEqualsCanonicalizing([1], array_column($pdo->query("SELECT * FROM gear_records")->fetchAll(), 'id'));
+        $this->assertNotNull(db_get_gear_record_for_driver($pdo, 5, 2026));
         foreach (['tech_sheets__rebuild', 'gear_records__rebuild', 'at_track_choices__rebuild'] as $tmp) {
             $this->assertFalse(db_has_column($pdo, $tmp, 'id'), "$tmp left behind");
         }
