@@ -4,7 +4,9 @@
 // Markup for the Garage (spec §4): the car list, Add a car, the car page and a class declaration.
 // Pure view functions: no DB, no session, no echo. Callers must have loaded view_helpers.php (h()),
 // cars-lib.php, events-lib.php (EVENTS_NOT_REGISTERING), home-page.php (homeStatusClass()),
-// gear-chips.php (renderGearChips()) and reminders-lib.php (reminderOptInFieldsHtml()).
+// gear-chips.php (renderGearChips()), reminders-lib.php (reminderOptInFieldsHtml()) and
+// ice-sheet-lib.php (techSheetClassLine()).
+require_once __DIR__ . '/ice-sheet-lib.php';
 
 function garageCsrfField(string $csrf): string {
     return '<input type="hidden" name="csrf_token" value="' . h($csrf) . '">';
@@ -231,6 +233,28 @@ function renderGarageCarHtml(array $vm): string {
         $out .= '</ul>';
     }
     $out .= '</section>';
+
+    // Ice racing
+    if (!empty($vm['ice'])) {
+        $out .= '<section class="hub-card"><h2>Ice racing</h2>';
+        foreach ($vm['ice'] as $row) {
+            $e = $row['event'];
+            $sheet = $row['sheet'];
+            $when = $e['event_date'] !== '' ? ' ' . h(date('M j', strtotime((string)$e['event_date']))) : '';
+            $out .= '<div class="garage-event"><div><strong>' . h((string)$e['name']) . '</strong>' . $when
+                . ' · ' . h((string)$e['host_club']) . '</div>';
+            if ($sheet !== null) {
+                $accepted = ($sheet['status'] ?? '') === 'teched';
+                $out .= '<span class="hub-status ' . ($accepted ? 'hub-status--ok">Accepted' : 'hub-status--info">Submitted') . '</span> '
+                    . h(techSheetClassLine($sheet)) . ' <a href="tech-sheets.php?action=view&amp;id=' . (int)$sheet['id'] . '">View</a>';
+            } elseif (!$archived && empty($row['past'])) {
+                $out .= '<span class="hub-status hub-status--todo">No ice tech sheet yet</span> '
+                    . '<a class="hub-btn" href="tech-sheets.php?action=new-ice&amp;car_id=' . $id . '&amp;event_id=' . (int)$e['id'] . '">Submit ice tech sheet</a>';
+            }
+            $out .= '</div>';
+        }
+        $out .= '</section>';
+    }
 
     if (!$archived) {
         $out .= '<section class="hub-card"><h2>Archive</h2><p>Archiving hides the car from Home and the tech sheet form. Its history is kept.</p>'

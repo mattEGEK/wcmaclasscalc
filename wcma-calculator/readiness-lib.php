@@ -143,7 +143,8 @@ function loadReadinessInputs(PDO $pdo, int $userId, string $today): array {
     $cars = [];
     foreach (db_get_user_cars($pdo, $userId) as $c) $cars[(int)$c['id']] = $c;
 
-    $sheets = db_get_user_tech_sheets($pdo, $userId);
+    // Summer readiness only (ice readiness is Phase 4): an ice sheet must never count as summer car tech.
+    $sheets = array_values(array_filter(db_get_user_tech_sheets($pdo, $userId), fn(array $s): bool => ($s['discipline'] ?? 'summer') !== 'ice'));
     $sheetDrivers = [];
     foreach (db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $sheets)) as $sheetId => $rows) {
         $sheetDrivers[(int)$sheetId] = array_values(array_filter(array_map(fn(array $r): int => (int)($r['driver_id'] ?? 0), $rows)));

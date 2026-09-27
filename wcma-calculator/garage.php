@@ -11,6 +11,7 @@ require __DIR__ . '/reminders-lib.php';
 require __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-chips.php';
 require __DIR__ . '/garage-lib.php';
+require __DIR__ . '/ice-sheet-lib.php';
 require __DIR__ . '/home-page.php';
 require __DIR__ . '/garage-page.php';
 
@@ -55,7 +56,7 @@ function garageShowList(PDO $pdo, int $uid): void {
     $all = db_get_user_cars($pdo, $uid, true);
     $active = array_values(array_filter($all, fn(array $c): bool => $c['archived_at'] === null));
     $archived = array_values(array_filter($all, fn(array $c): bool => $c['archived_at'] !== null));
-    $sheets = db_get_user_tech_sheets($pdo, $uid);
+    $sheets = garageSummerSheets(db_get_user_tech_sheets($pdo, $uid));
     $tagged = [];
     foreach (db_get_user_event_plans($pdo, $uid) as $p) $tagged[(int)$p['car_id']][] = (int)$p['event_id'];
     $events = db_get_active_events($pdo, DISCIPLINE_SUMMER);
@@ -92,7 +93,8 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
     if ($car === null) { setFlash('Car not found.', 'error'); header('Location: garage.php'); exit; }
 
     $season = gearSeasonNow();
-    $sheets = array_values(array_filter(db_get_user_tech_sheets($pdo, $uid), fn(array $s): bool => (int)$s['car_id'] === $carId));
+    $allSheets = array_values(array_filter(db_get_user_tech_sheets($pdo, $uid), fn(array $s): bool => (int)$s['car_id'] === $carId));
+    $sheets = garageSummerSheets($allSheets);
     $tagged = [];
     foreach (db_get_user_event_plans($pdo, $uid) as $p) {
         if ((int)$p['car_id'] === $carId) $tagged[] = (int)$p['event_id'];
@@ -120,6 +122,7 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         'techAction' => garageTechPhotosAction($seasonSheets, $status),
         'events' => $events, 'csrf' => generateCsrfToken(), 'detailsForm' => $detailsForm,
         'offerReminders' => remindersShouldOffer(db_find_user_by_id($pdo, $uid)),
+        'ice' => garageIceRows($allSheets, db_get_active_events($pdo, DISCIPLINE_ICE)),
     ]);
     renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script>']);
 }

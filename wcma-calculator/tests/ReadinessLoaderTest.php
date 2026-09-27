@@ -62,4 +62,17 @@ final class ReadinessLoaderTest extends TestCase
         $this->assertSame([], $result['events']);
         $this->assertSame([], $result['untagged']);
     }
+
+    public function testLoaderKeepsOnlySummerSheets(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = db_create_user($pdo, ['email' => 'both@example.com', 'name' => 'Both Seasons', 'password_hash' => 'x', 'google_id' => null]);
+        $car = test_make_car($pdo, $u, '7');
+        $ice = db_create_event($pdo, 'NASCC Ice #1', '2027-01-10', null, 'ice', 'NASCC');
+        $sheet = test_make_ice_sheet($pdo, $u, $car, $ice);
+        db_accept_tech_sheet_in_person($pdo, $sheet, $u, 'uploads/sig.png');
+
+        $in = loadReadinessInputs($pdo, $u, '2026-09-26');
+        $this->assertSame([], $in['sheets']);
+    }
 }

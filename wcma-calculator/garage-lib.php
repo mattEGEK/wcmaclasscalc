@@ -102,3 +102,33 @@ function garageTechPhotosAction(array $seasonSheets, array $status): ?array {
     $latest = max(array_map(fn(array $s): int => (int)$s['id'], $seasonSheets));
     return ['label' => $status['state'] === 'photos_draft' ? 'Continue photos' : 'Add photos', 'url' => $url($latest)];
 }
+
+/** The summer sheets among $sheets: summer car tech, events and history never count ice sheets. */
+function garageSummerSheets(array $sheets): array {
+    return array_values(array_filter($sheets, fn(array $s): bool => ($s['discipline'] ?? 'summer') !== 'ice'));
+}
+
+/**
+ * The car's "Ice racing" rows: each active ice event with the car's newest ice sheet for it, then
+ * the car's ice sheets for events no longer open ('past' => true).
+ *
+ * @return array<int, array{event: array, sheet: ?array, past: bool}>
+ */
+function garageIceRows(array $carSheets, array $iceEvents): array {
+    $newest = [];
+    foreach ($carSheets as $s) {
+        if (($s['discipline'] ?? 'summer') !== 'ice') continue;
+        $eid = (int)$s['event_id'];
+        if (!isset($newest[$eid]) || (int)$s['id'] > (int)$newest[$eid]['id']) $newest[$eid] = $s;
+    }
+    $rows = [];
+    foreach ($iceEvents as $e) {
+        $rows[] = ['event' => $e, 'sheet' => $newest[(int)$e['id']] ?? null, 'past' => false];
+        unset($newest[(int)$e['id']]);
+    }
+    foreach ($newest as $eid => $s) {
+        $rows[] = ['event' => ['id' => $eid, 'name' => (string)($s['event_name'] ?? 'Earlier ice event'), 'event_date' => (string)($s['event_date'] ?? ''), 'host_club' => (string)($s['club'] ?? '')],
+                   'sheet' => $s, 'past' => true];
+    }
+    return $rows;
+}

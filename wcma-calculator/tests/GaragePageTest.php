@@ -10,6 +10,7 @@ require_once __DIR__ . '/../home-page.php';
 require_once __DIR__ . '/../garage-lib.php';
 require_once __DIR__ . '/../garage-page.php';
 require_once __DIR__ . '/../reminders-lib.php';
+require_once __DIR__ . '/../ice-sheet-lib.php';
 
 use PHPUnit\Framework\TestCase;
 
@@ -189,6 +190,35 @@ final class GaragePageTest extends TestCase
     {
         $this->assertStringContainsString('name="offer_reminders" value="1"', renderGarageCarHtml($this->carVm(['offerReminders' => true])));
         $this->assertStringNotContainsString('offer_reminders', renderGarageCarHtml($this->carVm()));
+    }
+
+    public function testCarPageShowsTheIceRacingSection(): void
+    {
+        $html = renderGarageCarHtml($this->carVm(['ice' => [
+            ['event' => ['id' => 20, 'name' => 'NASCC Ice #1', 'event_date' => '2026-12-12', 'host_club' => 'NASCC'], 'sheet' => null, 'past' => false],
+            ['event' => ['id' => 21, 'name' => 'WSCC <Ice>', 'event_date' => '2027-01-04', 'host_club' => 'WSCC'],
+             'sheet' => ['id' => 9, 'discipline' => 'ice', 'club' => 'WSCC', 'class' => 'FOI-STD', 'status' => 'teched'], 'past' => false],
+        ]]));
+        $this->assertStringContainsString('<h2>Ice racing</h2>', $html);
+        $this->assertStringContainsString('href="tech-sheets.php?action=new-ice&amp;car_id=3&amp;event_id=20">Submit ice tech sheet</a>', $html);
+        $this->assertStringContainsString('WSCC &lt;Ice&gt;', $html);
+        $this->assertStringContainsString('FOI-STD — Fire on Ice – Studded (WSCC)', $html);
+        $this->assertStringContainsString('href="tech-sheets.php?action=view&amp;id=9">View</a>', $html);
+        $this->assertStringContainsString('Accepted', $html);
+    }
+
+    public function testNoIceSectionWithoutIceRows(): void
+    {
+        $this->assertStringNotContainsString('Ice racing', renderGarageCarHtml($this->carVm()));
+        $this->assertStringNotContainsString('Ice racing', renderGarageCarHtml($this->carVm(['ice' => []])));
+    }
+
+    public function testArchivedCarShowsIceSheetsButNoSubmitLink(): void
+    {
+        $html = renderGarageCarHtml($this->carVm(['car' => $this->car(['archived_at' => '2026-09-01 00:00:00']), 'ice' => [
+            ['event' => ['id' => 20, 'name' => 'NASCC Ice #1', 'event_date' => '2026-12-12', 'host_club' => 'NASCC'], 'sheet' => null, 'past' => false],
+        ]]));
+        $this->assertStringNotContainsString('action=new-ice', $html);
     }
 
     public function testDeclarationPageShowsTheReviewAndFilesAndGuardsDelete(): void

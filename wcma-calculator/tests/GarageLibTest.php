@@ -89,6 +89,28 @@ final class GarageLibTest extends TestCase
         $this->assertSame('Needs tech at the track', $card['techLabel']);
     }
 
+    public function testSummerSheetsExcludeIce(): void
+    {
+        $sheets = [['id' => 1, 'discipline' => 'summer'], ['id' => 2, 'discipline' => 'ice'], ['id' => 3]];
+        $this->assertSame([1, 3], array_map(fn($s) => $s['id'], garageSummerSheets($sheets)));
+    }
+
+    public function testIceRowsPairEachActiveIceEventWithItsNewestSheet(): void
+    {
+        $events = [['id' => 20, 'name' => 'NASCC Ice #1', 'event_date' => '2026-12-12', 'host_club' => 'NASCC'],
+                   ['id' => 21, 'name' => 'WSCC Fire on Ice', 'event_date' => '2027-01-04', 'host_club' => 'WSCC']];
+        $sheets = [['id' => 5, 'event_id' => 20, 'discipline' => 'ice'], ['id' => 7, 'event_id' => 20, 'discipline' => 'ice'],
+                   ['id' => 8, 'event_id' => 30, 'discipline' => 'ice', 'event_name' => 'Old Ice'],
+                   ['id' => 9, 'event_id' => 21, 'discipline' => 'summer']];
+        $rows = garageIceRows($sheets, $events);
+        $this->assertSame(7, $rows[0]['sheet']['id']);
+        $this->assertNull($rows[1]['sheet']);                 // summer sheet on 21 is ignored
+        $this->assertSame(8, $rows[2]['sheet']['id']);
+        $this->assertTrue($rows[2]['past']);
+        $this->assertFalse($rows[0]['past']);
+        $this->assertSame([], garageIceRows([], []));
+    }
+
     public function testTechPhotosAction(): void
     {
         $none = ['state' => 'none', 'via' => null, 'sheet_id' => null];
