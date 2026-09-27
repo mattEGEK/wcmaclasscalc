@@ -254,6 +254,37 @@ final class MediaServiceTest extends TestCase
         $this->assertSame('', $roster[0]['class']);   // no sheet and no accepted declaration
     }
 
+    public function testPublicDirectoryListsOnlyLivePublicProfiles(): void
+    {
+        $pdo = make_temp_pdo();
+        $season = (int)date('Y');
+        $e = db_create_event($pdo, 'Fall Sprint', $season . '-10-11', null);
+        $mk = function (string $email, string $name, string $num, array $consent) use ($pdo, $e): int {
+            $u = $this->user($pdo, $email, $name);
+            $sub = db_insert_submission($pdo, test_declaration_data($pdo, $u, $num));
+            test_make_sheet($pdo, $u, $sub, $e, $num, $name);
+            $d = (int)db_get_self_driver($pdo, $u)['id'];
+            mediaSaveProfile($pdo, $u, $d, ['blurb' => 'Fast.'] + $consent, null, $this->base, 'rename');
+            return $d;
+        };
+        $live = $mk('b@example.com', 'Bea Live', '42', ['consent_media' => '1', 'consent_public' => '1']);
+        $alsoLive = $mk('a@example.com', 'Al Live', '7', ['consent_media' => '1', 'consent_public' => '1']);
+        $pending = $mk('p@example.com', 'Pat Pending', '9', ['consent_media' => '1', 'consent_public' => '1']);
+        $club = $mk('c@example.com', 'Cam Club', '11', ['consent_media' => '1']);
+        db_set_media_public_status($pdo, $live, 'accepted', 1, null);
+        db_set_media_public_status($pdo, $alsoLive, 'accepted', 1, null);
+
+        $this->assertSame([$alsoLive, $live], array_column(mediaPublicDirectory($pdo, 0, $season), 'driver_id'));   // by name
+        $this->assertSame([$alsoLive, $live], array_column(mediaPublicDirectory($pdo, $e, $season), 'driver_id'));  // roster order (#7, #42)
+
+        db_set_media_hidden($pdo, $live, 1, 'Dispute');
+        $this->assertSame([$alsoLive], array_column(mediaPublicDirectory($pdo, 0, $season), 'driver_id'));
+        $this->assertSame([$alsoLive], array_column(mediaPublicDirectory($pdo, $e, $season), 'driver_id'));
+        $u = (int)db_get_driver($pdo, $alsoLive)['owner_user_id'];
+        mediaWithdraw($pdo, $u, $alsoLive);
+        $this->assertSame([], mediaPublicDirectory($pdo, 0, $season));
+    }
+
     public function testKitEntriesListConsentedDriversWithTheirLatestCar(): void
     {
         $pdo = make_temp_pdo();

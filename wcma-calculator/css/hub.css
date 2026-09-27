@@ -289,3 +289,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .media-public { max-width: 42rem; }
 .media-public-photo { width: 100%; max-width: 420px; aspect-ratio: 1; object-fit: cover; border-radius: 12px; }
 .media-public-sponsors { padding-left: 1.2rem; }
+.media-directory { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
+.media-directory-card { display: flex; flex-direction: column; gap: .35rem; height: 100%; color: inherit; text-decoration: none; }
+.media-directory-card img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
+.media-directory-name { font-weight: 700; }

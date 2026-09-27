@@ -18,6 +18,16 @@ final class MediaSourceTest extends TestCase
         }
     }
 
+    public function testPublicDirectoryIsOpenAndLinkedFromLandingAndFooter(): void
+    {
+        $src = $this->src('drivers-public.php');
+        $this->assertStringNotContainsString('require_role', $src);
+        $this->assertStringContainsString('mediaPublicDirectory($pdo, $eventId, $season)', $src);
+        $this->assertStringContainsString('mediaPickerEvents(', $src);
+        $this->assertStringContainsString('href="drivers-public.php"', $this->src('layout.php'));
+        $this->assertStringContainsString('href="drivers-public.php"', $this->src('home-page.php'));
+    }
+
     public function testSessionCarriesTheMediaFlag(): void
     {
         $src = $this->src('session_bootstrap.php');

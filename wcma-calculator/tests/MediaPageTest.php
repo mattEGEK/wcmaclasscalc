@@ -8,6 +8,27 @@ use PHPUnit\Framework\TestCase;
 
 final class MediaPageTest extends TestCase
 {
+    public function testPublicDirectoryCardsLinkToEachPublicPage(): void
+    {
+        $events = [['id' => 3, 'name' => 'Fall <Sprint>', 'event_date' => '2026-10-11']];
+        $html = renderPublicDirectoryHtml(['events' => $events, 'eventId' => 0, 'entries' => [$this->entry()]]);
+        $this->assertStringContainsString('action="drivers-public.php"', $html);
+        $this->assertStringContainsString('<option value="0" selected>All drivers</option>', $html);
+        $this->assertStringContainsString('Fall &lt;Sprint&gt;', $html);
+        $this->assertStringContainsString('href="driver.php?id=5"', $html);
+        $this->assertStringContainsString('src="media-photo.php?driver_id=5"', $html);
+        $this->assertStringContainsString('Jane &lt;Doe&gt;', $html);
+        $this->assertStringContainsString('#42', $html);
+        $this->assertStringNotContainsString('Loves', $html);   // cards are a teaser; the blurb lives on driver.php
+        $this->assertStringNotContainsString('planning to attend', $html);
+
+        $event = renderPublicDirectoryHtml(['events' => $events, 'eventId' => 3, 'entries' => []]);
+        $this->assertStringContainsString('Drivers planning to attend', $event);
+        $this->assertStringContainsString('<option value="3" selected>', $event);
+        $this->assertStringContainsString('No public driver pages for this event yet.', $event);
+        $this->assertStringContainsString('No public driver pages yet.', renderPublicDirectoryHtml(['events' => [], 'eventId' => 0, 'entries' => []]));
+    }
+
     private function entry(array $o = []): array {
         return array_merge(mediaEntry(['id' => 5, 'name' => 'Jane <Doe>'], ['blurb' => 'Loves <b>hairpins</b>.', 'hometown' => 'Red Deer, AB',
             'racing_since' => 2015, 'photo_path' => 'uploads/media/x.jpg', 'pronunciation' => 'Doh', 'social_handle' => 'janed'],

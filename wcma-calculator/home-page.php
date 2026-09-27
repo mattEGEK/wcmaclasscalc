@@ -278,7 +278,7 @@ function renderLandingHtml(array $seasonLinks): string
     $out .= '<a class="hub-btn" href="calculator.php">Class Calculator</a>';
     $out .= '<a class="hub-btn hub-btn--secondary" href="auth.php?action=login&amp;redirect=index.php">Sign in</a>';
     $out .= '<a class="hub-btn hub-btn--secondary" href="auth.php?action=register&amp;redirect=index.php">Create account</a>';
-    $out .= '</div></section>';
+    $out .= '</div><p><a href="drivers-public.php">Meet the drivers</a></p></section>';
 
     if ($seasonLinks) {
         $out .= '<div class="hub-card"><h3>This season on MotorsportReg</h3>';

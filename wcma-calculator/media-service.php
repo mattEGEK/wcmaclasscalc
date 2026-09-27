@@ -183,6 +183,21 @@ function mediaKitEntries(PDO $pdo, int $eventId, int $season): array {
     return $out;
 }
 
+/**
+ * The public driver list: live public profiles only (public consent, accepted, not hidden). $eventId 0
+ * lists everyone by name; otherwise the drivers on that event's roster (same rules as the Announcer),
+ * in car-number order, each driver once.
+ */
+function mediaPublicDirectory(PDO $pdo, int $eventId, int $season): array {
+    $out = [];
+    foreach (mediaKitEntries($pdo, $eventId, $season) as $e) {
+        if ($e['public_live'] && !isset($out[$e['driver_id']])) $out[$e['driver_id']] = $e;
+    }
+    $out = array_values($out);
+    if ($eventId === 0) usort($out, fn(array $a, array $b): int => strcasecmp($a['name'], $b['name']));
+    return $out;
+}
+
 /** The public-review queue, skipping profiles with no photo and no blurb (nothing for a reviewer
  *  to look at, and nothing that should have reached pending_review in the first place). Each row
  *  carries the profile's updated_at so the review form can pin the version the reviewer saw. */

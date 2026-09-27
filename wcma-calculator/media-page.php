@@ -148,3 +148,32 @@ function renderPublicDriverHtml(array $e): string {
     if ((string)$e['social_handle'] !== '') $out .= '<p>Follow: @' . h((string)$e['social_handle']) . '</p>';
     return $out . '<p class="form-hint">Racing with the Western Canada Motorsport Association.</p></article>';
 }
+
+/** The public driver list: an event picker (All drivers, then events) and a grid of cards linking to driver.php. */
+function renderPublicDirectoryHtml(array $vm): string {
+    $eventId = (int)$vm['eventId'];
+    $out = '<h1>Drivers</h1><form method="get" action="drivers-public.php" class="hub-line media-picker">'
+        . '<label for="dir-event">Show</label><select id="dir-event" name="event">'
+        . '<option value="0"' . ($eventId === 0 ? ' selected' : '') . '>All drivers</option>';
+    foreach ($vm['events'] as $ev) {
+        $out .= '<option value="' . (int)$ev['id'] . '"' . ((int)$ev['id'] === $eventId ? ' selected' : '') . '>'
+            . h($ev['name'] . ' — ' . $ev['event_date']) . '</option>';
+    }
+    $out .= '</select><button type="submit" class="hub-btn hub-btn--secondary">Show</button></form>';
+    if ($eventId !== 0) {
+        $out .= '<p class="hub-intro">Drivers planning to attend. Plans can change, and this isn\'t the official entry list.</p>';
+    }
+    if (!$vm['entries']) {
+        return $out . '<p>' . ($eventId !== 0 ? 'No public driver pages for this event yet.' : 'No public driver pages yet.') . '</p>';
+    }
+    $out .= '<ul class="media-directory">';
+    foreach ($vm['entries'] as $e) {
+        $id = (int)$e['driver_id'];
+        $out .= '<li><a class="hub-card media-directory-card" href="driver.php?id=' . $id . '">'
+            . ($e['has_photo'] ? '<img src="media-photo.php?driver_id=' . $id . '" alt="" loading="lazy">' : '')
+            . '<span class="media-directory-name">' . ($e['number'] !== '' ? '<span class="media-number">#' . h($e['number']) . '</span> ' : '') . h($e['name']) . '</span>'
+            . ($e['car'] !== '' || $e['class'] !== '' ? '<span class="media-car">' . h(trim($e['car'] . ($e['class'] !== '' ? ' · ' . $e['class'] : ''))) . '</span>' : '')
+            . '</a></li>';
+    }
+    return $out . '</ul>';
+}

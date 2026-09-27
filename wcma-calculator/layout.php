@@ -59,6 +59,7 @@ function hubAccountHtml(?array $user): string {
 function hubFooterHtml(): string {
     return '<footer class="hub-footer"><div class="hub-wrap">'
         . '<a href="#" data-feedback-open>Feedback</a>'
+        . '<a href="drivers-public.php">Drivers</a>'
         . '<a href="https://www.wcma.ca/racing/racing-regulations/" target="_blank" rel="noopener">Sporting &amp; Technical Regulations</a>'
         . '<a href="https://www.wcma.ca" target="_blank" rel="noopener">wcma.ca</a>'
         . '</div></footer>';
