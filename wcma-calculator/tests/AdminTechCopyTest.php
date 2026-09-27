@@ -20,4 +20,13 @@ final class AdminTechCopyTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed)\b/i', $card);
         $this->assertDoesNotMatchRegularExpression('/\bsafe\b/i', $card);
     }
+
+    public function testPhotoReviewCardUsesOnlyCurrentPhotos(): void
+    {
+        $source = file_get_contents(__DIR__ . '/../admin-tech-sheets.php');
+        $start = strpos($source, 'function renderPretechReviewCard');
+        $this->assertNotFalse($start, 'renderPretechReviewCard must exist');
+        $card = substr($source, $start, 400);
+        $this->assertStringContainsString('pretechCurrentPhotos(', $card);
+    }
 }

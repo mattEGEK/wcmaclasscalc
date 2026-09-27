@@ -226,6 +226,53 @@ final class PretechLibTest extends TestCase
         $this->assertSame($fall, $mode($spring)['sheet_id']);
     }
 
+    private function addAllRequiredIcePhotos(PDO $pdo, int $sheetId): void {
+        $sheet = db_get_tech_sheet($pdo, $sheetId);
+        foreach (photoRequirementsFor($sheet, 'car') as $key => $def) {
+            if ($def['tier'] === 'required') $this->addPhoto($pdo, $sheetId, $key);
+        }
+    }
+
+    public function testSubmitIgnoresARetakeFlagOnAPhotoThatFellOffTheListAfterAClassChange(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = db_create_user($pdo, ['email' => 'ice-classchange@example.com', 'name' => 'Ice Racer', 'password_hash' => 'x', 'google_id' => null]);
+        $car = test_make_car($pdo, $u, '7');
+        $event = db_create_event($pdo, 'NASCC Ice #1', '2027-01-10', null, 'ice', 'NASCC');
+        $id = test_make_ice_sheet($pdo, $u, $car, $event, 'LS');
+        $this->addAllRequiredIcePhotos($pdo, $id);
+
+        $this->assertTrue(pretechSubmit($pdo, $id)['ok']);
+        $photos = db_get_inspection_photos($pdo, 'tech_sheet', $id);
+        $this->assertArrayHasKey('ice_cage', $photos);
+        $sendBack = pretechSendBack($pdo, $id, ['ice_cage' => 'Cage weld unclear']);
+        $this->assertTrue($sendBack['ok'], (string)$sendBack['error']);
+
+        // Class changes to SS: ice_cage is off the list now, even though it is still flagged for retake.
+        $pdo->prepare("UPDATE tech_sheets SET class = 'SS' WHERE id = :id")->execute([':id' => $id]);
+        $this->addAllRequiredIcePhotos($pdo, $id);
+
+        $r = pretechSubmit($pdo, $id);
+        $this->assertTrue($r['ok'], (string)$r['error']);
+    }
+
+    public function testSendBackSkipsANoteForAnOffListKey(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = db_create_user($pdo, ['email' => 'ice-sendback@example.com', 'name' => 'Ice Racer', 'password_hash' => 'x', 'google_id' => null]);
+        $car = test_make_car($pdo, $u, '7');
+        $event = db_create_event($pdo, 'NASCC Ice #1', '2027-01-10', null, 'ice', 'NASCC');
+        $id = test_make_ice_sheet($pdo, $u, $car, $event, 'LS');
+        $this->addAllRequiredIcePhotos($pdo, $id);
+        $this->assertTrue(pretechSubmit($pdo, $id)['ok']);
+
+        // ice_cage is present but falls off the SS list; a note for it alone must not be a valid send-back.
+        $pdo->prepare("UPDATE tech_sheets SET class = 'SS' WHERE id = :id")->execute([':id' => $id]);
+        $r = pretechSendBack($pdo, $id, ['ice_cage' => 'Cage weld unclear']);
+        $this->assertFalse($r['ok']);
+        $this->assertStringContainsString('at least one photo', $r['error']);
+    }
+
     public function testSheetEditableOnlyWhenSubmittedAndPhotosNotLocked(): void
     {
         foreach ([null, 'draft', 'needs_changes'] as $open) {

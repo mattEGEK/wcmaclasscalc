@@ -29,6 +29,11 @@ function pretechCapText(string $s, int $max): string {
     return function_exists('mb_substr') ? mb_substr($s, 0, $max) : substr($s, 0, $max);
 }
 
+/** The sheet's photos that are on its current requirement list (photos for shots that fell off the list after a class change are ignored). */
+function pretechCurrentPhotos(array $sheet, array $photos): array {
+    return array_intersect_key($photos, photoRequirementsFor($sheet, 'car'));
+}
+
 /** The owner may edit a sheet only while it is unreviewed and its photos are not under or past review. */
 function pretechSheetEditable(array $sheet): bool {
     return ($sheet['status'] ?? '') === 'submitted'
@@ -65,7 +70,7 @@ function pretechSubmit(PDO $pdo, int $sheetId): array {
     if ($missing > 0) {
         return $fail($missing . ' required ' . pretechPlural($missing, 'photo is', 'photos are') . ' still missing.');
     }
-    foreach ($snapshot['photos'] as $row) {
+    foreach (pretechCurrentPhotos($sheet, $snapshot['photos']) as $row) {
         if ($row['file_path'] !== '' && $row['review_status'] === 'retake') {
             return $fail('Please retake the photos the inspector flagged before submitting again.');
         }
@@ -111,9 +116,10 @@ function pretechSendBack(PDO $pdo, int $sheetId, array $notes): array {
     }
 
     $photos = db_get_inspection_photos($pdo, 'tech_sheet', $sheetId);
+    $current = pretechCurrentPhotos($sheet, $photos);
     $retakes = [];
     foreach ($notes as $key => $note) {
-        if (!isset($photos[$key]) || $photos[$key]['file_path'] === '') continue;
+        if (!isset($current[$key]) || $current[$key]['file_path'] === '') continue;
         $note = pretechCapText(trim((string)$note), 500);
         if ($note === '') return $fail('Add a note for every photo you send back.');
         $retakes[$key] = $note;
