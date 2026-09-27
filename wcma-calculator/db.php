@@ -325,6 +325,57 @@ function db_init(PDO $pdo): void {
     ");
 
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_tech_sheets_car ON tech_sheets (car_id, season)");
+
+    // ── Driver media profiles (2026-09-27 spec). Added in place: no reset. ──
+    db_add_column_if_missing($pdo, 'users', 'is_media', 'INTEGER NOT NULL DEFAULT 0');
+    db_add_column_if_missing($pdo, 'users', 'media_prompt_dismissed', 'INTEGER NOT NULL DEFAULT 0');
+
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS driver_media_profiles (
+            id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+            driver_id          INTEGER NOT NULL UNIQUE,
+            blurb              TEXT NOT NULL DEFAULT '',
+            pronunciation      TEXT,
+            hometown           TEXT,
+            racing_since       INTEGER,
+            social_handle      TEXT,
+            photo_path         TEXT,
+            public_status      TEXT NOT NULL DEFAULT 'none',
+            public_reviewed_by INTEGER,
+            public_reviewed_at DATETIME,
+            public_note        TEXT,
+            hidden_at          DATETIME,
+            hidden_by          INTEGER,
+            hidden_reason      TEXT,
+            created_at         DATETIME NOT NULL,
+            updated_at         DATETIME NOT NULL
+        )
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS driver_sponsors (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            driver_id  INTEGER NOT NULL,
+            name       TEXT NOT NULL,
+            url        TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0
+        )
+    ");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_driver_sponsors_driver ON driver_sponsors (driver_id, sort_order)");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS media_consents (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            driver_id        INTEGER NOT NULL,
+            consent_media    INTEGER NOT NULL,
+            consent_public   INTEGER NOT NULL,
+            is_minor         INTEGER NOT NULL DEFAULT 0,
+            guardian_name    TEXT,
+            given_by_user_id INTEGER NOT NULL,
+            on_behalf        INTEGER NOT NULL DEFAULT 0,
+            wording_version  INTEGER NOT NULL,
+            created_at       DATETIME NOT NULL
+        )
+    ");
+    $pdo->exec("CREATE INDEX IF NOT EXISTS idx_media_consents_driver ON media_consents (driver_id, id)");
 }
 
 function db_insert_submission(PDO $pdo, array $data): int {
@@ -1698,4 +1749,157 @@ function db_log_reminder(PDO $pdo, int $userId, int $eventId, int $daysOut): boo
     $stmt = $pdo->prepare("INSERT OR IGNORE INTO reminder_log (user_id, event_id, days_out, sent_at) VALUES (:u, :e, :d, :now)");
     $stmt->execute([':u' => $userId, ':e' => $eventId, ':d' => $daysOut, ':now' => date('Y-m-d H:i:s')]);
     return $stmt->rowCount() === 1;
+}
+
+// ── Schema helper ─────────────────────────────────────────────────────────────
+
+/**
+ * Adds a column to an existing table if it isn't there yet, keeping every row. Safe to call on
+ * each request. Identifiers are checked because SQLite can't bind them. @return bool true if added
+ */
+function db_add_column_if_missing(PDO $pdo, string $table, string $column, string $definition): bool {
+    foreach ([$table, $column] as $ident) {
+        if (!preg_match('/^[a-z_][a-z0-9_]*$/', $ident)) throw new InvalidArgumentException('Unsafe identifier: ' . $ident);
+    }
+    foreach ($pdo->query("PRAGMA table_info($table)")->fetchAll() as $col) {
+        if ($col['name'] === $column) return false;
+    }
+    $pdo->exec("ALTER TABLE $table ADD COLUMN $column $definition");
+    return true;
+}
+
+// ── Media profiles (2026-09-27 spec) ──────────────────────────────────────────
+
+function db_get_media_profile(PDO $pdo, int $driverId): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM driver_media_profiles WHERE driver_id = :d");
+    $stmt->execute([':d' => $driverId]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_save_media_profile(PDO $pdo, int $driverId, array $f): void {
+    $now = date('Y-m-d H:i:s');
+    $params = [
+        ':d' => $driverId, ':b' => (string)$f['blurb'], ':p' => $f['pronunciation'], ':h' => $f['hometown'],
+        ':r' => $f['racing_since'], ':s' => $f['social_handle'], ':photo' => $f['photo_path'],
+        ':st' => (string)$f['public_status'], ':now' => $now,
+    ];
+    $pdo->prepare("
+        INSERT INTO driver_media_profiles (driver_id, blurb, pronunciation, hometown, racing_since, social_handle,
+                                           photo_path, public_status, created_at, updated_at)
+        VALUES (:d, :b, :p, :h, :r, :s, :photo, :st, :now, :now)
+        ON CONFLICT(driver_id) DO UPDATE SET blurb = excluded.blurb, pronunciation = excluded.pronunciation,
+            hometown = excluded.hometown, racing_since = excluded.racing_since, social_handle = excluded.social_handle,
+            photo_path = excluded.photo_path, public_status = excluded.public_status, updated_at = excluded.updated_at
+    ")->execute($params);
+}
+
+function db_set_media_public_status(PDO $pdo, int $driverId, string $status, ?int $reviewerId, ?string $note): void {
+    $pdo->prepare("
+        UPDATE driver_media_profiles
+        SET public_status = :s, public_reviewed_by = :r, public_reviewed_at = :at, public_note = :n
+        WHERE driver_id = :d
+    ")->execute([':s' => $status, ':r' => $reviewerId, ':at' => date('Y-m-d H:i:s'), ':n' => $note, ':d' => $driverId]);
+}
+
+function db_set_media_hidden(PDO $pdo, int $driverId, ?int $byUserId, ?string $reason): void {
+    $pdo->prepare("UPDATE driver_media_profiles SET hidden_at = :at, hidden_by = :b, hidden_reason = :r WHERE driver_id = :d")
+        ->execute([':at' => $byUserId === null ? null : date('Y-m-d H:i:s'), ':b' => $byUserId, ':r' => $reason, ':d' => $driverId]);
+}
+
+/** Removes the profile and sponsors. Consent rows stay: they are the record. */
+function db_delete_media_profile(PDO $pdo, int $driverId): void {
+    $pdo->prepare("DELETE FROM driver_sponsors WHERE driver_id = :d")->execute([':d' => $driverId]);
+    $pdo->prepare("DELETE FROM driver_media_profiles WHERE driver_id = :d")->execute([':d' => $driverId]);
+}
+
+function db_get_sponsors(PDO $pdo, int $driverId): array {
+    $stmt = $pdo->prepare("SELECT * FROM driver_sponsors WHERE driver_id = :d ORDER BY sort_order ASC, id ASC");
+    $stmt->execute([':d' => $driverId]);
+    return $stmt->fetchAll();
+}
+
+/** @param array<int, array{name: string, url: ?string}> $sponsors */
+function db_replace_sponsors(PDO $pdo, int $driverId, array $sponsors): void {
+    $pdo->prepare("DELETE FROM driver_sponsors WHERE driver_id = :d")->execute([':d' => $driverId]);
+    $ins = $pdo->prepare("INSERT INTO driver_sponsors (driver_id, name, url, sort_order) VALUES (:d, :n, :u, :o)");
+    foreach (array_values($sponsors) as $i => $s) {
+        $ins->execute([':d' => $driverId, ':n' => (string)$s['name'], ':u' => $s['url'] ?? null, ':o' => $i]);
+    }
+}
+
+function db_insert_media_consent(PDO $pdo, array $row): int {
+    $pdo->prepare("
+        INSERT INTO media_consents (driver_id, consent_media, consent_public, is_minor, guardian_name,
+                                    given_by_user_id, on_behalf, wording_version, created_at)
+        VALUES (:d, :m, :p, :minor, :g, :by, :ob, :v, :at)
+    ")->execute([
+        ':d' => (int)$row['driver_id'], ':m' => (int)$row['consent_media'], ':p' => (int)$row['consent_public'],
+        ':minor' => (int)$row['is_minor'], ':g' => $row['guardian_name'], ':by' => (int)$row['given_by_user_id'],
+        ':ob' => (int)$row['on_behalf'], ':v' => (int)$row['wording_version'], ':at' => date('Y-m-d H:i:s'),
+    ]);
+    return (int)$pdo->lastInsertId();
+}
+
+function db_get_latest_media_consent(PDO $pdo, int $driverId): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM media_consents WHERE driver_id = :d ORDER BY id DESC LIMIT 1");
+    $stmt->execute([':d' => $driverId]);
+    return $stmt->fetch() ?: null;
+}
+
+/** driver id => ['profile' => ?row, 'consent' => ?row (newest), 'sponsors' => rows]. */
+function db_get_media_bundle(PDO $pdo, array $driverIds): array {
+    $out = [];
+    foreach (array_values(array_unique(array_map('intval', $driverIds))) as $id) {
+        $out[$id] = ['profile' => db_get_media_profile($pdo, $id), 'consent' => db_get_latest_media_consent($pdo, $id),
+                     'sponsors' => db_get_sponsors($pdo, $id)];
+    }
+    return $out;
+}
+
+/** Drivers whose newest consent row allows announcing and club promotion. */
+function db_get_consented_driver_ids(PDO $pdo): array {
+    return array_map('intval', $pdo->query("
+        SELECT c.driver_id FROM media_consents c
+        WHERE c.id = (SELECT MAX(id) FROM media_consents WHERE driver_id = c.driver_id) AND c.consent_media = 1
+        ORDER BY c.driver_id ASC
+    ")->fetchAll(PDO::FETCH_COLUMN));
+}
+
+function db_get_media_review_queue(PDO $pdo): array {
+    return $pdo->query("
+        SELECT p.*, d.name AS driver_name FROM driver_media_profiles p JOIN drivers d ON d.id = p.driver_id
+        WHERE p.public_status = 'pending_review' AND p.hidden_at IS NULL
+        ORDER BY p.updated_at ASC, p.id ASC
+    ")->fetchAll();
+}
+
+function db_search_media_profiles(PDO $pdo, string $q, int $limit = 20): array {
+    $stmt = $pdo->prepare("
+        SELECT p.*, d.name AS driver_name FROM driver_media_profiles p JOIN drivers d ON d.id = p.driver_id
+        WHERE d.name_norm LIKE :q ESCAPE '\\' ORDER BY d.name_norm ASC LIMIT :lim
+    ");
+    $like = '%' . addcslashes(db_driver_name_norm($q), '%_\\') . '%';
+    $stmt->bindValue(':q', $like);
+    $stmt->bindValue(':lim', $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll();
+}
+
+function db_set_user_media(PDO $pdo, int $userId, bool $on): void {
+    $pdo->prepare("UPDATE users SET is_media = :m WHERE id = :id")->execute([':m' => $on ? 1 : 0, ':id' => $userId]);
+}
+
+function db_dismiss_media_prompt(PDO $pdo, int $userId): void {
+    $pdo->prepare("UPDATE users SET media_prompt_dismissed = 1 WHERE id = :id")->execute([':id' => $userId]);
+}
+
+/** The newest sheet in $season where the driver is driver 1 or an additional driver. */
+function db_get_driver_latest_sheet(PDO $pdo, int $driverId, int $season): ?array {
+    $stmt = $pdo->prepare("
+        SELECT * FROM tech_sheets
+        WHERE season = :s AND (driver_id = :d OR id IN (SELECT tech_sheet_id FROM tech_sheet_drivers WHERE driver_id = :d))
+        ORDER BY id DESC LIMIT 1
+    ");
+    $stmt->execute([':s' => $season, ':d' => $driverId]);
+    return $stmt->fetch() ?: null;
 }
