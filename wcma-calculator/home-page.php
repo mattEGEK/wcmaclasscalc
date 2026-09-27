@@ -18,9 +18,9 @@ function homeStatusClass(string $state): string {
     }
 }
 
-/** A status word with its coloured dot. */
-function homeStatusHtml(string $state, string $label): string {
-    return '<span class="hub-status ' . h(homeStatusClass($state)) . '">' . h($label) . '</span>';
+/** A labelled status pill for the At a glance cards: "● Class: With an inspector". */
+function homePillHtml(string $state, string $name, string $label): string {
+    return '<span class="hub-pill hub-status ' . h(homeStatusClass($state)) . '"><span class="hub-pill-k">' . h($name) . ':</span> ' . h($label) . '</span>';
 }
 
 function homePlural(int $n, string $singular, string $plural): string {
@@ -262,11 +262,11 @@ function renderHomeHtml(array $vm): string
             $out .= '<div class="hub-glance-item"><div class="hub-glance-head"><span class="hub-plate hub-plate--sm">' . h((string)$car['car_number']) . '</span>'
                 . '<span class="hub-glance-name">' . h($name) . '</span>'
                 . ($decl !== null ? '<span class="hub-class">' . h((string)$decl['calculated_class']) . '</span>' : '') . '</div>'
-                . '<dl class="hub-glance-facts"><dt>Class</dt><dd>'
+                . '<div class="hub-glance-pills">'
                 . ($decl !== null
-                    ? homeStatusHtml($decl['review_status'], declarationReviewLabel($decl['review_status']))
-                    : homeStatusHtml('none', 'Not declared') . ' <a href="calculator.php?car=' . (int)$car['id'] . '">Declare class</a>')
-                . '</dd><dt>Car tech</dt><dd>' . homeStatusHtml($g['techState'], $g['techLabel']) . '</dd></dl></div>';
+                    ? homePillHtml($decl['review_status'], 'Class', declarationReviewLabel($decl['review_status']))
+                    : homePillHtml('none', 'Class', 'Not declared') . '<a href="calculator.php?car=' . (int)$car['id'] . '">Declare class</a>')
+                . homePillHtml($g['techState'], 'Car tech', $g['techLabel']) . '</div></div>';
         }
         $out .= '<a class="hub-btn hub-btn--secondary" href="garage.php">Open garage &rarr;</a>';
     }
@@ -275,7 +275,7 @@ function renderHomeHtml(array $vm): string
     $out .= '<div class="hub-card"><h3>Drivers</h3>';
     foreach ($vm['drivers'] as $d) {
         $out .= '<div class="hub-glance-item"><div class="hub-glance-head"><span class="hub-glance-name">' . h($d['name']) . ($d['isSelf'] ? ' (you)' : '') . '</span></div>'
-            . '<dl class="hub-glance-facts"><dt>Gear tech</dt><dd>' . homeStatusHtml($d['gearState'], $d['gearLabel']) . '</dd></dl></div>';
+            . '<div class="hub-glance-pills">' . homePillHtml($d['gearState'], 'Gear tech', $d['gearLabel']) . '</div></div>';
     }
     $out .= '<a class="hub-btn hub-btn--secondary" href="drivers.php">Manage drivers &rarr;</a></div>';
     $out .= '</div>';

@@ -141,13 +141,13 @@ final class HomePageTest extends TestCase
             'drivers' => [['name' => 'Jordan <Lee>', 'isSelf' => true, 'gearLabel' => 'Needs gear check at the track', 'gearState' => 'none']],
         ]));
         $this->assertStringContainsString('<span class="hub-plate hub-plate--sm">42</span><span class="hub-glance-name">2004 Honda S2000 &lt;R&gt;</span><span class="hub-class">GT3</span>', $html);
-        $this->assertStringContainsString('<dt>Class</dt><dd><span class="hub-status hub-status--info">With an inspector</span></dd>', $html);
-        $this->assertStringContainsString('<dt>Car tech</dt><dd><span class="hub-status hub-status--warn">Needs tech at the track</span></dd>', $html);
+        $this->assertStringContainsString('<span class="hub-pill hub-status hub-status--info"><span class="hub-pill-k">Class:</span> With an inspector</span>', $html);
+        $this->assertStringContainsString('<span class="hub-pill hub-status hub-status--warn"><span class="hub-pill-k">Car tech:</span> Needs tech at the track</span>', $html);
         $this->assertStringContainsString('<span class="hub-glance-name">Mazda MX-5</span></div>', $html);   // no class badge
-        $this->assertStringContainsString('Not declared</span> <a href="calculator.php?car=4">Declare class</a>', $html);
-        $this->assertStringContainsString('<dt>Car tech</dt><dd><span class="hub-status hub-status--ok">Teched 2099</span></dd>', $html);
+        $this->assertStringContainsString('Class:</span> Not declared</span><a href="calculator.php?car=4">Declare class</a>', $html);
+        $this->assertStringContainsString('<span class="hub-pill hub-status hub-status--ok"><span class="hub-pill-k">Car tech:</span> Teched 2099</span>', $html);
         $this->assertStringContainsString('<span class="hub-glance-name">Jordan &lt;Lee&gt; (you)</span>', $html);
-        $this->assertStringContainsString('<dt>Gear tech</dt><dd><span class="hub-status hub-status--warn">Needs gear check at the track</span></dd>', $html);
+        $this->assertStringContainsString('<span class="hub-pill hub-status hub-status--warn"><span class="hub-pill-k">Gear tech:</span> Needs gear check at the track</span>', $html);
         // The "doesn't register you" rule introduces the event cards instead of trailing after them.
         $this->assertLessThan(strpos($html, '<h3>Fall Sprint</h3>'), strpos($html, EVENTS_NOT_REGISTERING));
         $this->assertGreaterThan(strpos($html, '<h2>Upcoming events</h2>'), strpos($html, EVENTS_NOT_REGISTERING));
