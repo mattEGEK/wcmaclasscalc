@@ -208,7 +208,7 @@
     }
 
     const existingDrivers = window.TECH_SHEET_EXISTING_DRIVERS || [];
-    if (existingDrivers.length > 0) {
+    if (additionalDriversContainer && existingDrivers.length > 0) {
         existingDrivers.forEach(function (d) { addDriverRow(d); });
     }
 
