@@ -28,7 +28,8 @@ final class HubDbToolsTest extends TestCase
         $pdo = make_temp_pdo();
         $summary = hubSeed($pdo, 'password123');
 
-        $this->assertSame(3, $summary['users']);
+        $this->assertSame(4, $summary['users']);
+        $this->assertSame(2, $summary['media_profiles']);
         $admin = db_find_user_by_email($pdo, BOOTSTRAP_ADMIN_EMAIL);
         $this->assertSame('admin', $admin['role']);
         $inspector = db_find_user_by_email($pdo, 'inspector@example.com');
@@ -48,6 +49,11 @@ final class HubDbToolsTest extends TestCase
         $fall = (int)$pdo->query("SELECT id FROM events WHERE name = 'Fall Sprint'")->fetchColumn();
         $this->assertSame(['17', '42'], array_column(db_get_event_roster_cars($pdo, $fall), 'car_number'));
         $this->assertSame(1, $summary['event_plans']);
+
+        $media = db_find_user_by_email($pdo, 'media@example.com');
+        $this->assertSame(1, (int)$media['is_media']);
+        $this->assertSame(1, count(db_get_media_review_queue($pdo)));
+        $this->assertCount(2, db_get_consented_driver_ids($pdo));
     }
 
     /**
