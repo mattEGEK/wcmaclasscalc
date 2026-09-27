@@ -177,3 +177,9 @@ function techDefaultEventId(array $events, string $today): int {
     }
     return (int)(($upcoming ?? $latest)['id'] ?? 0);
 }
+
+/** Key for an "I'll do it at the track" choice. Summer keys keep their original "type:id@season" form. */
+function atTrackKey(string $type, int $id, int $season, string $discipline = DISCIPLINE_SUMMER, string $club = ''): string {
+    if ($discipline !== DISCIPLINE_ICE) return "$type:$id@$season";
+    return $club === '' ? "$type:$id@ice:$season" : "$type:$id@ice:$club:$season";
+}

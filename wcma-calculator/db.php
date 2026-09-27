@@ -95,6 +95,19 @@ const DB_GEAR_RECORDS_SQL = "
         UNIQUE (driver_id, discipline, season)
     )";
 
+/** at_track_choices schema. club is '' (not NULL) so UNIQUE still de-duplicates summer and gear rows. */
+const DB_AT_TRACK_SQL = "
+    CREATE TABLE IF NOT EXISTS {table} (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        subject_type TEXT NOT NULL,
+        subject_id   INTEGER NOT NULL,
+        season       INTEGER NOT NULL,
+        discipline   TEXT NOT NULL DEFAULT 'summer',
+        club         TEXT NOT NULL DEFAULT '',
+        created_at   DATETIME NOT NULL,
+        UNIQUE (subject_type, subject_id, discipline, club, season)
+    )";
+
 function db_init(PDO $pdo): void {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS submissions (
@@ -304,16 +317,8 @@ function db_init(PDO $pdo): void {
         )
     ");
 
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS at_track_choices (
-            id           INTEGER PRIMARY KEY AUTOINCREMENT,
-            subject_type TEXT NOT NULL,
-            subject_id   INTEGER NOT NULL,
-            season       INTEGER NOT NULL,
-            created_at   DATETIME NOT NULL,
-            UNIQUE (subject_type, subject_id, season)
-        )
-    ");
+    $pdo->exec(str_replace('{table}', 'at_track_choices', DB_AT_TRACK_SQL));
+    db_rebuild_table($pdo, 'at_track_choices', 'discipline', DB_AT_TRACK_SQL);
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS season_links (
@@ -722,22 +727,26 @@ function db_get_user_event_plans(PDO $pdo, int $userId): array {
     return $stmt->fetchAll();
 }
 
-function db_set_at_track(PDO $pdo, string $subjectType, int $subjectId, int $season): void {
-    $pdo->prepare("INSERT OR IGNORE INTO at_track_choices (subject_type, subject_id, season, created_at) VALUES (:t, :s, :y, :now)")
-        ->execute([':t' => $subjectType, ':s' => $subjectId, ':y' => $season, ':now' => date('Y-m-d H:i:s')]);
+function db_set_at_track(PDO $pdo, string $subjectType, int $subjectId, int $season,
+                         string $discipline = DISCIPLINE_SUMMER, string $club = ''): void {
+    $pdo->prepare("
+        INSERT OR IGNORE INTO at_track_choices (subject_type, subject_id, season, discipline, club, created_at)
+        VALUES (:t, :s, :y, :d, :c, :now)
+    ")->execute([':t' => $subjectType, ':s' => $subjectId, ':y' => $season, ':d' => $discipline, ':c' => $club,
+                 ':now' => date('Y-m-d H:i:s')]);
 }
 
-/** "car:ID@SEASON" / "driver:ID@SEASON" keys for the given subjects that chose "I'll do it at the track" this season. */
-function db_get_at_track_keys(PDO $pdo, array $carIds, array $driverIds, int $season): array {
+/** atTrackKey() keys for the given subjects that chose "I'll do it at the track" in this season and discipline. */
+function db_get_at_track_keys(PDO $pdo, array $carIds, array $driverIds, int $season, string $discipline = DISCIPLINE_SUMMER): array {
     $keys = [];
-    $stmt = $pdo->prepare("SELECT subject_type, subject_id FROM at_track_choices WHERE season = :y");
-    $stmt->execute([':y' => $season]);
+    $stmt = $pdo->prepare("SELECT subject_type, subject_id, club FROM at_track_choices WHERE season = :y AND discipline = :d");
+    $stmt->execute([':y' => $season, ':d' => $discipline]);
     $cars = array_flip(array_map('intval', $carIds));
     $drivers = array_flip(array_map('intval', $driverIds));
     foreach ($stmt->fetchAll() as $r) {
         $id = (int)$r['subject_id'];
         if (($r['subject_type'] === 'car' && isset($cars[$id])) || ($r['subject_type'] === 'driver' && isset($drivers[$id]))) {
-            $keys[] = $r['subject_type'] . ':' . $id . '@' . $season;
+            $keys[] = atTrackKey($r['subject_type'], $id, $season, $discipline, (string)$r['club']);
         }
     }
     return $keys;
