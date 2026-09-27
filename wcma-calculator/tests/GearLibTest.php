@@ -379,4 +379,33 @@ final class GearLibTest extends TestCase
         $id = (int)gearCreate($pdo, $this->owner($pdo), 'Sam', '', 2027, 'ice')['id'];
         $this->assertSame(['ice_helmet_label', 'ice_suit_label', 'ice_gloves_shoes'], gearSnapshot($pdo, $id)['missing']);
     }
+
+    public function testAcceptingIceGearPhotosNeedsALevel(): void
+    {
+        $pdo = make_temp_pdo();
+        $owner = $this->owner($pdo);
+        $id = (int)gearCreate($pdo, $owner, 'Sam', '', 2027, 'ice')['id'];
+        db_mark_gear_photos_draft($pdo, $id);
+        db_transition_gear_photo_status($pdo, $id, ['draft'], 'submitted');
+
+        $this->assertFalse(gearAcceptByPhotos($pdo, $id, $owner)['ok']);
+        $this->assertFalse(gearAcceptByPhotos($pdo, $id, $owner, 'bogus')['ok']);
+        $this->assertSame('submitted', db_get_gear_record($pdo, $id)['photo_status']);
+
+        $this->assertTrue(gearAcceptByPhotos($pdo, $id, $owner, 'street_safe')['ok']);
+        $g = db_get_gear_record($pdo, $id);
+        $this->assertSame('accepted', $g['status']);
+        $this->assertSame('photos', $g['accepted_via']);
+        $this->assertSame('street_safe', $g['level']);
+    }
+
+    public function testSuggestedLevelComesFromTheHelmetPhoto(): void
+    {
+        $snap = fn(?string $std): array => ['photos' => $std === null ? [] : ['ice_helmet_label' => [
+            'file_path' => 'x.jpg', 'typed_value' => json_encode(['standard' => $std]),
+        ]]];
+        $this->assertSame('caged', gearSuggestedLevel($snap('Snell SA2020')));
+        $this->assertSame('street_safe', gearSuggestedLevel($snap('ECE 22.06')));
+        $this->assertNull(gearSuggestedLevel($snap(null)));
+    }
 }

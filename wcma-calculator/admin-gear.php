@@ -105,14 +105,9 @@ function handleGearAdminRevoke(PDO $pdo, int $id): void {
 }
 
 function handleGearAdminPhotosAccept(PDO $pdo, int $id): void {
-    $gear = db_get_gear_record($pdo, $id);
-    if ($gear !== null && ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) {
-        setFlash('Photo review isn\'t available for ice gear yet.', 'error');
-        header('Location: inspect.php?action=gear-record&id=' . $id);
-        exit;
-    }
     $user = current_user();
-    $r = gearAcceptByPhotos($pdo, $id, (int)$user['id']);
+    $level = is_string($_POST['level'] ?? null) && $_POST['level'] !== '' ? $_POST['level'] : null;
+    $r = gearAcceptByPhotos($pdo, $id, (int)$user['id'], $level);
     if (!$r['ok']) {
         setFlash($r['error'], 'error');
     } else {
@@ -260,6 +255,16 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
     <form method="post" action="inspect.php?action=gear-photos-accept" style="margin-top:.75rem">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
+      <?php if (($gear['discipline'] ?? 'summer') === 'ice'): $suggested = gearSuggestedLevel($snapshot); ?>
+      <label for="gear-photos-level">Gear level</label>
+      <select id="gear-photos-level" name="level" required>
+        <option value="">Choose</option>
+        <?php foreach (ICE_GEAR_LEVEL_LABELS as $value => $label): ?>
+        <option value="<?= h($value) ?>"<?= $value === $suggested ? ' selected' : '' ?>><?= h($label) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <p class="form-hint">Suggested from the helmet standard in the photo. Caged: SA/FIA helmet. Uncaged classes: Snell M2015+ or ECE 22.05/22.06. WSCC Studded also accepts ECE 22.05 made 2015 or later, so choose caged there if the helmet qualifies.</p>
+      <?php endif; ?>
       <button type="submit" class="btn btn-primary" id="gear-accept-btn">Accept photos (pre-teched)</button>
     </form>
     <?php endif; ?>

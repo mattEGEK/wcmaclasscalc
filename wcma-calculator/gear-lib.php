@@ -155,8 +155,13 @@ function gearSubmit(PDO $pdo, int $id): array {
     return ['ok' => true, 'error' => null];
 }
 
-/** Inspector accepts a submitted photo set remotely. @return array{ok: bool, error: ?string} */
-function gearAcceptByPhotos(PDO $pdo, int $id, int $reviewerUserId): array {
+/** Inspector accepts a submitted photo set remotely. Ice records also record the confirmed gear level. @return array{ok: bool, error: ?string} */
+function gearAcceptByPhotos(PDO $pdo, int $id, int $reviewerUserId, ?string $level = null): array {
+    $gear = db_get_gear_record($pdo, $id);
+    $isIce = $gear !== null && ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
+    if ($isIce && !isset(ICE_GEAR_LEVEL_LABELS[(string)$level])) {
+        return ['ok' => false, 'error' => 'Choose the gear level: street-safe or caged.'];
+    }
     $own = !$pdo->inTransaction();
     if ($own) $pdo->beginTransaction();
     try {
@@ -165,12 +170,21 @@ function gearAcceptByPhotos(PDO $pdo, int $id, int $reviewerUserId): array {
             return ['ok' => false, 'error' => 'These photos are not awaiting review.'];
         }
         db_set_all_photos_review_status($pdo, 'gear_record', $id, 'accepted');
+        if ($isIce) db_set_gear_level($pdo, $id, $level);
         if ($own) $pdo->commit();
     } catch (Throwable $e) {
         if ($own && $pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
     return ['ok' => true, 'error' => null];
+}
+
+/** The level the helmet photo's standard suggests (ice gear), or null. */
+function gearSuggestedLevel(array $snapshot): ?string {
+    $row = $snapshot['photos']['ice_helmet_label'] ?? null;
+    if ($row === null || ($row['file_path'] ?? '') === '') return null;
+    $typed = json_decode((string)($row['typed_value'] ?? ''), true);
+    return is_array($typed) && is_string($typed['standard'] ?? null) ? iceGearLevelForHelmet($typed['standard']) : null;
 }
 
 /**
