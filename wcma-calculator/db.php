@@ -77,6 +77,24 @@ const DB_TECH_SHEETS_SQL = "
         updated_at              DATETIME NOT NULL
     )";
 
+/** gear_records schema. {table} is filled in by db_init() and db_rebuild_table(). */
+const DB_GEAR_RECORDS_SQL = "
+    CREATE TABLE IF NOT EXISTS {table} (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        driver_id           INTEGER NOT NULL,
+        season              INTEGER NOT NULL,
+        discipline          TEXT NOT NULL DEFAULT 'summer',
+        level               TEXT,
+        photo_status        TEXT,
+        status              TEXT NOT NULL DEFAULT 'open',
+        accepted_via        TEXT,
+        reviewed_by_user_id INTEGER,
+        reviewed_at         DATETIME,
+        created_at          DATETIME NOT NULL,
+        updated_at          DATETIME NOT NULL,
+        UNIQUE (driver_id, discipline, season)
+    )";
+
 function db_init(PDO $pdo): void {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS submissions (
@@ -239,21 +257,9 @@ function db_init(PDO $pdo): void {
         )
     ");
 
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS gear_records (
-            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-            driver_id           INTEGER NOT NULL,
-            season              INTEGER NOT NULL,
-            photo_status        TEXT,
-            status              TEXT NOT NULL DEFAULT 'open',
-            accepted_via        TEXT,
-            reviewed_by_user_id INTEGER,
-            reviewed_at         DATETIME,
-            created_at          DATETIME NOT NULL,
-            updated_at          DATETIME NOT NULL,
-            UNIQUE (driver_id, season)
-        )
-    ");
+    $pdo->exec(str_replace('{table}', 'gear_records', DB_GEAR_RECORDS_SQL));
+    // Pre-ice databases: UNIQUE (driver_id, season), no discipline/level (2026-09-27 spec).
+    db_rebuild_table($pdo, 'gear_records', 'discipline', DB_GEAR_RECORDS_SQL);
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS cars (
@@ -737,9 +743,9 @@ function db_get_at_track_keys(PDO $pdo, array $carIds, array $driverIds, int $se
     return $keys;
 }
 
-function db_get_gear_record_for_driver(PDO $pdo, int $driverId, int $season): ?array {
-    $stmt = $pdo->prepare(DB_GEAR_SELECT . " WHERE g.driver_id = :d AND g.season = :s");
-    $stmt->execute([':d' => $driverId, ':s' => $season]);
+function db_get_gear_record_for_driver(PDO $pdo, int $driverId, int $season, string $discipline = DISCIPLINE_SUMMER): ?array {
+    $stmt = $pdo->prepare(DB_GEAR_SELECT . " WHERE g.driver_id = :d AND g.season = :s AND g.discipline = :disc");
+    $stmt->execute([':d' => $driverId, ':s' => $season, ':disc' => $discipline]);
     return $stmt->fetch() ?: null;
 }
 
@@ -1510,10 +1516,10 @@ const DB_GEAR_SELECT = "
            d.name_norm AS driver_name_norm, d.licence_no AS licence_no
     FROM gear_records g JOIN drivers d ON d.id = g.driver_id";
 
-function db_insert_gear_record(PDO $pdo, int $driverId, int $season): int {
+function db_insert_gear_record(PDO $pdo, int $driverId, int $season, string $discipline = DISCIPLINE_SUMMER): int {
     $now = date('Y-m-d H:i:s');
-    $pdo->prepare("INSERT INTO gear_records (driver_id, season, created_at, updated_at) VALUES (:d, :s, :now, :now)")
-        ->execute([':d' => $driverId, ':s' => $season, ':now' => $now]);
+    $pdo->prepare("INSERT INTO gear_records (driver_id, season, discipline, created_at, updated_at) VALUES (:d, :s, :disc, :now, :now)")
+        ->execute([':d' => $driverId, ':s' => $season, ':disc' => $discipline, ':now' => $now]);
     return (int)$pdo->lastInsertId();
 }
 
@@ -1523,9 +1529,9 @@ function db_get_gear_record(PDO $pdo, int $id): ?array {
     return $stmt->fetch() ?: null;
 }
 
-function db_find_gear_record(PDO $pdo, int $ownerId, string $driverNameNorm, int $season): ?array {
-    $stmt = $pdo->prepare(DB_GEAR_SELECT . " WHERE d.owner_user_id = :o AND d.name_norm = :n AND g.season = :s");
-    $stmt->execute([':o' => $ownerId, ':n' => $driverNameNorm, ':s' => $season]);
+function db_find_gear_record(PDO $pdo, int $ownerId, string $driverNameNorm, int $season, string $discipline = DISCIPLINE_SUMMER): ?array {
+    $stmt = $pdo->prepare(DB_GEAR_SELECT . " WHERE d.owner_user_id = :o AND d.name_norm = :n AND g.season = :s AND g.discipline = :disc");
+    $stmt->execute([':o' => $ownerId, ':n' => $driverNameNorm, ':s' => $season, ':disc' => $discipline]);
     return $stmt->fetch() ?: null;
 }
 
@@ -1537,14 +1543,14 @@ function db_get_user_gear_records(PDO $pdo, int $ownerId): array {
 }
 
 /** Every owner's records for a season, with the owner's name and email, by driver name. */
-function db_get_gear_records_for_season(PDO $pdo, int $season): array {
+function db_get_gear_records_for_season(PDO $pdo, int $season, string $discipline = DISCIPLINE_SUMMER): array {
     $stmt = $pdo->prepare("
         SELECT g.*, d.owner_user_id AS owner_user_id, d.name AS driver_name, d.name_norm AS driver_name_norm,
                d.licence_no AS licence_no, u.name AS owner_name, u.email AS owner_email
         FROM gear_records g JOIN drivers d ON d.id = g.driver_id LEFT JOIN users u ON u.id = d.owner_user_id
-        WHERE g.season = :s ORDER BY d.name ASC, g.id ASC
+        WHERE g.season = :s AND g.discipline = :disc ORDER BY d.name ASC, g.id ASC
     ");
-    $stmt->execute([':s' => $season]);
+    $stmt->execute([':s' => $season, ':disc' => $discipline]);
     return $stmt->fetchAll();
 }
 
@@ -1605,6 +1611,15 @@ function db_revoke_gear_acceptance(PDO $pdo, int $id): bool {
     ");
     $stmt->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
     return $stmt->rowCount() === 1;
+}
+
+/** The ice gear level an inspector confirmed: 'street_safe', 'caged', or null to clear it. */
+function db_set_gear_level(PDO $pdo, int $id, ?string $level): void {
+    if ($level !== null && !in_array($level, ['street_safe', 'caged'], true)) {
+        throw new InvalidArgumentException('Unknown gear level: ' . $level);
+    }
+    $pdo->prepare("UPDATE gear_records SET level = :l, updated_at = :now WHERE id = :id")
+        ->execute([':l' => $level, ':now' => date('Y-m-d H:i:s'), ':id' => $id]);
 }
 
 /** Additional drivers for many sheets at once: sheet id => rows ordered by driver number. Sheets with none are absent. */
