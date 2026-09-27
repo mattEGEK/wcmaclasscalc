@@ -105,6 +105,12 @@ function handleGearAdminRevoke(PDO $pdo, int $id): void {
 }
 
 function handleGearAdminPhotosAccept(PDO $pdo, int $id): void {
+    $gear = db_get_gear_record($pdo, $id);
+    if ($gear !== null && ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) {
+        setFlash('Photo review isn\'t available for ice gear yet.', 'error');
+        header('Location: inspect.php?action=gear-record&id=' . $id);
+        exit;
+    }
     $user = current_user();
     $r = gearAcceptByPhotos($pdo, $id, (int)$user['id']);
     if (!$r['ok']) {

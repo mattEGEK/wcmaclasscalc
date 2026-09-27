@@ -84,11 +84,21 @@ switch ($action) {
 
 function handleGearPretech(PDO $pdo, array $user, int $id): void {
     $gear = loadOwnGearRecord($pdo, $user, $id);
+    if (($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) {
+        setFlash('Photo pre-tech for ice gear isn\'t available yet. Bring your gear to tech at the event.', 'error');
+        header('Location: drivers.php');
+        exit;
+    }
     renderGearPretechPage($gear, gearSnapshot($pdo, $id), generateCsrfToken(), getFlash());
 }
 
 function handleGearPretechSubmit(PDO $pdo, array $user, int $id): void {
-    loadOwnGearRecord($pdo, $user, $id);
+    $gear = loadOwnGearRecord($pdo, $user, $id);
+    if (($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) {
+        setFlash('Photo pre-tech for ice gear isn\'t available yet. Bring your gear to tech at the event.', 'error');
+        header('Location: drivers.php');
+        exit;
+    }
 
     $result = gearSubmit($pdo, $id);
     if (!$result['ok']) {
