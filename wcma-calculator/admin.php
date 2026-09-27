@@ -339,7 +339,18 @@ function handleEventUpdate(PDO $pdo, int $id): void {
         exit;
     }
 
-    $fields = iceEventFields($_POST);
+    $disciplineInput = $_POST;
+    if (!array_key_exists('discipline', $disciplineInput)) {
+        $current = db_get_event($pdo, $id);
+        if ($current !== null) {
+            $disciplineInput['discipline'] = $current['discipline'] ?? 'summer';
+            if (!array_key_exists('host_club', $disciplineInput)) {
+                $disciplineInput['host_club'] = $current['host_club'] ?? '';
+            }
+        }
+    }
+
+    $fields = iceEventFields($disciplineInput);
     if (!$fields['ok']) {
         setFlash((string)$fields['error'], 'error');
         header('Location: admin.php?action=events');

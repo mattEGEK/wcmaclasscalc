@@ -10,6 +10,14 @@ final class AdminSourceTest extends TestCase
         return str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../' . $file));
     }
 
+    private function body(string $file, string $name): string {
+        $src = $this->src($file);
+        $start = strpos($src, 'function ' . $name . '(');
+        $this->assertNotFalse($start, $name . ' must exist in ' . $file);
+        $next = strpos($src, "\nfunction ", $start + 1);
+        return $next === false ? substr($src, $start) : substr($src, $start, $next - $start);
+    }
+
     public function testAdminIsAdminOnlyAfterTheMovedRedirects(): void
     {
         $admin = $this->src('admin.php');
@@ -70,5 +78,18 @@ final class AdminSourceTest extends TestCase
         $this->assertStringContainsString('name="discipline"', $src);
         $this->assertStringContainsString('name="host_club"', $src);
         $this->assertStringContainsString('iceEventFields($_POST)', $src);
+    }
+
+    // Fix 3: a POST that omits "discipline" (e.g. a stale form, or a script only touching name/date)
+    // must keep the event's current discipline/host_club rather than silently defaulting to summer.
+    // iceEventFields() itself stays pure — handleEventUpdate() fills the gaps before calling it.
+    public function testEventUpdateKeepsCurrentDisciplineWhenPostOmitsIt(): void
+    {
+        $body = $this->body('admin.php', 'handleEventUpdate');
+        $this->assertStringContainsString("db_get_event(\$pdo, \$id)", $body);
+        $this->assertStringContainsString("array_key_exists('discipline', \$disciplineInput)", $body);
+        $this->assertStringContainsString("iceEventFields(\$disciplineInput)", $body);
+        // iceEventFields() is called with the built array, not the raw $_POST.
+        $this->assertStringNotContainsString('iceEventFields($_POST)', $body);
     }
 }
