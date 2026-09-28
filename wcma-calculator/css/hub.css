@@ -331,7 +331,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 
 /* Car page next step (mobile UX spec 2026-09-28 §A3) */
 .garage-next { border: 2px solid var(--hub-ink); }
-.garage-choice-list { display: grid; gap: 10px; }
+.garage-choice-list { display: grid; gap: 10px; margin-top: 12px; }
 .garage-choice-list .garage-inline-form { display: block; }
 .hub-btn--choice { display: block; width: 100%; min-height: 56px; text-align: left; white-space: normal; }
 
@@ -342,3 +342,10 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .sheet-next { margin-bottom: 16px; }
 .sheet-next .hub-todo-txt p { margin: 4px 0 10px; }
 .sheet-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 24px; }
+@media (max-width: 420px) {
+  .garage-season-options label { flex-direction: column; gap: 4px; min-height: 72px; padding: 8px 4px; }
+}
+.sheet-next .hub-todo { border: 0; padding: 0; margin: 0; list-style: none; }
+.sheet-next .hub-todo-item { flex-wrap: nowrap; align-items: flex-start; padding: 16px 0; }
+.sheet-next .hub-todo-n { flex-shrink: 0; }
+.sheet-next .hub-todo-txt { flex: 1; min-width: 0; }
