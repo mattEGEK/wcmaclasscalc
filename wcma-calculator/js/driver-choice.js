@@ -82,7 +82,12 @@
         return { select: select, nameInput: nameInput, sync: wire(select, nameInput) };
     }
 
-    const api = { NEW, driverChoiceOptions, driverChoiceComplete, duplicateDriverChoice, wire, build };
+    /** Whether Driver 1 is the signed-in user themself, so one signature covers entrant and driver (spec §C4). */
+    function isSelfChoice(drivers, choice) {
+        return (drivers || []).some(function (d) { return d.self && String(d.id) === String(choice); });
+    }
+
+    const api = { NEW, driverChoiceOptions, driverChoiceComplete, duplicateDriverChoice, isSelfChoice, wire, build };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else window.WcmaDriverChoice = api;
 })();

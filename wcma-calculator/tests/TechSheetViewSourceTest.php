@@ -36,4 +36,12 @@ final class TechSheetViewSourceTest extends TestCase
         $this->assertStringContainsString('data-radio-group="Log book turned in? (required)"', $src);
         $this->assertStringContainsString('<label for="engine_hp">Engine HP (optional)</label>', $src);
     }
+
+    public function testSummerFormCanCollapseToOneSignature(): void
+    {
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../tech-sheets.php'));
+        foreach (['id="driver-sig-block"', 'id="entrant-sig-label"', 'id="sig-error"'] as $needle) {
+            $this->assertStringContainsString($needle, $src);
+        }
+    }
 }

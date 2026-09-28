@@ -451,14 +451,17 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
       <h2>Declaration &amp; Signatures</h2>
       <p><em>I hereby stipulate that the above vehicle meets the regulations for the event.</em></p>
       <?php if ($isEdit): ?><p class="form-hint">Leave the pads blank to keep the signatures already on file.</p><?php endif; ?>
-      <label>Entrant's Signature</label>
+      <p id="sig-error" class="field-message" role="alert" hidden></p>
+      <label id="entrant-sig-label">Entrant's signature</label>
       <?php if ($hasEntrantSignature): ?><div><?= techSheetSignatureImg($existingSheet['entrant_signature_path'], 'entrant', techSheetSignatureResolverWeb((int)$existingSheet['id'])) ?></div><?php endif; ?>
       <div class="sig-pad-wrap"><canvas id="entrant-sig-canvas"></canvas></div>
       <div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="entrant">Clear</button></div>
-      <label>Driver's Signature</label>
+      <div id="driver-sig-block">
+      <label>Driver's signature</label>
       <?php if ($hasDriverSignature): ?><div><?= techSheetSignatureImg($existingSheet['driver_signature_path'], 'driver', techSheetSignatureResolverWeb((int)$existingSheet['id'])) ?></div><?php endif; ?>
       <div class="sig-pad-wrap"><canvas id="driver-sig-canvas"></canvas></div>
       <div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="driver">Clear</button></div>
+      </div>
     </div>
 
     <div id="tech-sheet-error" class="form-messages error" role="alert" hidden></div>

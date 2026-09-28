@@ -161,6 +161,13 @@ try {
   report('submitting an empty sheet says what is missing', firstProblem.message === 'Enter the race weight.' && firstProblem.focused === 'car_weight'
     ? [] : [`expected "Enter the race weight." with focus on car_weight, got ${JSON.stringify(firstProblem)}`]);
   await audit(page, 'ice tech sheet with problems shown');
+  const pads = () => page.evaluate(() => [...document.querySelectorAll('canvas')].filter(c => c.getBoundingClientRect().width > 0).length);
+  const onePad = await pads();
+  report('one signature pad when you are the driver', onePad === 1 ? [] : [`expected 1 visible pad, saw ${onePad}`]);
+  await page.selectOption('#driver1_choice', 'new');
+  const twoPads = await pads();
+  report('two signature pads for a co-driver', twoPads === 2 ? [] : [`expected 2 visible pads, saw ${twoPads}`]);
+  await page.selectOption('#driver1_choice', { index: 0 });
   await page.fill('input[name=car_weight]', '2700');
   await page.fill('input[name=engine_hp]', '140');
   for (const h of await page.locator('.checklist-section-header').all()) await h.click();
@@ -178,6 +185,8 @@ try {
   });
   await go('button[type=submit]');
   await audit(page, 'submitted sheet');
+  const sigImgs = await page.locator('.sheet-doc img[src*="action=sig"]').count();
+  report('submitted sheet has both signatures', sigImgs >= 2 ? [] : [`expected 2 signature images, found ${sigImgs}`]);
 
   const carUrl = await page.locator('.hub-subnav a').first().getAttribute('href');
   await go('a:has-text("Pre-tech with photos")');

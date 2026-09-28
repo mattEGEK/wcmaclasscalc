@@ -106,4 +106,13 @@ final class IceSheetPageTest extends TestCase
         $this->assertStringContainsString('<script src="js/form-problems.js"></script>', $html);
         $this->assertLessThan(strpos($html, 'class="form-actions"'), strpos($html, 'id="tech-sheet-error"'));
     }
+
+    public function testSignaturePadsCanCollapseToOne(): void
+    {
+        $html = $this->renderNewSheet();
+        $this->assertStringContainsString('<label id="entrant-sig-label">Entrant\'s signature</label>', $html);
+        $this->assertMatchesRegularExpression('/<div id="driver-sig-block">\s*<label>Driver\'s signature<\/label>/', $html);
+        $this->assertNotFalse(strpos($html, 'id="sig-error"'));
+        $this->assertLessThan(strpos($html, 'id="entrant-sig-label"'), strpos($html, 'id="sig-error"'));
+    }
 }

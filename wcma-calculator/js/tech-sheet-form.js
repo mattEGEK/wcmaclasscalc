@@ -144,6 +144,20 @@
     const driver1NewName = document.getElementById('driver1_new_name');
     WcmaDriverChoice.wire(driver1Choice, driver1NewName);
 
+    // One signature when Driver 1 is the signed-in user (spec §C4): the pad counts as both.
+    const driverSigBlock = document.getElementById('driver-sig-block');
+    const entrantSigLabel = document.getElementById('entrant-sig-label');
+    const sigError = document.getElementById('sig-error');
+    function oneSigner() { return WcmaDriverChoice.isSelfChoice(window.TECH_SHEET_DRIVERS || [], driver1Choice.value); }
+    function syncSigners() {
+        const one = oneSigner();
+        driverSigBlock.hidden = one;
+        entrantSigLabel.textContent = one ? 'Your signature (entrant and driver)' : 'Entrant\'s signature';
+        if (!one) driverPad.resize();   // the canvas had no size while hidden
+    }
+    driver1Choice.addEventListener('change', syncSigners);
+    syncSigners();
+
     const sheetTypeSelect = document.getElementById('sheet_type');
     const enduranceCard = document.getElementById('endurance-drivers-card');
     const additionalDriversContainer = document.getElementById('additional-drivers-container');
@@ -253,6 +267,7 @@
         driver1NewName.classList.remove('error');
         entrantSigWrap.classList.remove('field-error');
         driverSigWrap.classList.remove('field-error');
+        sigError.hidden = true;
     }
 
     document.getElementById('tech-sheet-form').addEventListener('submit', function (e) {
@@ -328,15 +343,21 @@
                 return;
             }
         }
+        const one = oneSigner();
         const entrantSignatureMissing = entrantPad.isEmpty() && !window.TECH_SHEET_HAS_ENTRANT_SIGNATURE;
-        const driverSignatureMissing = driverPad.isEmpty() && !window.TECH_SHEET_HAS_DRIVER_SIGNATURE;
+        const driverSignatureMissing = !one && driverPad.isEmpty() && !window.TECH_SHEET_HAS_DRIVER_SIGNATURE;
         if (entrantSignatureMissing || driverSignatureMissing) {
             e.preventDefault();
             if (entrantSignatureMissing) entrantSigWrap.classList.add('field-error');
             if (driverSignatureMissing) driverSigWrap.classList.add('field-error');
-            errorEl.textContent = 'Both the entrant and driver signatures are required — the missing signature pad(s) are highlighted below.';
+            const box = one ? 'the signature box' : (entrantSignatureMissing && driverSignatureMissing ? 'both signature boxes'
+                : (entrantSignatureMissing ? 'the Entrant\'s signature box' : 'the Driver\'s signature box'));
+            sigError.textContent = 'Please sign in ' + box + '.';
+            sigError.hidden = false;
+            errorEl.textContent = sigError.textContent;
             errorEl.hidden = false;
             errorEl.classList.add('show');
+            sigError.scrollIntoView({ block: 'center' });
             return;
         }
 
@@ -344,8 +365,10 @@
         document.getElementById('driver1_equipment_json').value = JSON.stringify(driver1State);
         // Leave the hidden field blank when the pad wasn't (re)drawn, so an edit save
         // without re-signing doesn't clobber the previously-saved signature file.
-        document.getElementById('entrant_signature').value = entrantPad.isEmpty() ? '' : entrantPad.toPNGDataURL();
-        document.getElementById('driver_signature').value = driverPad.isEmpty() ? '' : driverPad.toPNGDataURL();
+        const entrantData = entrantPad.isEmpty() ? '' : entrantPad.toPNGDataURL();
+        document.getElementById('entrant_signature').value = entrantData;
+        // One signer: the same signature is the driver's. A blank pad leaves both blank, keeping signatures on file.
+        document.getElementById('driver_signature').value = one ? entrantData : (driverPad.isEmpty() ? '' : driverPad.toPNGDataURL());
         document.getElementById('drivers_json').value = JSON.stringify(additionalDrivers.map(function (d) {
             return { driver_number: d.number, driver_choice: d.picker.select.value, new_name: d.picker.nameInput.value, equipment: d.state };
         }));

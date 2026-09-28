@@ -117,10 +117,11 @@ function renderIceTechSheetFormHtml(array $vm): string {
     $out .= '<div class="detail-card"><h2>Declaration &amp; Signatures</h2>'
         . '<p><em>I hereby stipulate that the above vehicle meets the regulations for the event.</em></p>'
         . ($isEdit ? '<p class="form-hint">Leave the pads blank to keep the signatures already on file.</p>' : '')
-        . '<label>Entrant\'s Signature</label><div class="sig-pad-wrap"><canvas id="entrant-sig-canvas"></canvas></div>'
+        . '<p id="sig-error" class="field-message" role="alert" hidden></p>'
+        . '<label id="entrant-sig-label">Entrant\'s signature</label><div class="sig-pad-wrap"><canvas id="entrant-sig-canvas"></canvas></div>'
         . '<div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="entrant">Clear</button></div>'
-        . '<label>Driver\'s Signature</label><div class="sig-pad-wrap"><canvas id="driver-sig-canvas"></canvas></div>'
-        . '<div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="driver">Clear</button></div></div>';
+        . '<div id="driver-sig-block"><label>Driver\'s signature</label><div class="sig-pad-wrap"><canvas id="driver-sig-canvas"></canvas></div>'
+        . '<div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="driver">Clear</button></div></div></div>';
 
     $out .= '<div id="tech-sheet-error" class="form-messages error" role="alert" hidden></div>'
         . '<div class="form-actions"><button type="submit" class="btn btn-primary" id="tech-sheet-submit-btn">'
