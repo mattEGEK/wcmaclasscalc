@@ -32,7 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setFlash($r['ok'] ? 'Removed from your events.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
             break;
         case 'at-track':
-            $r = eventsSetAtTrack($pdo, $uid, (string)($_POST['subject_type'] ?? ''), (int)($_POST['subject_id'] ?? 0), (int)($_POST['season'] ?? 0));
+            $r = eventsSetAtTrack($pdo, $uid, (string)($_POST['subject_type'] ?? ''), (int)($_POST['subject_id'] ?? 0), (int)($_POST['season'] ?? 0),
+                (string)($_POST['discipline'] ?? 'summer'), (string)($_POST['club'] ?? ''));
             setFlash($r['ok'] ? 'Noted: you\'ll get it checked at the track.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
             break;
         case 'media-prompt-dismiss':

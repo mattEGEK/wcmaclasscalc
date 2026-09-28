@@ -232,4 +232,24 @@ final class HomePageTest extends TestCase
     {
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', file_get_contents(__DIR__ . '/../home-page.php'));
     }
+
+    public function testIceAtTrackFormCarriesDisciplineAndClub(): void
+    {
+        $item = ['kind' => 'car_tech', 'subject_type' => 'car', 'subject_id' => 3, 'state' => 'todo', 'label' => 'Ice car tech for #42 at NASCC',
+                 'detail' => '', 'action' => null, 'at_track' => ['subject_type' => 'car', 'subject_id' => 3, 'season' => 2027, 'discipline' => 'ice', 'club' => 'NASCC']];
+        $html = homeRenderTodoItem(1, $item, 'tok');
+        $this->assertStringContainsString('<input type="hidden" name="discipline" value="ice">', $html);
+        $this->assertStringContainsString('<input type="hidden" name="club" value="NASCC">', $html);
+
+        $summer = ['at_track' => ['subject_type' => 'car', 'subject_id' => 3, 'season' => 2026]] + $item;
+        $this->assertStringNotContainsString('name="discipline"', homeRenderTodoItem(1, $summer, 'tok'));
+    }
+
+    public function testIceEventCardShowsTheClubBadge(): void
+    {
+        $event = ['id' => 20, 'name' => 'NASCC Ice #1', 'event_date' => '2027-01-10', 'discipline' => 'ice', 'host_club' => 'NASCC'];
+        $this->assertStringContainsString('<span class="hub-status hub-status--info">Ice · NASCC</span>', homeEventCardHtml($event, null, [], 'tok', false));
+        $summer = ['id' => 10, 'name' => 'Fall Sprint', 'event_date' => '2026-10-11'];
+        $this->assertStringNotContainsString('Ice ·', homeEventCardHtml($summer, null, [], 'tok', false));
+    }
 }

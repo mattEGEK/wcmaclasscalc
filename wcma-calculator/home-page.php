@@ -66,6 +66,8 @@ function homeRenderTodoItem(int $n, array $item, string $csrf): string {
             . '<input type="hidden" name="subject_type" value="' . h((string)$at['subject_type']) . '">'
             . '<input type="hidden" name="subject_id" value="' . h((string)$at['subject_id']) . '">'
             . '<input type="hidden" name="season" value="' . h((string)$at['season']) . '">'
+            . (isset($at['discipline']) ? '<input type="hidden" name="discipline" value="' . h((string)$at['discipline']) . '">' : '')
+            . (isset($at['club']) ? '<input type="hidden" name="club" value="' . h((string)$at['club']) . '">' : '')
             . "<button type=\"submit\" class=\"hub-btn hub-btn--link\">I'll do it at the track</button></form>";
     }
     $out .= '</div></li>';
@@ -113,6 +115,9 @@ function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, st
     $out = '<section class="hub-card hub-event"><div class="hub-event-head"><h3>' . h((string)$event['name']) . '</h3>';
     $date = homeShortDate((string)$event['event_date']);
     if ($date !== '') $out .= '<span class="hub-event-date">' . h($date) . '</span>';
+    if (($event['discipline'] ?? 'summer') === 'ice') {
+        $out .= '<span class="hub-status hub-status--info">' . h('Ice · ' . (string)($event['host_club'] ?? '')) . '</span>';
+    }
     $goingCarIds = [];
     if ($readinessEvent !== null) {
         foreach ($readinessEvent['items'] as $item) {
