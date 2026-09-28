@@ -218,7 +218,7 @@ function mediaReviewQueue(PDO $pdo, ?int $season): array {
         $sheet = db_get_driver_latest_sheet($pdo, $did, $season);
         $queue[] = ['driver_id' => $did, 'driver_name' => $row['driver_name'], 'updated_at' => (string)$row['updated_at'],
             'entry' => mediaEntry($driver, $row, db_get_sponsors($pdo, $did), (string)($sheet['car_number'] ?? ''),
-                $sheet !== null ? mediaCarLabel($sheet) : '', (string)($sheet['class'] ?? ''), false)];
+                $sheet !== null ? mediaCarLabel($sheet) : '', $sheet !== null ? techSheetClassLine($sheet) : '', false)];
     }
     return $queue;
 }
