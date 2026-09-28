@@ -230,7 +230,7 @@ final class InspectPageTest extends TestCase
         $vm = $this->vm([$row], ['season' => 2027, 'discipline' => 'ice']);
         $html = inspectRosterRowHtml($row, $vm);
         $this->assertStringContainsString('CH — Chevette (NASCC)', $html);
-        $this->assertStringContainsString('Teched Ice 2027', $html);
+        $this->assertStringContainsString('Teched Winter 2026–27', $html);
     }
 
     public function testQueueListsItemsOldestFirstWithReviewLinks(): void

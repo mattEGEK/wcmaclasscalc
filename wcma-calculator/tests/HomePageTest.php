@@ -159,13 +159,13 @@ final class HomePageTest extends TestCase
             'garage' => [
                 ['car' => ['id' => 3, 'car_number' => '42', 'year' => '2004', 'make' => 'Honda', 'model' => 'S2000'],
                  'declaration' => null, 'techLabel' => 'Needs tech at the track', 'techState' => 'none',
-                 'usesSummer' => false, 'ice' => ['state' => 'accepted', 'label' => 'Teched Ice 2027 · NASCC · LS']],
+                 'usesSummer' => false, 'ice' => ['state' => 'accepted', 'label' => 'Teched Winter 2026–27 · NASCC · LS']],
             ],
             'drivers' => [['name' => 'Jordan Lee', 'isSelf' => true, 'gearLabel' => 'Needs gear check at the track', 'gearState' => 'none',
-                'ice' => ['state' => 'accepted', 'label' => 'Ice 2027: from summer 2026']]],
+                'ice' => ['state' => 'accepted', 'label' => 'Winter 2026–27: from summer 2026']]],
         ]));
-        $this->assertStringContainsString('Teched Ice 2027 · NASCC · LS', $html);
-        $this->assertStringContainsString('Ice 2027: from summer 2026', $html);
+        $this->assertStringContainsString('Teched Winter 2026–27 · NASCC · LS', $html);
+        $this->assertStringContainsString('Winter 2026–27: from summer 2026', $html);
         $this->assertStringNotContainsString('Not declared', $html);
         $this->assertStringNotContainsString('Declare class', $html);
     }

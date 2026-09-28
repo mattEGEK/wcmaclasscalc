@@ -126,7 +126,7 @@ function readinessIceGear(int $did, string $name, int $season, ?array $iceGear, 
                 'Bring the frontal head restraint to tech at the track.', null);
         }
         $via = ($iceStatus['via'] ?? 'in_person') === 'photos' ? 'pre-teched' : 'teched';
-        return readinessItem('gear', 'driver', $did, 'done', "Ice gear for $name: $via Ice $season" . ($levelLabel !== '' ? " · $levelLabel" : ''));
+        return readinessItem('gear', 'driver', $did, 'done', "Ice gear for $name: $via " . iceSeasonLabel($season) . ($levelLabel !== '' ? " · $levelLabel" : ''));
     }
     return readinessTech('gear', 'driver', $did, $iceStatus, $season, $atTrack, [
         'label' => "Ice gear for $name", 'pendingLabel' => "Ice gear photos for $name are with an inspector",

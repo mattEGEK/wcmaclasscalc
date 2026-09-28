@@ -255,7 +255,7 @@ final class ReadinessTest extends TestCase
         $gear = ['5:2027' => ['id' => 50, 'season' => 2027, 'discipline' => 'ice', 'level' => 'street_safe', 'status' => 'accepted', 'accepted_via' => 'in_person', 'photo_status' => null]];
         $noSheet = $this->items(buildReadiness($this->iceWorld(['iceGear' => $gear])));
         $this->assertSame('done', $noSheet['gear:5']['state']);
-        $this->assertSame('Ice gear for Jordan Lee: teched Ice 2027 · street-safe', $noSheet['gear:5']['label']);
+        $this->assertSame('Ice gear for Jordan Lee: teched Winter 2026–27 · street-safe', $noSheet['gear:5']['label']);
 
         $ls = $this->items(buildReadiness($this->iceWorld(['iceGear' => $gear, 'sheets' => [$this->iceSheet(['class' => 'LS'])]])));
         $this->assertSame('todo', $ls['gear:5']['state']);
@@ -435,6 +435,6 @@ final class ReadinessTest extends TestCase
 
         $ice = ['5:2027' => ['id' => 51, 'season' => 2027, 'discipline' => 'ice', 'level' => 'caged', 'status' => 'accepted', 'accepted_via' => 'in_person', 'photo_status' => null]];
         $iceItems = $this->items(buildReadiness($this->iceWorld(['drivers' => [5 => ['id' => 5, 'name' => $name]], 'iceGear' => $ice])));
-        $this->assertSame("Ice gear for $name: teched Ice 2027 · caged", $iceItems['gear:5']['label']);
+        $this->assertSame("Ice gear for $name: teched Winter 2026–27 · caged", $iceItems['gear:5']['label']);
     }
 }

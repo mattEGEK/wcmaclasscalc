@@ -14,7 +14,7 @@ final class GearEmailTest extends TestCase
     public function testDriverLineSaysIceForIceGearAndStaysPlainForSummer(): void
     {
         $ice = ['id' => 4, 'owner_user_id' => 1, 'driver_name' => 'Jane', 'season' => 2027, 'discipline' => DISCIPLINE_ICE];
-        $this->assertSame('Jane — Ice 2027', gearEmailDriverLine($ice));
+        $this->assertSame('Jane — Winter 2026–27', gearEmailDriverLine($ice));
 
         $summer = ['id' => 4, 'owner_user_id' => 1, 'driver_name' => 'Jane', 'season' => 2026];
         $this->assertSame('Jane — 2026', gearEmailDriverLine($summer));
@@ -106,13 +106,13 @@ final class GearEmailTest extends TestCase
     public function testAcceptedEmailSaysIceAndAddsTheLevelForAnIceRecord(): void
     {
         $owner = gearEmailAccepted($this->iceGear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/inspect.php?action=gear-record&id=4', false);
-        $this->assertStringContainsString('Ice 2027', $owner['text']);
+        $this->assertStringContainsString('Winter 2026–27', $owner['text']);
         $this->assertStringContainsString('Gear level: caged.', $owner['text']);
-        $this->assertStringContainsString('Ice 2027', $owner['html']);
+        $this->assertStringContainsString('Winter 2026–27', $owner['html']);
         $this->assertStringContainsString('Gear level: caged.', $owner['html']);
 
         $club = gearEmailAccepted($this->iceGear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/inspect.php?action=gear-record&id=4', true);
-        $this->assertStringContainsString('Ice 2027', $club['text']);
+        $this->assertStringContainsString('Winter 2026–27', $club['text']);
         $this->assertStringContainsString('Gear level: caged.', $club['text']);
     }
 
@@ -126,7 +126,7 @@ final class GearEmailTest extends TestCase
     {
         $mail = gearEmailAccepted($this->gear(), 'https://x.test/gear.php?action=pretech&id=4', 'https://x.test/inspect.php?action=gear-record&id=4', false);
         $this->assertStringContainsString('teched for 2026.', $mail['text']);
-        $this->assertStringNotContainsString('Ice 2026', $mail['text']);
+        $this->assertStringNotContainsString('Winter 2025–26', $mail['text']);
         $this->assertStringNotContainsString('Gear level:', $mail['text']);
     }
 

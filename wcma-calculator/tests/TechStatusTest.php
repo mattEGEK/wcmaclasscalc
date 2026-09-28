@@ -253,8 +253,17 @@ final class TechStatusTest extends TestCase
 
     public function testIceStatusLabel(): void
     {
-        $this->assertSame('Teched Ice 2027', techCarStatusLabel(['state' => 'accepted', 'via' => 'in_person', 'sheet_id' => 1], 2027, 'ice'));
-        $this->assertSame('Pre-teched Ice 2027', techCarStatusLabel(['state' => 'accepted', 'via' => 'photos', 'sheet_id' => 1], 2027, 'ice'));
+        $this->assertSame('Teched Winter 2026–27', techCarStatusLabel(['state' => 'accepted', 'via' => 'in_person', 'sheet_id' => 1], 2027, 'ice'));
+        $this->assertSame('Pre-teched Winter 2026–27', techCarStatusLabel(['state' => 'accepted', 'via' => 'photos', 'sheet_id' => 1], 2027, 'ice'));
         $this->assertSame('Needs tech at the track', techCarStatusLabel(['state' => 'none', 'via' => null, 'sheet_id' => null], 2027, 'ice'));
+    }
+
+    public function testIceSeasonReadsAsAWinter(): void
+    {
+        $this->assertSame('Winter 2026–27', iceSeasonLabel(2027));
+        $this->assertSame('Winter 2099–00', iceSeasonLabel(2100));
+        $this->assertStringContainsString('Winter 2026–27', techCarStatusLabel(['state' => 'accepted', 'via' => 'photos'], 2027, DISCIPLINE_ICE));
+        $this->assertStringNotContainsString('Ice 2027', techCarStatusLabel(['state' => 'accepted', 'via' => 'in_person'], 2027, DISCIPLINE_ICE));
+        $this->assertSame('2026', substr(techCarStatusLabel(['state' => 'accepted', 'via' => 'in_person'], 2026), -4));
     }
 }

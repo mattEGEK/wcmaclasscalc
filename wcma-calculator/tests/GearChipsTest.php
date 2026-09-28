@@ -93,7 +93,7 @@ final class GearChipsTest extends TestCase
         $accepted = ['driver_number' => 1, 'name' => 'Sam', 'name_norm' => 'sam', 'discipline' => 'ice', 'default_level' => 'caged',
                      'gear' => ['id' => 3, 'season' => 2027, 'discipline' => 'ice', 'level' => 'street_safe'],
                      'status' => ['state' => 'accepted', 'via' => 'in_person']];
-        $this->assertStringContainsString('Gear teched Ice 2027 · street-safe', renderGearChips([$accepted], 'owner'));
+        $this->assertStringContainsString('Gear teched Winter 2026–27 · street-safe', renderGearChips([$accepted], 'owner'));
 
         $none = ['driver_number' => 1, 'name' => 'Sam', 'name_norm' => 'sam', 'discipline' => 'ice', 'default_level' => 'caged',
                  'gear' => null, 'status' => ['state' => 'none', 'via' => null]];
