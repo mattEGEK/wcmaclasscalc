@@ -377,8 +377,8 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 
     <div class="detail-card">
       <h2>Event &amp; Sheet Type</h2>
-      <label for="event_id">Event</label>
-      <select id="event_id" name="event_id" required>
+      <label for="event_id">Event (required)</label>
+      <select id="event_id" name="event_id" required data-message="Choose the event.">
         <?php foreach ($events as $e): ?>
         <option value="<?= (int)$e['id'] ?>" <?= ($e['id'] == $selectedEventId) ? 'selected' : '' ?>><?= h($e['name']) ?> — <?= h(date('M j, Y', strtotime($e['event_date']))) ?></option>
         <?php endforeach; ?>
@@ -395,8 +395,8 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
       <p class="tech-sheet-car"><span class="hub-plate"><?= h((string)$car['car_number']) ?></span> <?= h(garageCarTitle($car)) ?><?= garageCarSub($car) !== '' ? ' · ' . h(garageCarSub($car)) : '' ?></p>
       <p class="form-hint">Car details come from your Garage and are copied onto the sheet when you submit. <a href="garage.php?car=<?= (int)$car['id'] ?>">Edit car details</a></p>
       <?php if ($carNeedsColour): ?>
-      <label for="car_colour">Car colour</label>
-      <input type="text" id="car_colour" name="car_colour" maxlength="30" required>
+      <label for="car_colour">Car colour (required)</label>
+      <input type="text" id="car_colour" name="car_colour" maxlength="30" required data-message="Enter the car's colour.">
       <p class="form-hint">Your car has no colour on file yet. It will be saved to the car.</p>
       <?php endif; ?>
     </div>
@@ -404,8 +404,8 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     <div class="detail-card">
       <h2>Entrant &amp; Driver</h2>
       <div class="tech-sheet-header-grid">
-        <div><label for="entrant_name">Entrant</label><input type="text" id="entrant_name" name="entrant_name" required value="<?= h((string)$entrantName) ?>"></div>
-        <div><label for="driver1_choice">Driver name (Driver 1)</label>
+        <div><label for="entrant_name">Entrant (required)</label><input type="text" id="entrant_name" name="entrant_name" required data-message="Enter the entrant's name." value="<?= h((string)$entrantName) ?>"></div>
+        <div><label for="driver1_choice">Driver name, Driver 1 (required)</label>
           <select id="driver1_choice" name="driver1_choice" required>
             <?php foreach ($ownerDrivers as $d): ?>
             <option value="<?= (int)$d['id'] ?>"<?= (string)(int)$d['id'] === $driver1Choice ? ' selected' : '' ?>><?= h((string)$d['name']) ?><?= (int)$d['id'] === $selfId ? ' (you)' : '' ?></option>
@@ -414,7 +414,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
           </select>
           <input type="text" id="driver1_new_name" name="driver1_new_name" maxlength="100" placeholder="Co-driver's name" aria-label="Driver 1 name" value="<?= h($driver1NewName) ?>">
         </div>
-        <div><label for="engine_hp">Engine HP</label><input type="text" id="engine_hp" name="engine_hp" value="<?= h((string)$engineHp) ?>"></div>
+        <div><label for="engine_hp">Engine HP (optional)</label><input type="text" id="engine_hp" name="engine_hp" value="<?= h((string)$engineHp) ?>"></div>
       </div>
       <p class="form-hint">Driver 1 is the person driving. If you race as a team, put the team name in Entrant.</p>
       <p class="form-hint">Drivers come from your <a href="drivers.php">Drivers</a> page. Choose "+ Add a co-driver" to add someone new: they are added to your Drivers when you submit.</p>
@@ -440,8 +440,11 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 
     <div class="detail-card">
       <h2>Log Book</h2>
+      <div class="radio-group" data-radio-group="Log book turned in? (required)" data-message="Choose Yes or No for the log book.">
+      <p class="radio-group-label">Log book turned in? (required)</p>
       <label class="checkbox-label"><input type="radio" name="log_book_turned_in" value="1" <?= ((string)$existingLogBook === '1') ? 'checked' : '' ?> required> Yes</label>
       <label class="checkbox-label"><input type="radio" name="log_book_turned_in" value="0" <?= ($isEdit && (string)$existingLogBook === '0') ? 'checked' : '' ?>> No</label>
+      </div>
     </div>
 
     <div class="detail-card">
@@ -458,10 +461,10 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
       <div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="driver">Clear</button></div>
     </div>
 
+    <div id="tech-sheet-error" class="form-messages error" role="alert" hidden></div>
     <div class="form-actions">
       <button type="submit" class="btn btn-primary" id="tech-sheet-submit-btn"><?= $isEdit ? 'Save Changes' : 'Submit Tech Sheet' ?></button>
     </div>
-    <div id="tech-sheet-error" class="form-messages error" hidden></div>
   </form>
 </div>
 <script>
@@ -477,6 +480,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 <script src="js/tech-sheet-checklist.js"></script>
 <script src="js/signature-pad.js"></script>
 <script src="js/driver-choice.js"></script>
+<script src="js/form-problems.js"></script>
 <script src="js/tech-sheet-form.js"></script>
 <?php renderSiteFooter(); ?>
 </body>

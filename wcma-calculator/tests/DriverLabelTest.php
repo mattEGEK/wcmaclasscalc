@@ -14,7 +14,7 @@ final class DriverLabelTest extends TestCase
     public function testFormLabelsDriverOneAsAPerson(): void
     {
         $src = $this->src('tech-sheets.php');
-        $this->assertStringContainsString('<label for="driver1_choice">Driver name (Driver 1)</label>', $src);
+        $this->assertStringContainsString('<label for="driver1_choice">Driver name, Driver 1 (required)</label>', $src);
         $this->assertStringNotContainsString('Driver/Team Name', $src);
         $this->assertStringContainsString('<select id="driver1_choice" name="driver1_choice" required>', $src);
     }
@@ -22,7 +22,7 @@ final class DriverLabelTest extends TestCase
     public function testFormHintSendsTeamNamesToEntrant(): void
     {
         $src = $this->src('tech-sheets.php');
-        $this->assertStringContainsString('<label for="entrant_name">Entrant</label>', $src);
+        $this->assertStringContainsString('<label for="entrant_name">Entrant (required)</label>', $src);
         $this->assertStringContainsString('Driver 1 is the person driving. If you race as a team, put the team name in Entrant.', $src);
     }
 

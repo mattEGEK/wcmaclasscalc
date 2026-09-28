@@ -4,6 +4,11 @@
         document.getElementById('checklist-container'), TECH_CHECKLIST_SECTIONS, window.TECH_SHEET_EXISTING_CHECKLIST || {}
     );
 
+    // Problems are shown in words next to their field, and the page takes you there (spec §C3).
+    const form = document.getElementById('tech-sheet-form');
+    WcmaFormProblems.wire(form);
+    function firstOf(selector, fallback) { return document.querySelector(selector) || fallback; }
+
     // Ice form: whether the chosen class requires the head & neck restraint (labels new driver rows too).
     let headNeckRequired = false;
 
@@ -254,29 +259,36 @@
         const errorEl = document.getElementById('tech-sheet-error');
         errorEl.hidden = true;
         clearAllHighlights();
+        WcmaFormProblems.clearAll(form);
 
         if (!checklistWidget.isComplete()) {
             e.preventDefault();
             checklistWidget.highlightIncomplete();
-            errorEl.textContent = 'Please mark every checklist item OK or N/A before submitting — the missing items are highlighted below.';
+            errorEl.textContent = 'Please mark every checklist item OK or N/A before submitting — the missing items are highlighted.';
             errorEl.hidden = false;
             errorEl.classList.add('show');
+            WcmaFormProblems.show(firstOf('#checklist-container .checklist-item-row.field-error', document.getElementById('checklist-container')),
+                'Mark this item OK or N/A.');
             return;
         }
         if (!WcmaDriverChoice.driverChoiceComplete(driver1Choice.value, driver1NewName.value)) {
             e.preventDefault();
-            (driver1Choice.value === WcmaDriverChoice.NEW ? driver1NewName : driver1Choice).classList.add('error');
+            const driverField = driver1Choice.value === WcmaDriverChoice.NEW ? driver1NewName : driver1Choice;
+            driverField.classList.add('error');
             errorEl.textContent = 'Choose Driver 1, or pick "+ Add a co-driver" and type their name.';
             errorEl.hidden = false;
             errorEl.classList.add('show');
+            WcmaFormProblems.show(driverField, errorEl.textContent);
             return;
         }
         if (!isEquipmentComplete(driver1State)) {
             e.preventDefault();
             driver1Equipment.highlightIncomplete();
-            errorEl.textContent = 'Please confirm all of Driver 1\'s safety equipment (including helmet and suit ratings) before submitting — the missing items are highlighted below.';
+            errorEl.textContent = 'Please confirm all of Driver 1\'s safety equipment (including helmet and suit ratings) before submitting — the missing items are highlighted.';
             errorEl.hidden = false;
             errorEl.classList.add('show');
+            WcmaFormProblems.show(firstOf('#equipment-container .field-error', document.getElementById('equipment-container')),
+                'Confirm this item, or enter its rating.');
             return;
         }
         if (sheetTypeSelect && sheetTypeSelect.value === 'endurance') {
@@ -289,9 +301,10 @@
                     (incompleteDriver.picker.select.value === WcmaDriverChoice.NEW ? incompleteDriver.picker.nameInput : incompleteDriver.picker.select).classList.add('error');
                 }
                 incompleteDriver.highlightIncomplete();
-                errorEl.textContent = 'Please choose a driver and confirm all safety equipment for every added driver (Driver ' + incompleteDriver.number + ') before submitting — the missing fields are highlighted below.';
+                errorEl.textContent = 'Please choose a driver and confirm all safety equipment for every added driver (Driver ' + incompleteDriver.number + ') before submitting — the missing fields are highlighted.';
                 errorEl.hidden = false;
                 errorEl.classList.add('show');
+                WcmaFormProblems.show(incompleteDriver.wrap.querySelector('.error, .field-error') || incompleteDriver.wrap, errorEl.textContent);
                 return;
             }
             const rows = [{ choice: driver1Choice.value, newName: driver1NewName.value, select: driver1Choice, nameInput: driver1NewName }]
@@ -311,6 +324,7 @@
                 errorEl.textContent = name + ' is on this sheet twice.';
                 errorEl.hidden = false;
                 errorEl.classList.add('show');
+                WcmaFormProblems.show(dup.choice === WcmaDriverChoice.NEW ? dup.nameInput : dup.select, errorEl.textContent);
                 return;
             }
         }

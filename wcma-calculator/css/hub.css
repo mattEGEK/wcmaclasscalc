@@ -458,3 +458,6 @@ body.hub .auth-links a { color: var(--hub-red-ink); }
 /* ── Phase C: tech sheet form (mobile UX spec 2026-09-28 §C) ── */
 /* A message box with the hidden attribute stays hidden (the legacy .form-messages.error rule shows it). */
 body.hub .form-messages[hidden] { display: none !important; }
+body.hub .field-message { color: var(--hub-red-ink); background: var(--hub-todo-bg); font-weight: 700; font-size: 16px;
+  padding: 8px 12px; border-radius: 8px; margin: 6px 0 12px; }
+body.hub .radio-group-label { font-weight: 700; margin: 0 0 4px; }

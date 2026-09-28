@@ -27,4 +27,13 @@ final class TechSheetViewSourceTest extends TestCase
     {
         $this->assertStringContainsString('<div class="sheet-doc"><?= renderTechSheetHtml(', $this->viewBody());
     }
+
+    public function testSummerFormLoadsFormProblemsAndMarksRequiredFields(): void
+    {
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../tech-sheets.php'));
+        $this->assertStringContainsString('<script src="js/form-problems.js"></script>', $src);
+        $this->assertStringContainsString('<label for="entrant_name">Entrant (required)</label>', $src);
+        $this->assertStringContainsString('data-radio-group="Log book turned in? (required)"', $src);
+        $this->assertStringContainsString('<label for="engine_hp">Engine HP (optional)</label>', $src);
+    }
 }

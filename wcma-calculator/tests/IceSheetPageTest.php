@@ -43,7 +43,7 @@ final class IceSheetPageTest extends TestCase
     public function testNewFormHasTheClassPickerWeightEventAndScripts(): void
     {
         $html = renderIceTechSheetFormHtml($this->vm());
-        $this->assertStringContainsString('<select id="ice_class" name="class" required>', $html);
+        $this->assertStringContainsString('<select id="ice_class" name="class" required data-message="Choose your class.">', $html);
         $this->assertStringContainsString('<option value="LS">LS — Limited Stud</option>', $html);
         $this->assertStringContainsString('name="car_weight"', $html);
         $this->assertStringContainsString('<input type="hidden" name="event_id" value="20">', $html);
@@ -84,5 +84,26 @@ final class IceSheetPageTest extends TestCase
         $vm = $this->vm();
         $vm['event']['name'] = 'Ice <Day>';
         $this->assertStringContainsString('Ice &lt;Day&gt;', renderIceTechSheetFormHtml($vm));
+    }
+
+    private function renderNewSheet(): string {
+        return renderIceTechSheetFormHtml($this->vm());
+    }
+
+    public function testRequiredAndOptionalFieldsSaySoAndCarryAMessage(): void
+    {
+        $html = $this->renderNewSheet();
+        $this->assertStringContainsString('<label for="car_weight">Race weight in lbs, without driver (required)</label>', $html);
+        $this->assertStringContainsString('data-message="Enter the race weight."', $html);
+        $this->assertMatchesRegularExpression('/<label for="ice_class">[A-Z]+ class \(required\)<\/label>/', $html);
+        $this->assertStringContainsString('data-message="Choose your class."', $html);
+        $this->assertStringContainsString('<label for="entrant_name">Entrant (required)</label>', $html);
+        $this->assertStringContainsString('<label for="driver1_choice">Driver (required)</label>', $html);
+        $this->assertStringContainsString('<label for="engine_hp">Engine HP (optional)</label>', $html);
+        $this->assertStringContainsString('data-radio-group="Log book turned in? (required)"', $html);
+        $this->assertStringContainsString('data-message="Choose Yes or No for the log book."', $html);
+        $this->assertStringContainsString('<label for="car_colour">Car colour (required)</label>', $html);
+        $this->assertStringContainsString('<script src="js/form-problems.js"></script>', $html);
+        $this->assertLessThan(strpos($html, 'class="form-actions"'), strpos($html, 'id="tech-sheet-error"'));
     }
 }

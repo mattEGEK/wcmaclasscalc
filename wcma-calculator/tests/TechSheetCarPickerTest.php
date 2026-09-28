@@ -42,6 +42,6 @@ final class TechSheetCarPickerTest extends TestCase
         $this->assertStringNotContainsString('id="car_number" name="car_number"', $src);
         $this->assertStringNotContainsString('id="engine_cc" name="engine_cc"', $src);
         $this->assertStringContainsString('>Edit car details</a>', $src);
-        $this->assertStringContainsString('<input type="text" id="car_colour" name="car_colour" maxlength="30" required>', $src);
+        $this->assertStringContainsString('<input type="text" id="car_colour" name="car_colour" maxlength="30" required data-message="Enter the car\'s colour.">', $src);
     }
 }

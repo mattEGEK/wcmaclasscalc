@@ -152,6 +152,15 @@ try {
   await page.selectOption('select[name=class]', 'SS');
   await page.waitForTimeout(300);
   await audit(page, 'ice tech sheet');
+  await page.click('#tech-sheet-submit-btn');
+  await page.waitForTimeout(300);
+  const firstProblem = await page.evaluate(() => ({
+    message: (document.querySelector('.field-message') || {}).textContent || '',
+    focused: document.activeElement && document.activeElement.id,
+  }));
+  report('submitting an empty sheet says what is missing', firstProblem.message === 'Enter the race weight.' && firstProblem.focused === 'car_weight'
+    ? [] : [`expected "Enter the race weight." with focus on car_weight, got ${JSON.stringify(firstProblem)}`]);
+  await audit(page, 'ice tech sheet with problems shown');
   await page.fill('input[name=car_weight]', '2700');
   await page.fill('input[name=engine_hp]', '140');
   for (const h of await page.locator('.checklist-section-header').all()) await h.click();
