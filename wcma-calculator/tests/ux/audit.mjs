@@ -49,6 +49,12 @@ function auditInPage(R) {
     if (getComputedStyle(el).backgroundColor.replace(/\s/g, '') === 'rgb(149,165,166)') problems.push(`enabled button is grey: ${describe(el)}`);
   }
 
+  // Empty message boxes and "0 of 0" progress read as broken (spec §C2).
+  for (const el of document.querySelectorAll('.form-messages')) {
+    if (visible(el) && !skipped(el) && !(el.innerText || '').trim()) problems.push(`empty message box is showing: ${describe(el)}`);
+  }
+  if (/\b0 of 0 items\b/.test(document.body.innerText)) problems.push('checklist shows "0 of 0 items"');
+
   const lum = c => { const v = c.map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
   const rgba = s => { const m = s.match(/[\d.]+/g) || []; return m.map(Number); };
   const bgOf = el => { for (let e = el; e; e = e.parentElement) { const c = rgba(getComputedStyle(e).backgroundColor); if (c.length === 3 || (c.length === 4 && c[3] > 0.5)) return c.slice(0, 3); } return [255, 255, 255]; };
@@ -141,6 +147,7 @@ try {
   await page.fill('#car-model', 'Civic');
   await page.fill('#car-colour', 'Blue');
   await go('button:has-text("Add car")');
+  await audit(page, 'ice tech sheet (no class yet)');
 
   await page.selectOption('select[name=class]', 'SS');
   await page.waitForTimeout(300);

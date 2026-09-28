@@ -454,3 +454,7 @@ body.hub .auth-links a { color: var(--hub-red-ink); }
   body.hub .sheet-doc [style*="color:#27ae60"] { color: var(--hub-ok-ink) !important; }
   body.hub .sheet-doc [style*="color:#999"] { color: var(--hub-ink-2) !important; }
 }
+
+/* ── Phase C: tech sheet form (mobile UX spec 2026-09-28 §C) ── */
+/* A message box with the hidden attribute stays hidden (the legacy .form-messages.error rule shows it). */
+body.hub .form-messages[hidden] { display: none !important; }
