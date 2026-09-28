@@ -337,3 +337,8 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 
 /* Links on the dark landing hero (mobile UX spec §A4: contrast) */
 .hub-hero a:not(.hub-btn) { color: #fff; text-decoration: underline; }
+
+/* Submitted tech sheet: what's next (mobile UX spec 2026-09-28 §A5) */
+.sheet-next { margin-bottom: 16px; }
+.sheet-next .hub-todo-txt p { margin: 4px 0 10px; }
+.sheet-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 24px; }
