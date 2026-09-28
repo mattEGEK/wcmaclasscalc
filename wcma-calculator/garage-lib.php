@@ -53,6 +53,29 @@ function garageClassLine(array $declarations): array {
     return ['current' => $current, 'earlierAccepted' => $earlier];
 }
 
+/** The event a car is being added for (Home's "Add a car for this event"), or null if it can't be tagged. */
+function garageAddEvent(?array $event, string $today): ?array {
+    if ($event === null || (int)($event['active'] ?? 0) !== 1 || (string)($event['event_date'] ?? '') < $today) return null;
+    return $event;
+}
+
+/**
+ * Where Add a car goes next (mobile UX spec 2026-09-28 §A2). $event is the event it was added for
+ * and has already been tagged, or null.
+ * @return array{url: string, flash: string}
+ */
+function garageAfterAdd(int $carId, string $disciplines, ?array $event): array {
+    $car = 'garage.php?car=' . $carId;
+    if ($event !== null && ($event['discipline'] ?? 'summer') === 'ice') {
+        return ['url' => 'tech-sheets.php?action=new-ice&car_id=' . $carId . '&event_id=' . (int)$event['id'],
+                'flash' => 'Car added and going to ' . $event['name'] . '. Next, the ice tech sheet.'];
+    }
+    if ($event !== null) return ['url' => $car, 'flash' => 'Car added and going to ' . $event['name'] . '. Next, declare its class.'];
+    if ($disciplines === 'ice') return ['url' => $car, 'flash' => 'Car added. Which ice event is it going to first?'];
+    if ($disciplines === 'both') return ['url' => $car, 'flash' => 'Car added. Declare its class for summer, and pick an ice event below.'];
+    return ['url' => $car, 'flash' => 'Car added. Next, declare its class.'];
+}
+
 /**
  * The car page's Events section.
  * - tagged: active events on or after $today that this car is tagged for, soonest first, each with

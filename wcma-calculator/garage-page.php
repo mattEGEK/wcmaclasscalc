@@ -49,11 +49,21 @@ function garageClassHtml(array $line): string {
     return $out . '</p>';
 }
 
+/** "Where will this car race?" as three large radio cards (mobile UX spec 2026-09-28 §A2). */
+function garageSeasonFieldHtml(?string $value, bool $required): string {
+    $out = '<fieldset class="garage-season"><legend>Where will this car race?' . ($required ? ' (required)' : '') . '</legend><div class="garage-season-options">';
+    foreach (['ice' => 'Ice', 'summer' => 'Summer', 'both' => 'Both'] as $v => $label) {
+        $out .= '<label><input type="radio" name="disciplines" value="' . $v . '"' . ($required ? ' required' : '')
+            . ($value === $v ? ' checked' : '') . '><span>' . $label . '</span></label>';
+    }
+    return $out . '</div></fieldset>';
+}
+
 /** The six car inputs shared by Add a car and Edit details. */
 function garageDetailsFields(array $values): string {
     $fields = [
         'car_number' => ['Car number', true],
-        'year' => ['Year', false],
+        'year' => ['Year (optional)', false],
         'make' => ['Make', true],
         'model' => ['Model', true],
         'colour' => ['Colour', true],
@@ -63,7 +73,7 @@ function garageDetailsFields(array $values): string {
     foreach ($fields as $name => [$label, $required]) {
         $out .= '<div><label for="car-' . $name . '">' . h($label) . '</label>'
             . '<input type="text" id="car-' . $name . '" name="' . $name . '" maxlength="' . CARS_FIELD_MAX[$name] . '"'
-            . ($required ? ' required' : '') . ($name === 'year' || $name === 'engine_cc' ? ' inputmode="numeric"' : '')
+            . ($required ? ' required' : '') . (in_array($name, ['car_number', 'year', 'engine_cc'], true) ? ' inputmode="numeric"' : '')
             . ' value="' . h((string)($values[$name] ?? '')) . '"></div>';
     }
     return $out . '</div>';
@@ -110,7 +120,7 @@ function garageRenderCard(array $card): string {
 
 function renderGarageListHtml(array $vm): string {
     $out = '<h1>Garage</h1>';
-    if (!$vm['cards']) $out .= '<p class="hub-intro">Start by adding your car and declaring its class.</p>';
+    if (!$vm['cards']) $out .= '<p class="hub-intro">Start by adding your car.</p>';
     $out .= '<div class="garage-grid">';
     foreach ($vm['cards'] as $card) $out .= garageRenderCard($card);
     $out .= '<a class="garage-add" href="garage.php?action=add">+ Add a car</a></div>';
@@ -128,17 +138,19 @@ function renderGarageListHtml(array $vm): string {
 }
 
 function renderAddCarHtml(array $vm): string {
-    $out = '<h1>Add a car</h1>';
+    $event = $vm['event'] ?? null;
+    $out = '<h1>Add a car' . ($event !== null ? ' for ' . h((string)$event['name']) : '') . '</h1>';
     if ($vm['error'] !== null) $out .= '<div class="form-messages show error" role="alert">' . h((string)$vm['error']) . '</div>';
     $out .= '<form method="post" action="garage.php" class="hub-card">' . garageCsrfField((string)$vm['csrf'])
-        . '<input type="hidden" name="action" value="add">' . garageDetailsFields($vm['values'])
+        . '<input type="hidden" name="action" value="add">'
+        . ($event !== null ? '<input type="hidden" name="event_id" value="' . (int)$event['id'] . '">' : '')
+        . garageSeasonFieldHtml($vm['values']['disciplines'] ?? null, true)
+        . garageDetailsFields($vm['values'])
         . '<p class="form-hint">Car numbers are reserved on MotorsportReg. The hub records the number you enter.';
     if ($vm['msrLink'] !== null) {
         $out .= ' <a href="' . h((string)$vm['msrLink']['url']) . '" target="_blank" rel="noopener">' . h((string)$vm['msrLink']['label']) . ' &#8599;</a>';
     }
-    $out .= '</p><button type="submit" class="hub-btn">Add car</button></form>'
-        . '<p>Next, you will declare its class with the Class Calculator.</p>';
-    return $out;
+    return $out . '</p><button type="submit" class="hub-btn">Add car</button></form>';
 }
 
 function renderGarageCarHtml(array $vm): string {
@@ -163,6 +175,7 @@ function renderGarageCarHtml(array $vm): string {
     if ($form !== null) $out .= '<div class="form-messages show error" role="alert">' . h((string)$form['error']) . '</div>';
     $out .= '<form method="post" action="garage.php">' . garageCsrfField($csrf)
         . '<input type="hidden" name="action" value="update-car"><input type="hidden" name="car_id" value="' . $id . '">'
+        . garageSeasonFieldHtml(($form['values'] ?? $car)['disciplines'] ?? null, false)
         . garageDetailsFields($form['values'] ?? $car) . '<button type="submit" class="hub-btn">Save details</button></form></details></section>';
 
     $usesSummer = $vm['usesSummer'] ?? true;

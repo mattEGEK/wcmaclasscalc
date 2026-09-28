@@ -15,7 +15,7 @@ final class CarDetailsTest extends TestCase
     {
         $r = carsValidateDetails($this->form());
         $this->assertTrue($r['ok']);
-        $this->assertSame(['car_number' => '42', 'year' => '2004', 'make' => 'Honda', 'model' => 'S2000', 'colour' => 'Silver', 'engine_cc' => null], $r['data']);
+        $this->assertSame(['car_number' => '42', 'year' => '2004', 'make' => 'Honda', 'model' => 'S2000', 'colour' => 'Silver', 'engine_cc' => null, 'disciplines' => null], $r['data']);
         $this->assertNull(carsValidateDetails($this->form(['year' => '']))['data']['year']);
     }
 
@@ -47,5 +47,14 @@ final class CarDetailsTest extends TestCase
         $this->assertSame('b', seasonLinkMatching($links, 'classing')['url']);
         $this->assertSame('a', seasonLinkMatching($links, 'Licen')['url']);
         $this->assertNull(seasonLinkMatching($links, 'Waiver'));
+    }
+
+    public function testSeasonIsRequiredWhenAddingAndOptionalWhenEditing(): void
+    {
+        $this->assertSame('Choose where this car will race: ice, summer or both.', carsValidateDetails($this->form(), true)['error']);
+        $this->assertSame('ice', carsValidateDetails($this->form(['disciplines' => 'ice']), true)['data']['disciplines']);
+        $this->assertTrue(carsValidateDetails($this->form())['ok']);
+        $this->assertNull(carsValidateDetails($this->form(['disciplines' => '']))['data']['disciplines']);
+        $this->assertSame('Choose where this car will race: ice, summer or both.', carsValidateDetails($this->form(['disciplines' => 'rally']))['error']);
     }
 }

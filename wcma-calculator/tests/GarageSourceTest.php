@@ -111,4 +111,12 @@ final class GarageSourceTest extends TestCase
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../garage.php'));
         $this->assertStringContainsString('garageCarSeasons($car, $declarations, $allSheets, $taggedSummer, $taggedIce)', $src);
     }
+
+    public function testAddRequiresASeasonAndTagsTheEventItWasAddedFor(): void
+    {
+        $body = $this->body('garage.php', 'handleGaragePost');
+        $this->assertStringContainsString('carsValidateDetails($_POST, true)', $body);
+        $this->assertStringContainsString('garageAddEvent(', $body);
+        $this->assertStringContainsString('garageAfterAdd(', $body);
+    }
 }

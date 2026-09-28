@@ -267,4 +267,25 @@ final class GarageLibTest extends TestCase
         $cars[4] = ['id' => 4, 'disciplines' => null];
         $this->assertTrue(userUsesSummer($cars, [], [], [], [], '2026-09-28'));
     }
+
+    public function testAddEventIgnoresMissingInactiveAndPastEvents(): void
+    {
+        $e = ['id' => 12, 'name' => 'NASCC Ice Race #1', 'event_date' => '2026-11-12', 'active' => 1, 'discipline' => 'ice'];
+        $this->assertSame($e, garageAddEvent($e, '2026-09-28'));
+        $this->assertNull(garageAddEvent(null, '2026-09-28'));
+        $this->assertNull(garageAddEvent(['active' => 0] + $e, '2026-09-28'));
+        $this->assertNull(garageAddEvent($e, '2026-11-13'));
+    }
+
+    public function testAfterAddSendsIceCarsTowardsTheirIceEvent(): void
+    {
+        $ice = ['id' => 12, 'name' => 'NASCC Ice Race #1', 'discipline' => 'ice'];
+        $summer = ['id' => 10, 'name' => 'Fall Sprint', 'discipline' => 'summer'];
+        $this->assertSame(['url' => 'tech-sheets.php?action=new-ice&car_id=3&event_id=12',
+                           'flash' => 'Car added and going to NASCC Ice Race #1. Next, the ice tech sheet.'], garageAfterAdd(3, 'ice', $ice));
+        $this->assertSame(['url' => 'garage.php?car=3', 'flash' => 'Car added. Which ice event is it going to first?'], garageAfterAdd(3, 'ice', null));
+        $this->assertSame(['url' => 'garage.php?car=3', 'flash' => 'Car added and going to Fall Sprint. Next, declare its class.'], garageAfterAdd(3, 'summer', $summer));
+        $this->assertSame(['url' => 'garage.php?car=3', 'flash' => 'Car added. Declare its class for summer, and pick an ice event below.'], garageAfterAdd(3, 'both', null));
+        $this->assertSame(['url' => 'garage.php?car=3', 'flash' => 'Car added. Next, declare its class.'], garageAfterAdd(3, 'summer', null));
+    }
 }

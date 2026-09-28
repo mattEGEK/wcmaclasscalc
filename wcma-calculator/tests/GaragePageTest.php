@@ -68,7 +68,7 @@ final class GaragePageTest extends TestCase
         $this->assertStringNotContainsString('hub-plate--lg">17', $html);
         $this->assertStringContainsString('name="action" value="restore"', $html);
         $this->assertStringContainsString('name="car_id" value="4"', $html);
-        $this->assertStringContainsString('Start by adding your car and declaring its class.', $html);
+        $this->assertStringContainsString('Start by adding your car.', $html);
     }
 
     public function testListEscapesCarFields(): void
@@ -107,6 +107,7 @@ final class GaragePageTest extends TestCase
                 'untagged' => [['id' => 12, 'name' => 'Test <Day>', 'event_date' => '2026-11-01']],
                 'earlierSheets' => [['sheet' => ['id' => 2], 'event_name' => 'Spring Opener']],
             ],
+            'seasons' => ['summer' => true, 'ice' => false],
             'csrf' => 'tok', 'detailsForm' => null,
             'usesSummer' => true, 'ice' => null,
         ], $o);
@@ -249,5 +250,44 @@ final class GaragePageTest extends TestCase
         $this->assertStringContainsString('name="action" value="resend-declaration"', $html);
         $this->assertStringContainsString('data-confirm="Permanently delete this class declaration and its files?"', $html);
         $this->assertStringContainsString('href="garage.php?car=3"', $html);
+    }
+
+    private function addVm(array $o = []): array {
+        return array_merge(['csrf' => 'tok', 'values' => [], 'error' => null, 'msrLink' => null, 'event' => null], $o);
+    }
+
+    public function testAddCarAsksWhereTheCarRacesFirst(): void
+    {
+        $html = renderAddCarHtml($this->addVm());
+        $this->assertStringContainsString('<legend>Where will this car race? (required)</legend>', $html);
+        foreach (['ice' => 'Ice', 'summer' => 'Summer', 'both' => 'Both'] as $v => $label) {
+            $this->assertStringContainsString('<input type="radio" name="disciplines" value="' . $v . '" required>', $html);
+            $this->assertStringContainsString('<span>' . $label . '</span>', $html);
+        }
+        $this->assertStringNotContainsString('declare its class with the Class Calculator', $html);
+        $this->assertLessThan(strpos($html, 'id="car-car_number"'), strpos($html, 'Where will this car race?'));
+    }
+
+    public function testAddCarLabelsYearOptionalAndUsesANumberKeypadForTheCarNumber(): void
+    {
+        $html = renderAddCarHtml($this->addVm());
+        $this->assertStringContainsString('<label for="car-year">Year (optional)</label>', $html);
+        $this->assertMatchesRegularExpression('/id="car-car_number"[^>]*inputmode="numeric"/', $html);
+    }
+
+    public function testAddCarForAnEventPreselectsItsSeasonAndCarriesTheEvent(): void
+    {
+        $html = renderAddCarHtml($this->addVm(['values' => ['disciplines' => 'ice'],
+            'event' => ['id' => 12, 'name' => 'NASCC Ice Race #1', 'event_date' => '2026-11-12', 'discipline' => 'ice']]));
+        $this->assertStringContainsString('<input type="radio" name="disciplines" value="ice" required checked>', $html);
+        $this->assertStringContainsString('<input type="hidden" name="event_id" value="12">', $html);
+        $this->assertStringContainsString('for NASCC Ice Race #1', $html);
+    }
+
+    public function testEditDetailsShowsTheSeasonButDoesNotRequireIt(): void
+    {
+        $html = renderGarageCarHtml($this->carVm(['car' => $this->car(['disciplines' => 'both'])]));
+        $this->assertStringContainsString('<legend>Where will this car race?</legend>', $html);
+        $this->assertStringContainsString('<input type="radio" name="disciplines" value="both" checked>', $html);
     }
 }

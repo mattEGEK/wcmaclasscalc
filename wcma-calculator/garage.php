@@ -35,7 +35,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if (($_GET['action'] ?? '') === 'add') {
-    garageRenderAdd($pdo, [], null);
+    $event = garageAddEvent(isset($_GET['event_id']) ? db_get_event($pdo, (int)$_GET['event_id']) : null, date('Y-m-d'));
+    $values = $event !== null ? ['disciplines' => ($event['discipline'] ?? 'summer') === 'ice' ? 'ice' : 'summer'] : [];
+    garageRenderAdd($pdo, $values, null, $event);
     exit;
 }
 if (isset($_GET['declaration'])) {
@@ -76,13 +78,13 @@ function garageShowList(PDO $pdo, int $uid): void {
     renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script>']);
 }
 
-function garageRenderAdd(PDO $pdo, array $values, ?string $error): void {
+function garageRenderAdd(PDO $pdo, array $values, ?string $error, ?array $event = null): void {
     renderPageStart('Add a car', 'garage', [
         'subnav' => '<a href="garage.php">&larr; Back to Garage</a>',
         'flash' => $error === null ? getFlash() : null,
     ]);
     echo renderAddCarHtml([
-        'csrf' => generateCsrfToken(), 'values' => $values, 'error' => $error,
+        'csrf' => generateCsrfToken(), 'values' => $values, 'error' => $error, 'event' => $event,
         'msrLink' => seasonLinkMatching(db_get_season_links($pdo, true), 'Classing'),
     ]);
     renderPageEnd();
@@ -142,11 +144,14 @@ function handleGaragePost(PDO $pdo, int $uid, string $action): void {
     $carId = (int)($_POST['car_id'] ?? 0);
     switch ($action) {
         case 'add':
-            $v = carsValidateDetails($_POST);
-            if (!$v['ok']) { garageRenderAdd($pdo, $v['data'], $v['error']); return; }
+            $event = garageAddEvent(isset($_POST['event_id']) ? db_get_event($pdo, (int)$_POST['event_id']) : null, date('Y-m-d'));
+            $v = carsValidateDetails($_POST, true);
+            if (!$v['ok']) { garageRenderAdd($pdo, $v['data'], $v['error'], $event); return; }
             $id = db_create_car($pdo, $uid, $v['data']);
-            setFlash('Car added. Next, declare its class.', 'success');
-            header('Location: garage.php?car=' . $id);
+            if ($event !== null && !eventsTagCar($pdo, $uid, (int)$event['id'], $id)['ok']) $event = null;
+            $next = garageAfterAdd($id, (string)$v['data']['disciplines'], $event);
+            setFlash($next['flash'], 'success');
+            header('Location: ' . $next['url']);
             return;
         case 'archive':
             $ok = db_archive_car($pdo, $uid, $carId);
