@@ -404,19 +404,31 @@ function gearCreateAndAcceptInPerson(PDO $pdo, array $sheet, array $drivers, int
 }
 
 /**
- * Opens ice gear photos from an ice tech sheet: finds or creates the ice gear record for the sheet's
- * driver, in the sheet's (current) ice season, under the sheet owner.
+ * Opens ice gear photos from an ice tech sheet: finds or creates the ice gear record for one of the
+ * sheet's drivers, in the sheet's (current) ice season, under the sheet owner. $driverNumber 1 is the
+ * sheet's primary driver; 2 and up is that sheet's tech_sheet_drivers row with that driver_number
+ * (looked up on this sheet only).
  *
  * @return array{ok: bool, error: ?string, id: ?int}
  */
-function gearStartIceForSheet(PDO $pdo, array $sheet, int $ownerId): array {
+function gearStartIceForSheet(PDO $pdo, array $sheet, int $ownerId, int $driverNumber = 1): array {
     $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'id' => null];
     if ((int)($sheet['user_id'] ?? 0) !== $ownerId) return $fail('Tech sheet not found.');
     if (($sheet['discipline'] ?? DISCIPLINE_SUMMER) !== DISCIPLINE_ICE) return $fail('That is not an ice tech sheet.');
     $season = (int)($sheet['season'] ?? 0);
     if ($season !== gearSeasonNow(DISCIPLINE_ICE)) return $fail('Gear photos can only be added for the current ice season.');
-    $name = trim((string)preg_replace('/\s+/', ' ', (string)($sheet['driver_name'] ?? '')));
-    if ($name === '') return $fail('This tech sheet has no driver.');
+    if ($driverNumber < 1) return $fail('That driver is not on this sheet.');
+    $rawName = null;
+    if ($driverNumber === 1) {
+        $rawName = (string)($sheet['driver_name'] ?? '');
+    } else {
+        foreach (db_get_tech_sheet_drivers($pdo, (int)$sheet['id']) as $d) {
+            if ((int)$d['driver_number'] === $driverNumber) { $rawName = (string)$d['driver_name']; break; }
+        }
+        if ($rawName === null) return $fail('That driver is not on this sheet.');
+    }
+    $name = trim((string)preg_replace('/\s+/', ' ', $rawName));
+    if ($name === '') return $fail($driverNumber === 1 ? 'This tech sheet has no driver.' : 'That driver is not on this sheet.');
 
     $existing = db_find_gear_record($pdo, $ownerId, gearNameNorm($name), $season, DISCIPLINE_ICE);
     if ($existing !== null) return ['ok' => true, 'error' => null, 'id' => (int)$existing['id']];

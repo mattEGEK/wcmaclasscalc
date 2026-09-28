@@ -40,6 +40,13 @@ final class GearStartSourceTest extends TestCase
         $this->assertStringContainsString('gearStartIceForSheet(', $src);
     }
 
+    public function testStartIceValidatesTheDriverNumberAsAnInteger(): void
+    {
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../gear.php'));
+        $this->assertStringContainsString("filter_var(\$_GET['driver'] ?? '1', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])", $src);
+        $this->assertStringContainsString("gearStartIceForSheet(\$pdo, \$sheet, (int)\$user['id'], \$driverNumber)", $src);
+    }
+
     public function testPretechHandlersAreDisciplineAgnostic(): void {
         foreach (['handleGearPretech', 'handleGearPretechSubmit'] as $name) {
             $this->assertStringNotContainsString('DISCIPLINE_ICE', $this->body($name), $name);

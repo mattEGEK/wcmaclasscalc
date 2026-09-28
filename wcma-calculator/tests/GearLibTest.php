@@ -321,6 +321,33 @@ final class GearLibTest extends TestCase
         $this->assertFalse(gearStartIceForSheet($pdo, $old, $u)['ok']);
     }
 
+    public function testStartIceForSheetOpensTheAddedDriversRecord(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->owner($pdo);
+        $car = test_make_car($pdo, $u, '7');
+        $event = db_create_event($pdo, 'NASCC Ice', date('Y-m-d', strtotime('+10 days')), null, 'ice', 'NASCC');
+        $sheet = db_get_tech_sheet($pdo, test_make_ice_sheet($pdo, $u, $car, $event, 'SS'));
+        db_add_tech_sheet_driver($pdo, (int)$sheet['id'], 2, 'Sam  Patel', '{}');
+        $other = test_make_ice_sheet($pdo, $u, $car, $event, 'SS');
+        db_add_tech_sheet_driver($pdo, $other, 3, 'Other Person', '{}');   // driver 3 on another sheet only
+
+        $r = gearStartIceForSheet($pdo, $sheet, $u, 2);
+        $this->assertTrue($r['ok'], (string)$r['error']);
+        $g = db_get_gear_record($pdo, (int)$r['id']);
+        $this->assertSame('Sam Patel', $g['driver_name']);
+        $this->assertSame('ice', $g['discipline']);
+        $this->assertSame($r['id'], gearStartIceForSheet($pdo, $sheet, $u, 2)['id']);   // found, not duplicated
+
+        $one = gearStartIceForSheet($pdo, $sheet, $u, 1);
+        $this->assertSame('Test Driver', db_get_gear_record($pdo, (int)$one['id'])['driver_name']);
+        $this->assertSame($one['id'], gearStartIceForSheet($pdo, $sheet, $u)['id']);   // default is driver 1
+
+        $this->assertFalse(gearStartIceForSheet($pdo, $sheet, $u, 3)['ok']);   // not on THIS sheet
+        $this->assertFalse(gearStartIceForSheet($pdo, $sheet, $u, 0)['ok']);
+        $this->assertFalse(gearStartIceForSheet($pdo, $sheet, $this->owner($pdo), 2)['ok']);   // not the owner
+    }
+
     public function testIceSeasonNowAndIceLabels(): void
     {
         $this->assertSame(iceSeasonFromDate(date('Y-m-d')), gearSeasonNow('ice'));

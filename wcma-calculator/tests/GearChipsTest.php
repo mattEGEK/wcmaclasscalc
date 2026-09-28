@@ -116,6 +116,14 @@ final class GearChipsTest extends TestCase
         $this->assertStringContainsString('href="gear.php?action=pretech&amp;id=4"', renderGearChips([$has], 'owner'));
     }
 
+    public function testOwnerIceChipForAnAddedDriverCarriesTheDriverNumber(): void
+    {
+        $none = ['driver_number' => 2, 'name' => 'Sam', 'name_norm' => 'sam', 'discipline' => 'ice', 'default_level' => 'caged',
+                 'gear' => null, 'status' => ['state' => 'none', 'via' => null]];
+        $html = renderGearChips([$none], 'owner', ['sheet_id' => 9, 'sheet_season' => gearSeasonNow('ice')]);
+        $this->assertStringContainsString('href="gear.php?action=start-ice&amp;sheet_id=9&amp;driver=2">Add gear photos</a>', $html);
+    }
+
     public function testOwnerIceChipWithNoSheetIdOffersNoStartIceLink(): void
     {
         $none = ['driver_number' => 1, 'name' => 'Sam', 'name_norm' => 'sam', 'discipline' => 'ice', 'default_level' => 'caged',

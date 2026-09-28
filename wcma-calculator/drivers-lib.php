@@ -21,7 +21,8 @@ function driversGearAction(int $driverId, array $status): array {
 /**
  * @param array $gear driver id => that driver's gear_records row for $season
  * @param array $media driver id => db_get_media_bundle() entry
- * @param array $ice driver id => array{state, label, gearId, sheetId}
+ * @param array $ice driver id => array{state, label, gearId, sheetId, driverNumber?} (driverNumber
+ *                   defaults to 1, the sheet's primary driver)
  */
 function driversRows(array $drivers, array $gear, int $selfId, int $season, array $media = [], array $ice = []): array {
     $rows = [];
@@ -35,7 +36,11 @@ function driversRows(array $drivers, array $gear, int $selfId, int $season, arra
             $i = $ice[$id];
             $action = null;
             if ($i['gearId'] !== null) $action = ['label' => 'View ice gear', 'url' => 'gear.php?action=pretech&id=' . (int)$i['gearId']];
-            elseif ($i['sheetId'] !== null && $i['state'] !== 'accepted') $action = ['label' => 'Add ice gear photos', 'url' => 'gear.php?action=start-ice&sheet_id=' . (int)$i['sheetId']];
+            elseif ($i['sheetId'] !== null && $i['state'] !== 'accepted') {
+                $num = (int)($i['driverNumber'] ?? 1);
+                $action = ['label' => 'Add ice gear photos',
+                           'url' => 'gear.php?action=start-ice&sheet_id=' . (int)$i['sheetId'] . ($num >= 2 ? '&driver=' . $num : '')];
+            }
             $row['ice'] = ['state' => $i['state'], 'label' => $i['label'], 'action' => $action];
         }
         $rows[] = $row;
@@ -49,19 +54,22 @@ function driversRows(array $drivers, array $gear, int $selfId, int $season, arra
  * $sheetDrivers pattern) — for the "Add ice gear photos" action on the Drivers page.
  *
  * @param array $sheets tech_sheets rows; non-ice rows and rows for another season are ignored
- * @param array $sheetDrivers sheet id => int[] added driver ids (e.g. db_get_drivers_for_sheets()
- *                            rows mapped to their driver_id, as loadReadinessInputs() builds them)
- * @return array<int,int> driver id => newest sheet id
+ * @param array $sheetDrivers sheet id => tech_sheet_drivers rows (driver_id, driver_number), as
+ *                            db_get_drivers_for_sheets() returns them
+ * @return array<int, array{sheetId: int, driverNumber: int}> driver id => newest sheet id and the
+ *         driver's number on it (1 = the sheet's primary driver)
  */
 function driversIceSheetIdsByDriver(array $sheets, array $sheetDrivers, int $iceSeason): array {
     $byDriver = [];
     foreach ($sheets as $s) {
         if (!techSheetIsIce($s) || (int)($s['season'] ?? 0) !== $iceSeason) continue;
         $sid = (int)$s['id'];
-        $driverIds = array_unique(array_merge([(int)($s['driver_id'] ?? 0)], array_map('intval', $sheetDrivers[$sid] ?? [])));
-        foreach ($driverIds as $did) {
+        $onSheet = [];   // driver id => driver number; the primary driver wins over a duplicate added row
+        foreach ($sheetDrivers[$sid] ?? [] as $r) $onSheet[(int)($r['driver_id'] ?? 0)] = (int)$r['driver_number'];
+        $onSheet[(int)($s['driver_id'] ?? 0)] = 1;
+        foreach ($onSheet as $did => $num) {
             if ($did <= 0) continue;
-            if (!isset($byDriver[$did]) || $sid > $byDriver[$did]) $byDriver[$did] = $sid;
+            if (!isset($byDriver[$did]) || $sid > $byDriver[$did]['sheetId']) $byDriver[$did] = ['sheetId' => $sid, 'driverNumber' => $num];
         }
     }
     return $byDriver;

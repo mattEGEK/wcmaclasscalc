@@ -52,6 +52,14 @@ final class DriversLibTest extends TestCase
         $this->assertArrayNotHasKey('ice', driversRows($drivers, [], 5, 2026)[0]);
     }
 
+    public function testAddedDriversIceActionCarriesTheirDriverNumber(): void
+    {
+        $rows = driversRows([['id' => 6, 'name' => 'Sam']], [], 5, 2026, [], [
+            6 => ['state' => 'none', 'label' => 'Needs ice gear check 2027', 'gearId' => null, 'sheetId' => 9, 'driverNumber' => 2],
+        ]);
+        $this->assertSame(['label' => 'Add ice gear photos', 'url' => 'gear.php?action=start-ice&sheet_id=9&driver=2'], $rows[0]['ice']['action']);
+    }
+
     public function testIceSheetIdsByDriverIncludeAddedDriversNotOnlyThePrimary(): void
     {
         $sheets = [
@@ -60,11 +68,11 @@ final class DriversLibTest extends TestCase
             ['id' => 11, 'season' => 2026, 'discipline' => 'ice', 'driver_id' => 6],   // wrong season: ignored
             ['id' => 12, 'season' => 2027, 'discipline' => 'summer', 'driver_id' => 7],   // not ice: ignored
         ];
-        // Driver 6 is an added driver (tech_sheet_drivers) on sheet 9 only, not on the newer sheet 10.
-        $sheetDrivers = [9 => [6]];
+        // Driver 6 is an added driver (tech_sheet_drivers, driver 2) on sheet 9 only, not on the newer sheet 10.
+        $sheetDrivers = [9 => [['driver_id' => 6, 'driver_number' => 2]]];
         $byDriver = driversIceSheetIdsByDriver($sheets, $sheetDrivers, 2027);
-        $this->assertSame(10, $byDriver[5]);   // primary driver: newest of their two sheets
-        $this->assertSame(9, $byDriver[6]);    // added driver: the one sheet naming them, not sheet 10
+        $this->assertSame(['sheetId' => 10, 'driverNumber' => 1], $byDriver[5]);   // primary driver: newest of their two sheets
+        $this->assertSame(['sheetId' => 9, 'driverNumber' => 2], $byDriver[6]);    // added driver: the one sheet naming them, not sheet 10
         $this->assertArrayNotHasKey(7, $byDriver);
     }
 
