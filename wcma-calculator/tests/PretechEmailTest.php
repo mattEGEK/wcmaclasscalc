@@ -104,13 +104,13 @@ final class PretechEmailTest extends TestCase
         $admin = 'https://x.test/inspect.php?action=tech-sheet&id=12';
 
         $competitor = pretechEmailAccepted($this->iceSheet(), $this->event(), $view, $admin, false, null, 'in_person');
-        $this->assertStringContainsString('Ice 2027', $competitor['text']);
+        $this->assertStringContainsString('Winter 2026–27', $competitor['text']);
         $this->assertStringContainsString(techSheetClassLine($this->iceSheet()), $competitor['text']);
-        $this->assertStringContainsString('Ice 2027', $competitor['html']);
+        $this->assertStringContainsString('Winter 2026–27', $competitor['html']);
         $this->assertStringContainsString(h(techSheetClassLine($this->iceSheet())), $competitor['html']);
 
         $club = pretechEmailAccepted($this->iceSheet(), $this->event(), $view, $admin, true, null, 'in_person');
-        $this->assertStringContainsString('Ice 2027', $club['text']);
+        $this->assertStringContainsString('Winter 2026–27', $club['text']);
         $this->assertStringContainsString(techSheetClassLine($this->iceSheet()), $club['text']);
     }
 
@@ -121,7 +121,7 @@ final class PretechEmailTest extends TestCase
 
         $mail = pretechEmailAccepted($this->sheet(), $this->event(), $view, $admin, false, null, 'in_person');
         $this->assertStringContainsString('teched for 2026.', $mail['text']);
-        $this->assertStringNotContainsString('Ice 2026', $mail['text']);
+        $this->assertStringNotContainsString('Winter 2025–26', $mail['text']);
     }
 
     public function testNoApprovalWordingOutsideTheDisclaimer(): void

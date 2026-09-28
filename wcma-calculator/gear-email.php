@@ -4,6 +4,7 @@
 // Emails for the driver gear pre-tech workflow: pure renderers (branded like the car pre-tech
 // emails, logo via cid:wcma-logo, photos never embedded) and a notifier with an injectable send
 // function. Callers must have loaded db.php first.
+require_once __DIR__ . '/tech-status.php';   // iceSeasonLabel()
 require_once __DIR__ . '/pretech-email.php';   // pretechEmailWrap/Para/Link, view_helpers, photo-requirements
 require_once __DIR__ . '/email-copy.php';
 require_once __DIR__ . '/ice-rules.php';       // ICE_GEAR_LEVEL_LABELS
@@ -11,7 +12,7 @@ require_once __DIR__ . '/ice-rules.php';       // ICE_GEAR_LEVEL_LABELS
 function gearEmailDriverLine(array $gear): string {
     $season = (int)($gear['season'] ?? date('Y'));
     $isIce = ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
-    return $gear['driver_name'] . ' — ' . ($isIce ? 'Ice ' : '') . $season;
+    return $gear['driver_name'] . ' — ' . ($isIce ? iceSeasonLabel((int)$season) : (string)$season);
 }
 
 /** @return array{subject: string, html: string, text: string} */
@@ -72,7 +73,7 @@ function gearEmailAccepted(array $gear, string $pageUrl, string $adminUrl, bool 
     $driver = gearEmailDriverLine($gear);
     $season = (int)($gear['season'] ?? date('Y'));
     $isIce = ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
-    $seasonText = $isIce ? 'Ice ' . $season : (string)$season;
+    $seasonText = $isIce ? iceSeasonLabel((int)$season) : (string)$season;
     $levelLine = ($isIce && !empty($gear['level'])) ? 'Gear level: ' . (ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']) . '.' : '';
     $byLine = reviewedByLine($reviewer);
     $what = $via === 'in_person'

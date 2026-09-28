@@ -198,8 +198,8 @@ final class GaragePageTest extends TestCase
     public function testIceOnlyCardShowsTheIceChipAndNoDeclare(): void
     {
         $html = garageRenderCard($this->card(['class' => ['current' => null, 'earlierAccepted' => null], 'usesSummer' => false,
-            'ice' => ['state' => 'accepted', 'label' => 'Teched Ice 2027 · NASCC · LS'], 'next' => null]));
-        $this->assertStringContainsString('Teched Ice 2027 · NASCC · LS', $html);
+            'ice' => ['state' => 'accepted', 'label' => 'Teched Winter 2026–27 · NASCC · LS'], 'next' => null]));
+        $this->assertStringContainsString('Teched Winter 2026–27 · NASCC · LS', $html);
         $this->assertStringNotContainsString('Declare class', $html);
         $this->assertStringNotContainsString('No class declared yet', $html);
     }

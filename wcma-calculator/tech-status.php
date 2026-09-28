@@ -23,6 +23,11 @@ function techSeasonFromDate(?string $eventDate): int {
 
 const DISCIPLINE_SUMMER = 'summer';
 const DISCIPLINE_ICE = 'ice';
+
+/** How an ice season reads to people: stored season 2027 is the winter of 2026–27 (mobile UX spec 2026-09-28 §C5). */
+function iceSeasonLabel(int $season): string {
+    return 'Winter ' . ($season - 1) . '–' . substr((string)$season, -2);
+}
 /** Ice seasons are named for the year they end in: an event in or after this month counts toward next year. */
 const ICE_SEASON_ROLLOVER_MONTH = 7;
 
@@ -85,7 +90,7 @@ function techCarStatus(array $sheets): array {
 }
 
 function techCarStatusLabel(array $status, int $season, string $discipline = DISCIPLINE_SUMMER): string {
-    $when = $discipline === DISCIPLINE_ICE ? 'Ice ' . $season : (string)$season;
+    $when = $discipline === DISCIPLINE_ICE ? iceSeasonLabel($season) : (string)$season;
     switch ($status['state']) {
         case 'accepted':       return ($status['via'] === 'photos' ? 'Pre-teched ' : 'Teched ') . $when;
         case 'needs_changes':  return 'Photos need changes';

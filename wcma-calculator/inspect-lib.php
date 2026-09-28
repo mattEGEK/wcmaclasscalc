@@ -136,7 +136,7 @@ function inspectReviewQueue(array $declarations, array $sheets, array $gear): ar
             'kind' => 'gear_photos', 'id' => (int)$g['id'],
             'title' => 'Gear pre-tech photos: ' . $g['driver_name'],
             'detail' => 'Entered by ' . ($g['owner_name'] ?? '') . ' · '
-                . ((($g['discipline'] ?? 'summer') === 'ice') ? 'Ice ' : '') . (int)$g['season'],
+                . ((($g['discipline'] ?? 'summer') === 'ice') ? iceSeasonLabel((int)$g['season']) : (string)(int)$g['season']),
             'since' => (string)$g['updated_at'],
             'url' => 'inspect.php?action=gear-record&id=' . (int)$g['id'] . '#gear-review',
         ];

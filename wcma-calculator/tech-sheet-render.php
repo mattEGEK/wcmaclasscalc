@@ -1,5 +1,6 @@
 <?php
 // wcma-calculator/tech-sheet-render.php
+require_once __DIR__ . '/tech-status.php';   // iceSeasonLabel()
 require_once __DIR__ . '/tech-sheet-data.php';
 require_once __DIR__ . '/ice-sheet-lib.php';
 
@@ -16,6 +17,14 @@ require_once __DIR__ . '/ice-sheet-lib.php';
  *
  * Signature: function(string $which, string $path): ?string
  */
+/** "140 HP", "1998 cc" or "1998 cc / 140 HP" — only the parts entered (mobile UX spec 2026-09-28 §C5). */
+function techSheetEngineLine(?string $cc, ?string $hp): string {
+    $parts = [];
+    if (trim((string)$cc) !== '') $parts[] = trim((string)$cc) . ' cc';
+    if (trim((string)$hp) !== '') $parts[] = trim((string)$hp) . ' HP';
+    return $parts ? implode(' / ', $parts) : '—';
+}
+
 function techSheetSignatureImg(?string $path, string $which, callable $resolveSrc): string {
     if (!$path) return '<span style="color:#999">Not signed</span>';
     $src = $resolveSrc($which, $path);
@@ -66,7 +75,7 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
     $out .= '<h1 style="text-align:center;margin-bottom:0.2rem">' . ($isIce ? 'ICE RACE VEHICLE INSPECTION FORM' : 'VEHICLE INSPECTION FORM') . '</h1>';
     $subtitle = h($event['name'] ?? '') . ' — ' . h(date('F j, Y', strtotime($event['event_date'] ?? 'now')));
     if ($isIce) {
-        $subtitle .= ' · ' . h((string)(iceClubLabel((string)($sheet['club'] ?? '')) ?? ($sheet['club'] ?? ''))) . ' · Ice ' . (int)($sheet['season'] ?? 0);
+        $subtitle .= ' · ' . h((string)(iceClubLabel((string)($sheet['club'] ?? '')) ?? ($sheet['club'] ?? ''))) . ' · ' . iceSeasonLabel((int)($sheet['season'] ?? 0));
     }
     $out .= '<p style="text-align:center;color:#555;font-size:0.85rem">' . $subtitle . '</p>';
 
@@ -74,7 +83,7 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
     $out .= '<tr><td style="width:50%"><strong>Entrant:</strong> ' . h($sheet['entrant_name']) . '</td><td><strong>Driver 1:</strong> ' . h($sheet['driver_name']) . '</td></tr>';
     $out .= '<tr><td><strong>Car Make:</strong> ' . h($sheet['car_make']) . '</td><td><strong>Car Number:</strong> ' . h($sheet['car_number']) . '</td></tr>';
     $out .= '<tr><td><strong>Car Model:</strong> ' . h($sheet['car_model']) . '</td><td><strong>Class:</strong> ' . h(techSheetClassLine($sheet)) . '</td></tr>';
-    $out .= '<tr><td><strong>Car Colour:</strong> ' . h($sheet['car_colour']) . '</td><td><strong>Engine:</strong> ' . h((string)($sheet['engine_cc'] ?? '')) . ' CC / ' . h((string)($sheet['engine_hp'] ?? '')) . ' HP</td></tr>';
+    $out .= '<tr><td><strong>Car Colour:</strong> ' . h($sheet['car_colour']) . '</td><td><strong>Engine:</strong> ' . h(techSheetEngineLine($sheet['engine_cc'] ?? null, $sheet['engine_hp'] ?? null)) . '</td></tr>';
     $out .= '<tr><td><strong>Car Weight:</strong> ' . h((string)$sheet['car_weight']) . ' lbs</td><td></td></tr>';
     $out .= '</table>';
 

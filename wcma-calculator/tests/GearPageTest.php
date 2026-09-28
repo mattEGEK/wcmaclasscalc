@@ -131,7 +131,7 @@ final class GearPageTest extends TestCase
         );
         $this->assertStringContainsString('data-key="ice_helmet_label"', $html);
         $this->assertStringNotContainsString('data-key="helmet_label"', $html);
-        $this->assertStringContainsString('Sam — Ice 2027', $html);
+        $this->assertStringContainsString('Sam — Winter 2026–27', $html);
     }
 
     public function testIceGearRecordLinksBackToTheGarageNotDrivers(): void

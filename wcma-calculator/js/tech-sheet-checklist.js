@@ -23,6 +23,21 @@ window.WcmaTechChecklist = (function () {
     }
 
     function render(container, sections, initialState) {
+        // No class chosen yet (ice form): say what to do instead of showing "0 of 0 items" (spec §C2).
+        // Answers passed in are kept, so a class chosen later (or a restored draft) still gets them.
+        if (!sections || Object.keys(sections).length === 0) {
+            const kept = JSON.parse(JSON.stringify(initialState || {}));
+            const empty = document.createElement('p');
+            empty.className = 'form-hint checklist-empty';
+            empty.textContent = 'Choose your class above and its checklist appears here.';
+            container.appendChild(empty);
+            return {
+                getState: function () { return JSON.parse(JSON.stringify(kept)); },
+                isComplete: function () { return false; },
+                highlightIncomplete: function () {},
+                clearHighlights: function () {},
+            };
+        }
         const state = JSON.parse(JSON.stringify(initialState || {}));
         Object.keys(sections).forEach(function (sectionKey) {
             Object.keys(sections[sectionKey].items).forEach(function (itemKey) {

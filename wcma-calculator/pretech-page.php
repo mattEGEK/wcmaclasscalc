@@ -4,6 +4,7 @@
 // Markup for the competitor's "Get pre-teched" page (tech-sheets.php?action=pretech). Pure output;
 // the decisions (mode, completeness) are made by pretech-lib.php. Callers must have loaded
 // photo-requirements.php, inspection-lib.php (inspectionPublicPhoto) and view_helpers.php.
+require_once __DIR__ . '/tech-status.php';   // iceSeasonLabel()
 
 require_once __DIR__ . '/photo-requirements.php';
 
@@ -108,7 +109,7 @@ function renderPretechPage(array $sheet, array $event, array $mode, array $snaps
   <div class="detail-card">
     <h2><?= h($carLine) ?></h2>
     <?php if ($mode['mode'] === 'car_accepted'): ?>
-      <p>This car is already teched for <?= h((($sheet['discipline'] ?? 'summer') === 'ice' ? 'Ice ' : '') . (int)($sheet['season'] ?? date('Y'))) ?>. You do not need to submit photos.</p>
+      <p>This car is already teched for <?= h(($sheet['discipline'] ?? 'summer') === 'ice' ? iceSeasonLabel((int)($sheet['season'] ?? date('Y'))) : (string)(int)($sheet['season'] ?? date('Y'))) ?>. You do not need to submit photos.</p>
     <?php elseif ($mode['mode'] === 'held_elsewhere'): ?>
       <p>Your pre-tech photos for this car are on another of your tech sheets.
         <a href="tech-sheets.php?action=pretech&amp;id=<?= (int)$mode['sheet_id'] ?>">Open that page</a>.</p>

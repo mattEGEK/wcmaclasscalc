@@ -454,3 +454,17 @@ body.hub .auth-links a { color: var(--hub-red-ink); }
   body.hub .sheet-doc [style*="color:#27ae60"] { color: var(--hub-ok-ink) !important; }
   body.hub .sheet-doc [style*="color:#999"] { color: var(--hub-ink-2) !important; }
 }
+
+/* ── Phase C: tech sheet form (mobile UX spec 2026-09-28 §C) ── */
+/* A message box with the hidden attribute stays hidden (the legacy .form-messages.error rule shows it). */
+body.hub .form-messages[hidden] { display: none !important; }
+body.hub .field-message { color: var(--hub-red-ink); background: var(--hub-todo-bg); font-weight: 700; font-size: 16px;
+  padding: 8px 12px; border-radius: 8px; margin: 6px 0 12px; }
+body.hub .radio-group-label { font-weight: 700; margin: 0 0 4px; }
+body.hub .field-message[hidden] { display: none; }
+
+/* Driver gear rows: the item name above its rating input on narrow screens (spec §C5). */
+@media (max-width: 480px) {
+  body.hub #equipment-container .checklist-item-row { flex-wrap: wrap; }
+  body.hub #equipment-container .checklist-item-row input[type="text"] { flex: 1 1 100%; margin: 6px 0 0 !important; }
+}

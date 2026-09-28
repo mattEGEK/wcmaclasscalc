@@ -19,7 +19,7 @@ final class IceSheetPageTest extends TestCase
 {
     private function vm(?array $sheet = null): array {
         $car = ['id' => 3, 'car_number' => '7', 'year' => '1985', 'make' => 'Chevrolet', 'model' => 'Chevette',
-                'colour' => '', 'engine_cc' => '1600', 'archived_at' => null];
+                'colour' => '', 'engine_cc' => '1600', 'archived_at' => null, 'owner_user_id' => 1];
         $event = ['id' => 20, 'name' => 'NASCC Ice #1', 'event_date' => '2026-12-12', 'discipline' => 'ice', 'host_club' => 'NASCC'];
         $other = ['id' => 21, 'name' => 'WSCC Fire on Ice', 'event_date' => '2027-01-04', 'discipline' => 'ice', 'host_club' => 'WSCC'];
         $drivers = [['id' => 5, 'name' => 'Jordan Lee', 'name_norm' => 'jordan lee', 'user_id' => 1, 'owner_user_id' => 1]];
@@ -43,7 +43,7 @@ final class IceSheetPageTest extends TestCase
     public function testNewFormHasTheClassPickerWeightEventAndScripts(): void
     {
         $html = renderIceTechSheetFormHtml($this->vm());
-        $this->assertStringContainsString('<select id="ice_class" name="class" required>', $html);
+        $this->assertStringContainsString('<select id="ice_class" name="class" required data-message="Choose your class.">', $html);
         $this->assertStringContainsString('<option value="LS">LS — Limited Stud</option>', $html);
         $this->assertStringContainsString('name="car_weight"', $html);
         $this->assertStringContainsString('<input type="hidden" name="event_id" value="20">', $html);
@@ -84,5 +84,49 @@ final class IceSheetPageTest extends TestCase
         $vm = $this->vm();
         $vm['event']['name'] = 'Ice <Day>';
         $this->assertStringContainsString('Ice &lt;Day&gt;', renderIceTechSheetFormHtml($vm));
+    }
+
+    private function renderNewSheet(): string {
+        return renderIceTechSheetFormHtml($this->vm());
+    }
+
+    public function testRequiredAndOptionalFieldsSaySoAndCarryAMessage(): void
+    {
+        $html = $this->renderNewSheet();
+        $this->assertStringContainsString('<label for="car_weight">Race weight in lbs, without driver (required)</label>', $html);
+        $this->assertStringContainsString('data-message="Enter the race weight."', $html);
+        $this->assertMatchesRegularExpression('/<label for="ice_class">[A-Z]+ class \(required\)<\/label>/', $html);
+        $this->assertStringContainsString('data-message="Choose your class."', $html);
+        $this->assertStringContainsString('<label for="entrant_name">Entrant (required)</label>', $html);
+        $this->assertStringContainsString('<label for="driver1_choice">Driver (required)</label>', $html);
+        $this->assertStringContainsString('<label for="engine_hp">Engine HP (optional)</label>', $html);
+        $this->assertStringContainsString('data-radio-group="Log book turned in? (required)"', $html);
+        $this->assertStringContainsString('data-message="Choose Yes or No for the log book."', $html);
+        $this->assertStringContainsString('<label for="car_colour">Car colour (required)</label>', $html);
+        $this->assertStringContainsString('<script src="js/form-problems.js"></script>', $html);
+        $this->assertLessThan(strpos($html, 'class="form-actions"'), strpos($html, 'id="tech-sheet-error"'));
+    }
+
+    public function testSignaturePadsCanCollapseToOne(): void
+    {
+        $html = $this->renderNewSheet();
+        $this->assertStringContainsString('<label id="entrant-sig-label">Entrant\'s signature</label>', $html);
+        $this->assertMatchesRegularExpression('/<div id="driver-sig-block">\s*<label>Driver\'s signature<\/label>/', $html);
+        $this->assertNotFalse(strpos($html, 'id="sig-error"'));
+        $this->assertLessThan(strpos($html, 'id="entrant-sig-label"'), strpos($html, 'id="sig-error"'));
+    }
+
+    public function testNewSheetsCarryADraftKeyEditsDoNot(): void
+    {
+        $this->assertSame('wcma-tsdraft:7:3:12', techSheetDraftKey(7, 3, 12));
+        $new = $this->renderNewSheet();
+        $this->assertStringContainsString('window.TECH_SHEET_DRAFT_KEY = "wcma-tsdraft:1:3:20";', $new);
+        $this->assertNotFalse(strpos($new, 'js/tech-sheet-draft.js'));
+        $this->assertLessThan(strpos($new, 'js/tech-sheet-form.js'), strpos($new, 'js/tech-sheet-draft.js'));
+        $sheet = ['id' => 9, 'event_id' => 20, 'class' => 'LS', 'car_weight' => 2300, 'entrant_name' => 'Jordan Lee',
+                  'driver_name' => 'Jordan Lee', 'engine_hp' => '90', 'checklist_json' => '{}',
+                  'driver1_equipment_json' => '{}', 'log_book_turned_in' => 1, 'entrant_signature_path' => 'x.png',
+                  'driver_signature_path' => null];
+        $this->assertStringNotContainsString('TECH_SHEET_DRAFT_KEY', renderIceTechSheetFormHtml($this->vm($sheet)));
     }
 }

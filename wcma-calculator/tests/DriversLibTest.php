@@ -42,7 +42,7 @@ final class DriversLibTest extends TestCase
     {
         $drivers = [['id' => 5, 'name' => 'Jordan'], ['id' => 6, 'name' => 'Sam'], ['id' => 7, 'name' => 'Alex']];
         $rows = driversRows($drivers, [], 5, 2026, [], [
-            5 => ['state' => 'accepted', 'label' => 'Ice 2027: from summer 2026', 'gearId' => null, 'sheetId' => 9],
+            5 => ['state' => 'accepted', 'label' => 'Winter 2026–27: from summer 2026', 'gearId' => null, 'sheetId' => 9],
             6 => ['state' => 'none', 'label' => 'Needs ice gear check 2027', 'gearId' => null, 'sheetId' => 9],
             7 => ['state' => 'photos_draft', 'label' => 'Photos in progress', 'gearId' => 12, 'sheetId' => null],
         ]);

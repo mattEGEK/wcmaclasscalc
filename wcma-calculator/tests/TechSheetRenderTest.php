@@ -140,7 +140,7 @@ final class TechSheetRenderTest extends TestCase
         ]);
         $html = renderTechSheetHtml($sheet, [], ['name' => 'NASCC Ice #1', 'event_date' => '2026-12-12']);
         $this->assertStringContainsString('ICE RACE VEHICLE INSPECTION FORM', $html);
-        $this->assertStringContainsString('Northern Alberta Sports Car Club · Ice 2027', $html);
+        $this->assertStringContainsString('Northern Alberta Sports Car Club · Winter 2026–27', $html);
         $this->assertStringContainsString('SS — Street Safe (FWD/RWD) (NASCC)', $html);
         $this->assertStringContainsString('Airbags removed (disabling is not enough)', $html);
         $this->assertStringNotContainsString('Fuel Tank Compartment', $html);
@@ -154,5 +154,17 @@ final class TechSheetRenderTest extends TestCase
         $this->assertStringContainsString('>VEHICLE INSPECTION FORM<', $html);
         $this->assertStringContainsString('Fuel Tank Compartment', $html);
         $this->assertStringNotContainsString('Ice ', $html);
+    }
+
+    public function testEngineLineShowsOnlyWhatWasEntered(): void
+    {
+        require_once __DIR__ . '/../tech-sheet-render.php';
+        $this->assertSame('140 HP', techSheetEngineLine(null, '140'));
+        $this->assertSame('1998 cc', techSheetEngineLine('1998', ''));
+        $this->assertSame('1998 cc / 140 HP', techSheetEngineLine('1998', '140'));
+        $this->assertSame('—', techSheetEngineLine('', null));
+        $html = renderTechSheetHtml(array_merge($this->sampleSheet(), ['engine_cc' => null, 'engine_hp' => '140']), [], ['name' => 'X', 'event_date' => '2026-05-10']);
+        $this->assertStringContainsString('<strong>Engine:</strong> 140 HP', $html);
+        $this->assertStringNotContainsString(' CC / ', $html);
     }
 }

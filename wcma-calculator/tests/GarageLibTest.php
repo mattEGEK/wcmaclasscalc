@@ -107,7 +107,7 @@ final class GarageLibTest extends TestCase
         $events = [['id' => 20, 'name' => 'NASCC Ice #1', 'event_date' => '2027-01-10', 'discipline' => 'ice', 'host_club' => 'NASCC']];
         $card = garageCard(['id' => 3, 'car_number' => '7'], [], [$ice], [20], $events, 2027, '2026-12-01', 2027);
         $this->assertFalse($card['usesSummer']);
-        $this->assertSame('Teched Ice 2027 · NASCC · LS', $card['ice']['label']);
+        $this->assertSame('Teched Winter 2026–27 · NASCC · LS', $card['ice']['label']);
         $this->assertSame('none', $card['techState']);      // summer tech ignores the ice sheet
         $this->assertSame(20, (int)$card['next']['event']['id']);
     }
@@ -128,7 +128,7 @@ final class GarageLibTest extends TestCase
     public function testIceSummaryUsesTheNewestIceSheetOfTheSeason(): void
     {
         $s = garageIceSummary([$this->iceSheet(), ['id' => 4, 'discipline' => 'summer', 'season' => 2027, 'status' => 'teched']], false, 2027);
-        $this->assertSame(['state' => 'accepted', 'label' => 'Teched Ice 2027 · NASCC · LS'], $s);
+        $this->assertSame(['state' => 'accepted', 'label' => 'Teched Winter 2026–27 · NASCC · LS'], $s);
         $open = garageIceSummary([$this->iceSheet(['status' => 'submitted', 'accepted_via' => null, 'class' => 'SS'])], false, 2027);
         $this->assertSame(['state' => 'none', 'label' => 'Needs tech at the track · NASCC · SS'], $open);
     }
@@ -139,7 +139,7 @@ final class GarageLibTest extends TestCase
         $s = garageIceSummary([$this->iceSheet(['season' => 2027, 'id' => 5]), $this->iceSheet(['season' => 2028, 'id' => 6, 'status' => 'submitted', 'accepted_via' => null])], false, 2027);
         $this->assertSame(['state' => 'none', 'label' => 'Needs tech at the track · NASCC · LS'], $s);
         $teched = garageIceSummary([$this->iceSheet(['season' => 2028])], false, 2027);
-        $this->assertSame('Teched Ice 2028 · NASCC · LS', $teched['label']);
+        $this->assertSame('Teched Winter 2027–28 · NASCC · LS', $teched['label']);
     }
 
     public function testUserUsesSummerAndTheSummerGearChipRule(): void

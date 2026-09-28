@@ -121,7 +121,7 @@ final class PretechPageTest extends TestCase
         $this->assertStringNotContainsString('data-key="ice_airbags"', $html);
 
         $accepted = $this->render($iceSheet, ['mode' => 'car_accepted', 'sheet_id' => 9], $this->snapshot());
-        $this->assertStringContainsString('already teched for Ice 2027', $accepted);
+        $this->assertStringContainsString('already teched for Winter 2026–27', $accepted);
     }
 
     public function testIceSheetWithAnUnresolvedClassShowsAMessageInsteadOfTheForm(): void

@@ -4,6 +4,7 @@
 // Markup for a driver's gear pre-tech page (gear.php?action=pretech). Pure output; decisions live
 // in gear-lib.php. Callers must have loaded photo-requirements.php, inspection-lib.php,
 // pretech-page.php (pretechRenderCard), gear-lib.php and view_helpers.php.
+require_once __DIR__ . '/tech-status.php';   // iceSeasonLabel()
 
 function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?array $flash): void {
     $id = (int)$gear['id'];
@@ -28,7 +29,7 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
         'requirements' => $clientRequirements, 'photos' => (object)$clientPhotos, 'applicable' => $snapshot['applicable'],
     ];
     $isIce = ($gear['discipline'] ?? 'summer') === 'ice';
-    $driverLine = $gear['driver_name'] . ' — ' . ($isIce ? 'Ice ' : '') . (int)$gear['season'];
+    $driverLine = $gear['driver_name'] . ' — ' . ($isIce ? iceSeasonLabel((int)$gear['season']) : (string)(int)$gear['season']);
     $backLink = $isIce ? '<a href="garage.php">← Back to Garage</a>' : '<a href="drivers.php">← Back to Drivers</a>';
     ?><!DOCTYPE html>
 <html lang="en">
@@ -50,7 +51,7 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
   <div class="detail-card">
     <h2><?= h($driverLine) ?></h2>
     <?php if ($accepted): ?>
-      <p>This driver's gear is already teched for <?= h((($gear['discipline'] ?? 'summer') === 'ice' ? 'Ice ' : '') . (int)$gear['season']) ?>. You do not need to submit photos.</p>
+      <p>This driver's gear is already teched for <?= h(($gear['discipline'] ?? 'summer') === 'ice' ? iceSeasonLabel((int)$gear['season']) : (string)(int)$gear['season']) ?>. You do not need to submit photos.</p>
     <?php else: ?>
       <p>Optional: submit photos of this driver's gear so an inspector can review them before the event. If they are accepted, the gear does not need to be checked at the track and you just collect your decals. The gear can still be checked in person instead.</p>
       <?php if ($photoStatus === 'submitted'): ?>

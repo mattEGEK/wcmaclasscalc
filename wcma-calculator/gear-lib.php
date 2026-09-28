@@ -38,7 +38,7 @@ function gearStatus(array $gear): array {
 
 function gearStatusLabel(array $status, int $season, string $discipline = DISCIPLINE_SUMMER): string {
     switch ($status['state']) {
-        case 'accepted':       return ($status['via'] === 'photos' ? 'Gear pre-teched ' : 'Gear teched ') . ($discipline === DISCIPLINE_ICE ? 'Ice ' : '') . $season;
+        case 'accepted':       return ($status['via'] === 'photos' ? 'Gear pre-teched ' : 'Gear teched ') . ($discipline === DISCIPLINE_ICE ? iceSeasonLabel((int)$season) : (string)$season);
         case 'needs_changes':  return 'Photos need changes';
         case 'pending_review': return 'Photos pending review';
         case 'photos_draft':   return 'Photos in progress';
@@ -450,7 +450,7 @@ function gearIceSummary(?array $iceGear, ?array $summerPrev, int $iceSeason): ar
                 'gearId' => (int)$iceGear['id']];
     }
     if ($summerPrev !== null && gearStatus($summerPrev)['state'] === 'accepted') {
-        return ['state' => 'accepted', 'label' => "Ice $iceSeason: from summer " . ($iceSeason - 1), 'gearId' => null];
+        return ['state' => 'accepted', 'label' => iceSeasonLabel($iceSeason) . ': from summer ' . ($iceSeason - 1), 'gearId' => null];
     }
     if ($iceStatus !== null && $iceStatus['state'] !== 'none') {
         return ['state' => $iceStatus['state'], 'label' => gearStatusLabel($iceStatus, $iceSeason, DISCIPLINE_ICE), 'gearId' => (int)$iceGear['id']];

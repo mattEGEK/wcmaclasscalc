@@ -168,7 +168,7 @@ final class InspectLibTest extends TestCase
         $gear = ['id' => 4, 'driver_name' => 'Sam', 'owner_name' => 'Jordan', 'season' => 2027, 'updated_at' => '2026-12-02 10:00:00', 'discipline' => 'ice'];
         $items = inspectReviewQueue([], [$sheet], [$gear]);
         $this->assertSame('Sam · NASCC Ice #1 · Ice · LS — Limited Stud (NASCC)', $items[0]['detail']);
-        $this->assertSame('Entered by Jordan · Ice 2027', $items[1]['detail']);
+        $this->assertSame('Entered by Jordan · Winter 2026–27', $items[1]['detail']);
 
         $summer = inspectReviewQueue([], [['discipline' => 'summer', 'club' => null, 'class' => 'IT1'] + $sheet], []);
         $this->assertSame('Sam · NASCC Ice #1', $summer[0]['detail']);

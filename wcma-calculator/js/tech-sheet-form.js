@@ -4,6 +4,11 @@
         document.getElementById('checklist-container'), TECH_CHECKLIST_SECTIONS, window.TECH_SHEET_EXISTING_CHECKLIST || {}
     );
 
+    // Problems are shown in words next to their field, and the page takes you there (spec §C3).
+    const form = document.getElementById('tech-sheet-form');
+    WcmaFormProblems.wire(form);
+    function firstOf(selector, fallback) { return document.querySelector(selector) || fallback; }
+
     // Ice form: whether the chosen class requires the head & neck restraint (labels new driver rows too).
     let headNeckRequired = false;
 
@@ -105,11 +110,12 @@
                 el.textContent = WcmaIceClass.equipmentLabel(TECH_DRIVER_EQUIPMENT_ITEMS.head_neck_restraints.label, hnRequired);
             });
         }
-        function onIceClassChange() {
+        function onIceClassChange(seed) {
             const code = iceClassSelect.value;
             const sections = WcmaIceClass.sectionsFor(window.ICE_SECTIONS_BY_CLASS, code);
             const container = document.getElementById('checklist-container');
-            const carried = WcmaIceClass.carryChecklistState(checklistWidget.getState(), sections);
+            // seed: answers from a restored draft (tech-sheet-draft.js), used on the first render only.
+            const carried = WcmaIceClass.carryChecklistState(Object.assign({}, seed || {}, checklistWidget.getState()), sections);
             container.innerHTML = '';
             checklistWidget = WcmaTechChecklist.render(container, sections, carried);
             TECH_DRIVER_EQUIPMENT_ITEMS.head_neck_restraints.optional = !WcmaIceClass.fhrRequired(window.ICE_FHR_BY_CLASS, code);
@@ -117,12 +123,12 @@
             document.getElementById('ice-class-note').textContent = (window.ICE_CLASS_NOTES || {})[code] || '';
             document.getElementById('ice-helmet-note').textContent = (window.ICE_HELMET_NOTES || {})[code] || '';
         }
-        iceClassSelect.addEventListener('change', onIceClassChange);
+        iceClassSelect.addEventListener('change', function () { onIceClassChange(); });
         // The browser can restore a <select> value on reload/back-navigation without firing
         // `change`, leaving the checklist rendered for the page's original class (or empty, for a
         // fresh form) while the select itself shows something else. Bring the checklist back in
         // sync once on load when that happens.
-        if (iceClassSelect.value !== (window.ICE_RENDERED_CLASS || '')) onIceClassChange();
+        if (iceClassSelect.value !== (window.ICE_RENDERED_CLASS || '')) onIceClassChange(window.TECH_SHEET_EXISTING_CHECKLIST);
         // For a server-rendered selected class on a fresh form, update the label once.
         if (iceClassSelect.value !== '') updateHeadNeckLabel(iceClassSelect.value);
     }
@@ -139,6 +145,21 @@
     const driver1NewName = document.getElementById('driver1_new_name');
     WcmaDriverChoice.wire(driver1Choice, driver1NewName);
 
+    // One signature when Driver 1 is the signed-in user (spec §C4): the pad counts as both.
+    const driverSigBlock = document.getElementById('driver-sig-block');
+    const entrantSigLabel = document.getElementById('entrant-sig-label');
+    const sigError = document.getElementById('sig-error');
+    function oneSigner() { return WcmaDriverChoice.isSelfChoice(window.TECH_SHEET_DRIVERS || [], driver1Choice.value); }
+    function syncSigners() {
+        const one = oneSigner();
+        const appearing = !one && driverSigBlock.hidden;
+        driverSigBlock.hidden = one;
+        entrantSigLabel.textContent = one ? 'Your signature (entrant and driver)' : 'Entrant\'s signature';
+        if (appearing) driverPad.resize();   // the canvas had no size while hidden; this also clears it
+    }
+    driver1Choice.addEventListener('change', syncSigners);
+    syncSigners();
+
     const sheetTypeSelect = document.getElementById('sheet_type');
     const enduranceCard = document.getElementById('endurance-drivers-card');
     const additionalDriversContainer = document.getElementById('additional-drivers-container');
@@ -149,15 +170,17 @@
     // HTML5 constraint validation silently (a required-but-hidden field
     // blocks submit with no visible error). Disabling excludes them from
     // constraint validation entirely; re-enable on toggle back.
-    if (sheetTypeSelect) {
-        sheetTypeSelect.addEventListener('change', function () {
-            const isEndurance = sheetTypeSelect.value === 'endurance';
-            enduranceCard.hidden = !isEndurance;
-            additionalDrivers.forEach(function (d) {
-                d.picker.select.disabled = !isEndurance;
-                d.picker.sync();
-            });
+    function syncSheetType() {
+        const isEndurance = sheetTypeSelect.value === 'endurance';
+        enduranceCard.hidden = !isEndurance;
+        additionalDrivers.forEach(function (d) {
+            d.picker.select.disabled = !isEndurance;
+            d.picker.sync();
         });
+    }
+    if (sheetTypeSelect) {
+        sheetTypeSelect.addEventListener('change', syncSheetType);
+        syncSheetType();
     }
 
     function renumberDriverRows() {
@@ -248,35 +271,43 @@
         driver1NewName.classList.remove('error');
         entrantSigWrap.classList.remove('field-error');
         driverSigWrap.classList.remove('field-error');
+        sigError.hidden = true;
     }
 
     document.getElementById('tech-sheet-form').addEventListener('submit', function (e) {
         const errorEl = document.getElementById('tech-sheet-error');
         errorEl.hidden = true;
         clearAllHighlights();
+        WcmaFormProblems.clearAll(form);
 
         if (!checklistWidget.isComplete()) {
             e.preventDefault();
             checklistWidget.highlightIncomplete();
-            errorEl.textContent = 'Please mark every checklist item OK or N/A before submitting — the missing items are highlighted below.';
+            errorEl.textContent = 'Please mark every checklist item OK or N/A before submitting — the missing items are highlighted.';
             errorEl.hidden = false;
             errorEl.classList.add('show');
+            WcmaFormProblems.show(firstOf('#checklist-container .checklist-item-row.field-error', document.getElementById('checklist-container')),
+                'Mark this item OK or N/A.');
             return;
         }
         if (!WcmaDriverChoice.driverChoiceComplete(driver1Choice.value, driver1NewName.value)) {
             e.preventDefault();
-            (driver1Choice.value === WcmaDriverChoice.NEW ? driver1NewName : driver1Choice).classList.add('error');
+            const driverField = driver1Choice.value === WcmaDriverChoice.NEW ? driver1NewName : driver1Choice;
+            driverField.classList.add('error');
             errorEl.textContent = 'Choose Driver 1, or pick "+ Add a co-driver" and type their name.';
             errorEl.hidden = false;
             errorEl.classList.add('show');
+            WcmaFormProblems.show(driverField, errorEl.textContent);
             return;
         }
         if (!isEquipmentComplete(driver1State)) {
             e.preventDefault();
             driver1Equipment.highlightIncomplete();
-            errorEl.textContent = 'Please confirm all of Driver 1\'s safety equipment (including helmet and suit ratings) before submitting — the missing items are highlighted below.';
+            errorEl.textContent = 'Please confirm all of Driver 1\'s safety equipment (including helmet and suit ratings) before submitting — the missing items are highlighted.';
             errorEl.hidden = false;
             errorEl.classList.add('show');
+            WcmaFormProblems.show(firstOf('#equipment-container .field-error', document.getElementById('equipment-container')),
+                'Confirm this item, or enter its rating.');
             return;
         }
         if (sheetTypeSelect && sheetTypeSelect.value === 'endurance') {
@@ -289,9 +320,10 @@
                     (incompleteDriver.picker.select.value === WcmaDriverChoice.NEW ? incompleteDriver.picker.nameInput : incompleteDriver.picker.select).classList.add('error');
                 }
                 incompleteDriver.highlightIncomplete();
-                errorEl.textContent = 'Please choose a driver and confirm all safety equipment for every added driver (Driver ' + incompleteDriver.number + ') before submitting — the missing fields are highlighted below.';
+                errorEl.textContent = 'Please choose a driver and confirm all safety equipment for every added driver (Driver ' + incompleteDriver.number + ') before submitting — the missing fields are highlighted.';
                 errorEl.hidden = false;
                 errorEl.classList.add('show');
+                WcmaFormProblems.show(incompleteDriver.wrap.querySelector('.error, .field-error') || incompleteDriver.wrap, errorEl.textContent);
                 return;
             }
             const rows = [{ choice: driver1Choice.value, newName: driver1NewName.value, select: driver1Choice, nameInput: driver1NewName }]
@@ -311,18 +343,25 @@
                 errorEl.textContent = name + ' is on this sheet twice.';
                 errorEl.hidden = false;
                 errorEl.classList.add('show');
+                WcmaFormProblems.show(dup.choice === WcmaDriverChoice.NEW ? dup.nameInput : dup.select, errorEl.textContent);
                 return;
             }
         }
+        const one = oneSigner();
         const entrantSignatureMissing = entrantPad.isEmpty() && !window.TECH_SHEET_HAS_ENTRANT_SIGNATURE;
-        const driverSignatureMissing = driverPad.isEmpty() && !window.TECH_SHEET_HAS_DRIVER_SIGNATURE;
+        const driverSignatureMissing = !one && driverPad.isEmpty() && !window.TECH_SHEET_HAS_DRIVER_SIGNATURE;
         if (entrantSignatureMissing || driverSignatureMissing) {
             e.preventDefault();
             if (entrantSignatureMissing) entrantSigWrap.classList.add('field-error');
             if (driverSignatureMissing) driverSigWrap.classList.add('field-error');
-            errorEl.textContent = 'Both the entrant and driver signatures are required — the missing signature pad(s) are highlighted below.';
+            const box = one ? 'the signature box' : (entrantSignatureMissing && driverSignatureMissing ? 'both signature boxes'
+                : (entrantSignatureMissing ? 'the Entrant\'s signature box' : 'the Driver\'s signature box'));
+            sigError.textContent = 'Please sign in ' + box + '.';
+            sigError.hidden = false;
+            errorEl.textContent = sigError.textContent;
             errorEl.hidden = false;
             errorEl.classList.add('show');
+            sigError.scrollIntoView({ block: 'center' });
             return;
         }
 
@@ -330,10 +369,14 @@
         document.getElementById('driver1_equipment_json').value = JSON.stringify(driver1State);
         // Leave the hidden field blank when the pad wasn't (re)drawn, so an edit save
         // without re-signing doesn't clobber the previously-saved signature file.
-        document.getElementById('entrant_signature').value = entrantPad.isEmpty() ? '' : entrantPad.toPNGDataURL();
-        document.getElementById('driver_signature').value = driverPad.isEmpty() ? '' : driverPad.toPNGDataURL();
+        const entrantData = entrantPad.isEmpty() ? '' : entrantPad.toPNGDataURL();
+        document.getElementById('entrant_signature').value = entrantData;
+        // One signer: the same signature is the driver's. A blank pad leaves both blank, keeping signatures on file.
+        document.getElementById('driver_signature').value = one ? entrantData : (driverPad.isEmpty() ? '' : driverPad.toPNGDataURL());
         document.getElementById('drivers_json').value = JSON.stringify(additionalDrivers.map(function (d) {
             return { driver_number: d.number, driver_choice: d.picker.select.value, new_name: d.picker.nameInput.value, equipment: d.state };
         }));
     });
+    // What tech-sheet-draft.js keeps between visits (spec §C1).
+    window.WcmaTechSheetForm = { state: function () { return { checklist: checklistWidget.getState(), equipment: driver1State }; } };
 })();

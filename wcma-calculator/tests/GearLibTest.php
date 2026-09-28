@@ -352,7 +352,7 @@ final class GearLibTest extends TestCase
     {
         $this->assertSame(iceSeasonFromDate(date('Y-m-d')), gearSeasonNow('ice'));
         $this->assertSame((int)date('Y'), gearSeasonNow());
-        $this->assertSame('Gear teched Ice 2027', gearStatusLabel(['state' => 'accepted', 'via' => 'in_person'], 2027, 'ice'));
+        $this->assertSame('Gear teched Winter 2026–27', gearStatusLabel(['state' => 'accepted', 'via' => 'in_person'], 2027, 'ice'));
         $this->assertSame('Gear teched 2026', gearStatusLabel(['state' => 'accepted', 'via' => 'in_person'], 2026));
     }
 
@@ -443,11 +443,11 @@ final class GearLibTest extends TestCase
              'accepted_via' => $status === 'accepted' ? $via : null, 'photo_status' => null];
         $summer = ['id' => 3, 'season' => 2026, 'discipline' => 'summer', 'status' => 'accepted', 'accepted_via' => 'in_person', 'photo_status' => null];
 
-        $this->assertSame(['state' => 'accepted', 'label' => 'Gear teched Ice 2027 · caged', 'gearId' => 7],
+        $this->assertSame(['state' => 'accepted', 'label' => 'Gear teched Winter 2026–27 · caged', 'gearId' => 7],
             gearIceSummary($ice('accepted', 'caged'), $summer, 2027));
-        $this->assertSame(['state' => 'accepted', 'label' => 'Ice 2027: from summer 2026', 'gearId' => null],
+        $this->assertSame(['state' => 'accepted', 'label' => 'Winter 2026–27: from summer 2026', 'gearId' => null],
             gearIceSummary($ice('open'), $summer, 2027));
-        $this->assertSame(['state' => 'accepted', 'label' => 'Ice 2027: from summer 2026', 'gearId' => null],
+        $this->assertSame(['state' => 'accepted', 'label' => 'Winter 2026–27: from summer 2026', 'gearId' => null],
             gearIceSummary(null, $summer, 2027));
         $this->assertSame('none', gearIceSummary($ice('open'), null, 2027)['state']);
         $this->assertSame(7, gearIceSummary($ice('open'), null, 2027)['gearId']);

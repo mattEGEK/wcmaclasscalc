@@ -4,6 +4,7 @@
 // Emails for the photo pre-tech workflow: pure renderers (branded like the tech sheet emails,
 // logo via cid:wcma-logo, photos are never embedded) and a notifier with an injectable send
 // function. Callers must have loaded db.php first.
+require_once __DIR__ . '/tech-status.php';   // iceSeasonLabel()
 require_once __DIR__ . '/view_helpers.php';        // h()
 require_once __DIR__ . '/photo-requirements.php';  // photoRequirementByKey()
 require_once __DIR__ . '/email-copy.php';
@@ -91,7 +92,7 @@ function pretechEmailAccepted(array $sheet, array $event, string $viewUrl, strin
     $car = pretechEmailCarLine($sheet, $event);
     $season = (int)($sheet['season'] ?? date('Y'));
     $isIce = techSheetIsIce($sheet);
-    $seasonText = $isIce ? 'Ice ' . $season : (string)$season;
+    $seasonText = $isIce ? iceSeasonLabel((int)$season) : (string)$season;
     $classLine = $isIce ? techSheetClassLine($sheet) : '';
     $byLine = reviewedByLine($reviewer);
     $inPerson = $via === 'in_person';

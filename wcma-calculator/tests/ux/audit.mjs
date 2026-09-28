@@ -49,6 +49,12 @@ function auditInPage(R) {
     if (getComputedStyle(el).backgroundColor.replace(/\s/g, '') === 'rgb(149,165,166)') problems.push(`enabled button is grey: ${describe(el)}`);
   }
 
+  // Empty message boxes and "0 of 0" progress read as broken (spec §C2).
+  for (const el of document.querySelectorAll('.form-messages')) {
+    if (visible(el) && !skipped(el) && !(el.innerText || '').trim()) problems.push(`empty message box is showing: ${describe(el)}`);
+  }
+  if (/\b0 of 0 items\b/.test(document.body.innerText)) problems.push('checklist shows "0 of 0 items"');
+
   const lum = c => { const v = c.map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
   const rgba = s => { const m = s.match(/[\d.]+/g) || []; return m.map(Number); };
   const bgOf = el => { for (let e = el; e; e = e.parentElement) { const c = rgba(getComputedStyle(e).backgroundColor); if (c.length === 3 || (c.length === 4 && c[3] > 0.5)) return c.slice(0, 3); } return [255, 255, 255]; };
@@ -141,10 +147,56 @@ try {
   await page.fill('#car-model', 'Civic');
   await page.fill('#car-colour', 'Blue');
   await go('button:has-text("Add car")');
+  await audit(page, 'ice tech sheet (no class yet)');
 
   await page.selectOption('select[name=class]', 'SS');
   await page.waitForTimeout(300);
   await audit(page, 'ice tech sheet');
+  await page.click('#tech-sheet-submit-btn');
+  await page.waitForTimeout(300);
+  const firstProblem = await page.evaluate(() => ({
+    message: (document.querySelector('.field-message') || {}).textContent || '',
+    focused: document.activeElement && document.activeElement.id,
+  }));
+  report('submitting an empty sheet says what is missing', firstProblem.message === 'Enter the race weight.' && firstProblem.focused === 'car_weight'
+    ? [] : [`expected "Enter the race weight." with focus on car_weight, got ${JSON.stringify(firstProblem)}`]);
+  await audit(page, 'ice tech sheet with problems shown');
+  await page.check('input[name=log_book_turned_in][value="1"]');
+  const logMsg = await page.locator('.radio-group + .field-message').count();
+  report('answering the log book clears its message', logMsg === 0 ? [] : ['"Choose Yes or No for the log book." is still showing after answering']);
+  const pads = () => page.evaluate(() => [...document.querySelectorAll('canvas')].filter(c => c.getBoundingClientRect().width > 0).length);
+  const onePad = await pads();
+  report('one signature pad when you are the driver', onePad === 1 ? [] : [`expected 1 visible pad, saw ${onePad}`]);
+  await page.selectOption('#driver1_choice', 'new');
+  const twoPads = await pads();
+  report('two signature pads for a co-driver', twoPads === 2 ? [] : [`expected 2 visible pads, saw ${twoPads}`]);
+  await page.selectOption('#driver1_choice', { index: 0 });
+
+  // Answers survive a reload (spec §C1): weight, class and a ticked checklist item.
+  const sheetUrl = page.url();
+  await page.fill('input[name=car_weight]', '2700');
+  await page.locator('.checklist-section-header').first().click();
+  await page.locator('button:text-is("OK")').first().click();
+  await page.waitForTimeout(400);
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  const kept = await page.evaluate(() => ({
+    notice: !!document.querySelector('.draft-notice'),
+    weight: document.getElementById('car_weight').value,
+    cls: document.getElementById('ice_class').value,
+    okCount: document.querySelectorAll('.checklist-chip-selected-ok').length,
+  }));
+  report('answers kept after a reload', kept.notice && kept.weight === '2700' && kept.cls === 'SS' && kept.okCount >= 1
+    ? [] : [`expected notice, weight 2700, class SS and a ticked item, got ${JSON.stringify(kept)}`]);
+  await audit(page, 'ice tech sheet with a kept draft');
+  await page.route(url => url.href.includes('action=new-ice'), async route => { await new Promise(r => setTimeout(r, 700)); await route.continue(); });
+  await Promise.all([page.waitForNavigation(), page.click('#draft-start-over')]);
+  await page.unroute(url => url.href.includes('action=new-ice'));
+  await page.waitForLoadState('networkidle');
+  const fresh = await page.evaluate(() => ({ notice: !!document.querySelector('.draft-notice'), weight: document.getElementById('car_weight').value }));
+  report('Start over clears the kept answers', !fresh.notice && fresh.weight === '' ? [] : [`expected no notice and an empty weight, got ${JSON.stringify(fresh)}`]);
+  await page.selectOption('select[name=class]', 'SS');
+  await page.waitForTimeout(300);
   await page.fill('input[name=car_weight]', '2700');
   await page.fill('input[name=engine_hp]', '140');
   for (const h of await page.locator('.checklist-section-header').all()) await h.click();
@@ -152,6 +204,24 @@ try {
   const ratings = page.locator('input[placeholder^="Rating"]');
   for (let i = 0; i < await ratings.count(); i++) await ratings.nth(i).fill(i ? 'SFI 3.2A/1' : 'SA2020');
   await page.check('input[name=log_book_turned_in][value="1"]');
+  const sign = () => page.evaluate(() => {
+    for (const cv of document.querySelectorAll('canvas')) {
+      if (!cv.getBoundingClientRect().width) continue;
+      const r = cv.getBoundingClientRect();
+      const ev = (t, x, y) => cv.dispatchEvent(new PointerEvent(t, { bubbles: true, clientX: r.left + x, clientY: r.top + y, pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 }));
+      ev('pointerdown', 20, 40); for (let i = 1; i <= 10; i++) ev('pointermove', 20 + i * 15, 40 + i * 5); ev('pointerup', 170, 90);
+    }
+  });
+  await page.selectOption('#driver1_choice', 'new');
+  await page.fill('#driver1_new_name', 'Sam Co');
+  await sign();
+  await page.selectOption('#driver1_choice', { index: 0 });
+  await page.selectOption('#driver1_choice', 'new');
+  await page.click('#tech-sheet-submit-btn');
+  await page.waitForTimeout(400);
+  const sigMsg = await page.evaluate(() => { const e = document.getElementById('sig-error'); return e && !e.hidden ? e.textContent : ''; });
+  report('a signature wiped by changing the driver is asked for again', /Driver's signature box/.test(sigMsg) && page.url().includes('new-ice')
+    ? [] : [`expected "Please sign in the Driver's signature box." and no submit, got "${sigMsg}" (box: "${await page.locator('#tech-sheet-error').textContent()}") at ${page.url()}`]);
   await page.evaluate(() => {
     for (const cv of document.querySelectorAll('canvas')) {
       if (!cv.getBoundingClientRect().width) continue;
@@ -162,12 +232,20 @@ try {
   });
   await go('button[type=submit]');
   await audit(page, 'submitted sheet');
+  const sigImgs = await page.locator('.sheet-doc img[src*="action=sig"]').count();
+  report('submitted sheet has both signatures', sigImgs >= 2 ? [] : [`expected 2 signature images, found ${sigImgs}`]);
 
   const carUrl = await page.locator('.hub-subnav a').first().getAttribute('href');
   await go('a:has-text("Pre-tech with photos")');
   await audit(page, 'pre-tech photos');
   await page.goto(BASE + '/' + carUrl);
   await audit(page, 'car page');
+
+  // Submitting cleared the draft: the same sheet starts fresh.
+  await page.goto(sheetUrl);
+  await page.waitForLoadState('networkidle');
+  const leftover = await page.locator('.draft-notice').count();
+  report('no draft left after submitting', leftover === 0 ? [] : ['the submitted sheet\'s draft was offered again']);
 } finally {
   await browser.close();
 }
