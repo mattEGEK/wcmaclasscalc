@@ -25,3 +25,8 @@ test('hasStorage returns the store only when it can write', () => {
     assert.strictEqual(hasStorage({ setItem() { throw new Error('private mode'); }, removeItem() {} }), null);
     assert.strictEqual(hasStorage(undefined), null);
 });
+
+test('a draft never carries its own event: the key already names it', () => {
+    const { FIELDS } = require('../../js/tech-sheet-draft.js');
+    assert.strictEqual(FIELDS.includes('event_id'), false);
+});

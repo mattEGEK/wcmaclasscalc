@@ -69,7 +69,8 @@ window.WcmaSignaturePad = (function () {
             },
             isEmpty: function () { return !hasInk; },
             toPNGDataURL: function () { return canvas.toDataURL('image/png'); },
-            resize: function () { resizeForDPR(); },
+            // Resizing clears the canvas, so whatever was drawn is gone: the pad is empty again.
+            resize: function () { resizeForDPR(); hasInk = false; },
         };
     }
 

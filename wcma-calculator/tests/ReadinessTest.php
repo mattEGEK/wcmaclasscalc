@@ -215,7 +215,7 @@ final class ReadinessTest extends TestCase
         $teched = $this->iceSheet(['status' => 'teched', 'accepted_via' => 'in_person']);
         $items = $this->items(buildReadiness($this->iceWorld(['sheets' => [$teched]])));
         $this->assertSame('done', $items['car_tech:3']['state']);
-        $this->assertSame('Ice car tech 2027 for #42 at NASCC: teched', $items['car_tech:3']['label']);
+        $this->assertSame('Ice car tech Winter 2026–27 for #42 at NASCC: teched', $items['car_tech:3']['label']);
         $this->assertSame('Ice tech sheet for NASCC Ice #1 submitted', $items['tech_sheet:3']['label']);
 
         $wscc = $this->iceSheet(['club' => 'WSCC', 'event_id' => 99, 'class' => 'FOI-STD', 'status' => 'teched', 'accepted_via' => 'in_person']);

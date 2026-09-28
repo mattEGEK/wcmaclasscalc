@@ -33,6 +33,7 @@
     function show(target, message) {
         const msg = root.document.createElement('p');
         msg.className = 'field-message';
+        msg.setAttribute('data-problem', '');   // added here, so clearAll may remove it (fixed messages stay)
         msg.setAttribute('role', 'alert');
         msg.textContent = message;
         target.insertAdjacentElement('afterend', msg);
@@ -45,7 +46,7 @@
     }
 
     function clearAll(form) {
-        form.querySelectorAll('.field-message').forEach(function (m) { m.remove(); });
+        form.querySelectorAll('.field-message[data-problem]').forEach(function (m) { m.remove(); });
     }
 
     function wire(form) {
@@ -63,10 +64,13 @@
             }));
             if (first) { first = false; focusOn(el); setTimeout(function () { first = true; }, 0); }
         }, true);
-        form.addEventListener('input', function (e) {
-            const next = e.target.nextElementSibling;
-            if (next && next.classList.contains('field-message')) next.remove();
-        });
+        function clearFor(e) {
+            const anchor = e.target.closest('[data-radio-group]') || e.target;
+            const next = anchor.nextElementSibling;
+            if (next && next.hasAttribute('data-problem')) next.remove();
+        }
+        form.addEventListener('input', clearFor);
+        form.addEventListener('change', clearFor);
     }
 
     root.WcmaFormProblems = { messageFor: messageFor, show: function (target, message) { show(target, message); focusOn(target); }, clearAll: clearAll, wire: wire };

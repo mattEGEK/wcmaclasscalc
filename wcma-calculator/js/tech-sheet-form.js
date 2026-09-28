@@ -152,9 +152,10 @@
     function oneSigner() { return WcmaDriverChoice.isSelfChoice(window.TECH_SHEET_DRIVERS || [], driver1Choice.value); }
     function syncSigners() {
         const one = oneSigner();
+        const appearing = !one && driverSigBlock.hidden;
         driverSigBlock.hidden = one;
         entrantSigLabel.textContent = one ? 'Your signature (entrant and driver)' : 'Entrant\'s signature';
-        if (!one) driverPad.resize();   // the canvas had no size while hidden
+        if (appearing) driverPad.resize();   // the canvas had no size while hidden; this also clears it
     }
     driver1Choice.addEventListener('change', syncSigners);
     syncSigners();
@@ -169,15 +170,17 @@
     // HTML5 constraint validation silently (a required-but-hidden field
     // blocks submit with no visible error). Disabling excludes them from
     // constraint validation entirely; re-enable on toggle back.
-    if (sheetTypeSelect) {
-        sheetTypeSelect.addEventListener('change', function () {
-            const isEndurance = sheetTypeSelect.value === 'endurance';
-            enduranceCard.hidden = !isEndurance;
-            additionalDrivers.forEach(function (d) {
-                d.picker.select.disabled = !isEndurance;
-                d.picker.sync();
-            });
+    function syncSheetType() {
+        const isEndurance = sheetTypeSelect.value === 'endurance';
+        enduranceCard.hidden = !isEndurance;
+        additionalDrivers.forEach(function (d) {
+            d.picker.select.disabled = !isEndurance;
+            d.picker.sync();
         });
+    }
+    if (sheetTypeSelect) {
+        sheetTypeSelect.addEventListener('change', syncSheetType);
+        syncSheetType();
     }
 
     function renumberDriverRows() {

@@ -5,7 +5,8 @@
 (function (root) {
     'use strict';
     const MAX_AGE_MS = 14 * 24 * 3600 * 1000;
-    const FIELDS = ['event_id', 'sheet_type', 'car_colour', 'car_weight', 'ice_class', 'entrant_name', 'driver1_choice', 'driver1_new_name', 'engine_hp'];
+    // No event_id: the key already names the event, so a draft can't move a sheet to another event.
+    const FIELDS = ['sheet_type', 'car_colour', 'car_weight', 'ice_class', 'entrant_name', 'driver1_choice', 'driver1_new_name', 'engine_hp'];
 
     function encode(data, now) { return JSON.stringify({ savedAt: now, data: data }); }
 
@@ -34,6 +35,8 @@
     const form = doc.getElementById('tech-sheet-form');
     if (!form) return;
 
+    let pending = null;
+    let stopped = false;   // set by Start over: nothing more is saved on this page
     let saved = null;
     try { saved = decode(store.getItem(key), Date.now()); if (saved === null) store.removeItem(key); } catch (e) { saved = null; }
 
@@ -58,8 +61,11 @@
         again.className = 'btn btn-secondary';
         again.id = 'draft-start-over';
         again.textContent = 'Start over';
-        again.addEventListener('click', function () {
-            try { store.removeItem(key); } catch (e) { /* nothing to clear */ }
+        again.addEventListener('click', function (e) {
+            e.stopPropagation();
+            stopped = true;
+            clearTimeout(pending);
+            try { store.removeItem(key); } catch (err) { /* nothing to clear */ }
             form.reset();
             root.location.assign(root.location.pathname + root.location.search);
         });
@@ -75,8 +81,8 @@
         return { fields: fields, checklist: s.checklist || {}, equipment: s.equipment || {}, logBook: log ? log.value : null };
     }
 
-    let pending = null;
     function scheduleSave() {
+        if (stopped) return;
         clearTimeout(pending);
         pending = setTimeout(function () {
             try { store.setItem(key, encode(collect(), Date.now())); } catch (e) { /* full or blocked: carry on without a draft */ }

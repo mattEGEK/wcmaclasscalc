@@ -161,6 +161,9 @@ try {
   report('submitting an empty sheet says what is missing', firstProblem.message === 'Enter the race weight.' && firstProblem.focused === 'car_weight'
     ? [] : [`expected "Enter the race weight." with focus on car_weight, got ${JSON.stringify(firstProblem)}`]);
   await audit(page, 'ice tech sheet with problems shown');
+  await page.check('input[name=log_book_turned_in][value="1"]');
+  const logMsg = await page.locator('.radio-group + .field-message').count();
+  report('answering the log book clears its message', logMsg === 0 ? [] : ['"Choose Yes or No for the log book." is still showing after answering']);
   const pads = () => page.evaluate(() => [...document.querySelectorAll('canvas')].filter(c => c.getBoundingClientRect().width > 0).length);
   const onePad = await pads();
   report('one signature pad when you are the driver', onePad === 1 ? [] : [`expected 1 visible pad, saw ${onePad}`]);
@@ -186,6 +189,14 @@ try {
   report('answers kept after a reload', kept.notice && kept.weight === '2700' && kept.cls === 'SS' && kept.okCount >= 1
     ? [] : [`expected notice, weight 2700, class SS and a ticked item, got ${JSON.stringify(kept)}`]);
   await audit(page, 'ice tech sheet with a kept draft');
+  await page.route(url => url.href.includes('action=new-ice'), async route => { await new Promise(r => setTimeout(r, 700)); await route.continue(); });
+  await Promise.all([page.waitForNavigation(), page.click('#draft-start-over')]);
+  await page.unroute(url => url.href.includes('action=new-ice'));
+  await page.waitForLoadState('networkidle');
+  const fresh = await page.evaluate(() => ({ notice: !!document.querySelector('.draft-notice'), weight: document.getElementById('car_weight').value }));
+  report('Start over clears the kept answers', !fresh.notice && fresh.weight === '' ? [] : [`expected no notice and an empty weight, got ${JSON.stringify(fresh)}`]);
+  await page.selectOption('select[name=class]', 'SS');
+  await page.waitForTimeout(300);
   await page.fill('input[name=car_weight]', '2700');
   await page.fill('input[name=engine_hp]', '140');
   for (const h of await page.locator('.checklist-section-header').all()) await h.click();
@@ -193,6 +204,24 @@ try {
   const ratings = page.locator('input[placeholder^="Rating"]');
   for (let i = 0; i < await ratings.count(); i++) await ratings.nth(i).fill(i ? 'SFI 3.2A/1' : 'SA2020');
   await page.check('input[name=log_book_turned_in][value="1"]');
+  const sign = () => page.evaluate(() => {
+    for (const cv of document.querySelectorAll('canvas')) {
+      if (!cv.getBoundingClientRect().width) continue;
+      const r = cv.getBoundingClientRect();
+      const ev = (t, x, y) => cv.dispatchEvent(new PointerEvent(t, { bubbles: true, clientX: r.left + x, clientY: r.top + y, pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 }));
+      ev('pointerdown', 20, 40); for (let i = 1; i <= 10; i++) ev('pointermove', 20 + i * 15, 40 + i * 5); ev('pointerup', 170, 90);
+    }
+  });
+  await page.selectOption('#driver1_choice', 'new');
+  await page.fill('#driver1_new_name', 'Sam Co');
+  await sign();
+  await page.selectOption('#driver1_choice', { index: 0 });
+  await page.selectOption('#driver1_choice', 'new');
+  await page.click('#tech-sheet-submit-btn');
+  await page.waitForTimeout(400);
+  const sigMsg = await page.evaluate(() => { const e = document.getElementById('sig-error'); return e && !e.hidden ? e.textContent : ''; });
+  report('a signature wiped by changing the driver is asked for again', /Driver's signature box/.test(sigMsg) && page.url().includes('new-ice')
+    ? [] : [`expected "Please sign in the Driver's signature box." and no submit, got "${sigMsg}" (box: "${await page.locator('#tech-sheet-error').textContent()}") at ${page.url()}`]);
   await page.evaluate(() => {
     for (const cv of document.querySelectorAll('canvas')) {
       if (!cv.getBoundingClientRect().width) continue;

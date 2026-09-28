@@ -166,7 +166,7 @@ function readinessIceCarItems(array $in, array $event, array $key, int $carId, a
         $ids = array_map(fn(array $s): int => (int)$s['id'], $clubSheets);
         $latest = $ids ? max($ids) : null;
         $items[] = readinessTech('car_tech', 'car', $carId, $status, $season, isset($atTrack[atTrackKey('car', $carId, $season, DISCIPLINE_ICE, $club)]), [
-            'label' => "Ice car tech for $n at $club", 'doneLabel' => "Ice car tech %2\$d for $safeN at $club: %1\$s",
+            'label' => "Ice car tech for $n at $club", 'doneLabel' => 'Ice car tech ' . iceSeasonLabel($season) . " for $safeN at $club: %1\$s",
             'pendingLabel' => "Ice car tech photos for $n are with an inspector", 'retakeLabel' => "Retake ice car photos for $n",
             'atTrackLabel' => "Ice car tech for $n: you'll bring it to tech at the track",
         ], $latest !== null ? 'tech-sheets.php?action=pretech&id=' . $latest : null,
