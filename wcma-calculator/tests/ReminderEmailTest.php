@@ -83,4 +83,24 @@ final class ReminderEmailTest extends TestCase
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../email-helpers.php'));
         $this->assertStringContainsString("\$mail->Port       = SMTP_PORT;\n        \$mail->Timeout    = 30;", $src);
     }
+
+    public function testIceRemindersContainAbsoluteLinksAndLabels(): void
+    {
+        $iceDigest = array_merge($this->digest(), [
+            'event' => ['id' => 20, 'name' => 'NASCC Ice #1', 'event_date' => '2026-10-05'],
+            'items' => [
+                ['kind' => 'tech_sheet', 'state' => 'todo', 'label' => 'Submit an ice tech sheet for #42', 'detail' => '',
+                 'action' => ['label' => 'Submit tech sheet', 'url' => 'tech-sheets.php?action=new-ice&car_id=3&event_id=20']],
+                ['kind' => 'car_tech', 'state' => 'todo', 'label' => 'Ice car tech for #42 at NASCC', 'detail' => '', 'action' => null],
+            ],
+        ]);
+
+        $mail = reminderEmail(['name' => 'Jordan Lee'], $iceDigest, self::BASE, self::UNSUB);
+
+        // Check that absolute link is present in HTML with proper ampersand encoding
+        $this->assertStringContainsString('https://x.test/classing/tech-sheets.php?action=new-ice&amp;car_id=3&amp;event_id=20', $mail['html']);
+
+        // Check that the ice car tech label is present
+        $this->assertStringContainsString('Ice car tech for #42 at NASCC', $mail['html']);
+    }
 }

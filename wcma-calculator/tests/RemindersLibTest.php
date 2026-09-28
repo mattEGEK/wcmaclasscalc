@@ -96,4 +96,41 @@ final class RemindersLibTest extends TestCase
     {
         $this->assertSame('Email me reminders for events I\'m going to.', COPY_REMINDER_OPT_IN);
     }
+
+    public function testIceRemindersIncludeIceTodos(): void
+    {
+        // Build an ice readiness world with event 7 days from today
+        require_once __DIR__ . '/../readiness-lib.php';
+
+        $today = '2026-09-28';
+        $eventDate = '2026-10-05';  // 7 days after today
+
+        $readiness = buildReadiness([
+            'today' => $today,
+            'cars' => [3 => ['id' => 3, 'car_number' => '42', 'year' => '2004', 'make' => 'Honda', 'model' => 'S2000']],
+            'events' => [
+                ['id' => 20, 'name' => 'NASCC Ice #1', 'event_date' => $eventDate, 'discipline' => 'ice', 'host_club' => 'NASCC'],
+            ],
+            'plans' => [['event_id' => 20, 'car_id' => 3]],
+            'declarations' => [],
+            'sheets' => [],
+            'sheetDrivers' => [],
+            'drivers' => [5 => ['id' => 5, 'name' => 'Jordan Lee']],
+            'selfDriverId' => 5,
+            'gear' => [],
+            'atTrack' => [],
+            'iceGear' => [],
+            'iceGearFhr' => [],
+        ]);
+
+        $digests = reminderDigests($readiness, $today);
+
+        $this->assertCount(1, $digests);
+        $digest = $digests[0];
+        $this->assertSame(20, (int)$digest['event']['id']);
+        $this->assertSame(7, $digest['daysOut']);
+
+        $labels = array_column($digest['items'], 'label');
+        $this->assertContains('Submit an ice tech sheet for #42', $labels);
+    }
 }
