@@ -33,7 +33,7 @@ function carsResolveForDeclaration(PDO $pdo, int $userId, array $post): array {
     if (mb_strlen($number, 'UTF-8') > 10) return $fail('That car number is too long (10 characters at most).');
     if ($details['make'] === '' || $details['model'] === '') return $fail('Enter the make and model of your new car.');
 
-    $id = db_create_car($pdo, $userId, ['car_number' => $number, 'year' => $details['year'] ?: null] + $details);
+    $id = db_create_car($pdo, $userId, ['car_number' => $number, 'year' => $details['year'] ?: null, 'disciplines' => 'summer'] + $details);
     return ['ok' => true, 'error' => null, 'car_id' => $id];
 }
 
