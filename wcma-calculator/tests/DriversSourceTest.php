@@ -52,6 +52,6 @@ final class DriversSourceTest extends TestCase
         $this->assertStringContainsString("require_once __DIR__ . '/garage-lib.php';", $src);
         $this->assertStringContainsString('$plans = db_get_user_event_plans($pdo, $uid);', $src);
         $this->assertStringContainsString('$activeEvents = db_get_active_events($pdo);', $src);
-        $this->assertStringContainsString('userHasIceActivity($userSheets, $hasIceGear, $plans, $activeEvents)', $src);
+        $this->assertStringContainsString('userHasIceActivity($userSheets, $hasIceGear, $plans, $activeEvents, $cars)', $src);
     }
 }

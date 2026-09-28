@@ -24,13 +24,13 @@ final class HomeSourceTest extends TestCase
     public function testGlancePassesTheIceTagToUsesSummer(): void
     {
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../index.php'));
-        $this->assertStringContainsString('garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, $taggedSummer, $taggedIce)', $src);
+        $this->assertStringContainsString('garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, $taggedSummer, $taggedIce, $stored)', $src);
     }
 
     public function testIceActivityUsesTheSharedHelper(): void
     {
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../index.php'));
-        $this->assertStringContainsString("userHasIceActivity(\$in['sheets'], (bool)\$in['iceGear'], \$in['plans'], \$in['events'])", $src);
+        $this->assertStringContainsString("userHasIceActivity(\$in['sheets'], (bool)\$in['iceGear'], \$in['plans'], \$in['events'], \$in['cars'])", $src);
     }
 
     public function testIceGearFallsBackToTheDbWhenNotPreloaded(): void

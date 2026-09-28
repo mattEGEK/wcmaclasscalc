@@ -109,6 +109,6 @@ final class GarageSourceTest extends TestCase
     public function testCarPagePassesTheIceTagToUsesSummer(): void
     {
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../garage.php'));
-        $this->assertStringContainsString('garageCarUsesSummer($declarations, $allSheets, $taggedSummer, $taggedIce)', $src);
+        $this->assertStringContainsString('garageCarSeasons($car, $declarations, $allSheets, $taggedSummer, $taggedIce)', $src);
     }
 }
