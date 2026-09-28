@@ -21,6 +21,11 @@ final class GarageLibTest extends TestCase
         return ['id' => $id, 'name' => $name, 'event_date' => $date, 'active' => 1];
     }
 
+    private function iceSheet(array $o = []): array {
+        return array_merge(['id' => 9, 'car_id' => 3, 'event_id' => 20, 'season' => 2027, 'discipline' => 'ice', 'club' => 'NASCC',
+                            'class' => 'LS', 'status' => 'teched', 'accepted_via' => 'in_person', 'photo_status' => null], $o);
+    }
+
     public function testClassLineIsTheNewestNonSupersededDeclaration(): void
     {
         $line = garageClassLine([$this->decl(3, 'accepted', 'GT3', '2026-03-02 10:00:00'), $this->decl(2, 'superseded', 'GT2', '2026-02-02 10:00:00')]);
@@ -147,5 +152,29 @@ final class GarageLibTest extends TestCase
             garageTechPhotosAction([$this->sheet(9, 10)], ['state' => 'needs_changes', 'via' => null, 'sheet_id' => 4]));
         $this->assertSame('View photos', garageTechPhotosAction([$this->sheet(9, 10)], ['state' => 'pending_review', 'via' => null, 'sheet_id' => 9])['label']);
         $this->assertNull(garageTechPhotosAction([$this->sheet(9, 10)], ['state' => 'accepted', 'via' => 'in_person', 'sheet_id' => 9]));
+    }
+
+    public function testIceSummaryUsesTheNewestIceSheetOfTheSeason(): void
+    {
+        $s = garageIceSummary([$this->iceSheet(), ['id' => 4, 'discipline' => 'summer', 'season' => 2027, 'status' => 'teched']], false, 2027);
+        $this->assertSame(['state' => 'accepted', 'label' => 'Teched Ice 2027 · NASCC · LS'], $s);
+        $open = garageIceSummary([$this->iceSheet(['status' => 'submitted', 'accepted_via' => null, 'class' => 'SS'])], false, 2027);
+        $this->assertSame(['state' => 'none', 'label' => 'Needs tech at the track · NASCC · SS'], $open);
+    }
+
+    public function testIceSummaryWithoutAThisSeasonSheet(): void
+    {
+        $this->assertSame(['state' => 'none', 'label' => 'Needs ice tech'], garageIceSummary([], true, 2027));
+        $this->assertSame(['state' => 'none', 'label' => 'Needs ice tech'], garageIceSummary([$this->iceSheet(['season' => 2026])], false, 2027));
+        $this->assertNull(garageIceSummary([['id' => 4, 'discipline' => 'summer', 'season' => 2027]], false, 2027));
+    }
+
+    public function testIceOnlyCarDoesNotUseSummer(): void
+    {
+        $this->assertFalse(garageCarUsesSummer([], [$this->iceSheet()], false));
+        $this->assertTrue(garageCarUsesSummer([], [], false));                                   // new car
+        $this->assertTrue(garageCarUsesSummer([['id' => 1]], [$this->iceSheet()], false));      // has a declaration
+        $this->assertTrue(garageCarUsesSummer([], [$this->iceSheet(), ['id' => 5, 'discipline' => 'summer']], false));
+        $this->assertTrue(garageCarUsesSummer([], [$this->iceSheet()], true));                  // tagged to a summer event
     }
 }

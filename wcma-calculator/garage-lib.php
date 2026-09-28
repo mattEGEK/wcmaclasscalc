@@ -4,6 +4,7 @@
 // Pure view-model builders for the Garage (spec §4): no DB, no HTML. Callers must have loaded
 // tech-status.php (techCarStatus(), techCarStatusLabel()).
 require_once __DIR__ . '/ice-sheet-lib.php';   // techSheetIsIce()
+require_once __DIR__ . '/tech-status.php';     // techCarStatus(), techCarStatusLabel()
 
 /**
  * A car's class (spec §2): its newest non-superseded declaration. When that one isn't accepted,
@@ -143,4 +144,32 @@ function garageIceRows(array $carSheets, array $iceEvents, string $today, array 
         ], 'sheet' => $s, 'past' => true];
     }
     return $rows;
+}
+
+/**
+ * The car's ice chip for $iceSeason, or null when it isn't an ice car (no ice sheets, not tagged
+ * to an ice event). The label carries the newest sheet's club and class.
+ * @return ?array{state: string, label: string}
+ */
+function garageIceSummary(array $carSheets, bool $taggedToIce, int $iceSeason): ?array {
+    $ice = array_values(array_filter($carSheets, fn(array $s): bool => techSheetIsIce($s)));
+    if (!$ice && !$taggedToIce) return null;
+    $season = array_values(array_filter($ice, fn(array $s): bool => (int)$s['season'] === $iceSeason));
+    if (!$season) return ['state' => 'none', 'label' => 'Needs ice tech'];
+    usort($season, fn(array $a, array $b): int => (int)$a['id'] <=> (int)$b['id']);
+    $newest = end($season);
+    $status = techCarStatus($season);
+    return ['state' => $status['state'],
+            'label' => techCarStatusLabel($status, $iceSeason, DISCIPLINE_ICE) . ' · ' . $newest['club'] . ' · ' . $newest['class']];
+}
+
+/** Whether the car takes part in summer: declared, summer sheets, tagged to summer, or no ice sheets at all. */
+function garageCarUsesSummer(array $declarations, array $carSheets, bool $taggedToSummer): bool {
+    if ($declarations || $taggedToSummer) return true;
+    $hasIce = false;
+    foreach ($carSheets as $s) {
+        if (!techSheetIsIce($s)) return true;
+        $hasIce = true;
+    }
+    return !$hasIce;
 }

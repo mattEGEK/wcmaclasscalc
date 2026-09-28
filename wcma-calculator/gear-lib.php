@@ -423,3 +423,25 @@ function gearStartIceForSheet(PDO $pdo, array $sheet, int $ownerId): array {
     $created = gearCreate($pdo, $ownerId, $name, '', $season, DISCIPLINE_ICE);
     return $created['ok'] ? ['ok' => true, 'error' => null, 'id' => (int)$created['id']] : $fail((string)$created['error']);
 }
+
+/**
+ * A driver's ice gear for $iceSeason (spec §4a): an accepted ice record, else accepted summer gear
+ * from the season before (it counts as caged ice gear), else the ice record's state.
+ * @return array{state: string, label: string, gearId: ?int}
+ */
+function gearIceSummary(?array $iceGear, ?array $summerPrev, int $iceSeason): array {
+    $iceStatus = $iceGear !== null ? gearStatus($iceGear) : null;
+    if ($iceStatus !== null && $iceStatus['state'] === 'accepted') {
+        $level = (string)($iceGear['level'] ?? '');
+        return ['state' => 'accepted',
+                'label' => gearStatusLabel($iceStatus, $iceSeason, DISCIPLINE_ICE) . ($level !== '' ? ' · ' . (ICE_GEAR_LEVEL_LABELS[$level] ?? $level) : ''),
+                'gearId' => (int)$iceGear['id']];
+    }
+    if ($summerPrev !== null && gearStatus($summerPrev)['state'] === 'accepted') {
+        return ['state' => 'accepted', 'label' => "Ice $iceSeason: from summer " . ($iceSeason - 1), 'gearId' => null];
+    }
+    if ($iceStatus !== null && $iceStatus['state'] !== 'none') {
+        return ['state' => $iceStatus['state'], 'label' => gearStatusLabel($iceStatus, $iceSeason, DISCIPLINE_ICE), 'gearId' => (int)$iceGear['id']];
+    }
+    return ['state' => 'none', 'label' => "Needs ice gear check $iceSeason", 'gearId' => $iceGear !== null ? (int)$iceGear['id'] : null];
+}
