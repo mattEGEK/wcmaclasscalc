@@ -8,6 +8,7 @@ require __DIR__ . '/cars-lib.php';
 require_once __DIR__ . '/events-lib.php';
 require_once __DIR__ . '/gear-lib.php';
 require_once __DIR__ . '/ice-sheet-lib.php';
+require_once __DIR__ . '/garage-lib.php';
 require __DIR__ . '/media-lib.php';
 require __DIR__ . '/drivers-lib.php';
 require __DIR__ . '/home-page.php';
@@ -61,12 +62,14 @@ $iceSheetByDriver = driversIceSheetIdsByDriver($iceSheets, $sheetDrivers, $iceSe
 // lets us tell whether the user has any ice activity at all before building $ice.
 $ownerGear = db_get_user_gear_records($pdo, $uid);
 $gearByKey = [];
-$iceActivity = (bool)$iceSheets;
+$hasIceGear = false;
 foreach ($ownerGear as $g) {
     $discipline = (string)($g['discipline'] ?? DISCIPLINE_SUMMER);
     $gearByKey[(int)$g['driver_id'] . ':' . (int)$g['season'] . ':' . $discipline] = $g;
-    if ($discipline === DISCIPLINE_ICE) $iceActivity = true;
+    if ($discipline === DISCIPLINE_ICE) $hasIceGear = true;
 }
+// Same rule as Home: an ice sheet, ice gear, or a car tagged to an active ice event.
+$iceActivity = userHasIceActivity($userSheets, $hasIceGear, db_get_user_event_plans($pdo, $uid), db_get_active_events($pdo));
 
 $ice = [];
 if ($iceActivity) {

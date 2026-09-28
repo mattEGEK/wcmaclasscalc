@@ -10,7 +10,7 @@ require_once __DIR__ . '/events-lib.php';
 require_once __DIR__ . '/reminders-lib.php';
 require_once __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-chips.php';
-require __DIR__ . '/garage-lib.php';
+require_once __DIR__ . '/garage-lib.php';
 require_once __DIR__ . '/ice-sheet-lib.php';
 require __DIR__ . '/home-page.php';
 require __DIR__ . '/garage-page.php';
@@ -130,7 +130,7 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         'techAction' => garageTechPhotosAction($seasonSheets, $status),
         'events' => $events, 'csrf' => generateCsrfToken(), 'detailsForm' => $detailsForm,
         'offerReminders' => remindersShouldOffer(db_find_user_by_id($pdo, $uid)),
-        'usesSummer' => garageCarUsesSummer($declarations, $allSheets, $taggedSummer),
+        'usesSummer' => garageCarUsesSummer($declarations, $allSheets, $taggedSummer, $taggedIce),
         'ice' => garageIceSummary($allSheets, $taggedIce, gearSeasonNow(DISCIPLINE_ICE)),
     ]);
     renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script>']);

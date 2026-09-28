@@ -77,7 +77,7 @@ final class GarageLibTest extends TestCase
     {
         $events = [$this->event(11, 'Season Finale', '2026-10-25'), $this->event(10, 'Fall Sprint', '2026-10-11')];
         $sheets = [$this->sheet(7, 11, 2026, ['status' => 'teched', 'accepted_via' => 'photos']), $this->sheet(5, 99, 2025, ['status' => 'teched'])];
-        $card = garageCard(['id' => 3, 'car_number' => '42'], [$this->decl(2, 'submitted', 'GT3')], $sheets, [10, 11], $events, 2026, '2026-09-25');
+        $card = garageCard(['id' => 3, 'car_number' => '42'], [$this->decl(2, 'submitted', 'GT3')], $sheets, [10, 11], $events, 2026, '2026-09-25', 2027);
 
         $this->assertSame('accepted', $card['techState']);
         $this->assertSame('Pre-teched 2026', $card['techLabel']);
@@ -88,7 +88,7 @@ final class GarageLibTest extends TestCase
 
     public function testCardWithoutTaggedEventsOrSheetsNeedsTechAtTheTrack(): void
     {
-        $card = garageCard(['id' => 3, 'car_number' => '42'], [], [], [], [], 2026, '2026-09-25');
+        $card = garageCard(['id' => 3, 'car_number' => '42'], [], [], [], [], 2026, '2026-09-25', 2027);
         $this->assertNull($card['next']);
         $this->assertSame('none', $card['techState']);
         $this->assertSame('Needs tech at the track', $card['techLabel']);
@@ -147,5 +147,45 @@ final class GarageLibTest extends TestCase
         $this->assertTrue(garageCarUsesSummer([['id' => 1]], [$this->iceSheet()], false));      // has a declaration
         $this->assertTrue(garageCarUsesSummer([], [$this->iceSheet(), ['id' => 5, 'discipline' => 'summer']], false));
         $this->assertTrue(garageCarUsesSummer([], [$this->iceSheet()], true));                  // tagged to a summer event
+    }
+
+    public function testCarTaggedOnlyToIceDoesNotUseSummer(): void
+    {
+        $this->assertFalse(garageCarUsesSummer([], [], false, true));
+        $this->assertTrue(garageCarUsesSummer([], [], false, false));
+        $this->assertTrue(garageCarUsesSummer([], [], true, true));                             // tagged to both
+    }
+
+    public function testCardForANewCarTaggedOnlyToAnIceEventIsNotSummer(): void
+    {
+        $events = [['id' => 20, 'name' => 'NASCC Ice #1', 'event_date' => '2027-01-10', 'discipline' => 'ice', 'host_club' => 'NASCC']];
+        $card = garageCard(['id' => 3, 'car_number' => '7'], [], [], [20], $events, 2026, '2026-12-01', 2027);
+        $this->assertFalse($card['usesSummer']);
+        $this->assertSame(['state' => 'none', 'label' => 'Needs ice tech'], $card['ice']);
+    }
+
+    public function testIceSummaryStatusOnlyCountsTheNewestSheetsClub(): void
+    {
+        $sheets = [$this->iceSheet(['id' => 1]),
+                   $this->iceSheet(['id' => 2, 'club' => 'WSCC', 'class' => 'FOI-STD', 'status' => 'submitted', 'accepted_via' => null])];
+        $this->assertSame(['state' => 'none', 'label' => 'Needs tech at the track · WSCC · FOI-STD'], garageIceSummary($sheets, false, 2027));
+    }
+
+    public function testCardIceSeasonIsRequired(): void
+    {
+        $p = (new ReflectionFunction('garageCard'))->getParameters();
+        $this->assertSame('iceSeason', $p[7]->getName());
+        $this->assertFalse($p[7]->isOptional());
+    }
+
+    public function testUserHasIceActivity(): void
+    {
+        $events = [['id' => 20, 'discipline' => 'ice'], ['id' => 10, 'discipline' => 'summer'], ['id' => 11]];
+        $this->assertFalse(userHasIceActivity([], false, [], $events));
+        $this->assertTrue(userHasIceActivity([$this->iceSheet()], false, [], $events));
+        $this->assertTrue(userHasIceActivity([], true, [], $events));
+        $this->assertTrue(userHasIceActivity([], false, [['car_id' => 3, 'event_id' => 20]], $events));
+        $this->assertFalse(userHasIceActivity([['id' => 1, 'discipline' => 'summer']], false,
+            [['car_id' => 3, 'event_id' => 10], ['car_id' => 3, 'event_id' => 11], ['car_id' => 3, 'event_id' => 99]], $events));
     }
 }

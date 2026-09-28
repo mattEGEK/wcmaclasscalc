@@ -9,7 +9,7 @@ require_once __DIR__ . '/gear-lib.php';
 require_once __DIR__ . '/events-lib.php';
 require_once __DIR__ . '/reminders-lib.php';
 require_once __DIR__ . '/readiness-lib.php';
-require __DIR__ . '/garage-lib.php';
+require_once __DIR__ . '/garage-lib.php';
 require __DIR__ . '/media-lib.php';
 require __DIR__ . '/home-page.php';
 
@@ -65,19 +65,7 @@ foreach ($in['events'] as $e) $eventsById[(int)$e['id']] = $e;
 $taggedByCar = [];
 foreach ($in['plans'] as $p) $taggedByCar[(int)$p['car_id']][] = (int)$p['event_id'];
 
-$hasIceActivity = false;
-foreach ($in['sheets'] as $s) {
-    if (techSheetIsIce($s)) { $hasIceActivity = true; break; }
-}
-if (!$hasIceActivity && $in['iceGear']) $hasIceActivity = true;
-if (!$hasIceActivity) {
-    foreach ($taggedByCar as $eids) {
-        foreach ($eids as $eid) {
-            $e = $eventsById[$eid] ?? null;
-            if ($e !== null && ($e['discipline'] ?? 'summer') === 'ice') { $hasIceActivity = true; break 2; }
-        }
-    }
-}
+$hasIceActivity = userHasIceActivity($in['sheets'], (bool)$in['iceGear'], $in['plans'], $in['events']);
 
 $garage = [];
 foreach ($in['cars'] as $carId => $car) {
@@ -92,7 +80,7 @@ foreach ($in['cars'] as $carId => $car) {
     }
     $garage[] = ['car' => $car, 'declaration' => $decl,
                  'techLabel' => techCarStatusLabel($status, $season), 'techState' => $status['state'],
-                 'usesSummer' => garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, $taggedSummer),
+                 'usesSummer' => garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, $taggedSummer, $taggedIce),
                  'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason)];
 }
 $drivers = [];
@@ -105,7 +93,10 @@ foreach ($in['drivers'] as $did => $d) {
         // active ice event (for carry-over); only query when that key genuinely isn't there.
         $summerKey = "$did:" . ($iceSeason - 1);
         $summerPrev = array_key_exists($summerKey, $in['gear']) ? $in['gear'][$summerKey] : db_get_gear_record_for_driver($pdo, $did, $iceSeason - 1);
-        $ice = gearIceSummary($in['iceGear']["$did:$iceSeason"] ?? null, $summerPrev, $iceSeason);
+        // iceGear only holds seasons of active ice events: fall back to the DB like $summerPrev.
+        $iceKey = "$did:$iceSeason";
+        $iceCur = array_key_exists($iceKey, $in['iceGear']) ? $in['iceGear'][$iceKey] : db_get_gear_record_for_driver($pdo, $did, $iceSeason, DISCIPLINE_ICE);
+        $ice = gearIceSummary($iceCur, $summerPrev, $iceSeason);
     }
     $drivers[] = ['name' => (string)$d['name'], 'isSelf' => $did === $in['selfDriverId'],
                   'gearLabel' => gearStatusLabel($st, $season), 'gearState' => $st['state'],
