@@ -376,3 +376,42 @@ body.hub .link-button {
   display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px;
   font-size: 16px; color: var(--hub-red-ink); text-decoration: underline;
 }
+
+/* B2. Tap targets and text. Baselines use :where() so any component rule still wins. */
+:where(body.hub) button, :where(body.hub) input, :where(body.hub) select, :where(body.hub) textarea { font-family: inherit; font-size: 16px; }
+body.hub input[type="text"], body.hub input[type="email"], body.hub input[type="number"], body.hub input[type="password"],
+body.hub input[type="tel"], body.hub input[type="search"], body.hub input[type="date"], body.hub select {
+  min-height: 48px; font-size: 17px; padding: 10px 12px;
+}
+body.hub textarea { min-height: 96px; font-size: 17px; }
+
+/* Radios and checkboxes: 24px, and the whole label row is the tap target. */
+body.hub input[type="radio"], body.hub input[type="checkbox"] { width: 24px !important; height: 24px !important; margin: 0; flex-shrink: 0; accent-color: var(--hub-red); }
+:where(body.hub) label:has(> input[type="radio"]), :where(body.hub) label:has(> input[type="checkbox"]) {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer;
+}
+
+/* Password show/hide: a 44px button inside the field. */
+body.hub .password-toggle { min-width: 44px; min-height: 44px; justify-content: center; right: 2px; }
+body.hub .password-field input[type="password"], body.hub .password-field input[type="text"] { padding-right: 52px; }
+
+/* Header, sub-nav, footer and row links: 44px tall. */
+body.hub .hub-account a, body.hub .hub-subnav a, body.hub .hub-footer a, body.hub .hub-line > a {
+  display: inline-flex; align-items: center; min-height: 44px;
+}
+body.hub .hub-account a { padding: 0 4px; }
+body.hub .hub-menu-btn { font-size: 16px; padding: 0 14px; color: var(--hub-ink); }
+body.hub .hub-nav a { min-height: 44px; }
+
+/* No member-facing text under 16px. */
+body.hub .checklist-mark-all, body.hub .gear-chip, body.hub .pretech-status, body.hub .pretech-typed label,
+body.hub .auth-links, body.hub .checklist-progress-label, body.hub .hub-pill, body.hub .hub-class,
+body.hub .form-hint, body.hub small, body.hub .checklist-section-count { font-size: 16px; }
+body.hub .checklist-mark-all { min-height: 44px; padding: 0 8px; }
+
+/* B2 follow-ups found by the audit: logo, disclosure, auth, hero and event-row links; small legacy labels. */
+body.hub .hub-logo, body.hub .auth-links a, body.hub .hub-hero a:not(.hub-btn), body.hub .garage-event > a {
+  display: inline-flex; align-items: center; min-height: 44px;
+}
+body.hub summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; }
+body.hub .checkbox-label, body.hub .checklist-section-name { font-size: 16px; }

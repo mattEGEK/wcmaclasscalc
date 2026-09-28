@@ -72,6 +72,8 @@ function auditInPage(R) {
 let failed = 0;
 async function audit(page, name) {
   await page.waitForLoadState('networkidle');
+  // php -S serves one request at a time: wait until hub.css has applied (body.hub is 18px) before judging.
+  await page.waitForFunction(() => getComputedStyle(document.body).fontSize === '18px', null, { timeout: 15000 });
   for (const [label, scale] of [[name, 1], [name + ' @150%', 1.5]]) {
     const style = scale === 1 ? null : await page.addStyleTag({ content: `html { font-size: ${scale * 100}% !important; } body.hub { font-size: ${18 * scale}px !important; }` });
     const problems = await page.evaluate(auditInPage, RULES);
