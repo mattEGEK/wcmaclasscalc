@@ -7,17 +7,6 @@
 // declarationReviewLabel(), declarationReviewBadgeClass()), events-lib.php (EVENTS_NOT_REGISTERING)
 // and reminders-lib.php (reminderOptInFieldsHtml()).
 
-/** Status word class for the Garage/Drivers "at a glance" cards. */
-function homeStatusClass(string $state): string {
-    switch ($state) {
-        case 'accepted':       return 'hub-status--ok';
-        case 'needs_changes':  return 'hub-status--todo';
-        case 'pending_review':
-        case 'submitted':      return 'hub-status--info';
-        default:                return 'hub-status--warn';
-    }
-}
-
 /** A labelled status pill for the At a glance cards: "● Class: With an inspector". */
 function homePillHtml(string $state, string $name, string $label): string {
     return '<span class="hub-pill hub-status ' . h(homeStatusClass($state)) . '"><span class="hub-pill-k">' . h($name) . ':</span> ' . h($label) . '</span>';

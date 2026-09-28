@@ -82,6 +82,26 @@ function garageEventsForSeasons(array $events, array $seasons): array {
         (($e['discipline'] ?? 'summer') === 'ice') ? $seasons['ice'] : $seasons['summer']));
 }
 
+/**
+ * The events the car page offers to add the car to. Only a car with a stored season is filtered:
+ * a car from before seasons were stored keeps every event, as before (mobile UX spec §A1).
+ */
+function garageAddableEvents(array $events, array $car, array $seasons): array {
+    return in_array($car['disciplines'] ?? null, CAR_DISCIPLINES, true) ? garageEventsForSeasons($events, $seasons) : $events;
+}
+
+/**
+ * Whether $event (an ice event) already has this car's ice tech: an ice sheet for the event's club
+ * in its ice season or later. Ice tech is one sheet per car, club and ice season (ice spec §4).
+ */
+function garageIceEventCovered(array $event, array $carSheets): bool {
+    $key = seasonForEvent($event);
+    foreach ($carSheets as $s) {
+        if (techSheetIsIce($s) && (string)($s['club'] ?? '') === (string)$key['club'] && (int)($s['season'] ?? 0) >= $key['season']) return true;
+    }
+    return false;
+}
+
 /** Where tagging a car goes: straight to the ice sheet when the ice next-step card asked for it. */
 function garageAfterTagUrl(int $carId, array $event, bool $wantsSheet): string {
     if ($wantsSheet && ($event['discipline'] ?? 'summer') === 'ice') {

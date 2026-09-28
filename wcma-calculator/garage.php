@@ -125,7 +125,7 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         if ((($row['event']['discipline'] ?? 'summer') === 'ice')) $taggedIce = true; else $taggedSummer = true;
     }
     $seasons = garageCarSeasons($car, $declarations, $allSheets, $taggedSummer, $taggedIce);
-    $events['untagged'] = garageEventsForSeasons($events['untagged'], $seasons);
+    $events['untagged'] = garageAddableEvents($events['untagged'], $car, $seasons);
 
     renderPageStart(carDisplayName($car), 'garage', ['flash' => getFlash(), 'subnav' => '<a href="garage.php">&larr; Back to Garage</a>']);
     echo renderGarageCarHtml([
@@ -135,6 +135,7 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         'events' => $events, 'csrf' => generateCsrfToken(), 'detailsForm' => $detailsForm,
         'offerReminders' => remindersShouldOffer(db_find_user_by_id($pdo, $uid)),
         'seasons' => $seasons,
+        'iceSheets' => array_values(array_filter($allSheets, fn(array $s): bool => techSheetIsIce($s))),
         'usesSummer' => $seasons['summer'],
         'ice' => garageIceSummary($allSheets, $taggedIce, gearSeasonNow(DISCIPLINE_ICE), isset($car['disciplines']) ? (string)$car['disciplines'] : null),
     ]);

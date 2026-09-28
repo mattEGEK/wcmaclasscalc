@@ -305,4 +305,25 @@ final class GarageLibTest extends TestCase
         $this->assertSame('garage.php?car=3', garageAfterTagUrl(3, $ice, false));
         $this->assertSame('garage.php?car=3', garageAfterTagUrl(3, ['id' => 10, 'discipline' => 'summer'], true));
     }
+
+    public function testAddableEventsFilterOnlyCarsWithAStoredSeason(): void
+    {
+        $events = [['id' => 1, 'discipline' => 'summer'], ['id' => 2, 'discipline' => 'ice']];
+        $ids = fn(array $car, array $s): array => array_map(fn(array $e): int => $e['id'], garageAddableEvents($events, $car, $s));
+        // A car from before seasons were stored, with no ice activity yet, can still go to an ice event.
+        $this->assertSame([1, 2], $ids(['disciplines' => null], ['summer' => true, 'ice' => false]));
+        $this->assertSame([1, 2], $ids([], ['summer' => true, 'ice' => false]));
+        $this->assertSame([2], $ids(['disciplines' => 'ice'], ['summer' => false, 'ice' => true]));
+        $this->assertSame([1], $ids(['disciplines' => 'summer'], ['summer' => true, 'ice' => false]));
+    }
+
+    public function testIceEventIsCoveredByAnyIceSheetForItsClubAndSeason(): void
+    {
+        $race2 = ['id' => 21, 'event_date' => '2027-01-20', 'discipline' => 'ice', 'host_club' => 'NASCC'];
+        $this->assertTrue(garageIceEventCovered($race2, [$this->iceSheet(['event_id' => 20, 'season' => 2027, 'club' => 'NASCC'])]));
+        $this->assertFalse(garageIceEventCovered($race2, [$this->iceSheet(['event_id' => 20, 'season' => 2027, 'club' => 'WSCC'])]));
+        $this->assertFalse(garageIceEventCovered($race2, [$this->iceSheet(['event_id' => 20, 'season' => 2026, 'club' => 'NASCC'])]));
+        $this->assertFalse(garageIceEventCovered($race2, [$this->sheet(5, 21, 2027)]));
+        $this->assertFalse(garageIceEventCovered($race2, []));
+    }
 }

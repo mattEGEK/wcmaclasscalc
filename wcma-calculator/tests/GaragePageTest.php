@@ -338,4 +338,35 @@ final class GaragePageTest extends TestCase
         $vm['events']['tagged'] = [['event' => ['id' => 9, 'name' => 'Spring', 'event_date' => '2026-10-01'], 'sheet' => null, 'gearLinks' => []]];
         $this->assertStringContainsString('>Add this car to another event</label>', renderGarageCarHtml($vm));
     }
+
+    private function iceSheetRow(array $o = []): array {
+        return array_merge(['id' => 30, 'car_id' => 3, 'event_id' => 12, 'season' => 2027, 'discipline' => 'ice', 'club' => 'NASCC', 'class' => 'SS', 'status' => 'submitted'], $o);
+    }
+
+    public function testNextStepDoesNotAskForASecondSheetForTheSameClubAndSeason(): void
+    {
+        $race2 = ['id' => 13, 'name' => 'NASCC Ice Race #2', 'event_date' => '2027-01-20', 'discipline' => 'ice', 'host_club' => 'NASCC'];
+        $html = renderGarageCarHtml($this->carVm([
+            'seasons' => ['summer' => false, 'ice' => true], 'usesSummer' => false,
+            'iceSheets' => [$this->iceSheetRow()],
+            'ice' => ['state' => 'none', 'label' => 'Ice tech sheet in · NASCC · SS'],
+            'events' => ['tagged' => [['event' => $race2, 'sheet' => null, 'gearLinks' => []]], 'untagged' => [], 'earlierSheets' => []],
+        ]));
+        $this->assertStringNotContainsString('Next: your ice tech sheet', $html);
+        $this->assertStringContainsString('<h2>Ice tech sheet sent</h2>', $html);
+        $this->assertStringContainsString('href="tech-sheets.php?action=view&amp;id=30">See what\'s next</a>', $html);
+    }
+
+    public function testNextStepMovesOnToAnotherClubsEventWithoutASheet(): void
+    {
+        $wscc = ['id' => 14, 'name' => 'WSCC Fire on Ice #1', 'event_date' => '2026-11-19', 'discipline' => 'ice', 'host_club' => 'WSCC'];
+        $html = renderGarageCarHtml($this->carVm([
+            'seasons' => ['summer' => false, 'ice' => true], 'usesSummer' => false,
+            'iceSheets' => [$this->iceSheetRow()],
+            'events' => ['tagged' => [['event' => $this->iceEvent(), 'sheet' => $this->iceSheetRow(), 'gearLinks' => []],
+                                      ['event' => $wscc, 'sheet' => null, 'gearLinks' => []]], 'untagged' => [], 'earlierSheets' => []],
+        ]));
+        $this->assertStringContainsString('<h2>Next: your ice tech sheet</h2>', $html);
+        $this->assertStringContainsString('event_id=14">Submit ice tech sheet</a>', $html);
+    }
 }

@@ -154,21 +154,39 @@ function renderAddCarHtml(array $vm): string {
 }
 
 /**
- * The ice next-step card under the car header (mobile UX spec 2026-09-28 §A3): pick an ice event,
- * or submit the ice sheet for the soonest tagged ice event that has none. '' when neither applies.
+ * The ice next-step card under the car header (mobile UX spec 2026-09-28 §A3): submit the ice sheet
+ * for the soonest tagged ice event its club and season don't have one for; once every tagged ice
+ * event is covered, the sheet's status and a link to its What's next; with no ice event tagged,
+ * pick one. $vm['iceSheets'] is the car's ice sheets (any event). '' when none applies.
  */
 function garageNextStepHtml(array $vm): string {
     $car = $vm['car'];
     if ($car['archived_at'] !== null || empty($vm['seasons']['ice'])) return '';
     $id = (int)$car['id'];
     $isIce = fn(array $e): bool => ($e['discipline'] ?? 'summer') === 'ice';
+    $iceSheets = $vm['iceSheets'] ?? [];
+    $covered = null;
     foreach ($vm['events']['tagged'] as $row) {
         if (!$isIce($row['event'])) continue;
-        if ($row['sheet'] !== null) return '';
         $e = $row['event'];
+        $sheets = $row['sheet'] !== null ? array_merge($iceSheets, [$row['sheet']]) : $iceSheets;
+        if (garageIceEventCovered($e, $sheets)) { $covered ??= [$e, $sheets]; continue; }
         return '<section class="hub-card garage-next"><h2>Next: your ice tech sheet</h2><p>For ' . h((string)$e['name']) . ', '
             . h(date('D, M j', strtotime((string)$e['event_date']))) . '.</p>'
             . '<a class="hub-btn" href="tech-sheets.php?action=new-ice&amp;car_id=' . $id . '&amp;event_id=' . (int)$e['id'] . '">Submit ice tech sheet</a></section>';
+    }
+    if ($covered !== null) {
+        [$e, $sheets] = $covered;
+        $club = (string)($e['host_club'] ?? '');
+        $newest = null;
+        foreach ($sheets as $s) {
+            if (techSheetIsIce($s) && (string)($s['club'] ?? '') === $club && ($newest === null || (int)$s['id'] > (int)$newest['id'])) $newest = $s;
+        }
+        $out = '<section class="hub-card garage-next"><h2>Ice tech sheet sent</h2>';
+        if (!empty($vm['ice'])) {
+            $out .= '<p><span class="hub-status ' . h(homeStatusClass((string)$vm['ice']['state'])) . '">' . h((string)$vm['ice']['label']) . '</span></p>';
+        }
+        return $out . '<a class="hub-btn hub-btn--secondary" href="tech-sheets.php?action=view&amp;id=' . (int)$newest['id'] . '">See what\'s next</a></section>';
     }
     $ice = array_values(array_filter($vm['events']['untagged'], $isIce));
     if (!$ice) return '';
