@@ -69,6 +69,31 @@ function auditInPage(R) {
   return [...new Set(problems)];
 }
 
+/**
+ * Markup from pages the flow doesn't visit (admin, inspector, calculator, Garage), injected into a
+ * real page so the cascade is the real one. Returns one string per problem.
+ */
+function styleFixturesInPage() {
+  const box = document.createElement('div');
+  box.innerHTML = '<form><button type="submit" class="btn btn-secondary" id="fx-secondary">Send back</button>'
+    + '<button type="submit" class="btn btn-primary" id="fx-primary">Accept</button></form>'
+    + '<details id="fx-details"><summary>How is my class calculated?</summary><p>x</p></details>'
+    + '<fieldset class="garage-season"><div class="garage-season-options"><label id="fx-season"><input type="radio" name="fx"><span>Ice</span></label></div></fieldset>';
+  document.querySelector('main, .container, body').appendChild(box);
+  const problems = [];
+  const bg = id => getComputedStyle(document.getElementById(id)).backgroundColor;
+  if (bg('fx-secondary') === bg('fx-primary')) problems.push(`secondary submit button looks like the primary (${bg('fx-secondary')})`);
+  const google = document.querySelector('.btn-google');
+  if (google && getComputedStyle(google).backgroundColor === bg('fx-primary')) problems.push('"Sign in with Google" looks like the primary button');
+  const sum = document.querySelector('#fx-details summary');
+  const marker = getComputedStyle(sum).display === 'list-item' || getComputedStyle(sum, '::before').content !== 'none';
+  if (!marker) problems.push('<summary> has no disclosure triangle');
+  const season = parseFloat(getComputedStyle(document.getElementById('fx-season')).minHeight);
+  if (!(season >= 56)) problems.push(`Garage season card min-height is ${season}px, not its own 56px+`);
+  box.remove();
+  return problems;
+}
+
 let failed = 0;
 async function audit(page, name) {
   await page.waitForLoadState('networkidle');
@@ -78,9 +103,18 @@ async function audit(page, name) {
     const style = scale === 1 ? null : await page.addStyleTag({ content: `html { font-size: ${scale * 100}% !important; } body.hub { font-size: ${18 * scale}px !important; }` });
     const problems = await page.evaluate(auditInPage, RULES);
     if (style) await style.evaluate(n => n.remove());
-    if (problems.length) failed++;
-    console.log(`${problems.length ? 'FAIL' : 'ok  '} ${label}${problems.length ? '\n  - ' + problems.join('\n  - ') : ''}`);
+    report(label, problems);
   }
+  // Browser zoom at 150% on a 375px phone lays the page out at 250px wide, so px-sized rules scale too.
+  const size = page.viewportSize();
+  await page.setViewportSize({ width: 250, height: 533 });
+  report(name + ' @250px (150% zoom)', await page.evaluate(auditInPage, RULES));
+  await page.setViewportSize(size);
+}
+
+function report(label, problems) {
+  if (problems.length) failed++;
+  console.log(`${problems.length ? 'FAIL' : 'ok  '} ${label}${problems.length ? '\n  - ' + problems.join('\n  - ') : ''}`);
 }
 
 const browser = await chromium.launch();
@@ -91,6 +125,7 @@ try {
 
   await page.goto(BASE + '/index.php'); await audit(page, 'landing');
   await page.goto(BASE + '/auth.php?action=login'); await audit(page, 'sign in');
+  report('style fixtures (admin, inspector, calculator markup)', await page.evaluate(styleFixturesInPage));
   await page.goto(BASE + '/auth.php?action=register'); await audit(page, 'create account');
   await page.fill('#name', 'Pat Winters');
   await page.fill('#email', `pat${Date.now()}@example.com`);
