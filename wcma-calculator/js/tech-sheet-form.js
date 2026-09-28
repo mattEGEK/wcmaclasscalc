@@ -4,6 +4,9 @@
         document.getElementById('checklist-container'), TECH_CHECKLIST_SECTIONS, window.TECH_SHEET_EXISTING_CHECKLIST || {}
     );
 
+    // Ice form: whether the chosen class requires the head & neck restraint (labels new driver rows too).
+    let headNeckRequired = false;
+
     function renderEquipmentInto(container, prefix, existingState) {
         existingState = existingState || {};
         const state = {};
@@ -22,7 +25,8 @@
             rowRefs[key] = row;
             const label = document.createElement('div');
             label.className = 'checklist-item-label';
-            label.textContent = def.label;
+            label.textContent = (key === 'head_neck_restraints' && headNeckRequired)
+                ? WcmaIceClass.equipmentLabel(def.label, true) : def.label;
             row.appendChild(label);
 
             if (def.has_rating) {
@@ -96,6 +100,7 @@
     if (iceClassSelect && window.ICE_SECTIONS_BY_CLASS && window.WcmaIceClass) {
         function updateHeadNeckLabel(code) {
             const hnRequired = WcmaIceClass.fhrRequired(window.ICE_FHR_BY_CLASS, code);
+            headNeckRequired = hnRequired;
             document.querySelectorAll('[data-equipment-key="head_neck_restraints"] .checklist-item-label').forEach(function (el) {
                 el.textContent = WcmaIceClass.equipmentLabel(TECH_DRIVER_EQUIPMENT_ITEMS.head_neck_restraints.label, hnRequired);
             });
