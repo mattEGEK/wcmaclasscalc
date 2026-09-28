@@ -97,6 +97,19 @@ function homeRenderTagForm(array $event, array $cars, string $csrf, bool $offerR
     return $out;
 }
 
+/** The cars (keyed by id) that can go to $event: a car stored for the other season can't (mobile UX spec §A4). */
+function homeCarsForEvent(array $cars, array $event): array {
+    $other = ($event['discipline'] ?? 'summer') === 'ice' ? 'summer' : 'ice';
+    return array_filter($cars, fn(array $c): bool => ($c['disciplines'] ?? null) !== $other);
+}
+
+/** Whether the soonest active event on or after $today is an ice event (the landing hero leads with ice). */
+function landingNextIsIce(array $activeEvents, string $today): bool {
+    $upcoming = array_values(array_filter($activeEvents, fn(array $e): bool => (string)$e['event_date'] >= $today));
+    usort($upcoming, fn(array $a, array $b): int => strcmp((string)$a['event_date'], (string)$b['event_date']));
+    return $upcoming !== [] && ($upcoming[0]['discipline'] ?? 'summer') === 'ice';
+}
+
 /** Short event date for card headers ("Sat, Oct 11"); '' if the date can't be read. */
 function homeShortDate(string $eventDate): string {
     try {
@@ -132,11 +145,11 @@ function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, st
     foreach (array_keys($goingCarIds) as $carId) {
         if (isset($cars[$carId])) $out .= homeRenderUntagForm($event, $cars[$carId], $csrf);
     }
-    $notGoing = array_diff_key($cars, $goingCarIds);
+    $notGoing = homeCarsForEvent(array_diff_key($cars, $goingCarIds), $event);
     if ($notGoing) {
         $out .= homeRenderTagForm($event, $notGoing, $csrf, $offerReminders);
-    } elseif (!$cars) {
-        $out .= '<p class="form-hint">Add a car to your garage to say you\'re going.</p>';
+    } elseif (!$goingCarIds) {
+        $out .= '<p><a class="hub-btn hub-btn--secondary" href="garage.php?action=add&amp;event_id=' . (int)$event['id'] . '">Add a car for this event</a></p>';
     }
     return $out . '</section>';
 }
@@ -258,7 +271,7 @@ function renderHomeHtml(array $vm): string
     $out .= '<h2>At a glance</h2><div class="hub-grid-2">';
     $out .= '<div class="hub-card"><h3>Garage</h3>';
     if (!$vm['cars']) {
-        $out .= '<p>Start by adding your car and declaring its class</p><a class="hub-btn" href="garage.php?action=add">Add a car</a>';
+        $out .= '<p>Start by adding your car.</p><a class="hub-btn" href="garage.php?action=add">Add a car</a>';
     } else {
         foreach ($vm['garage'] as $g) {
             $car = $g['car'];
@@ -313,15 +326,24 @@ function renderHomeHtml(array $vm): string
     return $out;
 }
 
-function renderLandingHtml(array $seasonLinks): string
+/** The signed-out landing page. $iceNext (landingNextIsIce()) leads with ice tech instead of the summer calculator. */
+function renderLandingHtml(array $seasonLinks, bool $iceNext = false): string
 {
+    $signIn = 'auth.php?action=login&amp;redirect=index.php';
+    $register = 'auth.php?action=register&amp;redirect=index.php';
     $out = '<section class="hub-hero"><h1>WCMA Hub</h1>';
-    $out .= '<p class="hub-hero-tagline">Declare your class, submit tech sheets and track car and gear tech for the season.</p>';
-    $out .= '<div class="hub-hero-actions">';
-    $out .= '<a class="hub-btn" href="calculator.php">Class Calculator</a>';
-    $out .= '<a class="hub-btn hub-btn--secondary" href="auth.php?action=login&amp;redirect=index.php">Sign in</a>';
-    $out .= '<a class="hub-btn hub-btn--secondary" href="auth.php?action=register&amp;redirect=index.php">Create account</a>';
-    $out .= '</div><p><a href="drivers-public.php">Meet the drivers</a></p></section>';
+    if ($iceNext) {
+        $out .= '<p class="hub-hero-tagline">Submit your ice tech sheet and track car and gear tech for the season.</p>'
+            . '<div class="hub-hero-actions"><a class="hub-btn" href="' . $register . '">Create account</a>'
+            . '<a class="hub-btn hub-btn--secondary" href="' . $signIn . '">Sign in</a></div>'
+            . '<p><a href="calculator.php">Summer class calculator</a> · <a href="drivers-public.php">Meet the drivers</a></p></section>';
+    } else {
+        $out .= '<p class="hub-hero-tagline">Declare your class, submit tech sheets and track car and gear tech for the season.</p>'
+            . '<div class="hub-hero-actions"><a class="hub-btn" href="calculator.php">Class Calculator</a>'
+            . '<a class="hub-btn hub-btn--secondary" href="' . $signIn . '">Sign in</a>'
+            . '<a class="hub-btn hub-btn--secondary" href="' . $register . '">Create account</a>'
+            . '</div><p><a href="drivers-public.php">Meet the drivers</a></p></section>';
+    }
 
     if ($seasonLinks) {
         $out .= '<div class="hub-card"><h3>This season on MotorsportReg</h3>';

@@ -39,4 +39,10 @@ final class HomeSourceTest extends TestCase
         $this->assertStringContainsString("array_key_exists(\$iceKey, \$in['iceGear'])", $src);
         $this->assertStringContainsString('db_get_gear_record_for_driver($pdo, $did, $iceSeason, DISCIPLINE_ICE)', $src);
     }
+
+    public function testLandingIsToldWhetherTheNextEventIsIce(): void
+    {
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../index.php'));
+        $this->assertStringContainsString("renderLandingHtml(db_get_season_links(\$pdo, true), landingNextIsIce(db_get_active_events(\$pdo), date('Y-m-d')))", $src);
+    }
 }

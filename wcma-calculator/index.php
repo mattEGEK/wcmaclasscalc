@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if ($user === null) {
     renderPageStart('Welcome', 'home');
-    echo renderLandingHtml(db_get_season_links($pdo, true));
+    echo renderLandingHtml(db_get_season_links($pdo, true), landingNextIsIce(db_get_active_events($pdo), date('Y-m-d')));
     renderPageEnd();
     exit;
 }
