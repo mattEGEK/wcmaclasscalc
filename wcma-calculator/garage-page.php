@@ -76,10 +76,17 @@ function garageRenderCard(array $card): string {
         . '<span class="hub-plate hub-plate--lg">' . h((string)$car['car_number']) . '</span><div>'
         . '<h2><a href="garage.php?car=' . $id . '">' . h(garageCarTitle($car)) . '</a></h2>';
     if (garageCarSub($car) !== '') $out .= '<p class="garage-card-sub">' . h(garageCarSub($car)) . '</p>';
-    $out .= garageClassHtml($card['class']) . '</div></div>';
+    if ($card['usesSummer'] ?? true) $out .= garageClassHtml($card['class']);
+    $out .= '</div></div>';
 
-    $out .= '<dl class="garage-card-facts"><div><dt>Car tech</dt><dd><span class="hub-status ' . h(homeStatusClass($card['techState'])) . '">'
-        . h($card['techLabel']) . '</span></dd></div>';
+    $out .= '<dl class="garage-card-facts">';
+    if ($card['usesSummer'] ?? true) {
+        $out .= '<div><dt>Car tech</dt><dd><span class="hub-status ' . h(homeStatusClass($card['techState'])) . '">'
+            . h($card['techLabel']) . '</span></dd></div>';
+    }
+    if (!empty($card['ice'])) {
+        $out .= '<div><dt>Ice tech</dt><dd><span class="hub-status ' . h(homeStatusClass($card['ice']['state'])) . '">' . h($card['ice']['label']) . '</span></dd></div>';
+    }
     $next = $card['next'];
     if ($next === null) {
         $out .= '<div><dt>Next event</dt><dd>Not going to any events yet</dd></div>';
@@ -89,10 +96,13 @@ function garageRenderCard(array $card): string {
             . '</dd></div>';
     }
     $out .= '</dl><div class="garage-card-actions">';
-    if ($card['class']['current'] === null) {
+    $nextIsIce = $next !== null && (($next['event']['discipline'] ?? 'summer') === 'ice');
+    if (($card['usesSummer'] ?? true) && $card['class']['current'] === null && !$nextIsIce) {
         $out .= '<a class="hub-btn" href="calculator.php?car=' . $id . '">Declare class</a>';
     } elseif ($next !== null && $next['sheet'] === null) {
-        $out .= '<a class="hub-btn" href="tech-sheets.php?action=new&amp;car_id=' . $id . '&amp;event_id=' . (int)$next['event']['id'] . '">Submit tech sheet</a>';
+        $out .= $nextIsIce
+            ? '<a class="hub-btn" href="tech-sheets.php?action=new-ice&amp;car_id=' . $id . '&amp;event_id=' . (int)$next['event']['id'] . '">Submit ice tech sheet</a>'
+            : '<a class="hub-btn" href="tech-sheets.php?action=new&amp;car_id=' . $id . '&amp;event_id=' . (int)$next['event']['id'] . '">Submit tech sheet</a>';
     }
     $out .= '<a class="hub-btn hub-btn--secondary" href="garage.php?car=' . $id . '">Open</a></div></article>';
     return $out;
@@ -155,40 +165,52 @@ function renderGarageCarHtml(array $vm): string {
         . '<input type="hidden" name="action" value="update-car"><input type="hidden" name="car_id" value="' . $id . '">'
         . garageDetailsFields($form['values'] ?? $car) . '<button type="submit" class="hub-btn">Save details</button></form></details></section>';
 
+    $usesSummer = $vm['usesSummer'] ?? true;
+
     // Class
-    $out .= '<section class="hub-card"><h2>Class</h2>' . garageClassHtml($vm['class']);
-    if ($cur !== null) {
-        $out .= '<p>Declared ' . h(date('M j, Y', strtotime((string)$cur['submitted_at']))) . ' · '
-            . h((string)$cur['competition_weight']) . ' lbs · ' . h((string)$cur['declared_hp']) . ' HP</p>';
-        if (trim((string)($cur['reviewer_note'] ?? '')) !== '') {
-            $out .= '<p class="garage-note"><strong>Inspector\'s note:</strong> ' . h((string)$cur['reviewer_note']) . '</p>';
+    if ($usesSummer) {
+        $out .= '<section class="hub-card"><h2>Class</h2>' . garageClassHtml($vm['class']);
+        if ($cur !== null) {
+            $out .= '<p>Declared ' . h(date('M j, Y', strtotime((string)$cur['submitted_at']))) . ' · '
+                . h((string)$cur['competition_weight']) . ' lbs · ' . h((string)$cur['declared_hp']) . ' HP</p>';
+            if (trim((string)($cur['reviewer_note'] ?? '')) !== '') {
+                $out .= '<p class="garage-note"><strong>Inspector\'s note:</strong> ' . h((string)$cur['reviewer_note']) . '</p>';
+            }
         }
-    }
-    $out .= '<p class="garage-card-actions">';
-    if (!$archived) $out .= '<a class="hub-btn" href="calculator.php?car=' . $id . '">' . ($cur !== null ? 'Re-declare class' : 'Declare class') . '</a>';
-    if ($cur !== null) $out .= '<a class="hub-btn hub-btn--secondary" href="garage.php?declaration=' . (int)$cur['id'] . '">View</a>';
-    $out .= '</p>';
-    $history = array_values(array_filter($vm['declarations'], fn(array $d): bool => $cur === null || (int)$d['id'] !== (int)$cur['id']));
-    if ($history) {
-        $out .= '<h3>History</h3><table class="data-table"><thead><tr><th>Declared</th><th>Class</th><th>Status</th><th></th></tr></thead><tbody>';
-        foreach ($history as $d) {
-            $out .= '<tr><td>' . h(date('M j, Y', strtotime((string)$d['submitted_at']))) . '</td><td>' . h((string)$d['calculated_class'])
-                . '</td><td>' . h(declarationReviewLabel((string)$d['review_status'])) . '</td>'
-                . '<td><a href="garage.php?declaration=' . (int)$d['id'] . '">View</a></td></tr>';
+        $out .= '<p class="garage-card-actions">';
+        if (!$archived) $out .= '<a class="hub-btn" href="calculator.php?car=' . $id . '">' . ($cur !== null ? 'Re-declare class' : 'Declare class') . '</a>';
+        if ($cur !== null) $out .= '<a class="hub-btn hub-btn--secondary" href="garage.php?declaration=' . (int)$cur['id'] . '">View</a>';
+        $out .= '</p>';
+        $history = array_values(array_filter($vm['declarations'], fn(array $d): bool => $cur === null || (int)$d['id'] !== (int)$cur['id']));
+        if ($history) {
+            $out .= '<h3>History</h3><table class="data-table"><thead><tr><th>Declared</th><th>Class</th><th>Status</th><th></th></tr></thead><tbody>';
+            foreach ($history as $d) {
+                $out .= '<tr><td>' . h(date('M j, Y', strtotime((string)$d['submitted_at']))) . '</td><td>' . h((string)$d['calculated_class'])
+                    . '</td><td>' . h(declarationReviewLabel((string)$d['review_status'])) . '</td>'
+                    . '<td><a href="garage.php?declaration=' . (int)$d['id'] . '">View</a></td></tr>';
+            }
+            $out .= '</tbody></table>';
         }
-        $out .= '</tbody></table>';
+        $out .= '</section>';
     }
-    $out .= '</section>';
 
     // Car tech
-    $out .= '<section class="hub-card"><h2>Car tech ' . (int)$vm['season'] . '</h2>'
-        . '<p><span class="hub-status ' . h(homeStatusClass((string)$vm['techState'])) . '">' . h((string)$vm['techLabel']) . '</span></p>';
-    if ($vm['techAction'] !== null) {
-        $out .= '<a class="hub-btn hub-btn--secondary" href="' . h($vm['techAction']['url']) . '">' . h($vm['techAction']['label']) . '</a>';
-    } elseif ($vm['techState'] !== 'accepted') {
-        $out .= '<p class="form-hint">Pre-tech with photos after you submit a tech sheet for an event, or bring the car to tech at the track.</p>';
+    if ($usesSummer) {
+        $out .= '<section class="hub-card"><h2>Car tech ' . (int)$vm['season'] . '</h2>'
+            . '<p><span class="hub-status ' . h(homeStatusClass((string)$vm['techState'])) . '">' . h((string)$vm['techLabel']) . '</span></p>';
+        if ($vm['techAction'] !== null) {
+            $out .= '<a class="hub-btn hub-btn--secondary" href="' . h($vm['techAction']['url']) . '">' . h($vm['techAction']['label']) . '</a>';
+        } elseif ($vm['techState'] !== 'accepted') {
+            $out .= '<p class="form-hint">Pre-tech with photos after you submit a tech sheet for an event, or bring the car to tech at the track.</p>';
+        }
+        $out .= '</section>';
     }
-    $out .= '</section>';
+
+    // Ice tech
+    if (!empty($vm['ice'])) {
+        $out .= '<section class="hub-card"><h2>Ice tech</h2><p><span class="hub-status ' . h(homeStatusClass($vm['ice']['state'])) . '">'
+            . h($vm['ice']['label']) . '</span></p></section>';
+    }
 
     // Events
     $ev = $vm['events'];
@@ -198,10 +220,20 @@ function renderGarageCarHtml(array $vm): string {
         $e = $row['event'];
         $eid = (int)$e['id'];
         $sheet = $row['sheet'];
+        $isIce = (($e['discipline'] ?? 'summer') === 'ice');
         $out .= '<div class="garage-event"><div><strong>' . h((string)$e['name']) . '</strong> ' . h(date('M j', strtotime((string)$e['event_date']))) . '</div>';
-        if ($sheet !== null) {
+        if ($sheet !== null && $isIce) {
+            $out .= '<span class="hub-status hub-status--ok">Ice tech sheet submitted</span> ' . h(techSheetClassLine($sheet))
+                . ' <a href="tech-sheets.php?action=view&amp;id=' . (int)$sheet['id'] . '">View</a>'
+                . renderGearChips($row['gearLinks'], 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0), 'sheet_id' => (int)$sheet['id']]);
+        } elseif ($sheet !== null) {
             $out .= '<span class="hub-status hub-status--ok">Tech sheet submitted</span> <a href="tech-sheets.php?action=view&amp;id=' . (int)$sheet['id'] . '">View</a>'
                 . renderGearChips($row['gearLinks'], 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0)]);
+        } elseif ($isIce) {
+            $out .= '<span class="hub-status hub-status--todo">No ice tech sheet yet</span> ';
+            $out .= $archived
+                ? 'Restore the car to submit a tech sheet'
+                : '<a class="hub-btn" href="tech-sheets.php?action=new-ice&amp;car_id=' . $id . '&amp;event_id=' . $eid . '">Submit ice tech sheet</a>';
         } else {
             $out .= '<span class="hub-status hub-status--todo">No tech sheet yet</span> ';
             if ($archived) {
@@ -220,7 +252,8 @@ function renderGarageCarHtml(array $vm): string {
             . '<input type="hidden" name="action" value="tag"><input type="hidden" name="car_id" value="' . $id . '">'
             . '<label for="garage-tag-event">Bring this car to another event</label><select id="garage-tag-event" name="event_id">';
         foreach ($ev['untagged'] as $e) {
-            $out .= '<option value="' . (int)$e['id'] . '">' . h((string)$e['name']) . ' — ' . h(date('M j', strtotime((string)$e['event_date']))) . '</option>';
+            $out .= '<option value="' . (int)$e['id'] . '">' . h((string)$e['name']) . ' — ' . h(date('M j', strtotime((string)$e['event_date'])))
+                . ((($e['discipline'] ?? 'summer') === 'ice') ? ' · Ice ' . h((string)$e['host_club']) : '') . '</option>';
         }
         $out .= '</select>' . (!empty($vm['offerReminders']) ? reminderOptInFieldsHtml() : '')
             . '<button type="submit" class="hub-btn">I\'m going</button></form><p class="form-hint">' . EVENTS_NOT_REGISTERING . '</p>';
@@ -228,32 +261,12 @@ function renderGarageCarHtml(array $vm): string {
     if ($ev['earlierSheets']) {
         $out .= '<h3>Earlier tech sheets</h3><ul>';
         foreach ($ev['earlierSheets'] as $row) {
-            $out .= '<li>' . h($row['event_name']) . ' — <a href="tech-sheets.php?action=view&amp;id=' . (int)$row['sheet']['id'] . '">View</a></li>';
+            $out .= '<li>' . h($row['event_name']) . (techSheetIsIce($row['sheet']) ? ' (Ice)' : '')
+                . ' — <a href="tech-sheets.php?action=view&amp;id=' . (int)$row['sheet']['id'] . '">View</a></li>';
         }
         $out .= '</ul>';
     }
     $out .= '</section>';
-
-    // Ice racing
-    if (!empty($vm['ice'])) {
-        $out .= '<section class="hub-card"><h2>Ice racing</h2>';
-        foreach ($vm['ice'] as $row) {
-            $e = $row['event'];
-            $sheet = $row['sheet'];
-            $when = $e['event_date'] !== '' ? ' ' . h(date('M j', strtotime((string)$e['event_date']))) : '';
-            $out .= '<div class="garage-event"><div><strong>' . h((string)$e['name']) . '</strong>' . $when
-                . ' · ' . h((string)$e['host_club']) . '</div>';
-            if ($sheet !== null) {
-                $accepted = ($sheet['status'] ?? '') === 'teched';
-                $out .= '<span class="hub-status ' . ($accepted ? 'hub-status--ok">Accepted' : 'hub-status--info">Submitted') . '</span> '
-                    . h(techSheetClassLine($sheet)) . ' <a href="tech-sheets.php?action=view&amp;id=' . (int)$sheet['id'] . '">View</a>';
-            } elseif (!$archived && empty($row['past'])) {
-                $out .= '<a class="hub-btn" href="tech-sheets.php?action=new-ice&amp;car_id=' . $id . '&amp;event_id=' . (int)$e['id'] . '">Submit ice tech sheet</a>';
-            }
-            $out .= '</div>';
-        }
-        $out .= '</section>';
-    }
 
     if (!$archived) {
         $out .= '<section class="hub-card"><h2>Archive</h2><p>Archiving hides the car from Home and the tech sheet form. Its history is kept.</p>'

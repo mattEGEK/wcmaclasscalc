@@ -72,14 +72,23 @@ function garageCarEvents(array $carSheets, array $taggedEventIds, array $activeE
     return ['tagged' => $tagged, 'untagged' => $untagged, 'earlierSheets' => $earlier];
 }
 
-/** One Garage list card: the car, its class line, this season's car tech, and its nearest tagged event. */
-function garageCard(array $car, array $declarations, array $carSheets, array $taggedEventIds, array $activeEvents, int $season, string $today): array {
-    $seasonSheets = array_values(array_filter($carSheets, fn(array $s): bool => (int)$s['season'] === $season));
+/** One Garage list card: the car, its summer class and tech (if it races summer), its ice chip (if it races ice), and its nearest tagged event. */
+function garageCard(array $car, array $declarations, array $carSheets, array $taggedEventIds, array $activeEvents, int $season, string $today, int $iceSeason = 0): array {
+    $summerSheets = garageSummerSheets($carSheets);
+    $seasonSheets = array_values(array_filter($summerSheets, fn(array $s): bool => (int)$s['season'] === $season));
     $tech = techCarStatus($seasonSheets);
+    $tagged = array_flip(array_map('intval', $taggedEventIds));
+    $taggedIce = $taggedSummer = false;
+    foreach ($activeEvents as $e) {
+        if (!isset($tagged[(int)$e['id']]) || (string)$e['event_date'] < $today) continue;
+        if (($e['discipline'] ?? 'summer') === 'ice') $taggedIce = true; else $taggedSummer = true;
+    }
     $events = garageCarEvents($carSheets, $taggedEventIds, $activeEvents, [], $today);
     return [
         'car' => $car,
         'class' => garageClassLine($declarations),
+        'usesSummer' => garageCarUsesSummer($declarations, $carSheets, $taggedSummer),
+        'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason ?: $season),
         'techState' => $tech['state'],
         'techLabel' => techCarStatusLabel($tech, $season),
         'next' => $events['tagged'][0] ?? null,
@@ -108,42 +117,6 @@ function garageTechPhotosAction(array $seasonSheets, array $status): ?array {
 /** The summer sheets among $sheets: summer car tech, events and history never count ice sheets. */
 function garageSummerSheets(array $sheets): array {
     return array_values(array_filter($sheets, fn(array $s): bool => !techSheetIsIce($s)));
-}
-
-/**
- * The car's "Ice racing" rows: each active ice event dated on or after $today with the car's
- * newest ice sheet for it, then the car's ice sheets for events no longer open or dated before
- * $today ('past' => true). Past rows use $eventsById (id => event row, e.g. db_get_all_events())
- * for the real event name and date, falling back to "Earlier ice event" only when the event
- * itself is missing (deleted, or never loaded).
- *
- * @param array $eventsById id => event row (name, event_date, host_club)
- * @return array<int, array{event: array, sheet: ?array, past: bool}>
- */
-function garageIceRows(array $carSheets, array $iceEvents, string $today, array $eventsById): array {
-    $newest = [];
-    foreach ($carSheets as $s) {
-        if (!techSheetIsIce($s)) continue;
-        $eid = (int)$s['event_id'];
-        if (!isset($newest[$eid]) || (int)$s['id'] > (int)$newest[$eid]['id']) $newest[$eid] = $s;
-    }
-    $upcoming = array_values(array_filter($iceEvents, fn(array $e): bool => (string)$e['event_date'] >= $today));
-
-    $rows = [];
-    foreach ($upcoming as $e) {
-        $rows[] = ['event' => $e, 'sheet' => $newest[(int)$e['id']] ?? null, 'past' => false];
-        unset($newest[(int)$e['id']]);
-    }
-    foreach ($newest as $eid => $s) {
-        $ev = $eventsById[$eid] ?? null;
-        $rows[] = ['event' => [
-            'id' => $eid,
-            'name' => $ev !== null ? (string)$ev['name'] : 'Earlier ice event',
-            'event_date' => $ev !== null ? (string)$ev['event_date'] : '',
-            'host_club' => (string)($ev['host_club'] ?? $s['club'] ?? ''),
-        ], 'sheet' => $s, 'past' => true];
-    }
-    return $rows;
 }
 
 /**
