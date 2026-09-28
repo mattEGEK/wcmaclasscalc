@@ -20,7 +20,7 @@ require __DIR__ . '/cars-lib.php';
 require __DIR__ . '/garage-page.php';
 require_once __DIR__ . '/events-lib.php';
 require __DIR__ . '/ice-sheet-page.php';
-require_once __DIR__ . '/home-page.php';        // homeStatusClass()
+require __DIR__ . '/home-page.php';             // homeStatusClass()
 require_once __DIR__ . '/tech-sheet-next.php';
 require_once __DIR__ . '/email-copy.php';
 
