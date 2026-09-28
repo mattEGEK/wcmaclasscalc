@@ -181,4 +181,104 @@ final class ReadinessTest extends TestCase
     {
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', file_get_contents(__DIR__ . '/../readiness-lib.php'));
     }
+
+    private function iceWorld(array $o = []): array {
+        return $this->world(array_merge([
+            'events' => [['id' => 20, 'name' => 'NASCC Ice #1', 'event_date' => '2027-01-10', 'discipline' => 'ice', 'host_club' => 'NASCC']],
+            'plans' => [['event_id' => 20, 'car_id' => 3]],
+            'drivers' => [5 => ['id' => 5, 'name' => 'Jordan Lee']],
+            'iceGear' => [],
+            'iceGearFhr' => [],
+        ], $o));
+    }
+
+    private function iceSheet(array $o = []): array {
+        return array_merge(['id' => 70, 'car_id' => 3, 'event_id' => 20, 'season' => 2027, 'discipline' => 'ice', 'club' => 'NASCC',
+                            'class' => 'SS', 'status' => 'submitted', 'accepted_via' => null, 'photo_status' => null, 'driver_id' => 5], $o);
+    }
+
+    public function testIceEventHasNoDeclarationAndAnIceTechSheetTodo(): void
+    {
+        $items = $this->items(buildReadiness($this->iceWorld()));
+        $this->assertEqualsCanonicalizing(['tech_sheet:3', 'car_tech:3', 'gear:5'], array_keys($items));
+        $this->assertSame('Submit an ice tech sheet for #42', $items['tech_sheet:3']['label']);
+        $this->assertSame('tech-sheets.php?action=new-ice&car_id=3&event_id=20', $items['tech_sheet:3']['action']['url']);
+        $this->assertSame('Ice car tech for #42 at NASCC', $items['car_tech:3']['label']);
+        $this->assertSame(['subject_type' => 'car', 'subject_id' => 3, 'season' => 2027, 'discipline' => 'ice', 'club' => 'NASCC'],
+            $items['car_tech:3']['at_track']);
+        $this->assertSame(['subject_type' => 'driver', 'subject_id' => 5, 'season' => 2027, 'discipline' => 'ice', 'club' => ''],
+            $items['gear:5']['at_track']);
+    }
+
+    public function testIceCarTechIsPerClubAndSeason(): void
+    {
+        $teched = $this->iceSheet(['status' => 'teched', 'accepted_via' => 'in_person']);
+        $items = $this->items(buildReadiness($this->iceWorld(['sheets' => [$teched]])));
+        $this->assertSame('done', $items['car_tech:3']['state']);
+        $this->assertSame('Ice car tech 2027 for #42 at NASCC: teched', $items['car_tech:3']['label']);
+        $this->assertSame('Ice tech sheet for NASCC Ice #1 submitted', $items['tech_sheet:3']['label']);
+
+        $wscc = $this->iceSheet(['club' => 'WSCC', 'event_id' => 99, 'class' => 'FOI-STD', 'status' => 'teched', 'accepted_via' => 'in_person']);
+        $this->assertSame('todo', $this->items(buildReadiness($this->iceWorld(['sheets' => [$wscc]])))['car_tech:3']['state']);
+    }
+
+    public function testSummerCarTechIgnoresIceSheets(): void
+    {
+        $iceTeched = $this->iceSheet(['season' => 2026, 'status' => 'teched', 'accepted_via' => 'in_person']);
+        $items = $this->items(buildReadiness($this->world(['sheets' => [$iceTeched]])));
+        $this->assertSame('todo', $items['car_tech:3']['state']);
+    }
+
+    public function testIceAtTrackKeysUseTheClub(): void
+    {
+        $done = $this->items(buildReadiness($this->iceWorld(['atTrack' => ['car:3@ice:NASCC:2027', 'driver:5@ice:2027']])));
+        $this->assertSame('done', $done['car_tech:3']['state']);
+        $this->assertSame('done', $done['gear:5']['state']);
+        $other = $this->items(buildReadiness($this->iceWorld(['atTrack' => ['car:3@ice:WSCC:2027', 'car:3@2027', 'driver:5@2027']])));
+        $this->assertSame('todo', $other['car_tech:3']['state']);
+        $this->assertSame('todo', $other['gear:5']['state']);
+    }
+
+    public function testSummerGearCarriesOverToTheNextIceSeasonOnly(): void
+    {
+        $accepted = fn(int $season): array => ['id' => 40, 'season' => $season, 'status' => 'accepted', 'accepted_via' => 'in_person', 'photo_status' => null];
+        $label = fn(array $gear): string => $this->items(buildReadiness($this->iceWorld(['gear' => $gear])))['gear:5']['label'];
+        $this->assertSame('Ice gear for Jordan Lee: from summer 2026', $label(['5:2026' => $accepted(2026)]));
+        $this->assertSame('todo', $this->items(buildReadiness($this->iceWorld(['gear' => ['5:2027' => $accepted(2027)]])))['gear:5']['state']);
+        $this->assertSame('todo', $this->items(buildReadiness($this->iceWorld(['gear' => ['5:2025' => $accepted(2025)]])))['gear:5']['state']);
+        $submitted = ['id' => 41, 'season' => 2026, 'status' => 'open', 'accepted_via' => null, 'photo_status' => 'submitted'];
+        $this->assertSame('todo', $this->items(buildReadiness($this->iceWorld(['gear' => ['5:2026' => $submitted]])))['gear:5']['state']);
+    }
+
+    public function testIceGearLevelMustCoverTheSheetsClass(): void
+    {
+        $gear = ['5:2027' => ['id' => 50, 'season' => 2027, 'discipline' => 'ice', 'level' => 'street_safe', 'status' => 'accepted', 'accepted_via' => 'in_person', 'photo_status' => null]];
+        $noSheet = $this->items(buildReadiness($this->iceWorld(['iceGear' => $gear])));
+        $this->assertSame('done', $noSheet['gear:5']['state']);
+        $this->assertSame('Ice gear for Jordan Lee: teched Ice 2027 · street-safe', $noSheet['gear:5']['label']);
+
+        $ls = $this->items(buildReadiness($this->iceWorld(['iceGear' => $gear, 'sheets' => [$this->iceSheet(['class' => 'LS'])]])));
+        $this->assertSame('todo', $ls['gear:5']['state']);
+        $this->assertSame("Jordan Lee's gear is checked for street-safe; LS needs caged-level gear", $ls['gear:5']['label']);
+    }
+
+    public function testFhrClassNeedsAnFhrSeenForPhotoAcceptedGear(): void
+    {
+        $caged = fn(string $via): array => ['5:2027' => ['id' => 51, 'season' => 2027, 'discipline' => 'ice', 'level' => 'caged', 'status' => 'accepted', 'accepted_via' => $via, 'photo_status' => $via === 'photos' ? 'accepted' : null]];
+        $ls = [$this->iceSheet(['class' => 'LS'])];
+        $photos = $this->items(buildReadiness($this->iceWorld(['iceGear' => $caged('photos'), 'sheets' => $ls])));
+        $this->assertSame('todo', $photos['gear:5']['state']);
+        $this->assertSame("Jordan Lee's gear needs a frontal head restraint checked for LS", $photos['gear:5']['label']);
+        $seen = $this->items(buildReadiness($this->iceWorld(['iceGear' => $caged('photos'), 'iceGearFhr' => [51 => true], 'sheets' => $ls])));
+        $this->assertSame('done', $seen['gear:5']['state']);
+        $inPerson = $this->items(buildReadiness($this->iceWorld(['iceGear' => $caged('in_person'), 'sheets' => $ls])));
+        $this->assertSame('done', $inPerson['gear:5']['state']);
+    }
+
+    public function testIceGearPhotosLinkFromTheIceSheet(): void
+    {
+        $items = $this->items(buildReadiness($this->iceWorld(['sheets' => [$this->iceSheet()]])));
+        $this->assertSame('gear.php?action=start-ice&sheet_id=70', $items['gear:5']['action']['url']);
+        $this->assertNull($this->items(buildReadiness($this->iceWorld()))['gear:5']['action']);
+    }
 }

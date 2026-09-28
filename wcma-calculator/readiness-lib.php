@@ -5,6 +5,7 @@
 // pure: no DB, no HTML. loadReadinessInputs() (Task 5) gathers its input from the database.
 // Callers must have loaded tech-status.php and gear-lib.php.
 require_once __DIR__ . '/ice-sheet-lib.php';   // techSheetIsIce()
+require_once __DIR__ . '/ice-rules.php';
 
 function readinessItem(string $kind, string $subjectType, int $subjectId, string $state, string $label,
                        string $detail = '', ?array $action = null, ?array $atTrack = null): array {
@@ -34,7 +35,7 @@ function readinessDeclaration(array $car, ?array $decl, int $season): array {
  * $names: label (todo), doneLabel (sprintf with via word + season), atTrackLabel, retakeLabel.
  */
 function readinessTech(string $kind, string $subjectType, int $subjectId, array $status, int $season,
-                       bool $atTrack, array $names, ?string $photosUrl, ?string $retakeUrl): array {
+                       bool $atTrack, array $names, ?string $photosUrl, ?string $retakeUrl, array $atTrackExtra = []): array {
     switch ($status['state']) {
         case 'accepted':
             $via = ($status['via'] ?? 'in_person') === 'photos' ? 'pre-teched' : 'teched';
@@ -53,10 +54,97 @@ function readinessTech(string $kind, string $subjectType, int $subjectId, array 
         : 'Pre-tech with photos after you submit the tech sheet, or bring it to tech at the track.';
     return readinessItem($kind, $subjectType, $subjectId, 'todo', $names['label'], $detail,
         $photosUrl !== null ? ['label' => 'Add photos', 'url' => $photosUrl] : null,
-        ['subject_type' => $subjectType, 'subject_id' => $subjectId, 'season' => $season]);
+        ['subject_type' => $subjectType, 'subject_id' => $subjectId, 'season' => $season] + $atTrackExtra);
+}
+
+/**
+ * One ice gear item (spec §4, §4a). Accepted ice gear must cover the class on the car's ice sheet
+ * (level, and a frontal head restraint when the class needs one); accepted summer gear from the
+ * season before counts as caged gear.
+ */
+function readinessIceGear(int $did, string $name, int $season, ?array $iceGear, ?array $summerGear, ?array $class,
+                          bool $fhrSeen, bool $atTrack, ?string $photosUrl): array {
+    $iceStatus = $iceGear !== null ? gearStatus($iceGear) : ['state' => 'none', 'via' => null];
+    if ($iceStatus['state'] === 'accepted') {
+        $level = (string)($iceGear['level'] ?? '');
+        $levelLabel = ICE_GEAR_LEVEL_LABELS[$level] ?? $level;
+        if ($class !== null && !iceGearSatisfies($level !== '' ? $level : null, $class['group'])) {
+            return readinessItem('gear', 'driver', $did, 'todo',
+                "$name's gear is checked for $levelLabel; {$class['code']} needs caged-level gear",
+                'Bring caged-level gear to tech at the track.', null);
+        }
+        if ($class !== null && $class['fhr'] && ($iceGear['accepted_via'] ?? '') === 'photos' && !$fhrSeen) {
+            return readinessItem('gear', 'driver', $did, 'todo',
+                "$name's gear needs a frontal head restraint checked for {$class['code']}",
+                'Bring the frontal head restraint to tech at the track.', null);
+        }
+        $via = ($iceStatus['via'] ?? 'in_person') === 'photos' ? 'pre-teched' : 'teched';
+        return readinessItem('gear', 'driver', $did, 'done', "Ice gear for $name: $via Ice $season" . ($levelLabel !== '' ? " · $levelLabel" : ''));
+    }
+    if ($summerGear !== null && gearStatus($summerGear)['state'] === 'accepted') {
+        return readinessItem('gear', 'driver', $did, 'done', "Ice gear for $name: from summer " . ($season - 1));
+    }
+    return readinessTech('gear', 'driver', $did, $iceStatus, $season, $atTrack, [
+        'label' => "Ice gear for $name", 'doneLabel' => "Ice gear for $name: %s Ice %d", 'pendingLabel' => "Ice gear photos for $name are with an inspector",
+        'retakeLabel' => "Retake ice gear photos for $name", 'atTrackLabel' => "Ice gear for $name: checked at the track",
+    ], $photosUrl, $iceGear !== null ? 'gear.php?action=pretech&id=' . (int)$iceGear['id'] : null,
+       ['discipline' => DISCIPLINE_ICE, 'club' => '']);
+}
+
+/**
+ * Ice to-dos for one car at one ice event: the ice tech sheet, ice car tech for the event's club
+ * and season, and ice gear for each driver. $once de-duplicates season-wide items across events.
+ */
+function readinessIceCarItems(array $in, array $event, array $key, int $carId, array $sheetsByCar, array $atTrack, callable $once): array {
+    $eid = (int)$event['id'];
+    $season = $key['season'];
+    $club = (string)$key['club'];
+    $car = $in['cars'][$carId];
+    $n = '#' . $car['car_number'];
+    $items = [];
+
+    $eventSheet = null;
+    foreach ($sheetsByCar[$carId] ?? [] as $s) {
+        if ((int)$s['event_id'] === $eid && techSheetIsIce($s)) { $eventSheet = $s; break; }
+    }
+    $items[] = $eventSheet !== null
+        ? readinessItem('tech_sheet', 'car', $carId, 'done', 'Ice tech sheet for ' . $event['name'] . ' submitted')
+        : readinessItem('tech_sheet', 'car', $carId, 'todo', "Submit an ice tech sheet for $n", 'Pick your class on the ice tech sheet.',
+            ['label' => 'Submit ice tech sheet', 'url' => "tech-sheets.php?action=new-ice&car_id=$carId&event_id=$eid"]);
+
+    if ($once("ice_car_tech:$club:$carId")) {
+        $clubSheets = array_values(array_filter($sheetsByCar[$carId] ?? [], fn(array $s): bool =>
+            techSheetIsIce($s) && ($s['club'] ?? '') === $club && (int)$s['season'] === $season));
+        $status = techCarStatus($clubSheets);
+        $ids = array_map(fn(array $s): int => (int)$s['id'], $clubSheets);
+        $latest = $ids ? max($ids) : null;
+        $items[] = readinessTech('car_tech', 'car', $carId, $status, $season, isset($atTrack[atTrackKey('car', $carId, $season, DISCIPLINE_ICE, $club)]), [
+            'label' => "Ice car tech for $n at $club", 'doneLabel' => "Ice car tech %2\$d for $n at $club: %1\$s",
+            'pendingLabel' => "Ice car tech photos for $n are with an inspector", 'retakeLabel' => "Retake ice car photos for $n",
+            'atTrackLabel' => "Ice car tech for $n: you'll bring it to tech at the track",
+        ], $latest !== null ? 'tech-sheets.php?action=pretech&id=' . $latest : null,
+           $status['sheet_id'] !== null ? 'tech-sheets.php?action=pretech&id=' . $status['sheet_id'] : null,
+           ['discipline' => DISCIPLINE_ICE, 'club' => $club]);
+    }
+
+    $class = $eventSheet !== null ? iceClass($club, (string)$eventSheet['class']) : null;
+    $driverIds = array_values(array_unique(array_filter(array_merge(
+        $eventSheet !== null ? [(int)($eventSheet['driver_id'] ?? 0)] : [], [(int)$in['selfDriverId']], array_map('intval', array_keys($in['drivers']))
+    ))));
+    foreach ($driverIds as $did) {
+        if (!isset($in['drivers'][$did]) || !$once("ice_gear:$did")) continue;
+        $iceGear = $in['iceGear']["$did:$season"] ?? null;
+        $items[] = readinessIceGear($did, (string)$in['drivers'][$did]['name'], $season, $iceGear,
+            $in['gear']["$did:" . ($season - 1)] ?? null, $class,
+            $iceGear !== null && !empty($in['iceGearFhr'][(int)$iceGear['id']]),
+            isset($atTrack[atTrackKey('driver', $did, $season, DISCIPLINE_ICE)]),
+            $eventSheet !== null && (int)($eventSheet['driver_id'] ?? 0) === $did ? 'gear.php?action=start-ice&sheet_id=' . (int)$eventSheet['id'] : null);
+    }
+    return $items;
 }
 
 function buildReadiness(array $in): array {
+    $in += ['iceGear' => [], 'iceGearFhr' => []];
     $today = (string)$in['today'];
     $upcoming = array_values(array_filter($in['events'], fn(array $e): bool => (string)$e['event_date'] >= $today));
     usort($upcoming, fn(array $a, array $b): int => strcmp((string)$a['event_date'], (string)$b['event_date']) ?: ((int)$a['id'] <=> (int)$b['id']));
@@ -76,23 +164,31 @@ function buildReadiness(array $in): array {
     foreach ($upcoming as $event) {
         $eid = (int)$event['id'];
         if (empty($carsByEvent[$eid])) { $untagged[] = $event; continue; }
-        $season = techSeasonFromDate((string)$event['event_date']);
+        $key = seasonForEvent($event);
+        $season = $key['season'];
         $items = [];
+
+        $once = function (string $key) use (&$seen, $season): bool {
+            $k = $key . '@' . $season;
+            if (isset($seen[$k])) return false;
+            return $seen[$k] = true;
+        };
+
         foreach (array_keys($in['cars']) as $carId) {
             if (!isset($carsByEvent[$eid][$carId])) continue;
             $car = $in['cars'][$carId];
             $n = '#' . $car['car_number'];
-            $seasonSheets = array_values(array_filter($sheetsByCar[$carId] ?? [], fn(array $s): bool => (int)$s['season'] === $season));
-            $eventSheet = null;
-            foreach ($sheetsByCar[$carId] ?? [] as $s) {
-                if ((int)$s['event_id'] === $eid) { $eventSheet = $s; break; }
+
+            if ($key['discipline'] === DISCIPLINE_ICE) {
+                $items = array_merge($items, readinessIceCarItems($in, $event, $key, $carId, $sheetsByCar, $atTrack, $once));
+                continue;
             }
 
-            $once = function (string $key) use (&$seen, $season): bool {
-                $k = $key . '@' . $season;
-                if (isset($seen[$k])) return false;
-                return $seen[$k] = true;
-            };
+            $seasonSheets = array_values(array_filter($sheetsByCar[$carId] ?? [], fn(array $s): bool => (int)$s['season'] === $season && !techSheetIsIce($s)));
+            $eventSheet = null;
+            foreach ($sheetsByCar[$carId] ?? [] as $s) {
+                if ((int)$s['event_id'] === $eid && !techSheetIsIce($s)) { $eventSheet = $s; break; }
+            }
 
             if ($once("declaration:$carId")) {
                 $items[] = readinessDeclaration($car, $in['declarations'][$carId] ?? null, $season);
