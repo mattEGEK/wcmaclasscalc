@@ -4,6 +4,7 @@
 require __DIR__ . '/session_bootstrap.php';
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/view_helpers.php';
+require_once __DIR__ . '/ice-sheet-lib.php';
 require __DIR__ . '/media-lib.php';
 require __DIR__ . '/media-page.php';
 
@@ -22,9 +23,9 @@ if ($driver === null || !mediaUsable($profile, $consent, 'public')) {
     renderPageEnd();
     exit;
 }
-$sheet = db_get_driver_latest_sheet($pdo, $driverId, (int)date('Y'));
+$sheet = db_get_driver_latest_sheet($pdo, $driverId);
 $entry = mediaEntry($driver, $profile, db_get_sponsors($pdo, $driverId), (string)($sheet['car_number'] ?? ''),
-    $sheet !== null ? mediaCarLabel($sheet) : '', (string)($sheet['class'] ?? ''), true);
+    $sheet !== null ? mediaCarLabel($sheet) : '', $sheet !== null ? techSheetClassLine($sheet) : '', true);
 renderPageStart((string)$driver['name'], '', ['extraHead' => '<meta name="description" content="' . h(mb_substr(trim($entry['blurb']), 0, 155)) . '">']);
 echo renderPublicDriverHtml($entry);
 renderPageEnd();

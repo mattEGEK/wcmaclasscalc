@@ -254,6 +254,34 @@ final class MediaServiceTest extends TestCase
         $this->assertSame('', $roster[0]['class']);   // no sheet and no accepted declaration
     }
 
+    public function testAnnouncerClassForIceEvents(): void
+    {
+        $pdo = make_temp_pdo();
+        $ice = db_create_event($pdo, 'Ice Classic', date('Y') . '-01-11', null, 'ice', 'NASCC');
+
+        // Car A: tagged and holding an LS ice sheet for this event.
+        $ua = $this->user($pdo, 'a@example.com', 'Ann Ames');
+        $carA = test_make_car($pdo, $ua, '7');
+        db_tag_event($pdo, $ua, $ice, $carA);
+        test_make_ice_sheet($pdo, $ua, $carA, $ice, 'LS');
+        $selfA = (int)db_get_self_driver($pdo, $ua)['id'];
+        mediaSaveProfile($pdo, $ua, $selfA, ['blurb' => 'Fast.', 'consent_media' => '1'], null, $this->base, 'rename');
+
+        // Car B: tagged, with an accepted summer declaration (GT3) but no ice sheet for this event.
+        $ub = $this->user($pdo, 'b@example.com', 'Bo Bell');
+        $carB = test_make_car($pdo, $ub, '9');
+        db_tag_event($pdo, $ub, $ice, $carB);
+        $sub = db_insert_submission($pdo, test_declaration_data($pdo, $ub, '9', [':calculated_class' => 'GT3']));
+        db_accept_declaration($pdo, $sub, $ub);
+        $selfB = (int)db_get_self_driver($pdo, $ub)['id'];
+        mediaSaveProfile($pdo, $ub, $selfB, ['blurb' => 'Quick.', 'consent_media' => '1'], null, $this->base, 'rename');
+
+        $roster = mediaAnnouncerRoster($pdo, $ice);
+        $byNumber = array_combine(array_column($roster, 'number'), $roster);
+        $this->assertSame('LS — Limited Stud (NASCC)', $byNumber['7']['class']);
+        $this->assertSame('', $byNumber['9']['class']);   // no summer declaration fallback at an ice event
+    }
+
     public function testPublicDirectoryListsOnlyLivePublicProfiles(): void
     {
         $pdo = make_temp_pdo();

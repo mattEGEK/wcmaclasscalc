@@ -64,7 +64,7 @@ if (in_array($action, MEDIA_POST_ACTIONS, true)) {
     exit;
 }
 
-$season = (int)date('Y');
+$season = null;
 $today = date('Y-m-d');
 $allEvents = db_get_all_events($pdo);
 $pickerEvents = mediaPickerEvents($allEvents, $today);

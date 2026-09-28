@@ -2036,13 +2036,12 @@ function db_dismiss_media_prompt(PDO $pdo, int $userId): void {
     $pdo->prepare("UPDATE users SET media_prompt_dismissed = 1 WHERE id = :id")->execute([':id' => $userId]);
 }
 
-/** The newest sheet in $season where the driver is driver 1 or an additional driver. */
-function db_get_driver_latest_sheet(PDO $pdo, int $driverId, int $season): ?array {
-    $stmt = $pdo->prepare("
-        SELECT * FROM tech_sheets
-        WHERE season = :s AND (driver_id = :d OR id IN (SELECT tech_sheet_id FROM tech_sheet_drivers WHERE driver_id = :d))
-        ORDER BY id DESC LIMIT 1
-    ");
-    $stmt->execute([':s' => $season, ':d' => $driverId]);
+/** The driver's newest tech sheet (as driver 1 or an added driver), of either discipline; limited to $season when given. */
+function db_get_driver_latest_sheet(PDO $pdo, int $driverId, ?int $season = null): ?array {
+    $where = '(driver_id = :d OR id IN (SELECT tech_sheet_id FROM tech_sheet_drivers WHERE driver_id = :d))';
+    $params = [':d' => $driverId];
+    if ($season !== null) { $where .= ' AND season = :s'; $params[':s'] = $season; }
+    $stmt = $pdo->prepare("SELECT * FROM tech_sheets WHERE $where ORDER BY id DESC LIMIT 1");
+    $stmt->execute($params);
     return $stmt->fetch() ?: null;
 }
