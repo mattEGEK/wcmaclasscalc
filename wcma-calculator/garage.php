@@ -125,6 +125,7 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         if ((($row['event']['discipline'] ?? 'summer') === 'ice')) $taggedIce = true; else $taggedSummer = true;
     }
     $seasons = garageCarSeasons($car, $declarations, $allSheets, $taggedSummer, $taggedIce);
+    $events['untagged'] = garageEventsForSeasons($events['untagged'], $seasons);
 
     renderPageStart(carDisplayName($car), 'garage', ['flash' => getFlash(), 'subnav' => '<a href="garage.php">&larr; Back to Garage</a>']);
     echo renderGarageCarHtml([
@@ -172,10 +173,12 @@ function handleGaragePost(PDO $pdo, int $uid, string $action): void {
             header('Location: garage.php?car=' . $carId);
             return;
         case 'tag':
-            $r = eventsTagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), $carId);
+            $eventId = (int)($_POST['event_id'] ?? 0);
+            $r = eventsTagCar($pdo, $uid, $eventId, $carId);
             $extra = $r['ok'] ? remindersRecordTagChoice($pdo, $uid, $_POST) : '';
             setFlash($r['ok'] ? 'Added to your events. ' . EVENTS_NOT_REGISTERING . $extra : (string)$r['error'], $r['ok'] ? 'success' : 'error');
-            header('Location: garage.php?car=' . $carId);
+            $event = $r['ok'] ? db_get_event($pdo, $eventId) : null;
+            header('Location: ' . ($event !== null ? garageAfterTagUrl($carId, $event, ($_POST['then'] ?? '') === 'sheet') : 'garage.php?car=' . $carId));
             return;
         case 'untag':
             $r = eventsUntagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), $carId);

@@ -288,4 +288,21 @@ final class GarageLibTest extends TestCase
         $this->assertSame(['url' => 'garage.php?car=3', 'flash' => 'Car added. Declare its class for summer, and pick an ice event below.'], garageAfterAdd(3, 'both', null));
         $this->assertSame(['url' => 'garage.php?car=3', 'flash' => 'Car added. Next, declare its class.'], garageAfterAdd(3, 'summer', null));
     }
+
+    public function testEventsForSeasonsKeepsOnlyTheSeasonsTheCarRaces(): void
+    {
+        $events = [['id' => 1, 'discipline' => 'summer'], ['id' => 2, 'discipline' => 'ice'], ['id' => 3]];
+        $ids = fn(array $s): array => array_map(fn(array $e): int => $e['id'], garageEventsForSeasons($events, $s));
+        $this->assertSame([2], $ids(['summer' => false, 'ice' => true]));
+        $this->assertSame([1, 3], $ids(['summer' => true, 'ice' => false]));
+        $this->assertSame([1, 2, 3], $ids(['summer' => true, 'ice' => true]));
+    }
+
+    public function testAfterTagGoesToTheIceSheetOnlyWhenAskedAndTheEventIsIce(): void
+    {
+        $ice = ['id' => 12, 'discipline' => 'ice'];
+        $this->assertSame('tech-sheets.php?action=new-ice&car_id=3&event_id=12', garageAfterTagUrl(3, $ice, true));
+        $this->assertSame('garage.php?car=3', garageAfterTagUrl(3, $ice, false));
+        $this->assertSame('garage.php?car=3', garageAfterTagUrl(3, ['id' => 10, 'discipline' => 'summer'], true));
+    }
 }

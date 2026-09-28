@@ -76,6 +76,20 @@ function garageAfterAdd(int $carId, string $disciplines, ?array $event): array {
     return ['url' => $car, 'flash' => 'Car added. Next, declare its class.'];
 }
 
+/** The events a car can be added to: only the seasons it races (garageCarSeasons()). */
+function garageEventsForSeasons(array $events, array $seasons): array {
+    return array_values(array_filter($events, fn(array $e): bool =>
+        (($e['discipline'] ?? 'summer') === 'ice') ? $seasons['ice'] : $seasons['summer']));
+}
+
+/** Where tagging a car goes: straight to the ice sheet when the ice next-step card asked for it. */
+function garageAfterTagUrl(int $carId, array $event, bool $wantsSheet): string {
+    if ($wantsSheet && ($event['discipline'] ?? 'summer') === 'ice') {
+        return 'tech-sheets.php?action=new-ice&car_id=' . $carId . '&event_id=' . (int)$event['id'];
+    }
+    return 'garage.php?car=' . $carId;
+}
+
 /**
  * The car page's Events section.
  * - tagged: active events on or after $today that this car is tagged for, soonest first, each with

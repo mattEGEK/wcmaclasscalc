@@ -119,4 +119,10 @@ final class GarageSourceTest extends TestCase
         $this->assertStringContainsString('garageAddEvent(', $body);
         $this->assertStringContainsString('garageAfterAdd(', $body);
     }
+
+    public function testTagCanContinueStraightToTheIceSheet(): void
+    {
+        $this->assertStringContainsString("garageAfterTagUrl(\$carId, \$event, (\$_POST['then'] ?? '') === 'sheet')", $this->body('garage.php', 'handleGaragePost'));
+        $this->assertStringContainsString('garageEventsForSeasons(', $this->body('garage.php', 'garageShowCar'));
+    }
 }

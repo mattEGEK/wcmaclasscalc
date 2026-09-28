@@ -328,3 +328,9 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
   border: 2px solid var(--hub-line); border-radius: var(--hub-radius); background: var(--hub-card); font-weight: 700; cursor: pointer; }
 .garage-season-options input { width: 24px; height: 24px; margin: 0; accent-color: var(--hub-red); }
 .garage-season-options label:has(input:checked) { border-color: var(--hub-ink); background: var(--hub-paper); }
+
+/* Car page next step (mobile UX spec 2026-09-28 §A3) */
+.garage-next { border: 2px solid var(--hub-ink); }
+.garage-choice-list { display: grid; gap: 10px; }
+.garage-choice-list .garage-inline-form { display: block; }
+.hub-btn--choice { display: block; width: 100%; min-height: 56px; text-align: left; white-space: normal; }
