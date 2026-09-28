@@ -52,9 +52,10 @@ branch and merge. **Phase A ships first** because winter is next.
   Stored value wins; null falls back to the inferred flags (today's `garageCarUsesSummer()` /
   `garageIceSummary()` / tag logic).
 - Garage cards, the car page, Home, readiness and `userUsesSummer()` / `userHasIceActivity()`
-  consult `carSeasons()` instead of each re-deriving it. A car stored as `ice` never shows summer
-  class or summer tech; a car stored as `summer` shows no ice chip unless it has ice sheets or an
-  ice tag (activity still wins so nothing is hidden that exists).
+  consult `carSeasons()` instead of each re-deriving it. A car stored as `ice` shows no summer class
+  or summer tech unless it already has summer activity (a declaration, summer sheet or summer tag);
+  a car stored as `summer` shows no ice chip unless it has ice sheets or an ice tag. Activity always
+  wins, so nothing that exists is hidden. Readiness needs no change: it is driven by tagged events.
 - `cars-lib.php` validation accepts only the three values (or empty on edit of a legacy car).
 
 ### A2. Add a car
@@ -72,7 +73,7 @@ After submit:
 
 | Choice | Next screen |
 |---|---|
-| Ice, no event carried | "Car added. Which ice event is it going to first?" — upcoming ice events as full-width buttons (name, date, club), plus "Not sure yet" → car page. Picking one tags the car and redirects to `tech-sheets.php?action=new-ice&car_id=…&event_id=…`. |
+| Ice, no event carried | Car page with flash "Car added. Which ice event is it going to first?" and the A3 next-step card listing upcoming ice events as full-width buttons (name, date, club). Picking one tags the car and redirects to `tech-sheets.php?action=new-ice&car_id=…&event_id=…`. The rest of the car page is the "not sure yet" path. |
 | Ice/Both, event carried | Tag it; redirect to the matching tech step (ice sheet, or car page for summer). |
 | Summer | Today's behaviour (car page, "Declare class"). |
 | Both | Car page with both paths. |
@@ -105,16 +106,18 @@ After submit:
 
 - Page title/heading: "Ice tech sheet — #42 2008 Honda Civic — NASCC Ice Race #1" (summer:
   "Tech sheet — …"). Not "Tech Sheet #2".
-- On arrival from submit (flash), a green banner: "✓ Tech sheet sent to NASCC." (summer: "sent to
-  WCMA").
+- The existing green success flash ("Ice tech sheet submitted and emailed to you and the club.")
+  is the banner; no new banner.
 - A **What's next** list, each a large button with one line of explanation, only showing steps that
   apply:
   1. Pre-tech with photos (optional) — skip inspection at the track.
   2. Driver gear — "Add gear photos" per driver without an accepted record, or "have it checked at
      the track".
-  3. Register with the host club — link to the season's MotorsportReg link when one exists.
+  3. Register with the host club — plain text naming the event and club ("The hub doesn't register
+     you. Register for NASCC Ice Race #1 with the Northern Alberta Sports Car Club."). Events have no
+     registration URL, so there is no link.
 - Edit, Print and Resend email move below as secondary buttons. Resend is no longer primary.
-- "Submitted — awaiting review" status moves to the top, next to the car status, as a chip.
+- The car status line stays at the top, above What's next.
 
 ---
 
