@@ -321,6 +321,33 @@ final class GearLibTest extends TestCase
         $this->assertFalse(gearStartIceForSheet($pdo, $old, $u)['ok']);
     }
 
+    public function testStartIceForSheetOpensTheAddedDriversRecord(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->owner($pdo);
+        $car = test_make_car($pdo, $u, '7');
+        $event = db_create_event($pdo, 'NASCC Ice', date('Y-m-d', strtotime('+10 days')), null, 'ice', 'NASCC');
+        $sheet = db_get_tech_sheet($pdo, test_make_ice_sheet($pdo, $u, $car, $event, 'SS'));
+        db_add_tech_sheet_driver($pdo, (int)$sheet['id'], 2, 'Sam  Patel', '{}');
+        $other = test_make_ice_sheet($pdo, $u, $car, $event, 'SS');
+        db_add_tech_sheet_driver($pdo, $other, 3, 'Other Person', '{}');   // driver 3 on another sheet only
+
+        $r = gearStartIceForSheet($pdo, $sheet, $u, 2);
+        $this->assertTrue($r['ok'], (string)$r['error']);
+        $g = db_get_gear_record($pdo, (int)$r['id']);
+        $this->assertSame('Sam Patel', $g['driver_name']);
+        $this->assertSame('ice', $g['discipline']);
+        $this->assertSame($r['id'], gearStartIceForSheet($pdo, $sheet, $u, 2)['id']);   // found, not duplicated
+
+        $one = gearStartIceForSheet($pdo, $sheet, $u, 1);
+        $this->assertSame('Test Driver', db_get_gear_record($pdo, (int)$one['id'])['driver_name']);
+        $this->assertSame($one['id'], gearStartIceForSheet($pdo, $sheet, $u)['id']);   // default is driver 1
+
+        $this->assertFalse(gearStartIceForSheet($pdo, $sheet, $u, 3)['ok']);   // not on THIS sheet
+        $this->assertFalse(gearStartIceForSheet($pdo, $sheet, $u, 0)['ok']);
+        $this->assertFalse(gearStartIceForSheet($pdo, $sheet, $this->owner($pdo), 2)['ok']);   // not the owner
+    }
+
     public function testIceSeasonNowAndIceLabels(): void
     {
         $this->assertSame(iceSeasonFromDate(date('Y-m-d')), gearSeasonNow('ice'));
@@ -407,5 +434,25 @@ final class GearLibTest extends TestCase
         $this->assertSame('caged', gearSuggestedLevel($snap('Snell SA2020')));
         $this->assertSame('street_safe', gearSuggestedLevel($snap('ECE 22.06')));
         $this->assertNull(gearSuggestedLevel($snap(null)));
+    }
+
+    public function testIceSummaryPrefersAcceptedThenCarryOver(): void
+    {
+        $ice = fn(string $status, ?string $level = null, string $via = 'in_person'): array =>
+            ['id' => 7, 'season' => 2027, 'discipline' => 'ice', 'level' => $level, 'status' => $status,
+             'accepted_via' => $status === 'accepted' ? $via : null, 'photo_status' => null];
+        $summer = ['id' => 3, 'season' => 2026, 'discipline' => 'summer', 'status' => 'accepted', 'accepted_via' => 'in_person', 'photo_status' => null];
+
+        $this->assertSame(['state' => 'accepted', 'label' => 'Gear teched Ice 2027 · caged', 'gearId' => 7],
+            gearIceSummary($ice('accepted', 'caged'), $summer, 2027));
+        $this->assertSame(['state' => 'accepted', 'label' => 'Ice 2027: from summer 2026', 'gearId' => null],
+            gearIceSummary($ice('open'), $summer, 2027));
+        $this->assertSame(['state' => 'accepted', 'label' => 'Ice 2027: from summer 2026', 'gearId' => null],
+            gearIceSummary(null, $summer, 2027));
+        $this->assertSame('none', gearIceSummary($ice('open'), null, 2027)['state']);
+        $this->assertSame(7, gearIceSummary($ice('open'), null, 2027)['gearId']);
+        $this->assertSame(['state' => 'none', 'label' => 'Needs ice gear check 2027', 'gearId' => null], gearIceSummary(null, null, 2027));
+        $notAccepted = ['status' => 'open'] + $summer;
+        $this->assertSame('none', gearIceSummary(null, $notAccepted, 2027)['state']);
     }
 }

@@ -13,28 +13,34 @@ const GEAR_ADMIN_FILTERS = [
 ];
 
 function handleGearAdminList(PDO $pdo): void {
-    $season = isset($_GET['season']) && is_scalar($_GET['season']) ? (int)$_GET['season'] : gearSeasonNow();
-    if ($season < 2000 || $season > 2100) $season = gearSeasonNow();
+    $discipline = ($_GET['discipline'] ?? '') === 'ice' ? DISCIPLINE_ICE : DISCIPLINE_SUMMER;
+    $season = isset($_GET['season']) && is_scalar($_GET['season']) ? (int)$_GET['season'] : gearSeasonNow($discipline);
+    if ($season < 2000 || $season > 2100) $season = gearSeasonNow($discipline);
     $filter = is_string($_GET['filter'] ?? null) ? $_GET['filter'] : 'all';
     if (!isset(GEAR_ADMIN_FILTERS[$filter])) $filter = 'all';
 
-    $records = db_get_gear_records_for_season($pdo, $season);
+    $records = db_get_gear_records_for_season($pdo, $season, $discipline);
     $counts = [
         'all' => count($records),
         'accepted' => count(gearRosterFilter($records, 'accepted')),
         'needs_gear' => count(gearRosterFilter($records, 'needs_gear')),
         'pending_review' => count(gearRosterFilter($records, 'pending_review')),
     ];
-    renderGearAdminListPage(gearRosterFilter($records, $filter), $season, $filter, $counts, getFlash());
+    renderGearAdminListPage(gearRosterFilter($records, $filter), $season, $discipline, $filter, $counts, getFlash());
 }
 
-function renderGearAdminListPage(array $records, int $season, string $filter, array $counts, ?array $flash): void {
+function renderGearAdminListPage(array $records, int $season, string $discipline, string $filter, array $counts, ?array $flash): void {
     renderPageStart('Gear', 'inspect', ['flash' => $flash, 'subnav' => inspectSubnavHtml('gear')]);
     ?>
 <h1 class="hub-page-title">Gear</h1>
 
   <form method="get" action="inspect.php" class="hub-card inspect-filters">
     <input type="hidden" name="action" value="gear">
+    <label for="gear-discipline">Racing</label>
+    <select id="gear-discipline" name="discipline">
+      <option value="summer"<?= $discipline === 'summer' ? ' selected' : '' ?>>Summer</option>
+      <option value="ice"<?= $discipline === 'ice' ? ' selected' : '' ?>>Ice</option>
+    </select>
     <label for="gear-season">Season</label>
     <input type="number" id="gear-season" name="season" value="<?= (int)$season ?>" min="2000" max="2100">
     <label for="gear-filter">Show</label>
@@ -52,12 +58,12 @@ function renderGearAdminListPage(array $records, int $season, string $filter, ar
     <tbody>
     <?php if (empty($records)): ?>
       <tr><td colspan="5" class="empty-row">No gear records match.</td></tr>
-    <?php else: foreach ($records as $g): $st = gearStatus($g); ?>
+    <?php else: foreach ($records as $g): $st = gearStatus($g); $statusLabel = gearStatusLabel($st, (int)$g['season'], (string)($g['discipline'] ?? 'summer')); if ($discipline === DISCIPLINE_ICE && $st['state'] === 'accepted' && !empty($g['level'])) { $statusLabel .= ' · ' . (ICE_GEAR_LEVEL_LABELS[$g['level']] ?? $g['level']); } ?>
       <tr>
         <td><?= h($g['driver_name']) ?></td>
         <td><?= h((string)($g['licence_no'] ?? '')) ?></td>
         <td><?= h((string)($g['owner_name'] ?? '')) ?></td>
-        <td class="<?= h(gearStatusBadgeClass($st['state'])) ?>"><?= h(gearStatusLabel($st, (int)$g['season'], (string)($g['discipline'] ?? 'summer'))) ?></td>
+        <td class="<?= h(gearStatusBadgeClass($st['state'])) ?>"><?= h($statusLabel) ?></td>
         <td class="actions"><a href="inspect.php?action=gear-record&amp;id=<?= (int)$g['id'] ?>"><?= $st['state'] === 'accepted' ? 'View' : 'Review' ?></a></td>
       </tr>
     <?php endforeach; endif; ?>
@@ -154,10 +160,10 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
         $acceptedLine = 'Accepted ' . $how . $who . $when . '.';
     }
     $isIce = ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
-    $backHref = $isIce ? 'inspect.php' : 'inspect.php?action=gear&amp;season=' . (int)$gear['season'];
+    $backHref = $isIce ? 'inspect.php?action=gear&amp;discipline=ice&amp;season=' . (int)$gear['season'] : 'inspect.php?action=gear&amp;season=' . (int)$gear['season'];
     renderPageStart('Gear #' . $id, 'inspect', ['flash' => $flash, 'subnav' => inspectSubnavHtml('gear')]);
     ?>
-<p><a href="<?= $backHref ?>">&larr; Back to <?= $isIce ? 'the roster' : 'the gear list' ?></a></p>
+<p><a href="<?= $backHref ?>">&larr; Back to the <?= $isIce ? 'ice ' : '' ?>gear list</a></p>
 <h1 class="hub-page-title">Gear #<?= $id ?></h1>
 
   <div class="detail-card">

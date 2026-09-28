@@ -38,6 +38,44 @@ final class DriversLibTest extends TestCase
         $this->assertSame('Gear pre-teched 2026', $rows[1]['label']);
     }
 
+    public function testRowsCarryIceGearWithTheRightAction(): void
+    {
+        $drivers = [['id' => 5, 'name' => 'Jordan'], ['id' => 6, 'name' => 'Sam'], ['id' => 7, 'name' => 'Alex']];
+        $rows = driversRows($drivers, [], 5, 2026, [], [
+            5 => ['state' => 'accepted', 'label' => 'Ice 2027: from summer 2026', 'gearId' => null, 'sheetId' => 9],
+            6 => ['state' => 'none', 'label' => 'Needs ice gear check 2027', 'gearId' => null, 'sheetId' => 9],
+            7 => ['state' => 'photos_draft', 'label' => 'Photos in progress', 'gearId' => 12, 'sheetId' => null],
+        ]);
+        $this->assertNull($rows[0]['ice']['action']);
+        $this->assertSame(['label' => 'Add ice gear photos', 'url' => 'gear.php?action=start-ice&sheet_id=9'], $rows[1]['ice']['action']);
+        $this->assertSame(['label' => 'View ice gear', 'url' => 'gear.php?action=pretech&id=12'], $rows[2]['ice']['action']);
+        $this->assertArrayNotHasKey('ice', driversRows($drivers, [], 5, 2026)[0]);
+    }
+
+    public function testAddedDriversIceActionCarriesTheirDriverNumber(): void
+    {
+        $rows = driversRows([['id' => 6, 'name' => 'Sam']], [], 5, 2026, [], [
+            6 => ['state' => 'none', 'label' => 'Needs ice gear check 2027', 'gearId' => null, 'sheetId' => 9, 'driverNumber' => 2],
+        ]);
+        $this->assertSame(['label' => 'Add ice gear photos', 'url' => 'gear.php?action=start-ice&sheet_id=9&driver=2'], $rows[0]['ice']['action']);
+    }
+
+    public function testIceSheetIdsByDriverIncludeAddedDriversNotOnlyThePrimary(): void
+    {
+        $sheets = [
+            ['id' => 9, 'season' => 2027, 'discipline' => 'ice', 'driver_id' => 5],
+            ['id' => 10, 'season' => 2027, 'discipline' => 'ice', 'driver_id' => 5],
+            ['id' => 11, 'season' => 2026, 'discipline' => 'ice', 'driver_id' => 6],   // wrong season: ignored
+            ['id' => 12, 'season' => 2027, 'discipline' => 'summer', 'driver_id' => 7],   // not ice: ignored
+        ];
+        // Driver 6 is an added driver (tech_sheet_drivers, driver 2) on sheet 9 only, not on the newer sheet 10.
+        $sheetDrivers = [9 => [['driver_id' => 6, 'driver_number' => 2]]];
+        $byDriver = driversIceSheetIdsByDriver($sheets, $sheetDrivers, 2027);
+        $this->assertSame(['sheetId' => 10, 'driverNumber' => 1], $byDriver[5]);   // primary driver: newest of their two sheets
+        $this->assertSame(['sheetId' => 9, 'driverNumber' => 2], $byDriver[6]);    // added driver: the one sheet naming them, not sheet 10
+        $this->assertArrayNotHasKey(7, $byDriver);
+    }
+
     public function testAddCreatesACoDriverAndRejectsBlankLongAndDuplicateNames(): void
     {
         $pdo = make_temp_pdo();

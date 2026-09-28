@@ -4,6 +4,7 @@
 // Pure view-model builders for the Garage (spec §4): no DB, no HTML. Callers must have loaded
 // tech-status.php (techCarStatus(), techCarStatusLabel()).
 require_once __DIR__ . '/ice-sheet-lib.php';   // techSheetIsIce()
+require_once __DIR__ . '/tech-status.php';     // techCarStatus(), techCarStatusLabel()
 
 /**
  * A car's class (spec §2): its newest non-superseded declaration. When that one isn't accepted,
@@ -71,14 +72,23 @@ function garageCarEvents(array $carSheets, array $taggedEventIds, array $activeE
     return ['tagged' => $tagged, 'untagged' => $untagged, 'earlierSheets' => $earlier];
 }
 
-/** One Garage list card: the car, its class line, this season's car tech, and its nearest tagged event. */
-function garageCard(array $car, array $declarations, array $carSheets, array $taggedEventIds, array $activeEvents, int $season, string $today): array {
-    $seasonSheets = array_values(array_filter($carSheets, fn(array $s): bool => (int)$s['season'] === $season));
+/** One Garage list card: the car, its summer class and tech (if it races summer), its ice chip (if it races ice), and its nearest tagged event. */
+function garageCard(array $car, array $declarations, array $carSheets, array $taggedEventIds, array $activeEvents, int $season, string $today, int $iceSeason): array {
+    $summerSheets = garageSummerSheets($carSheets);
+    $seasonSheets = array_values(array_filter($summerSheets, fn(array $s): bool => (int)$s['season'] === $season));
     $tech = techCarStatus($seasonSheets);
+    $tagged = array_flip(array_map('intval', $taggedEventIds));
+    $taggedIce = $taggedSummer = false;
+    foreach ($activeEvents as $e) {
+        if (!isset($tagged[(int)$e['id']]) || (string)$e['event_date'] < $today) continue;
+        if (($e['discipline'] ?? 'summer') === 'ice') $taggedIce = true; else $taggedSummer = true;
+    }
     $events = garageCarEvents($carSheets, $taggedEventIds, $activeEvents, [], $today);
     return [
         'car' => $car,
         'class' => garageClassLine($declarations),
+        'usesSummer' => garageCarUsesSummer($declarations, $carSheets, $taggedSummer, $taggedIce),
+        'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason),
         'techState' => $tech['state'],
         'techLabel' => techCarStatusLabel($tech, $season),
         'next' => $events['tagged'][0] ?? null,
@@ -110,37 +120,52 @@ function garageSummerSheets(array $sheets): array {
 }
 
 /**
- * The car's "Ice racing" rows: each active ice event dated on or after $today with the car's
- * newest ice sheet for it, then the car's ice sheets for events no longer open or dated before
- * $today ('past' => true). Past rows use $eventsById (id => event row, e.g. db_get_all_events())
- * for the real event name and date, falling back to "Earlier ice event" only when the event
- * itself is missing (deleted, or never loaded).
- *
- * @param array $eventsById id => event row (name, event_date, host_club)
- * @return array<int, array{event: array, sheet: ?array, past: bool}>
+ * The car's ice chip for $iceSeason, or null when it isn't an ice car (no ice sheets, not tagged
+ * to an ice event). The label carries the newest sheet's club and class, and the status counts only
+ * that club's sheets: ice tech is keyed by car, club and season (spec §4).
+ * @return ?array{state: string, label: string}
  */
-function garageIceRows(array $carSheets, array $iceEvents, string $today, array $eventsById): array {
-    $newest = [];
-    foreach ($carSheets as $s) {
-        if (!techSheetIsIce($s)) continue;
-        $eid = (int)$s['event_id'];
-        if (!isset($newest[$eid]) || (int)$s['id'] > (int)$newest[$eid]['id']) $newest[$eid] = $s;
-    }
-    $upcoming = array_values(array_filter($iceEvents, fn(array $e): bool => (string)$e['event_date'] >= $today));
+function garageIceSummary(array $carSheets, bool $taggedToIce, int $iceSeason): ?array {
+    $ice = array_values(array_filter($carSheets, fn(array $s): bool => techSheetIsIce($s)));
+    if (!$ice && !$taggedToIce) return null;
+    $season = array_values(array_filter($ice, fn(array $s): bool => (int)$s['season'] === $iceSeason));
+    if (!$season) return ['state' => 'none', 'label' => 'Needs ice tech'];
+    usort($season, fn(array $a, array $b): int => (int)$a['id'] <=> (int)$b['id']);
+    $newest = end($season);
+    $status = techCarStatus(array_values(array_filter($season, fn(array $s): bool => (string)$s['club'] === (string)$newest['club'])));
+    return ['state' => $status['state'],
+            'label' => techCarStatusLabel($status, $iceSeason, DISCIPLINE_ICE) . ' · ' . $newest['club'] . ' · ' . $newest['class']];
+}
 
-    $rows = [];
-    foreach ($upcoming as $e) {
-        $rows[] = ['event' => $e, 'sheet' => $newest[(int)$e['id']] ?? null, 'past' => false];
-        unset($newest[(int)$e['id']]);
+/** Whether the car takes part in summer: declared, summer sheets, tagged to summer, or neither ice sheets nor an ice tag. */
+function garageCarUsesSummer(array $declarations, array $carSheets, bool $taggedToSummer, bool $taggedToIce = false): bool {
+    if ($declarations || $taggedToSummer) return true;
+    $hasIce = false;
+    foreach ($carSheets as $s) {
+        if (!techSheetIsIce($s)) return true;
+        $hasIce = true;
     }
-    foreach ($newest as $eid => $s) {
-        $ev = $eventsById[$eid] ?? null;
-        $rows[] = ['event' => [
-            'id' => $eid,
-            'name' => $ev !== null ? (string)$ev['name'] : 'Earlier ice event',
-            'event_date' => $ev !== null ? (string)$ev['event_date'] : '',
-            'host_club' => (string)($ev['host_club'] ?? $s['club'] ?? ''),
-        ], 'sheet' => $s, 'past' => true];
+    return !$hasIce && !$taggedToIce;
+}
+
+/**
+ * Whether the user has any ice activity: an ice sheet, an ice gear record, or a car tagged to an
+ * active ice event. Home and the Drivers page both use this so they agree.
+ *
+ * @param array $plans        event_plans rows (event_id, car_id)
+ * @param array $activeEvents the active events (with discipline)
+ */
+function userHasIceActivity(array $sheets, bool $hasIceGear, array $plans, array $activeEvents): bool {
+    if ($hasIceGear) return true;
+    foreach ($sheets as $s) {
+        if (techSheetIsIce($s)) return true;
     }
-    return $rows;
+    $ice = [];
+    foreach ($activeEvents as $e) {
+        if (($e['discipline'] ?? 'summer') === 'ice') $ice[(int)$e['id']] = true;
+    }
+    foreach ($plans as $p) {
+        if (isset($ice[(int)$p['event_id']])) return true;
+    }
+    return false;
 }

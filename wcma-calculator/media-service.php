@@ -4,6 +4,7 @@
 // DB work for driver media profiles: save, withdraw, delete (this task), and the review actions and
 // roster/kit loaders (added in later tasks). No session or echo; controllers pass the user id.
 // Callers must have loaded db.php, roles.php, photo-requirements.php, inspection-lib.php and media-lib.php.
+require_once __DIR__ . '/ice-sheet-lib.php';
 
 const MEDIA_PHOTO_DIR = 'uploads/media';
 
@@ -110,6 +111,8 @@ function mediaDeleteProfile(PDO $pdo, int $userId, int $driverId, string $baseDi
 
 /** @return array<int, array{number: string, car: string, class: string, drivers: array}> */
 function mediaAnnouncerRoster(PDO $pdo, int $eventId): array {
+    $event = db_get_event($pdo, $eventId);
+    $isIce = ($event['discipline'] ?? 'summer') === 'ice';
     $cars = db_get_event_roster_cars($pdo, $eventId);
     $byCar = [];
     foreach (db_get_event_tech_sheets($pdo, $eventId) as $s) $byCar[(int)$s['car_id']][] = $s;
@@ -118,7 +121,10 @@ function mediaAnnouncerRoster(PDO $pdo, int $eventId): array {
         $cid = (int)$car['id'];
         if (isset($byCar[$cid])) continue;
         $lid = db_get_car_latest_tech_sheet_id($pdo, $cid);
-        if ($lid !== null) $latest[$cid] = db_get_tech_sheet($pdo, $lid);
+        if ($lid === null) continue;
+        $sheet = db_get_tech_sheet($pdo, $lid);
+        // Only a sheet of the event's own discipline says who drives the car there.
+        if ($sheet !== null && techSheetIsIce($sheet) === $isIce) $latest[$cid] = $sheet;
     }
     $sheetIds = array_merge(array_column(array_merge(...array_values($byCar ?: [[]])), 'id'), array_column(array_values($latest), 'id'));
     $sheetDrivers = db_get_drivers_for_sheets($pdo, $sheetIds);
@@ -140,7 +146,7 @@ function mediaAnnouncerRoster(PDO $pdo, int $eventId): array {
     foreach ($cars as $car) {
         $cid = (int)$car['id'];
         $eventSheets = $byCar[$cid] ?? [];
-        $class = $eventSheets ? (string)end($eventSheets)['class'] : mediaAcceptedClass($decls[$cid] ?? []);
+        $class = $eventSheets ? techSheetClassLine(end($eventSheets)) : ($isIce ? '' : mediaAcceptedClass($decls[$cid] ?? []));
         $carLabel = mediaCarLabel($car);
         $drivers = [];
         foreach ($perCar[$cid] as $did) {
@@ -157,8 +163,9 @@ function mediaAnnouncerRoster(PDO $pdo, int $eventId): array {
     return $out;
 }
 
-/** mediaEntry() arrays for the drivers usable for clubs, car details from their latest sheet in $season. */
-function mediaEntriesForDrivers(PDO $pdo, array $driverIds, int $season): array {
+/** mediaEntry() arrays for the drivers usable for clubs, car details from their latest sheet of either
+ *  discipline; limited to $season when given (null means the newest sheet of either discipline). */
+function mediaEntriesForDrivers(PDO $pdo, array $driverIds, ?int $season): array {
     $out = [];
     foreach (db_get_media_bundle($pdo, $driverIds) as $did => $b) {
         if (!mediaUsable($b['profile'], $b['consent'], 'club')) continue;
@@ -166,13 +173,13 @@ function mediaEntriesForDrivers(PDO $pdo, array $driverIds, int $season): array 
         if ($driver === null) continue;
         $sheet = db_get_driver_latest_sheet($pdo, $did, $season);
         $out[] = mediaEntry($driver, $b['profile'], $b['sponsors'], (string)($sheet['car_number'] ?? ''),
-            $sheet !== null ? mediaCarLabel($sheet) : '', (string)($sheet['class'] ?? ''), mediaUsable($b['profile'], $b['consent'], 'public'));
+            $sheet !== null ? mediaCarLabel($sheet) : '', $sheet !== null ? techSheetClassLine($sheet) : '', mediaUsable($b['profile'], $b['consent'], 'public'));
     }
     return $out;
 }
 
 /** $eventId 0 = every consented driver; otherwise the entries on that event's announcer roster. */
-function mediaKitEntries(PDO $pdo, int $eventId, int $season): array {
+function mediaKitEntries(PDO $pdo, int $eventId, ?int $season): array {
     if ($eventId === 0) return mediaEntriesForDrivers($pdo, db_get_consented_driver_ids($pdo), $season);
     $out = [];
     foreach (mediaAnnouncerRoster($pdo, $eventId) as $car) {
@@ -188,7 +195,7 @@ function mediaKitEntries(PDO $pdo, int $eventId, int $season): array {
  * lists everyone by name; otherwise the drivers on that event's roster (same rules as the Announcer),
  * in car-number order, each driver once.
  */
-function mediaPublicDirectory(PDO $pdo, int $eventId, int $season): array {
+function mediaPublicDirectory(PDO $pdo, int $eventId, ?int $season): array {
     $out = [];
     foreach (mediaKitEntries($pdo, $eventId, $season) as $e) {
         if ($e['public_live'] && !isset($out[$e['driver_id']])) $out[$e['driver_id']] = $e;
@@ -201,7 +208,7 @@ function mediaPublicDirectory(PDO $pdo, int $eventId, int $season): array {
 /** The public-review queue, skipping profiles with no photo and no blurb (nothing for a reviewer
  *  to look at, and nothing that should have reached pending_review in the first place). Each row
  *  carries the profile's updated_at so the review form can pin the version the reviewer saw. */
-function mediaReviewQueue(PDO $pdo, int $season): array {
+function mediaReviewQueue(PDO $pdo, ?int $season): array {
     $queue = [];
     foreach (db_get_media_review_queue($pdo) as $row) {
         if (!mediaHasContent($row)) continue;
@@ -212,7 +219,7 @@ function mediaReviewQueue(PDO $pdo, int $season): array {
         $sheet = db_get_driver_latest_sheet($pdo, $did, $season);
         $queue[] = ['driver_id' => $did, 'driver_name' => $row['driver_name'], 'updated_at' => (string)$row['updated_at'],
             'entry' => mediaEntry($driver, $row, db_get_sponsors($pdo, $did), (string)($sheet['car_number'] ?? ''),
-                $sheet !== null ? mediaCarLabel($sheet) : '', (string)($sheet['class'] ?? ''), false)];
+                $sheet !== null ? mediaCarLabel($sheet) : '', $sheet !== null ? techSheetClassLine($sheet) : '', false)];
     }
     return $queue;
 }

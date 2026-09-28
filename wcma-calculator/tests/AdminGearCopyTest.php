@@ -31,10 +31,19 @@ final class AdminGearCopyTest extends TestCase
         }
     }
 
-    public function testIceGearRecordsBackLinkGoesToTheRosterNotTheGearList(): void
+    public function testIceGearRecordsBackLinkGoesToTheGearListNotTheRoster(): void
     {
         $src = $this->src('admin-gear.php');
-        $this->assertStringContainsString("\$isIce ? 'inspect.php' : 'inspect.php?action=gear&amp;season=' . (int)\$gear['season']", $src);
+        $this->assertStringContainsString("\$isIce ? 'inspect.php?action=gear&amp;discipline=ice&amp;season=' . (int)\$gear['season']", $src);
+    }
+
+    public function testGearListCanShowIceRecords(): void
+    {
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../admin-gear.php'));
+        $this->assertStringContainsString('name="discipline"', $src);
+        $this->assertStringContainsString('db_get_gear_records_for_season($pdo, $season, $discipline)', $src);
+        $this->assertStringContainsString('gearSeasonNow($discipline)', $src);
+        $this->assertStringContainsString('action=gear&amp;discipline=ice&amp;season=', $src);
     }
 
     public function testNoHardCodedAdminNavStringsRemain(): void

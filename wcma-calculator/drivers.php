@@ -7,6 +7,8 @@ require_once __DIR__ . '/view_helpers.php';
 require __DIR__ . '/cars-lib.php';
 require_once __DIR__ . '/events-lib.php';
 require_once __DIR__ . '/gear-lib.php';
+require_once __DIR__ . '/ice-sheet-lib.php';
+require_once __DIR__ . '/garage-lib.php';
 require __DIR__ . '/media-lib.php';
 require __DIR__ . '/drivers-lib.php';
 require __DIR__ . '/home-page.php';
@@ -43,10 +45,42 @@ foreach ($drivers as $d) {
 }
 $self = db_get_self_driver($pdo, $uid);
 
+$iceSeason = gearSeasonNow(DISCIPLINE_ICE);
+$userSheets = db_get_user_tech_sheets($pdo, $uid);
+$iceSheets = array_values(array_filter($userSheets, fn(array $s): bool => techSheetIsIce($s)));
+
+// The sheet's own driver_id AND any added drivers (tech_sheet_drivers) both count, per
+// readiness-lib.php's $sheetDrivers pattern — an added driver still needs a photos link.
+$sheetDrivers = db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $iceSheets));
+$iceSheetByDriver = driversIceSheetIdsByDriver($iceSheets, $sheetDrivers, $iceSeason);
+
+// One query for every gear record this owner has, instead of two DB round-trips per driver: also
+// lets us tell whether the user has any ice activity at all before building $ice.
+$ownerGear = db_get_user_gear_records($pdo, $uid);
+$gearByKey = [];
+$hasIceGear = false;
+foreach ($ownerGear as $g) {
+    $discipline = (string)($g['discipline'] ?? DISCIPLINE_SUMMER);
+    $gearByKey[(int)$g['driver_id'] . ':' . (int)$g['season'] . ':' . $discipline] = $g;
+    if ($discipline === DISCIPLINE_ICE) $hasIceGear = true;
+}
+// Same rule as Home: an ice sheet, ice gear, or a car tagged to an active ice event.
+$iceActivity = userHasIceActivity($userSheets, $hasIceGear, db_get_user_event_plans($pdo, $uid), db_get_active_events($pdo));
+
+$ice = [];
+if ($iceActivity) {
+    foreach ($drivers as $d) {
+        $did = (int)$d['id'];
+        $iceGear = $gearByKey["$did:$iceSeason:" . DISCIPLINE_ICE] ?? null;
+        $summerPrev = $gearByKey["$did:" . ($iceSeason - 1) . ':' . DISCIPLINE_SUMMER] ?? null;
+        $ice[$did] = gearIceSummary($iceGear, $summerPrev, $iceSeason) + ($iceSheetByDriver[$did] ?? ['sheetId' => null, 'driverNumber' => 1]);
+    }
+}
+
 renderPageStart('Drivers', 'drivers', ['flash' => getFlash()]);
 echo renderDriversHtml([
     'rows' => driversRows($drivers, $gear, $self !== null ? (int)$self['id'] : 0, $season,
-        db_get_media_bundle($pdo, array_map(fn(array $d): int => (int)$d['id'], $drivers))),
+        db_get_media_bundle($pdo, array_map(fn(array $d): int => (int)$d['id'], $drivers)), $ice),
     'season' => $season, 'csrf' => generateCsrfToken(),
     'licenceLink' => seasonLinkMatching(db_get_season_links($pdo, true), 'Licen'),
 ]);

@@ -14,7 +14,7 @@ require __DIR__ . '/media-page.php';
 date_default_timezone_set('America/Denver');
 $pdo = db_connect();
 db_init($pdo);
-$season = (int)date('Y');
+$season = null;
 $events = mediaPickerEvents(db_get_all_events($pdo), date('Y-m-d'));
 $eventParam = is_scalar($_GET['event'] ?? null) ? (int)$_GET['event'] : 0;
 $eventId = in_array($eventParam, array_map(fn(array $e): int => (int)$e['id'], $events), true) ? $eventParam : 0;

@@ -23,7 +23,7 @@ require_once __DIR__ . '/gear-lib.php';
 require __DIR__ . '/gear-email.php';
 require __DIR__ . '/gear-chips.php';
 require __DIR__ . '/tech-sheet-render.php';
-require __DIR__ . '/garage-lib.php';
+require_once __DIR__ . '/garage-lib.php';
 require __DIR__ . '/home-page.php';
 require __DIR__ . '/garage-page.php';
 require __DIR__ . '/declaration-review-lib.php';

@@ -30,10 +30,25 @@ final class DriversSourceTest extends TestCase
         $this->assertStringContainsString('<a href="drivers.php">← Back to Drivers</a>', $this->src('gear-page.php'));
     }
 
+    public function testDriversLoadsIceGearAndPassesItOn(): void
+    {
+        $src = $this->src('drivers.php');
+        $this->assertStringContainsString('DISCIPLINE_ICE', $src);
+        $this->assertStringContainsString('gearIceSummary(', $src);
+        $this->assertStringContainsString(', $ice)', $src);
+    }
+
     public function testNavAndLinksPointAtDrivers(): void
     {
         $this->assertStringContainsString("'href' => 'drivers.php'", $this->src('layout.php'));
         $this->assertStringContainsString('href="drivers.php">Manage drivers', $this->src('home-page.php'));
         $this->assertStringContainsString('<a href="drivers.php">Go to drivers</a>', $this->src('profile.php'));
+    }
+
+    public function testIceActivityCountsIceTagsLikeHome(): void
+    {
+        $src = $this->src('drivers.php');
+        $this->assertStringContainsString("require_once __DIR__ . '/garage-lib.php';", $src);
+        $this->assertStringContainsString('userHasIceActivity($userSheets, $hasIceGear, db_get_user_event_plans($pdo, $uid), db_get_active_events($pdo))', $src);
     }
 }

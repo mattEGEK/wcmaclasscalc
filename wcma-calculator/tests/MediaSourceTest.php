@@ -142,4 +142,12 @@ final class MediaSourceTest extends TestCase
         $this->assertStringContainsString("This profile isn&#039;t available", $src);
         $this->assertStringNotContainsString('require_role', $src);
     }
+
+    public function testMediaPagesUseEachEventsOwnSheetsRatherThanTheCurrentSeason(): void
+    {
+        foreach (['media.php', 'drivers-public.php', 'driver.php'] as $file) {
+            $this->assertStringNotContainsString("(int)date('Y')", $this->src($file), $file);
+        }
+        $this->assertStringContainsString('db_get_driver_latest_sheet($pdo, $driverId)', $this->src('driver.php'));
+    }
 }
