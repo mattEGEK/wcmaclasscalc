@@ -74,4 +74,13 @@ final class CarsLibTest extends TestCase
         $src = file_get_contents(__DIR__ . '/../cars-lib.php') . file_get_contents(__DIR__ . '/../email-copy.php');
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', $src);
     }
+
+    public function testANewCarFromTheCalculatorIsASummerCar(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->user($pdo);
+        $r = carsResolveForDeclaration($pdo, $u, ['car_id' => 'new', 'car_number' => '7', 'year' => '2004', 'make' => 'Honda', 'model' => 'S2000']);
+        $this->assertTrue($r['ok']);
+        $this->assertSame('summer', db_get_car($pdo, (int)$r['car_id'])['disciplines']);
+    }
 }

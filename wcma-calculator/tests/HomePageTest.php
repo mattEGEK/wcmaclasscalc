@@ -121,7 +121,7 @@ final class HomePageTest extends TestCase
     public function testEmptyStates(): void
     {
         $noCars = renderHomeHtml($this->vm(['cars' => [], 'readiness' => ['events' => [], 'untagged' => []]]));
-        $this->assertStringContainsString('Start by adding your car and declaring its class', $noCars);
+        $this->assertStringContainsString('Start by adding your car.', $noCars);
         $this->assertStringContainsString('href="garage.php?action=add"', $noCars);
         $this->assertStringNotContainsString('<div class="hub-card"><h3>Garage</h3><div class="hub-card">', $noCars);
         $noEvents = renderHomeHtml($this->vm(['readiness' => ['events' => [], 'untagged' => []]]));
@@ -278,5 +278,40 @@ final class HomePageTest extends TestCase
         $this->assertStringContainsString('<span class="hub-status hub-status--info">Ice · NASCC</span>', homeEventCardHtml($event, null, [], 'tok', false));
         $summer = ['id' => 10, 'name' => 'Fall Sprint', 'event_date' => '2026-10-11'];
         $this->assertStringNotContainsString('Ice ·', homeEventCardHtml($summer, null, [], 'tok', false));
+    }
+
+    public function testCarsForEventRespectStoredSeasons(): void
+    {
+        $cars = [1 => ['id' => 1, 'disciplines' => 'ice'], 2 => ['id' => 2, 'disciplines' => 'summer'], 3 => ['id' => 3, 'disciplines' => null], 4 => ['id' => 4, 'disciplines' => 'both']];
+        $this->assertSame([1, 3, 4], array_keys(homeCarsForEvent($cars, ['discipline' => 'ice'])));
+        $this->assertSame([2, 3, 4], array_keys(homeCarsForEvent($cars, ['discipline' => 'summer'])));
+        $this->assertSame([2, 3, 4], array_keys(homeCarsForEvent($cars, [])));
+    }
+
+    public function testEventCardLinksToAddACarWhenNoCarFits(): void
+    {
+        $summer = ['id' => 10, 'name' => 'Fall Sprint', 'event_date' => '2026-10-15', 'discipline' => 'summer'];
+        $none = homeEventCardHtml($summer, null, [], 'tok', false);
+        $this->assertStringContainsString('<a class="hub-btn hub-btn--secondary" href="garage.php?action=add&amp;event_id=10">Add a car for this event</a>', $none);
+        $iceOnly = homeEventCardHtml($summer, null, [1 => ['id' => 1, 'car_number' => '42', 'make' => 'Honda', 'model' => 'Civic', 'disciplines' => 'ice']], 'tok', false);
+        $this->assertStringContainsString('href="garage.php?action=add&amp;event_id=10"', $iceOnly);
+        $this->assertStringNotContainsString('name="car_id"', $iceOnly);
+    }
+
+    public function testLandingLeadsWithIceWhenTheNextEventIsIce(): void
+    {
+        $html = renderLandingHtml([], true);
+        $this->assertStringContainsString('<p class="hub-hero-tagline">Submit your ice tech sheet and track car and gear tech for the season.</p>', $html);
+        $this->assertStringContainsString('<a class="hub-btn" href="auth.php?action=register&amp;redirect=index.php">Create account</a>', $html);
+        $this->assertStringNotContainsString('<a class="hub-btn" href="calculator.php">', $html);
+        $this->assertStringContainsString('href="calculator.php">Summer class calculator</a>', $html);
+    }
+
+    public function testLandingNextIsIceLooksAtTheSoonestUpcomingEvent(): void
+    {
+        $events = [['event_date' => '2026-09-01', 'discipline' => 'summer'], ['event_date' => '2026-11-12', 'discipline' => 'ice'], ['event_date' => '2026-10-15', 'discipline' => 'summer']];
+        $this->assertFalse(landingNextIsIce($events, '2026-09-28'));
+        $this->assertTrue(landingNextIsIce($events, '2026-10-16'));
+        $this->assertFalse(landingNextIsIce([], '2026-09-28'));
     }
 }

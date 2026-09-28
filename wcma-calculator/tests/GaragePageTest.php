@@ -68,7 +68,7 @@ final class GaragePageTest extends TestCase
         $this->assertStringNotContainsString('hub-plate--lg">17', $html);
         $this->assertStringContainsString('name="action" value="restore"', $html);
         $this->assertStringContainsString('name="car_id" value="4"', $html);
-        $this->assertStringContainsString('Start by adding your car and declaring its class.', $html);
+        $this->assertStringContainsString('Start by adding your car.', $html);
     }
 
     public function testListEscapesCarFields(): void
@@ -107,6 +107,7 @@ final class GaragePageTest extends TestCase
                 'untagged' => [['id' => 12, 'name' => 'Test <Day>', 'event_date' => '2026-11-01']],
                 'earlierSheets' => [['sheet' => ['id' => 2], 'event_name' => 'Spring Opener']],
             ],
+            'seasons' => ['summer' => true, 'ice' => false],
             'csrf' => 'tok', 'detailsForm' => null,
             'usesSummer' => true, 'ice' => null,
         ], $o);
@@ -143,7 +144,7 @@ final class GaragePageTest extends TestCase
         $this->assertStringContainsString('href="tech-sheets.php?action=view&amp;id=9">View</a>', $html);
         $this->assertStringContainsString('name="action" value="untag"', $html);
         $this->assertStringContainsString('name="event_id" value="10"', $html);
-        $this->assertStringContainsString('Bring this car to another event', $html);
+        $this->assertStringContainsString('Add this car to another event', $html);
         $this->assertStringContainsString('<option value="12">Test &lt;Day&gt;', $html);
         $this->assertStringContainsString(EVENTS_NOT_REGISTERING, $html);
         $this->assertStringContainsString('Spring Opener', $html);
@@ -249,5 +250,123 @@ final class GaragePageTest extends TestCase
         $this->assertStringContainsString('name="action" value="resend-declaration"', $html);
         $this->assertStringContainsString('data-confirm="Permanently delete this class declaration and its files?"', $html);
         $this->assertStringContainsString('href="garage.php?car=3"', $html);
+    }
+
+    private function addVm(array $o = []): array {
+        return array_merge(['csrf' => 'tok', 'values' => [], 'error' => null, 'msrLink' => null, 'event' => null], $o);
+    }
+
+    public function testAddCarAsksWhereTheCarRacesFirst(): void
+    {
+        $html = renderAddCarHtml($this->addVm());
+        $this->assertStringContainsString('<legend>Where will this car race? (required)</legend>', $html);
+        foreach (['ice' => 'Ice', 'summer' => 'Summer', 'both' => 'Both'] as $v => $label) {
+            $this->assertStringContainsString('<input type="radio" name="disciplines" value="' . $v . '" required>', $html);
+            $this->assertStringContainsString('<span>' . $label . '</span>', $html);
+        }
+        $this->assertStringNotContainsString('declare its class with the Class Calculator', $html);
+        $this->assertLessThan(strpos($html, 'id="car-car_number"'), strpos($html, 'Where will this car race?'));
+    }
+
+    public function testAddCarLabelsYearOptionalAndUsesANumberKeypadForTheCarNumber(): void
+    {
+        $html = renderAddCarHtml($this->addVm());
+        $this->assertStringContainsString('<label for="car-year">Year (optional)</label>', $html);
+        $this->assertMatchesRegularExpression('/id="car-car_number"[^>]*inputmode="numeric"/', $html);
+    }
+
+    public function testAddCarForAnEventPreselectsItsSeasonAndCarriesTheEvent(): void
+    {
+        $html = renderAddCarHtml($this->addVm(['values' => ['disciplines' => 'ice'],
+            'event' => ['id' => 12, 'name' => 'NASCC Ice Race #1', 'event_date' => '2026-11-12', 'discipline' => 'ice']]));
+        $this->assertStringContainsString('<input type="radio" name="disciplines" value="ice" required checked>', $html);
+        $this->assertStringContainsString('<input type="hidden" name="event_id" value="12">', $html);
+        $this->assertStringContainsString('for NASCC Ice Race #1', $html);
+    }
+
+    public function testEditDetailsShowsTheSeasonButDoesNotRequireIt(): void
+    {
+        $html = renderGarageCarHtml($this->carVm(['car' => $this->car(['disciplines' => 'both'])]));
+        $this->assertStringContainsString('<legend>Where will this car race?</legend>', $html);
+        $this->assertStringContainsString('<input type="radio" name="disciplines" value="both" checked>', $html);
+    }
+
+    private function iceEvent(int $id = 12): array {
+        return ['id' => $id, 'name' => 'NASCC Ice Race #1', 'event_date' => '2026-11-12', 'discipline' => 'ice', 'host_club' => 'NASCC'];
+    }
+
+    public function testIceCarWithNoEventShowsIceEventButtonsAndNoClassCard(): void
+    {
+        $html = renderGarageCarHtml($this->carVm([
+            'seasons' => ['summer' => false, 'ice' => true], 'usesSummer' => false,
+            'class' => ['current' => null, 'earlierAccepted' => null],
+            'ice' => ['state' => 'none', 'label' => 'Needs ice tech'],
+            'events' => ['tagged' => [], 'untagged' => [$this->iceEvent()], 'earlierSheets' => []],
+        ]));
+        $this->assertStringContainsString('<h2>Which ice event is this car going to?</h2>', $html);
+        $this->assertStringContainsString('<input type="hidden" name="then" value="sheet">', $html);
+        $this->assertStringContainsString('NASCC Ice Race #1 · Thu, Nov 12 · NASCC', $html);
+        $this->assertStringNotContainsString('No class declared yet', $html);
+        $this->assertStringNotContainsString('<h2>Class</h2>', $html);
+        $this->assertLessThan(strpos($html, '<h2>Details</h2>'), strpos($html, 'Which ice event is this car going to?'));
+    }
+
+    public function testIceCarTaggedWithoutASheetLeadsWithSubmitIceTechSheet(): void
+    {
+        $html = renderGarageCarHtml($this->carVm([
+            'seasons' => ['summer' => false, 'ice' => true], 'usesSummer' => false,
+            'events' => ['tagged' => [['event' => $this->iceEvent(), 'sheet' => null, 'gearLinks' => []]], 'untagged' => [], 'earlierSheets' => []],
+        ]));
+        $this->assertStringContainsString('<h2>Next: your ice tech sheet</h2>', $html);
+        $this->assertStringContainsString('href="tech-sheets.php?action=new-ice&amp;car_id=3&amp;event_id=12">Submit ice tech sheet</a>', $html);
+    }
+
+    public function testArchivedIceCarHasNoNextStep(): void
+    {
+        $html = renderGarageCarHtml($this->carVm([
+            'car' => $this->car(['archived_at' => '2026-09-01 10:00:00']),
+            'seasons' => ['summer' => false, 'ice' => true], 'usesSummer' => false,
+            'events' => ['tagged' => [], 'untagged' => [$this->iceEvent()], 'earlierSheets' => []],
+        ]));
+        $this->assertStringNotContainsString('Which ice event is this car going to?', $html);
+    }
+
+    public function testTagFormSaysAddThisCarToAnEventUntilItHasOne(): void
+    {
+        $vm = $this->carVm(['events' => ['tagged' => [], 'untagged' => [['id' => 10, 'name' => 'Fall Sprint', 'event_date' => '2026-10-15']], 'earlierSheets' => []]]);
+        $this->assertStringContainsString('>Add this car to an event</label>', renderGarageCarHtml($vm));
+        $vm['events']['tagged'] = [['event' => ['id' => 9, 'name' => 'Spring', 'event_date' => '2026-10-01'], 'sheet' => null, 'gearLinks' => []]];
+        $this->assertStringContainsString('>Add this car to another event</label>', renderGarageCarHtml($vm));
+    }
+
+    private function iceSheetRow(array $o = []): array {
+        return array_merge(['id' => 30, 'car_id' => 3, 'event_id' => 12, 'season' => 2027, 'discipline' => 'ice', 'club' => 'NASCC', 'class' => 'SS', 'status' => 'submitted'], $o);
+    }
+
+    public function testNextStepDoesNotAskForASecondSheetForTheSameClubAndSeason(): void
+    {
+        $race2 = ['id' => 13, 'name' => 'NASCC Ice Race #2', 'event_date' => '2027-01-20', 'discipline' => 'ice', 'host_club' => 'NASCC'];
+        $html = renderGarageCarHtml($this->carVm([
+            'seasons' => ['summer' => false, 'ice' => true], 'usesSummer' => false,
+            'iceSheets' => [$this->iceSheetRow()],
+            'ice' => ['state' => 'none', 'label' => 'Ice tech sheet in · NASCC · SS'],
+            'events' => ['tagged' => [['event' => $race2, 'sheet' => null, 'gearLinks' => []]], 'untagged' => [], 'earlierSheets' => []],
+        ]));
+        $this->assertStringNotContainsString('Next: your ice tech sheet', $html);
+        $this->assertStringContainsString('<h2>Ice tech sheet sent</h2>', $html);
+        $this->assertStringContainsString('href="tech-sheets.php?action=view&amp;id=30">See what\'s next</a>', $html);
+    }
+
+    public function testNextStepMovesOnToAnotherClubsEventWithoutASheet(): void
+    {
+        $wscc = ['id' => 14, 'name' => 'WSCC Fire on Ice #1', 'event_date' => '2026-11-19', 'discipline' => 'ice', 'host_club' => 'WSCC'];
+        $html = renderGarageCarHtml($this->carVm([
+            'seasons' => ['summer' => false, 'ice' => true], 'usesSummer' => false,
+            'iceSheets' => [$this->iceSheetRow()],
+            'events' => ['tagged' => [['event' => $this->iceEvent(), 'sheet' => $this->iceSheetRow(), 'gearLinks' => []],
+                                      ['event' => $wscc, 'sheet' => null, 'gearLinks' => []]], 'untagged' => [], 'earlierSheets' => []],
+        ]));
+        $this->assertStringContainsString('<h2>Next: your ice tech sheet</h2>', $html);
+        $this->assertStringContainsString('event_id=14">Submit ice tech sheet</a>', $html);
     }
 }

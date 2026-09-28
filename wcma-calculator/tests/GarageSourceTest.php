@@ -109,6 +109,20 @@ final class GarageSourceTest extends TestCase
     public function testCarPagePassesTheIceTagToUsesSummer(): void
     {
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../garage.php'));
-        $this->assertStringContainsString('garageCarUsesSummer($declarations, $allSheets, $taggedSummer, $taggedIce)', $src);
+        $this->assertStringContainsString('garageCarSeasons($car, $declarations, $allSheets, $taggedSummer, $taggedIce)', $src);
+    }
+
+    public function testAddRequiresASeasonAndTagsTheEventItWasAddedFor(): void
+    {
+        $body = $this->body('garage.php', 'handleGaragePost');
+        $this->assertStringContainsString('carsValidateDetails($_POST, true)', $body);
+        $this->assertStringContainsString('garageAddEvent(', $body);
+        $this->assertStringContainsString('garageAfterAdd(', $body);
+    }
+
+    public function testTagCanContinueStraightToTheIceSheet(): void
+    {
+        $this->assertStringContainsString("garageAfterTagUrl(\$carId, \$event, (\$_POST['then'] ?? '') === 'sheet')", $this->body('garage.php', 'handleGaragePost'));
+        $this->assertStringContainsString("garageAddableEvents(\$events['untagged'], \$car, \$seasons)", $this->body('garage.php', 'garageShowCar'));
     }
 }

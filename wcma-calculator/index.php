@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if ($user === null) {
     renderPageStart('Welcome', 'home');
-    echo renderLandingHtml(db_get_season_links($pdo, true));
+    echo renderLandingHtml(db_get_season_links($pdo, true), landingNextIsIce(db_get_active_events($pdo), date('Y-m-d')));
     renderPageEnd();
     exit;
 }
@@ -65,7 +65,7 @@ foreach ($in['events'] as $e) $eventsById[(int)$e['id']] = $e;
 $taggedByCar = [];
 foreach ($in['plans'] as $p) $taggedByCar[(int)$p['car_id']][] = (int)$p['event_id'];
 
-$hasIceActivity = userHasIceActivity($in['sheets'], (bool)$in['iceGear'], $in['plans'], $in['events']);
+$hasIceActivity = userHasIceActivity($in['sheets'], (bool)$in['iceGear'], $in['plans'], $in['events'], $in['cars']);
 $userUsesSummer = userUsesSummer($in['cars'], $in['sheets'], $in['declarations'], $in['plans'], $in['events'], $today);
 
 $garage = [];
@@ -79,10 +79,11 @@ foreach ($in['cars'] as $carId => $car) {
         if ($e === null || (string)$e['event_date'] < $today) continue;
         if (($e['discipline'] ?? 'summer') === 'ice') $taggedIce = true; else $taggedSummer = true;
     }
+    $stored = isset($car['disciplines']) ? (string)$car['disciplines'] : null;
     $garage[] = ['car' => $car, 'declaration' => $decl,
                  'techLabel' => techCarStatusLabel($status, $season), 'techState' => $status['state'],
-                 'usesSummer' => garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, $taggedSummer, $taggedIce),
-                 'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason)];
+                 'usesSummer' => garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, $taggedSummer, $taggedIce, $stored),
+                 'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason, $stored)];
 }
 $drivers = [];
 foreach ($in['drivers'] as $did => $d) {

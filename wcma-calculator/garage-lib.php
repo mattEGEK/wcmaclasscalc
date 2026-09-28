@@ -6,6 +6,31 @@
 require_once __DIR__ . '/ice-sheet-lib.php';   // techSheetIsIce()
 require_once __DIR__ . '/tech-status.php';     // techCarStatus(), techCarStatusLabel()
 
+/** A car's stored season (mobile UX spec 2026-09-28 §A1). Null on cars added before it existed. */
+const CAR_DISCIPLINES = ['ice', 'summer', 'both'];
+
+/**
+ * Which seasons a car races. A stored season wins, but activity is never hidden: a declaration,
+ * summer sheet or summer tag keeps summer on; an ice sheet or ice tag keeps ice on. With nothing
+ * stored, today's inference: summer unless the car only has ice activity.
+ * @return array{summer: bool, ice: bool}
+ */
+function carSeasons(?string $stored, bool $summerActivity, bool $iceActivity): array {
+    $s = in_array($stored, CAR_DISCIPLINES, true) ? $stored : null;
+    if ($s === null) return ['summer' => $summerActivity || !$iceActivity, 'ice' => $iceActivity];
+    return ['summer' => $s !== 'ice' || $summerActivity, 'ice' => $s !== 'summer' || $iceActivity];
+}
+
+/** carSeasons() for one car, from its declarations, sheets and upcoming event tags. @return array{summer: bool, ice: bool} */
+function garageCarSeasons(array $car, array $declarations, array $carSheets, bool $taggedSummer, bool $taggedIce): array {
+    $summerSheet = $iceSheet = false;
+    foreach ($carSheets as $s) {
+        if (techSheetIsIce($s)) $iceSheet = true; else $summerSheet = true;
+    }
+    return carSeasons(isset($car['disciplines']) ? (string)$car['disciplines'] : null,
+        (bool)$declarations || $summerSheet || $taggedSummer, $iceSheet || $taggedIce);
+}
+
 /**
  * A car's class (spec §2): its newest non-superseded declaration. When that one isn't accepted,
  * also the newest earlier declaration that was (accepted_at survives superseding).
@@ -26,6 +51,63 @@ function garageClassLine(array $declarations): array {
         }
     }
     return ['current' => $current, 'earlierAccepted' => $earlier];
+}
+
+/** The event a car is being added for (Home's "Add a car for this event"), or null if it can't be tagged. */
+function garageAddEvent(?array $event, string $today): ?array {
+    if ($event === null || (int)($event['active'] ?? 0) !== 1 || (string)($event['event_date'] ?? '') < $today) return null;
+    return $event;
+}
+
+/**
+ * Where Add a car goes next (mobile UX spec 2026-09-28 §A2). $event is the event it was added for
+ * and has already been tagged, or null.
+ * @return array{url: string, flash: string}
+ */
+function garageAfterAdd(int $carId, string $disciplines, ?array $event): array {
+    $car = 'garage.php?car=' . $carId;
+    if ($event !== null && ($event['discipline'] ?? 'summer') === 'ice') {
+        return ['url' => 'tech-sheets.php?action=new-ice&car_id=' . $carId . '&event_id=' . (int)$event['id'],
+                'flash' => 'Car added and going to ' . $event['name'] . '. Next, the ice tech sheet.'];
+    }
+    if ($event !== null) return ['url' => $car, 'flash' => 'Car added and going to ' . $event['name'] . '. Next, declare its class.'];
+    if ($disciplines === 'ice') return ['url' => $car, 'flash' => 'Car added. Which ice event is it going to first?'];
+    if ($disciplines === 'both') return ['url' => $car, 'flash' => 'Car added. Declare its class for summer, and pick an ice event below.'];
+    return ['url' => $car, 'flash' => 'Car added. Next, declare its class.'];
+}
+
+/** The events a car can be added to: only the seasons it races (garageCarSeasons()). */
+function garageEventsForSeasons(array $events, array $seasons): array {
+    return array_values(array_filter($events, fn(array $e): bool =>
+        (($e['discipline'] ?? 'summer') === 'ice') ? $seasons['ice'] : $seasons['summer']));
+}
+
+/**
+ * The events the car page offers to add the car to. Only a car with a stored season is filtered:
+ * a car from before seasons were stored keeps every event, as before (mobile UX spec §A1).
+ */
+function garageAddableEvents(array $events, array $car, array $seasons): array {
+    return in_array($car['disciplines'] ?? null, CAR_DISCIPLINES, true) ? garageEventsForSeasons($events, $seasons) : $events;
+}
+
+/**
+ * Whether $event (an ice event) already has this car's ice tech: an ice sheet for the event's club
+ * in its ice season or later. Ice tech is one sheet per car, club and ice season (ice spec §4).
+ */
+function garageIceEventCovered(array $event, array $carSheets): bool {
+    $key = seasonForEvent($event);
+    foreach ($carSheets as $s) {
+        if (techSheetIsIce($s) && (string)($s['club'] ?? '') === (string)$key['club'] && (int)($s['season'] ?? 0) >= $key['season']) return true;
+    }
+    return false;
+}
+
+/** Where tagging a car goes: straight to the ice sheet when the ice next-step card asked for it. */
+function garageAfterTagUrl(int $carId, array $event, bool $wantsSheet): string {
+    if ($wantsSheet && ($event['discipline'] ?? 'summer') === 'ice') {
+        return 'tech-sheets.php?action=new-ice&car_id=' . $carId . '&event_id=' . (int)$event['id'];
+    }
+    return 'garage.php?car=' . $carId;
 }
 
 /**
@@ -84,11 +166,14 @@ function garageCard(array $car, array $declarations, array $carSheets, array $ta
         if (($e['discipline'] ?? 'summer') === 'ice') $taggedIce = true; else $taggedSummer = true;
     }
     $events = garageCarEvents($carSheets, $taggedEventIds, $activeEvents, [], $today);
+    $stored = isset($car['disciplines']) ? (string)$car['disciplines'] : null;
+    $seasons = garageCarSeasons($car, $declarations, $carSheets, $taggedSummer, $taggedIce);
     return [
         'car' => $car,
         'class' => garageClassLine($declarations),
-        'usesSummer' => garageCarUsesSummer($declarations, $carSheets, $taggedSummer, $taggedIce),
-        'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason),
+        'seasons' => $seasons,
+        'usesSummer' => $seasons['summer'],
+        'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason, $stored),
         'techState' => $tech['state'],
         'techLabel' => techCarStatusLabel($tech, $season),
         'next' => $events['tagged'][0] ?? null,
@@ -125,9 +210,9 @@ function garageSummerSheets(array $sheets): array {
  * that club's sheets: ice tech is keyed by car, club and season (spec §4).
  * @return ?array{state: string, label: string}
  */
-function garageIceSummary(array $carSheets, bool $taggedToIce, int $iceSeason): ?array {
+function garageIceSummary(array $carSheets, bool $taggedToIce, int $iceSeason, ?string $stored = null): ?array {
     $ice = array_values(array_filter($carSheets, fn(array $s): bool => techSheetIsIce($s)));
-    if (!$ice && !$taggedToIce) return null;
+    if (!$ice && !$taggedToIce && !in_array($stored, ['ice', 'both'], true)) return null;
     // This season or a later one: a sheet sent before the July rollover for next winter's event counts.
     $current = array_values(array_filter($ice, fn(array $s): bool => (int)$s['season'] >= $iceSeason));
     if (!$current) return ['state' => 'none', 'label' => 'Needs ice tech'];
@@ -140,20 +225,17 @@ function garageIceSummary(array $carSheets, bool $taggedToIce, int $iceSeason): 
             'label' => techCarStatusLabel($status, $showSeason, DISCIPLINE_ICE) . ' · ' . $newest['club'] . ' · ' . $newest['class']];
 }
 
-/** Whether the car takes part in summer: declared, summer sheets, tagged to summer, or neither ice sheets nor an ice tag. */
-function garageCarUsesSummer(array $declarations, array $carSheets, bool $taggedToSummer, bool $taggedToIce = false): bool {
-    if ($declarations || $taggedToSummer) return true;
-    $hasIce = false;
-    foreach ($carSheets as $s) {
-        if (!techSheetIsIce($s)) return true;
-        $hasIce = true;
-    }
-    return !$hasIce && !$taggedToIce;
+/**
+ * Whether the car takes part in summer: declared, summer sheets, tagged to summer, stored as a
+ * summer car, or (nothing stored) neither ice sheets nor an ice tag. See garageCarSeasons().
+ */
+function garageCarUsesSummer(array $declarations, array $carSheets, bool $taggedToSummer, bool $taggedToIce = false, ?string $stored = null): bool {
+    return garageCarSeasons(['disciplines' => $stored], $declarations, $carSheets, $taggedToSummer, $taggedToIce)['summer'];
 }
 
 /**
- * Whether the user has any ice activity: an ice sheet, an ice gear record, or a car tagged to an
- * active ice event. Home and the Drivers page both use this so they agree.
+ * Whether the user has any ice activity: an ice sheet, an ice gear record, a car tagged to an
+ * active ice event, or a car stored as an ice car. Home and the Drivers page both use this so they agree.
  *
  * @param array $plans        event_plans rows (event_id, car_id)
  * @param array $activeEvents the active events (with discipline)
@@ -176,7 +258,8 @@ function userUsesSummer(array $cars, array $sheets, array $declarationsByCar, ar
         $carId = (int)$carId;
         $carSheets = array_values(array_filter($sheets, fn(array $s): bool => (int)$s['car_id'] === $carId));
         $decl = $declarationsByCar[$carId] ?? null;
-        if (garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, isset($tags[$carId]['summer']), isset($tags[$carId]['ice']))) return true;
+        if (garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, isset($tags[$carId]['summer']), isset($tags[$carId]['ice']),
+                isset($cars[$carId]['disciplines']) ? (string)$cars[$carId]['disciplines'] : null)) return true;
     }
     return false;
 }
@@ -190,7 +273,7 @@ function driverShowsSummerGear(bool $userHasIce, bool $userUsesSummer, bool $has
     return !$userHasIce || $userUsesSummer || $hasSummerGear;
 }
 
-function userHasIceActivity(array $sheets, bool $hasIceGear, array $plans, array $activeEvents): bool {
+function userHasIceActivity(array $sheets, bool $hasIceGear, array $plans, array $activeEvents, array $cars = []): bool {
     if ($hasIceGear) return true;
     foreach ($sheets as $s) {
         if (techSheetIsIce($s)) return true;
@@ -201,6 +284,9 @@ function userHasIceActivity(array $sheets, bool $hasIceGear, array $plans, array
     }
     foreach ($plans as $p) {
         if (isset($ice[(int)$p['event_id']])) return true;
+    }
+    foreach ($cars as $car) {
+        if (in_array($car['disciplines'] ?? null, ['ice', 'both'], true)) return true;
     }
     return false;
 }

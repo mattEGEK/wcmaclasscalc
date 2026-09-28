@@ -64,3 +64,13 @@ function renderSiteFooter(): void {
     echo hubFooterHtml();
 }
 
+/** Status word class for a hub-status chip (Home, Garage, Drivers, inspect, tech sheet pages). */
+function homeStatusClass(string $state): string {
+    switch ($state) {
+        case 'accepted':       return 'hub-status--ok';
+        case 'needs_changes':  return 'hub-status--todo';
+        case 'pending_review':
+        case 'submitted':      return 'hub-status--info';
+        default:                return 'hub-status--warn';
+    }
+}

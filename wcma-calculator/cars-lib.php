@@ -33,7 +33,7 @@ function carsResolveForDeclaration(PDO $pdo, int $userId, array $post): array {
     if (mb_strlen($number, 'UTF-8') > 10) return $fail('That car number is too long (10 characters at most).');
     if ($details['make'] === '' || $details['model'] === '') return $fail('Enter the make and model of your new car.');
 
-    $id = db_create_car($pdo, $userId, ['car_number' => $number, 'year' => $details['year'] ?: null] + $details);
+    $id = db_create_car($pdo, $userId, ['car_number' => $number, 'year' => $details['year'] ?: null, 'disciplines' => 'summer'] + $details);
     return ['ok' => true, 'error' => null, 'car_id' => $id];
 }
 
@@ -42,16 +42,20 @@ const CARS_FIELD_LABELS = ['car_number' => 'number', 'year' => 'year', 'make' =>
 
 /**
  * The Add a car / Edit details form. Number, make, model and colour are required; year (four
- * digits) and engine size are optional and become null when blank. On failure, data still holds
- * what was typed so the form can be shown again.
+ * digits) and engine size are optional and become null when blank. Where the car races (ice,
+ * summer or both) is required when $requireSeason (Add a car), optional otherwise (Edit details
+ * of an older car). On failure, data still holds what was typed so the form can be shown again.
  *
  * @return array{ok: bool, error: ?string, data: array<string, ?string>}
  */
-function carsValidateDetails(array $post): array {
+function carsValidateDetails(array $post, bool $requireSeason = false): array {
     $data = [];
     foreach (array_keys(CARS_FIELD_MAX) as $field) {
         $data[$field] = trim((string)preg_replace('/\s+/', ' ', (string)($post[$field] ?? '')));
     }
+    // Literal list: cars-lib.php doesn't load garage-lib.php (CAR_DISCIPLINES).
+    $season = trim((string)($post['disciplines'] ?? ''));
+    $data['disciplines'] = $season === '' ? null : $season;
     $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'data' => $data];
     foreach (['car_number', 'make', 'model', 'colour'] as $field) {
         if ($data[$field] === '') return $fail("Enter the car's " . CARS_FIELD_LABELS[$field] . '.');
@@ -62,6 +66,9 @@ function carsValidateDetails(array $post): array {
     if ($data['year'] !== '' && !preg_match('/^(19|20)\d{2}$/', $data['year'])) return $fail('Enter the year as four digits, like 2004.');
     $data['year'] = $data['year'] === '' ? null : $data['year'];
     $data['engine_cc'] = $data['engine_cc'] === '' ? null : $data['engine_cc'];
+    if (($season === '' && $requireSeason) || ($season !== '' && !in_array($season, ['ice', 'summer', 'both'], true))) {
+        return $fail('Choose where this car will race: ice, summer or both.');
+    }
     return ['ok' => true, 'error' => null, 'data' => $data];
 }
 

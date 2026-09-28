@@ -214,4 +214,116 @@ final class GarageLibTest extends TestCase
         $this->assertFalse(userHasIceActivity([['id' => 1, 'discipline' => 'summer']], false,
             [['car_id' => 3, 'event_id' => 10], ['car_id' => 3, 'event_id' => 11], ['car_id' => 3, 'event_id' => 99]], $events));
     }
+
+    public function testCarSeasonsLegacyCarsKeepTodaysInference(): void
+    {
+        $this->assertSame(['summer' => true, 'ice' => false], carSeasons(null, false, false));
+        $this->assertSame(['summer' => false, 'ice' => true], carSeasons(null, false, true));
+        $this->assertSame(['summer' => true, 'ice' => true], carSeasons(null, true, true));
+        $this->assertSame(['summer' => true, 'ice' => false], carSeasons('nonsense', false, false));
+    }
+
+    public function testCarSeasonsStoredValueWinsButActivityIsNeverHidden(): void
+    {
+        $this->assertSame(['summer' => false, 'ice' => true], carSeasons('ice', false, false));
+        $this->assertSame(['summer' => true, 'ice' => false], carSeasons('summer', false, false));
+        $this->assertSame(['summer' => true, 'ice' => true], carSeasons('both', false, false));
+        // An ice car that was declared for summer still shows its class.
+        $this->assertSame(['summer' => true, 'ice' => true], carSeasons('ice', true, false));
+        // A summer car tagged to an ice event still shows ice tech.
+        $this->assertSame(['summer' => true, 'ice' => true], carSeasons('summer', false, true));
+    }
+
+    public function testGarageCarSeasonsReadsActivityFromDeclarationsSheetsAndTags(): void
+    {
+        $ice = ['disciplines' => 'ice'];
+        $this->assertSame(['summer' => false, 'ice' => true], garageCarSeasons($ice, [], [], false, false));
+        $this->assertTrue(garageCarSeasons($ice, [$this->decl(1, 'submitted', 'GT3')], [], false, false)['summer']);
+        $this->assertTrue(garageCarSeasons($ice, [], [$this->sheet(5, 10)], false, false)['summer']);
+        $this->assertTrue(garageCarSeasons($ice, [], [], true, false)['summer']);
+        $this->assertTrue(garageCarSeasons(['disciplines' => 'summer'], [], [], false, true)['ice']);
+        $this->assertSame(['summer' => true, 'ice' => false], garageCarSeasons([], [], [], false, false));
+    }
+
+    public function testIceSummaryShowsForAnIceCarWithNoActivityYet(): void
+    {
+        $this->assertNull(garageIceSummary([], false, 2027));
+        $this->assertNull(garageIceSummary([], false, 2027, 'summer'));
+        $this->assertSame('Needs ice tech', garageIceSummary([], false, 2027, 'ice')['label']);
+        $this->assertSame('Needs ice tech', garageIceSummary([], false, 2027, 'both')['label']);
+    }
+
+    public function testUserHasIceActivityWhenACarIsStoredAsIce(): void
+    {
+        $this->assertFalse(userHasIceActivity([], false, [], [], [3 => ['id' => 3, 'disciplines' => null]]));
+        $this->assertTrue(userHasIceActivity([], false, [], [], [3 => ['id' => 3, 'disciplines' => 'ice']]));
+        $this->assertTrue(userHasIceActivity([], false, [], [], [3 => ['id' => 3, 'disciplines' => 'both']]));
+    }
+
+    public function testUserUsesSummerFalseWhenEveryCarIsStoredAsIce(): void
+    {
+        $cars = [3 => ['id' => 3, 'disciplines' => 'ice']];
+        $this->assertFalse(userUsesSummer($cars, [], [], [], [], '2026-09-28'));
+        $cars[4] = ['id' => 4, 'disciplines' => null];
+        $this->assertTrue(userUsesSummer($cars, [], [], [], [], '2026-09-28'));
+    }
+
+    public function testAddEventIgnoresMissingInactiveAndPastEvents(): void
+    {
+        $e = ['id' => 12, 'name' => 'NASCC Ice Race #1', 'event_date' => '2026-11-12', 'active' => 1, 'discipline' => 'ice'];
+        $this->assertSame($e, garageAddEvent($e, '2026-09-28'));
+        $this->assertNull(garageAddEvent(null, '2026-09-28'));
+        $this->assertNull(garageAddEvent(['active' => 0] + $e, '2026-09-28'));
+        $this->assertNull(garageAddEvent($e, '2026-11-13'));
+    }
+
+    public function testAfterAddSendsIceCarsTowardsTheirIceEvent(): void
+    {
+        $ice = ['id' => 12, 'name' => 'NASCC Ice Race #1', 'discipline' => 'ice'];
+        $summer = ['id' => 10, 'name' => 'Fall Sprint', 'discipline' => 'summer'];
+        $this->assertSame(['url' => 'tech-sheets.php?action=new-ice&car_id=3&event_id=12',
+                           'flash' => 'Car added and going to NASCC Ice Race #1. Next, the ice tech sheet.'], garageAfterAdd(3, 'ice', $ice));
+        $this->assertSame(['url' => 'garage.php?car=3', 'flash' => 'Car added. Which ice event is it going to first?'], garageAfterAdd(3, 'ice', null));
+        $this->assertSame(['url' => 'garage.php?car=3', 'flash' => 'Car added and going to Fall Sprint. Next, declare its class.'], garageAfterAdd(3, 'summer', $summer));
+        $this->assertSame(['url' => 'garage.php?car=3', 'flash' => 'Car added. Declare its class for summer, and pick an ice event below.'], garageAfterAdd(3, 'both', null));
+        $this->assertSame(['url' => 'garage.php?car=3', 'flash' => 'Car added. Next, declare its class.'], garageAfterAdd(3, 'summer', null));
+    }
+
+    public function testEventsForSeasonsKeepsOnlyTheSeasonsTheCarRaces(): void
+    {
+        $events = [['id' => 1, 'discipline' => 'summer'], ['id' => 2, 'discipline' => 'ice'], ['id' => 3]];
+        $ids = fn(array $s): array => array_map(fn(array $e): int => $e['id'], garageEventsForSeasons($events, $s));
+        $this->assertSame([2], $ids(['summer' => false, 'ice' => true]));
+        $this->assertSame([1, 3], $ids(['summer' => true, 'ice' => false]));
+        $this->assertSame([1, 2, 3], $ids(['summer' => true, 'ice' => true]));
+    }
+
+    public function testAfterTagGoesToTheIceSheetOnlyWhenAskedAndTheEventIsIce(): void
+    {
+        $ice = ['id' => 12, 'discipline' => 'ice'];
+        $this->assertSame('tech-sheets.php?action=new-ice&car_id=3&event_id=12', garageAfterTagUrl(3, $ice, true));
+        $this->assertSame('garage.php?car=3', garageAfterTagUrl(3, $ice, false));
+        $this->assertSame('garage.php?car=3', garageAfterTagUrl(3, ['id' => 10, 'discipline' => 'summer'], true));
+    }
+
+    public function testAddableEventsFilterOnlyCarsWithAStoredSeason(): void
+    {
+        $events = [['id' => 1, 'discipline' => 'summer'], ['id' => 2, 'discipline' => 'ice']];
+        $ids = fn(array $car, array $s): array => array_map(fn(array $e): int => $e['id'], garageAddableEvents($events, $car, $s));
+        // A car from before seasons were stored, with no ice activity yet, can still go to an ice event.
+        $this->assertSame([1, 2], $ids(['disciplines' => null], ['summer' => true, 'ice' => false]));
+        $this->assertSame([1, 2], $ids([], ['summer' => true, 'ice' => false]));
+        $this->assertSame([2], $ids(['disciplines' => 'ice'], ['summer' => false, 'ice' => true]));
+        $this->assertSame([1], $ids(['disciplines' => 'summer'], ['summer' => true, 'ice' => false]));
+    }
+
+    public function testIceEventIsCoveredByAnyIceSheetForItsClubAndSeason(): void
+    {
+        $race2 = ['id' => 21, 'event_date' => '2027-01-20', 'discipline' => 'ice', 'host_club' => 'NASCC'];
+        $this->assertTrue(garageIceEventCovered($race2, [$this->iceSheet(['event_id' => 20, 'season' => 2027, 'club' => 'NASCC'])]));
+        $this->assertFalse(garageIceEventCovered($race2, [$this->iceSheet(['event_id' => 20, 'season' => 2027, 'club' => 'WSCC'])]));
+        $this->assertFalse(garageIceEventCovered($race2, [$this->iceSheet(['event_id' => 20, 'season' => 2026, 'club' => 'NASCC'])]));
+        $this->assertFalse(garageIceEventCovered($race2, [$this->sheet(5, 21, 2027)]));
+        $this->assertFalse(garageIceEventCovered($race2, []));
+    }
 }

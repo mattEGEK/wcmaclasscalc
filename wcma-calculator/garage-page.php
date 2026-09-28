@@ -49,11 +49,21 @@ function garageClassHtml(array $line): string {
     return $out . '</p>';
 }
 
+/** "Where will this car race?" as three large radio cards (mobile UX spec 2026-09-28 §A2). */
+function garageSeasonFieldHtml(?string $value, bool $required): string {
+    $out = '<fieldset class="garage-season"><legend>Where will this car race?' . ($required ? ' (required)' : '') . '</legend><div class="garage-season-options">';
+    foreach (['ice' => 'Ice', 'summer' => 'Summer', 'both' => 'Both'] as $v => $label) {
+        $out .= '<label><input type="radio" name="disciplines" value="' . $v . '"' . ($required ? ' required' : '')
+            . ($value === $v ? ' checked' : '') . '><span>' . $label . '</span></label>';
+    }
+    return $out . '</div></fieldset>';
+}
+
 /** The six car inputs shared by Add a car and Edit details. */
 function garageDetailsFields(array $values): string {
     $fields = [
         'car_number' => ['Car number', true],
-        'year' => ['Year', false],
+        'year' => ['Year (optional)', false],
         'make' => ['Make', true],
         'model' => ['Model', true],
         'colour' => ['Colour', true],
@@ -63,7 +73,7 @@ function garageDetailsFields(array $values): string {
     foreach ($fields as $name => [$label, $required]) {
         $out .= '<div><label for="car-' . $name . '">' . h($label) . '</label>'
             . '<input type="text" id="car-' . $name . '" name="' . $name . '" maxlength="' . CARS_FIELD_MAX[$name] . '"'
-            . ($required ? ' required' : '') . ($name === 'year' || $name === 'engine_cc' ? ' inputmode="numeric"' : '')
+            . ($required ? ' required' : '') . (in_array($name, ['car_number', 'year', 'engine_cc'], true) ? ' inputmode="numeric"' : '')
             . ' value="' . h((string)($values[$name] ?? '')) . '"></div>';
     }
     return $out . '</div>';
@@ -110,7 +120,7 @@ function garageRenderCard(array $card): string {
 
 function renderGarageListHtml(array $vm): string {
     $out = '<h1>Garage</h1>';
-    if (!$vm['cards']) $out .= '<p class="hub-intro">Start by adding your car and declaring its class.</p>';
+    if (!$vm['cards']) $out .= '<p class="hub-intro">Start by adding your car.</p>';
     $out .= '<div class="garage-grid">';
     foreach ($vm['cards'] as $card) $out .= garageRenderCard($card);
     $out .= '<a class="garage-add" href="garage.php?action=add">+ Add a car</a></div>';
@@ -128,17 +138,66 @@ function renderGarageListHtml(array $vm): string {
 }
 
 function renderAddCarHtml(array $vm): string {
-    $out = '<h1>Add a car</h1>';
+    $event = $vm['event'] ?? null;
+    $out = '<h1>Add a car' . ($event !== null ? ' for ' . h((string)$event['name']) : '') . '</h1>';
     if ($vm['error'] !== null) $out .= '<div class="form-messages show error" role="alert">' . h((string)$vm['error']) . '</div>';
     $out .= '<form method="post" action="garage.php" class="hub-card">' . garageCsrfField((string)$vm['csrf'])
-        . '<input type="hidden" name="action" value="add">' . garageDetailsFields($vm['values'])
+        . '<input type="hidden" name="action" value="add">'
+        . ($event !== null ? '<input type="hidden" name="event_id" value="' . (int)$event['id'] . '">' : '')
+        . garageSeasonFieldHtml($vm['values']['disciplines'] ?? null, true)
+        . garageDetailsFields($vm['values'])
         . '<p class="form-hint">Car numbers are reserved on MotorsportReg. The hub records the number you enter.';
     if ($vm['msrLink'] !== null) {
         $out .= ' <a href="' . h((string)$vm['msrLink']['url']) . '" target="_blank" rel="noopener">' . h((string)$vm['msrLink']['label']) . ' &#8599;</a>';
     }
-    $out .= '</p><button type="submit" class="hub-btn">Add car</button></form>'
-        . '<p>Next, you will declare its class with the Class Calculator.</p>';
-    return $out;
+    return $out . '</p><button type="submit" class="hub-btn">Add car</button></form>';
+}
+
+/**
+ * The ice next-step card under the car header (mobile UX spec 2026-09-28 §A3): submit the ice sheet
+ * for the soonest tagged ice event its club and season don't have one for; once every tagged ice
+ * event is covered, the sheet's status and a link to its What's next; with no ice event tagged,
+ * pick one. $vm['iceSheets'] is the car's ice sheets (any event). '' when none applies.
+ */
+function garageNextStepHtml(array $vm): string {
+    $car = $vm['car'];
+    if ($car['archived_at'] !== null || empty($vm['seasons']['ice'])) return '';
+    $id = (int)$car['id'];
+    $isIce = fn(array $e): bool => ($e['discipline'] ?? 'summer') === 'ice';
+    $iceSheets = $vm['iceSheets'] ?? [];
+    $covered = null;
+    foreach ($vm['events']['tagged'] as $row) {
+        if (!$isIce($row['event'])) continue;
+        $e = $row['event'];
+        $sheets = $row['sheet'] !== null ? array_merge($iceSheets, [$row['sheet']]) : $iceSheets;
+        if (garageIceEventCovered($e, $sheets)) { $covered ??= [$e, $sheets]; continue; }
+        return '<section class="hub-card garage-next"><h2>Next: your ice tech sheet</h2><p>For ' . h((string)$e['name']) . ', '
+            . h(date('D, M j', strtotime((string)$e['event_date']))) . '.</p>'
+            . '<a class="hub-btn" href="tech-sheets.php?action=new-ice&amp;car_id=' . $id . '&amp;event_id=' . (int)$e['id'] . '">Submit ice tech sheet</a></section>';
+    }
+    if ($covered !== null) {
+        [$e, $sheets] = $covered;
+        $club = (string)($e['host_club'] ?? '');
+        $newest = null;
+        foreach ($sheets as $s) {
+            if (techSheetIsIce($s) && (string)($s['club'] ?? '') === $club && ($newest === null || (int)$s['id'] > (int)$newest['id'])) $newest = $s;
+        }
+        $out = '<section class="hub-card garage-next"><h2>Ice tech sheet sent</h2>';
+        if (!empty($vm['ice'])) {
+            $out .= '<p><span class="hub-status ' . h(homeStatusClass((string)$vm['ice']['state'])) . '">' . h((string)$vm['ice']['label']) . '</span></p>';
+        }
+        return $out . '<a class="hub-btn hub-btn--secondary" href="tech-sheets.php?action=view&amp;id=' . (int)$newest['id'] . '">See what\'s next</a></section>';
+    }
+    $ice = array_values(array_filter($vm['events']['untagged'], $isIce));
+    if (!$ice) return '';
+    $out = '<section class="hub-card garage-next"><h2>Which ice event is this car going to?</h2>'
+        . '<p>Pick one and we\'ll open its ice tech sheet. ' . h(EVENTS_NOT_REGISTERING) . '</p><div class="garage-choice-list">';
+    foreach ($ice as $e) {
+        $label = $e['name'] . ' · ' . date('D, M j', strtotime((string)$e['event_date'])) . ' · ' . ($e['host_club'] ?? '');
+        $out .= garagePostForm((string)$vm['csrf'], 'tag', $id, $label, 'hub-btn hub-btn--secondary hub-btn--choice', '',
+            ['event_id' => (int)$e['id'], 'then' => 'sheet']);
+    }
+    return $out . '</div></section>';
 }
 
 function renderGarageCarHtml(array $vm): string {
@@ -157,12 +216,15 @@ function renderGarageCarHtml(array $vm): string {
             . garagePostForm($csrf, 'restore', $id, 'Restore this car', 'hub-btn') . '</div>';
     }
 
+    $out .= garageNextStepHtml($vm);
+
     // Details
     $form = $vm['detailsForm'];
     $out .= '<section class="hub-card"><h2>Details</h2><details class="garage-edit"' . ($form !== null ? ' open' : '') . '><summary>Edit details</summary>';
     if ($form !== null) $out .= '<div class="form-messages show error" role="alert">' . h((string)$form['error']) . '</div>';
     $out .= '<form method="post" action="garage.php">' . garageCsrfField($csrf)
         . '<input type="hidden" name="action" value="update-car"><input type="hidden" name="car_id" value="' . $id . '">'
+        . garageSeasonFieldHtml(($form['values'] ?? $car)['disciplines'] ?? null, false)
         . garageDetailsFields($form['values'] ?? $car) . '<button type="submit" class="hub-btn">Save details</button></form></details></section>';
 
     $usesSummer = $vm['usesSummer'] ?? true;
@@ -250,7 +312,7 @@ function renderGarageCarHtml(array $vm): string {
     if (!$archived && $ev['untagged']) {
         $out .= '<form method="post" action="garage.php" class="hub-line hub-tag-form">' . garageCsrfField($csrf)
             . '<input type="hidden" name="action" value="tag"><input type="hidden" name="car_id" value="' . $id . '">'
-            . '<label for="garage-tag-event">Bring this car to another event</label><select id="garage-tag-event" name="event_id">';
+            . '<label for="garage-tag-event">' . ($ev['tagged'] ? 'Add this car to another event' : 'Add this car to an event') . '</label><select id="garage-tag-event" name="event_id">';
         foreach ($ev['untagged'] as $e) {
             $out .= '<option value="' . (int)$e['id'] . '">' . h((string)$e['name']) . ' — ' . h(date('M j', strtotime((string)$e['event_date'])))
                 . ((($e['discipline'] ?? 'summer') === 'ice') ? ' · Ice ' . h((string)$e['host_club']) : '') . '</option>';

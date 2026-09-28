@@ -20,6 +20,7 @@ require __DIR__ . '/cars-lib.php';
 require __DIR__ . '/garage-page.php';
 require_once __DIR__ . '/events-lib.php';
 require __DIR__ . '/ice-sheet-page.php';
+require_once __DIR__ . '/tech-sheet-next.php';
 require_once __DIR__ . '/email-copy.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
@@ -196,12 +197,14 @@ function handleView(PDO $pdo, array $user, int $id): void {
     $gearLinks = gearLinksForSheet($sheet, $drivers, db_get_user_gear_records($pdo, (int)$user['id']));
     $csrf = generateCsrfToken();
     $flash = getFlash();
+    $title = techSheetViewTitle($sheet, $event);
+    $chips = $gearLinks ? renderGearChips($gearLinks, 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0), 'sheet_id' => (int)$sheet['id']]) : '';
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tech Sheet #<?= (int)$sheet['id'] ?> — WCMA Calculator</title>
+<title><?= h($title) ?> — WCMA Hub</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
@@ -210,26 +213,21 @@ function handleView(PDO $pdo, array $user, int $id): void {
 </head>
 <body class="hub">
 <div class="container">
-  <?php renderSiteHeader('Tech Sheet #' . $sheet['id'], '<a href="garage.php?car=' . (int)$sheet['car_id'] . '">← Back to Garage</a>', 'garage'); ?>
+  <?php renderSiteHeader($title, '<a href="garage.php?car=' . (int)$sheet['car_id'] . '">← Back to Garage</a>', 'garage'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
-  <div class="detail-card actions no-print">
+  <p class="no-print">Car status: <span class="hub-status <?= h(homeStatusClass($carStatus['state'])) ?>"><?= h(techCarStatusLabel($carStatus, (int)($sheet['season'] ?? date('Y')), (string)($sheet['discipline'] ?? 'summer'))) ?></span></p>
+  <?= renderTechSheetNextStepsHtml($sheet, $event, $carStatus, $chips) ?>
+  <div class="sheet-actions no-print">
     <?php if (pretechSheetEditable($sheet)): ?>
-    <a href="tech-sheets.php?action=edit&id=<?= (int)$sheet['id'] ?>" class="btn btn-secondary">Edit</a>
+    <a href="tech-sheets.php?action=edit&id=<?= (int)$sheet['id'] ?>" class="hub-btn hub-btn--secondary">Edit</a>
     <?php endif; ?>
-    <?php if ($sheet['status'] === 'submitted' && $carStatus['state'] !== 'accepted'): ?>
-    <a href="tech-sheets.php?action=pretech&id=<?= (int)$sheet['id'] ?>" class="btn btn-secondary">Get pre-teched (optional)</a>
-    <?php endif; ?>
-    <form method="post" action="tech-sheets.php?action=resend" style="display:inline">
+    <button type="button" class="hub-btn hub-btn--secondary" onclick="window.print()">Print</button>
+    <form method="post" action="tech-sheets.php?action=resend" class="garage-inline-form">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= (int)$sheet['id'] ?>">
-      <button type="submit" class="btn btn-primary">Resend Email</button>
+      <button type="submit" class="hub-btn hub-btn--secondary">Resend email</button>
     </form>
-    <button type="button" class="btn btn-secondary" onclick="window.print()">Print</button>
   </div>
-  <p class="no-print">Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h(techCarStatusLabel($carStatus, (int)($sheet['season'] ?? date('Y')), (string)($sheet['discipline'] ?? 'summer'))) ?></strong></p>
-  <?php if ($gearLinks): ?>
-  <div class="no-print"><p><strong>Driver gear</strong></p><?= renderGearChips($gearLinks, 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0), 'sheet_id' => (int)$sheet['id']]) ?></div>
-  <?php endif; ?>
   <?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?>
 </div>
 <script src="js/form-feedback.js"></script>

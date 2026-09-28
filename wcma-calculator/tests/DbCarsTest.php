@@ -58,4 +58,27 @@ final class DbCarsTest extends TestCase
         $this->assertSame('Red', $car['colour']);
         $this->assertSame($u, (int)$car['owner_user_id']);
     }
+
+    public function testCarStoresItsSeasonAndLegacyCarsHaveNone(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->user($pdo);
+        $legacy = db_create_car($pdo, $u, ['car_number' => '1', 'make' => 'Honda', 'model' => 'Civic']);
+        $ice = db_create_car($pdo, $u, ['car_number' => '2', 'make' => 'Honda', 'model' => 'Civic', 'disciplines' => 'ice']);
+
+        $this->assertNull(db_get_car($pdo, $legacy)['disciplines']);
+        $this->assertSame('ice', db_get_car($pdo, $ice)['disciplines']);
+
+        db_update_car($pdo, $legacy, ['disciplines' => 'both']);
+        $this->assertSame('both', db_get_car($pdo, $legacy)['disciplines']);
+    }
+
+    public function testSeasonColumnIsAddedToAnExistingDatabase(): void
+    {
+        $pdo = make_temp_pdo();
+        $pdo->exec('ALTER TABLE cars DROP COLUMN disciplines');
+        db_init($pdo);
+        $cols = array_column($pdo->query('PRAGMA table_info(cars)')->fetchAll(), 'name');
+        $this->assertContains('disciplines', $cols);
+    }
 }

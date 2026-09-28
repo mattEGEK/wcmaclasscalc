@@ -285,12 +285,15 @@ function db_init(PDO $pdo): void {
             model           TEXT NOT NULL,
             colour          TEXT,
             engine_cc       TEXT,
+            disciplines     TEXT,
             archived_at     DATETIME,
             created_at      DATETIME NOT NULL,
             updated_at      DATETIME NOT NULL
         )
     ");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_cars_owner ON cars (owner_user_id)");
+    // Mobile UX spec 2026-09-28 §A1: the season a car races (ice/summer/both); null for older cars.
+    db_add_column_if_missing($pdo, 'cars', 'disciplines', 'TEXT');
 
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS drivers (
@@ -1022,17 +1025,17 @@ function db_link_google_id(PDO $pdo, int $user_id, string $google_id): void {
 
 // ── Cars ──────────────────────────────────────────────────────────────────────
 
-const DB_CAR_FIELDS = ['car_number', 'year', 'make', 'model', 'colour', 'engine_cc'];
+const DB_CAR_FIELDS = ['car_number', 'year', 'make', 'model', 'colour', 'engine_cc', 'disciplines'];
 
 function db_create_car(PDO $pdo, int $ownerId, array $d): int {
     $now = date('Y-m-d H:i:s');
     $pdo->prepare("
-        INSERT INTO cars (owner_user_id, car_number, car_number_norm, year, make, model, colour, engine_cc, created_at, updated_at)
-        VALUES (:o, :n, :norm, :y, :make, :model, :colour, :cc, :now, :now)
+        INSERT INTO cars (owner_user_id, car_number, car_number_norm, year, make, model, colour, engine_cc, disciplines, created_at, updated_at)
+        VALUES (:o, :n, :norm, :y, :make, :model, :colour, :cc, :disc, :now, :now)
     ")->execute([
         ':o' => $ownerId, ':n' => (string)$d['car_number'], ':norm' => techCarNumberNorm((string)$d['car_number']),
         ':y' => $d['year'] ?? null, ':make' => (string)$d['make'], ':model' => (string)$d['model'],
-        ':colour' => $d['colour'] ?? null, ':cc' => $d['engine_cc'] ?? null, ':now' => $now,
+        ':colour' => $d['colour'] ?? null, ':cc' => $d['engine_cc'] ?? null, ':disc' => $d['disciplines'] ?? null, ':now' => $now,
     ]);
     return (int)$pdo->lastInsertId();
 }
