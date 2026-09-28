@@ -8,6 +8,7 @@ require_once __DIR__ . '/view_helpers.php';        // h()
 require_once __DIR__ . '/photo-requirements.php';  // photoRequirementByKey()
 require_once __DIR__ . '/email-copy.php';
 require_once __DIR__ . '/ice-sheet-lib.php';       // techSheetIsIce(), techSheetClassLine()
+require_once __DIR__ . '/pretech-lib.php';         // pretechCurrentPhotos()
 
 function pretechEmailCarLine(array $sheet, array $event): string {
     $when = !empty($event['event_date']) ? ', ' . date('F j, Y', strtotime($event['event_date'])) : '';
@@ -144,7 +145,8 @@ function pretechNotify(PDO $pdo, string $kind, array $sheet, array $event, strin
         $messages = [];   // list of [to, message]
         switch ($kind) {
             case 'submitted':
-                $count = count(array_filter(db_get_inspection_photos($pdo, 'tech_sheet', $id), fn(array $p): bool => $p['file_path'] !== ''));
+                $current = pretechCurrentPhotos($sheet, db_get_inspection_photos($pdo, 'tech_sheet', $id));
+                $count = count(array_filter($current, fn(array $p): bool => $p['file_path'] !== ''));
                 $messages[] = [$clubTo, pretechEmailSubmitted($sheet, $event, $adminUrl, $pageUrl, $count, true)];
                 if ($competitor) $messages[] = [$competitor, pretechEmailSubmitted($sheet, $event, $adminUrl, $pageUrl, $count, false)];
                 break;

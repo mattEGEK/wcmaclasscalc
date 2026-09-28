@@ -163,7 +163,7 @@ function handleTechSheetPhotosSendBack(PDO $pdo, int $id): void {
 
 /** The pre-tech photos of a sheet, with accept / send-back controls while they are awaiting review. */
 function renderPretechReviewCard(array $sheet, array $snapshot, string $csrf): void {
-    $photos = array_filter($snapshot['photos'], fn(array $p): bool => $p['file_path'] !== '');
+    $photos = array_filter(pretechCurrentPhotos($sheet, $snapshot['photos']), fn(array $p): bool => $p['file_path'] !== '');
     $photoStatus = $sheet['photo_status'] ?? null;
     if ($photoStatus === null && !$photos) return;
 

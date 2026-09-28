@@ -31,4 +31,18 @@ final class GearStartSourceTest extends TestCase
         $body = $this->body('handleGearStart');
         $this->assertStringContainsString('gear.php?action=pretech&id=', $body);
     }
+
+    public function testStartIceRouteUsesTheSheetOwnerHelper(): void
+    {
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../gear.php'));
+        $this->assertStringContainsString("case 'start-ice':", $src);
+        $this->assertStringContainsString('db_get_user_tech_sheet(', $src);
+        $this->assertStringContainsString('gearStartIceForSheet(', $src);
+    }
+
+    public function testPretechHandlersAreDisciplineAgnostic(): void {
+        foreach (['handleGearPretech', 'handleGearPretechSubmit'] as $name) {
+            $this->assertStringNotContainsString('DISCIPLINE_ICE', $this->body($name), $name);
+        }
+    }
 }

@@ -5,6 +5,8 @@
 // the decisions (mode, completeness) are made by pretech-lib.php. Callers must have loaded
 // photo-requirements.php, inspection-lib.php (inspectionPublicPhoto) and view_helpers.php.
 
+require_once __DIR__ . '/photo-requirements.php';
+
 function pretechPhotoStatusText(?array $photo, string $tier): string {
     if ($photo === null || $photo['file_path'] === '') return $tier === 'required' ? 'Photo needed' : 'No photo yet';
     if ($photo['review_status'] === 'retake') return 'Retake requested';
@@ -32,6 +34,7 @@ function pretechRenderCard(string $key, array $req, ?array $photoRow, bool $appl
     $public = $hasPhoto ? inspectionPublicPhoto($photoRow) : null;
     $typed = $public['typed'] ?? [];
     $isRetake = $hasPhoto && $photoRow['review_status'] === 'retake';
+    $appliesLabel = (string)($req['applies_label'] ?? $appliesLabel);
 
     $out = '<div class="pretech-card" data-key="' . h($key) . '" data-tier="' . h($req['tier']) . '">';
     $out .= '<h3>' . h($req['label']) . ' <span class="pretech-status ' . ($isRetake ? 'badge-fail' : ($hasPhoto ? 'badge-ok' : 'badge-pending')) . '" data-status>'
@@ -61,7 +64,8 @@ function pretechRenderCard(string $key, array $req, ?array $photoRow, bool $appl
 
 function renderPretechPage(array $sheet, array $event, array $mode, array $snapshot, string $csrf, ?array $flash): void {
     $id = (int)$sheet['id'];
-    $requirements = photoRequirements('car');
+    $requirements = photoRequirementsFor($sheet, 'car');
+    $noRequirements = $requirements === [];
     $photoStatus = $sheet['photo_status'] ?? null;
     $locked = in_array($photoStatus, ['submitted', 'accepted'], true) || ($sheet['status'] ?? '') === 'teched';
     $formMode = $mode['mode'] === 'this_sheet';
@@ -104,7 +108,7 @@ function renderPretechPage(array $sheet, array $event, array $mode, array $snaps
   <div class="detail-card">
     <h2><?= h($carLine) ?></h2>
     <?php if ($mode['mode'] === 'car_accepted'): ?>
-      <p>This car is already teched for <?= (int)($sheet['season'] ?? date('Y')) ?>. You do not need to submit photos.</p>
+      <p>This car is already teched for <?= h((($sheet['discipline'] ?? 'summer') === 'ice' ? 'Ice ' : '') . (int)($sheet['season'] ?? date('Y'))) ?>. You do not need to submit photos.</p>
     <?php elseif ($mode['mode'] === 'held_elsewhere'): ?>
       <p>Your pre-tech photos for this car are on another of your tech sheets.
         <a href="tech-sheets.php?action=pretech&amp;id=<?= (int)$mode['sheet_id'] ?>">Open that page</a>.</p>
@@ -120,7 +124,9 @@ function renderPretechPage(array $sheet, array $event, array $mode, array $snaps
     <?php endif; ?>
   </div>
 
-<?php if ($formMode): ?>
+<?php if ($formMode && $noRequirements): ?>
+  <p class="badge-fail">This tech sheet's class isn't on the club's current list. Edit the sheet and pick a class before adding photos.</p>
+<?php elseif ($formMode): ?>
   <div class="checklist-progress-wrap">
     <div class="checklist-progress-label" id="pretech-progress"><?= (int)$done ?> of <?= (int)$requiredTotal ?> required photos</div>
     <div class="checklist-progress-bar"><div class="checklist-progress-fill" id="pretech-fill" style="width:<?= $requiredTotal > 0 ? (int)round($done / $requiredTotal * 100) : 0 ?>%"></div></div>

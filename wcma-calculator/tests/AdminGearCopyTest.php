@@ -46,4 +46,19 @@ final class AdminGearCopyTest extends TestCase
             $this->assertStringNotContainsString('ADMIN_TECH_NAV', $src, $file);
         }
     }
+
+    public function testPhotoAcceptPassesALevelAndIceCardHasAPicker(): void
+    {
+        $src = $this->src('admin-gear.php');
+        $this->assertStringContainsString("gearAcceptByPhotos(\$pdo, \$id, (int)\$user['id'], \$level)", $src);
+        $this->assertStringContainsString('gearSuggestedLevel(', $src);
+        $this->assertStringNotContainsString("Photo review isn't available for ice gear yet.", $src);
+    }
+
+    public function testLevelHintDoesNotSteerInspectorsToCagedForEceHelmets(): void
+    {
+        $src = $this->src('admin-gear.php');
+        $this->assertStringNotContainsString('choose caged there', $src);
+        $this->assertStringContainsString('NASCC caged classes need SA2020 or newer', $src);
+    }
 }

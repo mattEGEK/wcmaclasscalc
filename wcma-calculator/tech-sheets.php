@@ -216,7 +216,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
     <?php if (pretechSheetEditable($sheet)): ?>
     <a href="tech-sheets.php?action=edit&id=<?= (int)$sheet['id'] ?>" class="btn btn-secondary">Edit</a>
     <?php endif; ?>
-    <?php if ($sheet['status'] === 'submitted' && $carStatus['state'] !== 'accepted' && !techSheetIsIce($sheet)): ?>
+    <?php if ($sheet['status'] === 'submitted' && $carStatus['state'] !== 'accepted'): ?>
     <a href="tech-sheets.php?action=pretech&id=<?= (int)$sheet['id'] ?>" class="btn btn-secondary">Get pre-teched (optional)</a>
     <?php endif; ?>
     <form method="post" action="tech-sheets.php?action=resend" style="display:inline">
@@ -228,7 +228,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
   </div>
   <p class="no-print">Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h(techCarStatusLabel($carStatus, (int)($sheet['season'] ?? date('Y')), (string)($sheet['discipline'] ?? 'summer'))) ?></strong></p>
   <?php if ($gearLinks): ?>
-  <div class="no-print"><p><strong>Driver gear</strong></p><?= renderGearChips($gearLinks, 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0)]) ?></div>
+  <div class="no-print"><p><strong>Driver gear</strong></p><?= renderGearChips($gearLinks, 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0), 'sheet_id' => (int)$sheet['id']]) ?></div>
   <?php endif; ?>
   <?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?>
 </div>
@@ -245,11 +245,6 @@ function handlePretech(PDO $pdo, array $user, int $id): void {
         header('Location: garage.php');
         exit;
     }
-    if (techSheetIsIce($sheet)) {
-        setFlash('Photo pre-tech for ice tech sheets isn\'t available yet. Bring the car to tech at the event.', 'error');
-        header('Location: tech-sheets.php?action=view&id=' . $id);
-        exit;
-    }
     $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
     $identity = db_get_sheet_identity_sheets($pdo, $sheet);
     renderPretechPage($sheet, $event, pretechPageMode($sheet, $identity), pretechSnapshot($pdo, $id), generateCsrfToken(), getFlash());
@@ -260,11 +255,6 @@ function handlePretechSubmit(PDO $pdo, array $user, int $id): void {
     if (!$sheet) {
         setFlash('Tech sheet not found.', 'error');
         header('Location: garage.php');
-        exit;
-    }
-    if (techSheetIsIce($sheet)) {
-        setFlash('Photo pre-tech for ice tech sheets isn\'t available yet. Bring the car to tech at the event.', 'error');
-        header('Location: tech-sheets.php?action=view&id=' . $id);
         exit;
     }
 

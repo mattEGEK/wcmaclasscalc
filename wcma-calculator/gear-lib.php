@@ -110,18 +110,19 @@ function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $
 /** Photos of a gear record, which are present, which conditional ones apply, and what is still missing. */
 function gearSnapshot(PDO $pdo, int $id): array {
     $photos = db_get_inspection_photos($pdo, 'gear_record', $id);
+    $requirements = photoRequirementsFor(db_get_gear_record($pdo, $id) ?? [], 'gear');
     $present = [];
     $applicable = [];
     foreach ($photos as $key => $row) {
         if ($row['file_path'] !== '') $present[] = $key;
-        $req = photoRequirementByKey($key);
+        $req = $requirements[$key] ?? null;
         if ($req !== null && $req['tier'] === 'conditional' && (int)$row['applies'] === 1) $applicable[] = $key;
     }
     return [
         'photos' => $photos,
         'present' => $present,
         'applicable' => $applicable,
-        'missing' => photoSetMissingRequired('gear', $present, $applicable),
+        'missing' => photoSetMissingFrom($requirements, $present, $applicable),
     ];
 }
 
@@ -154,8 +155,13 @@ function gearSubmit(PDO $pdo, int $id): array {
     return ['ok' => true, 'error' => null];
 }
 
-/** Inspector accepts a submitted photo set remotely. @return array{ok: bool, error: ?string} */
-function gearAcceptByPhotos(PDO $pdo, int $id, int $reviewerUserId): array {
+/** Inspector accepts a submitted photo set remotely. Ice records also record the confirmed gear level. @return array{ok: bool, error: ?string} */
+function gearAcceptByPhotos(PDO $pdo, int $id, int $reviewerUserId, ?string $level = null): array {
+    $gear = db_get_gear_record($pdo, $id);
+    $isIce = $gear !== null && ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
+    if ($isIce && !isset(ICE_GEAR_LEVEL_LABELS[(string)$level])) {
+        return ['ok' => false, 'error' => 'Choose the gear level: street-safe or caged.'];
+    }
     $own = !$pdo->inTransaction();
     if ($own) $pdo->beginTransaction();
     try {
@@ -164,12 +170,21 @@ function gearAcceptByPhotos(PDO $pdo, int $id, int $reviewerUserId): array {
             return ['ok' => false, 'error' => 'These photos are not awaiting review.'];
         }
         db_set_all_photos_review_status($pdo, 'gear_record', $id, 'accepted');
+        if ($isIce) db_set_gear_level($pdo, $id, $level);
         if ($own) $pdo->commit();
     } catch (Throwable $e) {
         if ($own && $pdo->inTransaction()) $pdo->rollBack();
         throw $e;
     }
     return ['ok' => true, 'error' => null];
+}
+
+/** The level the helmet photo's standard suggests (ice gear), or null. */
+function gearSuggestedLevel(array $snapshot): ?string {
+    $row = $snapshot['photos']['ice_helmet_label'] ?? null;
+    if ($row === null || ($row['file_path'] ?? '') === '') return null;
+    $typed = json_decode((string)($row['typed_value'] ?? ''), true);
+    return is_array($typed) && is_string($typed['standard'] ?? null) ? iceGearLevelForHelmet($typed['standard']) : null;
 }
 
 /**
@@ -386,4 +401,25 @@ function gearCreateAndAcceptInPerson(PDO $pdo, array $sheet, array $drivers, int
         throw $e;
     }
     return ['ok' => true, 'error' => null, 'id' => $id];
+}
+
+/**
+ * Opens ice gear photos from an ice tech sheet: finds or creates the ice gear record for the sheet's
+ * driver, in the sheet's (current) ice season, under the sheet owner.
+ *
+ * @return array{ok: bool, error: ?string, id: ?int}
+ */
+function gearStartIceForSheet(PDO $pdo, array $sheet, int $ownerId): array {
+    $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'id' => null];
+    if ((int)($sheet['user_id'] ?? 0) !== $ownerId) return $fail('Tech sheet not found.');
+    if (($sheet['discipline'] ?? DISCIPLINE_SUMMER) !== DISCIPLINE_ICE) return $fail('That is not an ice tech sheet.');
+    $season = (int)($sheet['season'] ?? 0);
+    if ($season !== gearSeasonNow(DISCIPLINE_ICE)) return $fail('Gear photos can only be added for the current ice season.');
+    $name = trim((string)preg_replace('/\s+/', ' ', (string)($sheet['driver_name'] ?? '')));
+    if ($name === '') return $fail('This tech sheet has no driver.');
+
+    $existing = db_find_gear_record($pdo, $ownerId, gearNameNorm($name), $season, DISCIPLINE_ICE);
+    if ($existing !== null) return ['ok' => true, 'error' => null, 'id' => (int)$existing['id']];
+    $created = gearCreate($pdo, $ownerId, $name, '', $season, DISCIPLINE_ICE);
+    return $created['ok'] ? ['ok' => true, 'error' => null, 'id' => (int)$created['id']] : $fail((string)$created['error']);
 }

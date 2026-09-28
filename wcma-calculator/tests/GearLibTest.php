@@ -296,6 +296,31 @@ final class GearLibTest extends TestCase
         return db_create_user($pdo, ['email' => 'g' . uniqid() . '@example.com', 'name' => 'Owner', 'password_hash' => 'x', 'google_id' => null]);
     }
 
+    // Note: like the Phase 2 season tests, this fails in the ten days before 1 July, when the event
+    // rolls into the next ice season.
+    public function testStartIceForSheetCreatesOrReusesTheOwnersRecord(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->owner($pdo);
+        $car = test_make_car($pdo, $u, '7');
+        $event = db_create_event($pdo, 'NASCC Ice', date('Y-m-d', strtotime('+10 days')), null, 'ice', 'NASCC');
+        $sheet = db_get_tech_sheet($pdo, test_make_ice_sheet($pdo, $u, $car, $event, 'SS'));
+
+        $r = gearStartIceForSheet($pdo, $sheet, $u);
+        $this->assertTrue($r['ok'], (string)$r['error']);
+        $g = db_get_gear_record($pdo, (int)$r['id']);
+        $this->assertSame('ice', $g['discipline']);
+        $this->assertSame((int)$sheet['season'], (int)$g['season']);
+        $this->assertSame('Test Driver', $g['driver_name']);
+        $this->assertSame($r['id'], gearStartIceForSheet($pdo, $sheet, $u)['id']);   // reused, not duplicated
+
+        $this->assertFalse(gearStartIceForSheet($pdo, $sheet, $this->owner($pdo))['ok']);   // not the owner
+        $summer = ['discipline' => 'summer'] + $sheet;
+        $this->assertFalse(gearStartIceForSheet($pdo, $summer, $u)['ok']);
+        $old = ['season' => gearSeasonNow('ice') - 1] + $sheet;
+        $this->assertFalse(gearStartIceForSheet($pdo, $old, $u)['ok']);
+    }
+
     public function testIceSeasonNowAndIceLabels(): void
     {
         $this->assertSame(iceSeasonFromDate(date('Y-m-d')), gearSeasonNow('ice'));
@@ -346,5 +371,41 @@ final class GearLibTest extends TestCase
         $summer = gearLinksForSheet(['user_id' => 4, 'season' => 2027, 'driver_name' => 'Sam'], [], $gear);
         $this->assertSame(1, $summer[0]['gear']['id']);
         $this->assertNull($summer[0]['default_level']);
+    }
+
+    public function testIceGearSnapshotUsesTheIceList(): void
+    {
+        $pdo = make_temp_pdo();
+        $id = (int)gearCreate($pdo, $this->owner($pdo), 'Sam', '', 2027, 'ice')['id'];
+        $this->assertSame(['ice_helmet_label', 'ice_suit_label', 'ice_gloves_shoes'], gearSnapshot($pdo, $id)['missing']);
+    }
+
+    public function testAcceptingIceGearPhotosNeedsALevel(): void
+    {
+        $pdo = make_temp_pdo();
+        $owner = $this->owner($pdo);
+        $id = (int)gearCreate($pdo, $owner, 'Sam', '', 2027, 'ice')['id'];
+        db_mark_gear_photos_draft($pdo, $id);
+        db_transition_gear_photo_status($pdo, $id, ['draft'], 'submitted');
+
+        $this->assertFalse(gearAcceptByPhotos($pdo, $id, $owner)['ok']);
+        $this->assertFalse(gearAcceptByPhotos($pdo, $id, $owner, 'bogus')['ok']);
+        $this->assertSame('submitted', db_get_gear_record($pdo, $id)['photo_status']);
+
+        $this->assertTrue(gearAcceptByPhotos($pdo, $id, $owner, 'street_safe')['ok']);
+        $g = db_get_gear_record($pdo, $id);
+        $this->assertSame('accepted', $g['status']);
+        $this->assertSame('photos', $g['accepted_via']);
+        $this->assertSame('street_safe', $g['level']);
+    }
+
+    public function testSuggestedLevelComesFromTheHelmetPhoto(): void
+    {
+        $snap = fn(?string $std): array => ['photos' => $std === null ? [] : ['ice_helmet_label' => [
+            'file_path' => 'x.jpg', 'typed_value' => json_encode(['standard' => $std]),
+        ]]];
+        $this->assertSame('caged', gearSuggestedLevel($snap('Snell SA2020')));
+        $this->assertSame('street_safe', gearSuggestedLevel($snap('ECE 22.06')));
+        $this->assertNull(gearSuggestedLevel($snap(null)));
     }
 }

@@ -48,7 +48,9 @@ final class GearCreateAcceptSourceTest extends TestCase
 
     public function testOwnerChipsGetTheSheetSeason(): void
     {
-        $this->assertStringContainsString("renderGearChips(\$gearLinks, 'owner', ['sheet_season' => (int)(\$sheet['season'] ?? 0)])", $this->src('tech-sheets.php'));
+        // tech-sheets.php also passes sheet_id (ice-phase3 task 4), so the owner ice chips can
+        // offer an "Add gear photos" link for a driver with no gear record yet.
+        $this->assertStringContainsString("renderGearChips(\$gearLinks, 'owner', ['sheet_season' => (int)(\$sheet['season'] ?? 0), 'sheet_id' => (int)\$sheet['id']])", $this->src('tech-sheets.php'));
         $garage = $this->src('garage-page.php');
         $this->assertStringContainsString("renderGearChips(\$row['gearLinks'], 'owner', ['sheet_season' => (int)(\$sheet['season'] ?? 0)])", $garage);
     }

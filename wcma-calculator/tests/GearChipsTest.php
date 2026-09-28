@@ -103,27 +103,26 @@ final class GearChipsTest extends TestCase
         $this->assertStringContainsString('<option value="street_safe">street-safe</option>', $html);
     }
 
-    public function testOwnerIceLinkWithNoGearHasNoDriversLinkAndPointsToTheTrack(): void
+    public function testOwnerIceChipsOfferIceGearPhotos(): void
     {
-        $none = ['driver_number' => 1, 'name' => 'Sam', 'name_norm' => 'sam', 'discipline' => 'ice', 'default_level' => null,
+        $none = ['driver_number' => 1, 'name' => 'Sam', 'name_norm' => 'sam', 'discipline' => 'ice', 'default_level' => 'caged',
                  'gear' => null, 'status' => ['state' => 'none', 'via' => null]];
-        $html = renderGearChips([$none], 'owner');
-
-        $this->assertStringContainsString('No gear record', $html);
-        $this->assertStringContainsString('Ice gear is checked at the track.', $html);
+        $html = renderGearChips([$none], 'owner', ['sheet_id' => 9, 'sheet_season' => gearSeasonNow('ice')]);
+        $this->assertStringContainsString('href="gear.php?action=start-ice&amp;sheet_id=9">Add gear photos</a> or have it checked at the track.', $html);
         $this->assertStringNotContainsString('drivers.php', $html);
+
+        $has = ['gear' => ['id' => 4, 'season' => 2027, 'discipline' => 'ice', 'level' => null],
+                'status' => ['state' => 'photos_draft', 'via' => null]] + $none;
+        $this->assertStringContainsString('href="gear.php?action=pretech&amp;id=4"', renderGearChips([$has], 'owner'));
     }
 
-    public function testOwnerIceLinkWithAcceptedGearIsPlainTextNotAPretechLink(): void
+    public function testOwnerIceChipWithNoSheetIdOffersNoStartIceLink(): void
     {
-        $accepted = ['driver_number' => 1, 'name' => 'Sam', 'name_norm' => 'sam', 'discipline' => 'ice', 'default_level' => 'caged',
-                     'gear' => ['id' => 3, 'season' => 2027, 'discipline' => 'ice', 'level' => 'caged'],
-                     'status' => ['state' => 'accepted', 'via' => 'in_person']];
-        $html = renderGearChips([$accepted], 'owner');
-
-        $this->assertStringNotContainsString('gear.php?action=pretech', $html);
-        $this->assertStringContainsString('Gear teched Ice 2027 · caged', $html);
-        $this->assertStringContainsString('<span class="badge-ok">Gear teched Ice 2027 · caged</span>', $html);
+        $none = ['driver_number' => 1, 'name' => 'Sam', 'name_norm' => 'sam', 'discipline' => 'ice', 'default_level' => 'caged',
+                 'gear' => null, 'status' => ['state' => 'none', 'via' => null]];
+        $html = renderGearChips([$none], 'owner');
+        $this->assertStringContainsString('Gear is checked at the track.', $html);
+        $this->assertStringNotContainsString('start-ice', $html);
     }
 
     public function testSummerCreateFormHasNoLevelPicker(): void

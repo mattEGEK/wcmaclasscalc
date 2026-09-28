@@ -122,4 +122,30 @@ final class GearPageTest extends TestCase
         $text = strip_tags(preg_replace('/<script.*?<\/script>/s', '', $html));
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', $text);
     }
+
+    public function testIceGearRecordShowsIceRequirementsAndLabel(): void
+    {
+        $html = $this->renderPretech(
+            $this->gear(['id' => 3, 'discipline' => 'ice', 'season' => 2027, 'driver_name' => 'Sam', 'status' => 'open', 'photo_status' => null]),
+            $this->snapshot()
+        );
+        $this->assertStringContainsString('data-key="ice_helmet_label"', $html);
+        $this->assertStringNotContainsString('data-key="helmet_label"', $html);
+        $this->assertStringContainsString('Sam — Ice 2027', $html);
+    }
+
+    public function testIceGearRecordLinksBackToTheGarageNotDrivers(): void
+    {
+        $html = $this->renderPretech($this->gear(['discipline' => 'ice', 'season' => 2027]), $this->snapshot());
+        $this->assertStringContainsString('href="garage.php"', $html);
+        $this->assertStringContainsString('Back to Garage', $html);
+        $this->assertStringNotContainsString('Back to Drivers', $html);
+    }
+
+    public function testSummerGearRecordStillLinksBackToDrivers(): void
+    {
+        $html = $this->renderPretech($this->gear(), $this->snapshot());
+        $this->assertStringContainsString('href="drivers.php"', $html);
+        $this->assertStringContainsString('Back to Drivers', $html);
+    }
 }

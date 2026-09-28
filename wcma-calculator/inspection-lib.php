@@ -7,6 +7,7 @@
 // db.php and photo-requirements.php.
 
 require_once __DIR__ . '/roles.php';
+require_once __DIR__ . '/photo-requirements.php';
 
 const INSPECTION_MAX_BYTES = 2 * 1024 * 1024;
 const INSPECTION_MAX_EDGE = 4000;
@@ -18,6 +19,16 @@ const INSPECTION_MAX_EDGE = 4000;
  * endpoint returns 404 for that type.
  */
 const INSPECTION_SUBJECT_SCOPE = ['tech_sheet' => 'car', 'gear_record' => 'gear'];
+
+/** The row a photo belongs to (a tech sheet or gear record), or [] if it doesn't exist (treated as summer). */
+function inspectionSubjectRow(PDO $pdo, string $subjectType, int $subjectId): array {
+    $row = match ($subjectType) {
+        'tech_sheet' => db_get_tech_sheet($pdo, $subjectId),
+        'gear_record' => db_get_gear_record($pdo, $subjectId),
+        default => null,
+    };
+    return $row ?? [];
+}
 
 /**
  * Checks an uploaded file really is a JPEG/PNG/WebP of acceptable size and
@@ -79,10 +90,9 @@ function inspectionSavePhoto(
     $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'photo' => null];
 
     if (!isset(INSPECTION_SUBJECT_SCOPE[$subjectType])) return $fail('Unknown photo subject.');
-    $requirement = photoRequirementByKey($requirementKey);
-    if ($requirement === null || $requirement['scope'] !== INSPECTION_SUBJECT_SCOPE[$subjectType]) {
-        return $fail('Unknown photo type.');
-    }
+    $scope = INSPECTION_SUBJECT_SCOPE[$subjectType];
+    $requirement = photoRequirementForSubject(inspectionSubjectRow($pdo, $subjectType, $subjectId), $scope, $requirementKey);
+    if ($requirement === null) return $fail('Unknown photo type.');
 
     $typed = photoValidateTypedValue($requirement, $typedInput);
     if ($typed === null) return $fail('One of the details entered for this photo is not valid.');
@@ -103,7 +113,7 @@ function inspectionSavePhoto(
     try {
         $previous = db_upsert_inspection_photo($pdo, [
             'subject_type' => $subjectType, 'subject_id' => $subjectId, 'requirement_key' => $requirementKey,
-            'requirement_version' => PHOTO_REQUIREMENTS_VERSION, 'file_path' => $relative,
+            'requirement_version' => (int)$requirement['version'], 'file_path' => $relative,
             'typed_value' => $typed ? json_encode($typed) : null,
         ]);
     } catch (Throwable $e) {
@@ -158,13 +168,12 @@ function inspectionSetApplies(PDO $pdo, string $baseDir, string $subjectType, in
     $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg];
 
     if (!isset(INSPECTION_SUBJECT_SCOPE[$subjectType])) return $fail('Unknown photo subject.');
-    $requirement = photoRequirementByKey($requirementKey);
-    if ($requirement === null || $requirement['scope'] !== INSPECTION_SUBJECT_SCOPE[$subjectType]) {
-        return $fail('Unknown photo type.');
-    }
+    $scope = INSPECTION_SUBJECT_SCOPE[$subjectType];
+    $requirement = photoRequirementForSubject(inspectionSubjectRow($pdo, $subjectType, $subjectId), $scope, $requirementKey);
+    if ($requirement === null) return $fail('Unknown photo type.');
     if ($requirement['tier'] !== 'conditional') return $fail('That photo is not optional.');
 
-    $previous = db_set_conditional_photo_applies($pdo, $subjectType, $subjectId, $requirementKey, PHOTO_REQUIREMENTS_VERSION, $applies);
+    $previous = db_set_conditional_photo_applies($pdo, $subjectType, $subjectId, $requirementKey, (int)$requirement['version'], $applies);
     if ($previous !== null && $previous !== '' && is_file($baseDir . '/' . $previous)) {
         unlink($baseDir . '/' . $previous);
     }
@@ -187,7 +196,10 @@ function inspectionUpdateTyped(PDO $pdo, int $photoId, array $typedInput): array
     if ($photo === null) return ['ok' => false, 'error' => 'Photo not found.'];
     if ($photo['file_path'] === '') return ['ok' => false, 'error' => 'Add the photo first, then its details.'];
 
-    $requirement = photoRequirementByKey($photo['requirement_key']);
+    $requirement = photoRequirementForSubject(
+        inspectionSubjectRow($pdo, (string)$photo['subject_type'], (int)$photo['subject_id']),
+        INSPECTION_SUBJECT_SCOPE[$photo['subject_type']] ?? '', (string)$photo['requirement_key']
+    );
     $typed = $requirement === null ? null : photoValidateTypedValue($requirement, $typedInput);
     if ($typed === null) return ['ok' => false, 'error' => 'One of the details entered for this photo is not valid.'];
 
