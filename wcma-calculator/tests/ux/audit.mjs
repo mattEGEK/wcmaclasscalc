@@ -1,0 +1,175 @@
+// wcma-calculator/tests/ux/audit.mjs — phone audit (mobile UX spec 2026-09-28 §B4). Run via run-audit.sh.
+import { chromium } from 'playwright';
+
+const BASE = process.env.UX_BASE || 'http://localhost:8170';
+const RULES = { tap: 44, check: 24, inputFont: 16, text: 16, contrast: 4.5 };
+
+/** Runs inside the page. Returns one string per problem. */
+function auditInPage(R) {
+  const problems = [];
+  const visible = el => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0'; };
+  const describe = el => `${el.tagName.toLowerCase()}${typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).join('.') : ''} "${(el.innerText || el.value || el.getAttribute('aria-label') || el.name || '').trim().replace(/\s+/g, ' ').slice(0, 40)}"`;
+  const skipped = el => el.closest('.hub-skip, .no-audit, [aria-hidden="true"], script, style, noscript');
+  // A link inside a sentence is exempt from the tap-height rule; header, footer, sub-nav and row links are not.
+  const inProse = a => {
+    if (a.closest('.hub-account, .hub-footer, .hub-subnav, .hub-line')) return false;
+    const p = a.parentElement;
+    return getComputedStyle(a).display === 'inline' && ['P', 'LI', 'TD', 'DD', 'SPAN', 'STRONG', 'EM', 'SMALL', 'LABEL'].includes(p.tagName)
+      && (p.innerText || '').trim().length > (a.innerText || '').trim().length + 3;
+  };
+
+  const over = document.documentElement.scrollWidth - innerWidth;
+  if (over > 0) problems.push(`page scrolls sideways by ${over}px`);
+
+  for (const el of document.querySelectorAll('a, button, input, select, textarea, summary, label.pretech-upload')) {
+    if (!visible(el) || skipped(el)) continue;
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    if (el.tagName === 'INPUT' && ['hidden', 'file'].includes(type)) continue;
+    const r = el.getBoundingClientRect();
+    if (el.tagName === 'INPUT' && (type === 'checkbox' || type === 'radio')) {
+      if (r.width < R.check || r.height < R.check) problems.push(`${type} smaller than ${R.check}px: ${describe(el)} ${Math.round(r.width)}x${Math.round(r.height)}`);
+      const row = el.closest('label');
+      if (row && row.getBoundingClientRect().height < R.tap) problems.push(`${type} label row shorter than ${R.tap}px: ${describe(row)}`);
+      continue;
+    }
+    if (el.tagName === 'A' && inProse(el)) continue;
+    if (r.height < R.tap) problems.push(`tap target shorter than ${R.tap}px: ${describe(el)} ${Math.round(r.width)}x${Math.round(r.height)}`);
+    if (/INPUT|SELECT|TEXTAREA/.test(el.tagName) && parseFloat(getComputedStyle(el).fontSize) < R.inputFont)
+      problems.push(`input text under ${R.inputFont}px: ${describe(el)}`);
+  }
+
+  // A disabled button must not look like an enabled one: its border must be dashed.
+  for (const el of document.querySelectorAll('button:disabled, .hub-btn[aria-disabled="true"]')) {
+    if (visible(el) && !skipped(el) && getComputedStyle(el).borderTopStyle !== 'dashed') problems.push(`disabled button looks enabled: ${describe(el)}`);
+  }
+  // An enabled button must not be grey (the legacy #95a5a6 look).
+  for (const el of document.querySelectorAll('button:not(:disabled), a.btn, a.hub-btn, label.pretech-upload')) {
+    if (!visible(el) || skipped(el)) continue;
+    if (getComputedStyle(el).backgroundColor.replace(/\s/g, '') === 'rgb(149,165,166)') problems.push(`enabled button is grey: ${describe(el)}`);
+  }
+
+  const lum = c => { const v = c.map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+  const rgba = s => { const m = s.match(/[\d.]+/g) || []; return m.map(Number); };
+  const bgOf = el => { for (let e = el; e; e = e.parentElement) { const c = rgba(getComputedStyle(e).backgroundColor); if (c.length === 3 || (c.length === 4 && c[3] > 0.5)) return c.slice(0, 3); } return [255, 255, 255]; };
+  const seen = new Set();
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const node = walker.currentNode;
+    const el = node.parentElement;
+    if (!node.textContent.trim() || !el || seen.has(el) || !visible(el) || skipped(el) || el.closest('select')) continue;
+    seen.add(el);
+    const s = getComputedStyle(el);
+    const size = parseFloat(s.fontSize);
+    if (size < R.text) problems.push(`text under ${R.text}px (${size}px): ${describe(el)}`);
+    const [a, b] = [lum(rgba(s.color).slice(0, 3)), lum(bgOf(el))].sort((x, y) => y - x);
+    const ratio = (a + 0.05) / (b + 0.05);
+    if (ratio < R.contrast) problems.push(`contrast ${ratio.toFixed(2)}:1 (${s.color} on rgb(${bgOf(el).join(',')})): ${describe(el)}`);
+  }
+  return [...new Set(problems)];
+}
+
+/**
+ * Markup from pages the flow doesn't visit (admin, inspector, calculator, Garage), injected into a
+ * real page so the cascade is the real one. Returns one string per problem.
+ */
+function styleFixturesInPage() {
+  const box = document.createElement('div');
+  box.innerHTML = '<form><button type="submit" class="btn btn-secondary" id="fx-secondary">Send back</button>'
+    + '<button type="submit" class="btn btn-primary" id="fx-primary">Accept</button></form>'
+    + '<details id="fx-details"><summary>How is my class calculated?</summary><p>x</p></details>'
+    + '<fieldset class="garage-season"><div class="garage-season-options"><label id="fx-season"><input type="radio" name="fx"><span>Ice</span></label></div></fieldset>';
+  document.querySelector('main, .container, body').appendChild(box);
+  const problems = [];
+  const bg = id => getComputedStyle(document.getElementById(id)).backgroundColor;
+  if (bg('fx-secondary') === bg('fx-primary')) problems.push(`secondary submit button looks like the primary (${bg('fx-secondary')})`);
+  const google = document.querySelector('.btn-google');
+  if (google && getComputedStyle(google).backgroundColor === bg('fx-primary')) problems.push('"Sign in with Google" looks like the primary button');
+  const sum = document.querySelector('#fx-details summary');
+  const marker = getComputedStyle(sum).display === 'list-item' || getComputedStyle(sum, '::before').content !== 'none';
+  if (!marker) problems.push('<summary> has no disclosure triangle');
+  const season = parseFloat(getComputedStyle(document.getElementById('fx-season')).minHeight);
+  if (!(season >= 56)) problems.push(`Garage season card min-height is ${season}px, not its own 56px+`);
+  box.remove();
+  return problems;
+}
+
+let failed = 0;
+async function audit(page, name) {
+  await page.waitForLoadState('networkidle');
+  // php -S serves one request at a time: wait until hub.css has applied (body.hub is 18px) before judging.
+  await page.waitForFunction(() => getComputedStyle(document.body).fontSize === '18px', null, { timeout: 15000 });
+  for (const [label, scale] of [[name, 1], [name + ' @150%', 1.5]]) {
+    const style = scale === 1 ? null : await page.addStyleTag({ content: `html { font-size: ${scale * 100}% !important; } body.hub { font-size: ${18 * scale}px !important; }` });
+    const problems = await page.evaluate(auditInPage, RULES);
+    if (style) await style.evaluate(n => n.remove());
+    report(label, problems);
+  }
+  // Browser zoom at 150% on a 375px phone lays the page out at 250px wide, so px-sized rules scale too.
+  const size = page.viewportSize();
+  await page.setViewportSize({ width: 250, height: 533 });
+  report(name + ' @250px (150% zoom)', await page.evaluate(auditInPage, RULES));
+  await page.setViewportSize(size);
+}
+
+function report(label, problems) {
+  if (problems.length) failed++;
+  console.log(`${problems.length ? 'FAIL' : 'ok  '} ${label}${problems.length ? '\n  - ' + problems.join('\n  - ') : ''}`);
+}
+
+const browser = await chromium.launch();
+try {
+  const ctx = await browser.newContext({ viewport: { width: 375, height: 800 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const page = await ctx.newPage();
+  const go = async sel => Promise.all([page.waitForNavigation(), page.click(sel)]);
+
+  await page.goto(BASE + '/index.php'); await audit(page, 'landing');
+  await page.goto(BASE + '/auth.php?action=login'); await audit(page, 'sign in');
+  report('style fixtures (admin, inspector, calculator markup)', await page.evaluate(styleFixturesInPage));
+  await page.goto(BASE + '/auth.php?action=register'); await audit(page, 'create account');
+  await page.fill('#name', 'Pat Winters');
+  await page.fill('#email', `pat${Date.now()}@example.com`);
+  await page.fill('input[name=password]', 'password123');
+  await page.fill('input[name=password_confirm]', 'password123');
+  await go('button[type=submit]');
+  await audit(page, 'home');
+
+  await go('section.hub-event:has-text("NASCC") a:has-text("Add a car for this event")');
+  await audit(page, 'add a car');
+  await page.fill('#car-car_number', '42');
+  await page.fill('#car-make', 'Honda');
+  await page.fill('#car-model', 'Civic');
+  await page.fill('#car-colour', 'Blue');
+  await go('button:has-text("Add car")');
+
+  await page.selectOption('select[name=class]', 'SS');
+  await page.waitForTimeout(300);
+  await audit(page, 'ice tech sheet');
+  await page.fill('input[name=car_weight]', '2700');
+  await page.fill('input[name=engine_hp]', '140');
+  for (const h of await page.locator('.checklist-section-header').all()) await h.click();
+  for (const b of await page.locator('button:text-is("OK"), button:text-is("Confirm")').all()) if (await b.isVisible()) await b.click();
+  const ratings = page.locator('input[placeholder^="Rating"]');
+  for (let i = 0; i < await ratings.count(); i++) await ratings.nth(i).fill(i ? 'SFI 3.2A/1' : 'SA2020');
+  await page.check('input[name=log_book_turned_in][value="1"]');
+  await page.evaluate(() => {
+    for (const cv of document.querySelectorAll('canvas')) {
+      if (!cv.getBoundingClientRect().width) continue;
+      const r = cv.getBoundingClientRect();
+      const ev = (t, x, y) => cv.dispatchEvent(new PointerEvent(t, { bubbles: true, clientX: r.left + x, clientY: r.top + y, pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 }));
+      ev('pointerdown', 20, 40); for (let i = 1; i <= 10; i++) ev('pointermove', 20 + i * 15, 40 + i * 5); ev('pointerup', 170, 90);
+    }
+  });
+  await go('button[type=submit]');
+  await audit(page, 'submitted sheet');
+
+  const carUrl = await page.locator('.hub-subnav a').first().getAttribute('href');
+  await go('a:has-text("Pre-tech with photos")');
+  await audit(page, 'pre-tech photos');
+  await page.goto(BASE + '/' + carUrl);
+  await audit(page, 'car page');
+} finally {
+  await browser.close();
+}
+console.log(failed ? `\n${failed} page check(s) failed` : '\nAll pages pass');
+process.exit(failed ? 1 : 0);

@@ -1,0 +1,6 @@
+{
+  "private": true,
+  "type": "module",
+  "description": "Phone audit for the WCMA Hub (mobile UX spec 2026-09-28 §B4)",
+  "devDependencies": { "playwright": "1.63.0" }
+}

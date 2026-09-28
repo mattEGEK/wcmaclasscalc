@@ -22,4 +22,9 @@ final class TechSheetViewSourceTest extends TestCase
         $this->assertStringNotContainsString('Tech Sheet #', $body);
         $this->assertStringNotContainsString('btn-primary">Resend', $body);
     }
+
+    public function testRenderedSheetIsWrappedForScreenSizing(): void
+    {
+        $this->assertStringContainsString('<div class="sheet-doc"><?= renderTechSheetHtml(', $this->viewBody());
+    }
 }
