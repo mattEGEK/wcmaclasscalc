@@ -52,6 +52,22 @@ final class DriversLibTest extends TestCase
         $this->assertArrayNotHasKey('ice', driversRows($drivers, [], 5, 2026)[0]);
     }
 
+    public function testIceSheetIdsByDriverIncludeAddedDriversNotOnlyThePrimary(): void
+    {
+        $sheets = [
+            ['id' => 9, 'season' => 2027, 'discipline' => 'ice', 'driver_id' => 5],
+            ['id' => 10, 'season' => 2027, 'discipline' => 'ice', 'driver_id' => 5],
+            ['id' => 11, 'season' => 2026, 'discipline' => 'ice', 'driver_id' => 6],   // wrong season: ignored
+            ['id' => 12, 'season' => 2027, 'discipline' => 'summer', 'driver_id' => 7],   // not ice: ignored
+        ];
+        // Driver 6 is an added driver (tech_sheet_drivers) on sheet 9 only, not on the newer sheet 10.
+        $sheetDrivers = [9 => [6]];
+        $byDriver = driversIceSheetIdsByDriver($sheets, $sheetDrivers, 2027);
+        $this->assertSame(10, $byDriver[5]);   // primary driver: newest of their two sheets
+        $this->assertSame(9, $byDriver[6]);    // added driver: the one sheet naming them, not sheet 10
+        $this->assertArrayNotHasKey(7, $byDriver);
+    }
+
     public function testAddCreatesACoDriverAndRejectsBlankLongAndDuplicateNames(): void
     {
         $pdo = make_temp_pdo();

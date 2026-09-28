@@ -46,22 +46,37 @@ $self = db_get_self_driver($pdo, $uid);
 
 $iceSeason = gearSeasonNow(DISCIPLINE_ICE);
 $userSheets = db_get_user_tech_sheets($pdo, $uid);
-$iceSheetByDriver = [];
-foreach ($userSheets as $s) {
-    if (!techSheetIsIce($s) || (int)$s['season'] !== $iceSeason) continue;
-    $did = (int)($s['driver_id'] ?? 0);
-    if (!isset($iceSheetByDriver[$did]) || (int)$s['id'] > $iceSheetByDriver[$did]) $iceSheetByDriver[$did] = (int)$s['id'];
+$iceSheets = array_values(array_filter($userSheets, fn(array $s): bool => techSheetIsIce($s)));
+
+// The sheet's own driver_id AND any added drivers (tech_sheet_drivers) both count, per
+// readiness-lib.php's $sheetDrivers pattern — an added driver still needs a photos link.
+$sheetDriverRows = db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $iceSheets));
+$sheetDrivers = [];
+foreach ($sheetDriverRows as $sheetId => $rows) {
+    $sheetDrivers[(int)$sheetId] = array_map(fn(array $r): int => (int)($r['driver_id'] ?? 0), $rows);
 }
+$iceSheetByDriver = driversIceSheetIdsByDriver($iceSheets, $sheetDrivers, $iceSeason);
+
+// One query for every gear record this owner has, instead of two DB round-trips per driver: also
+// lets us tell whether the user has any ice activity at all before building $ice.
+$ownerGear = db_get_user_gear_records($pdo, $uid);
+$gearByKey = [];
+$iceActivity = (bool)$iceSheets;
+foreach ($ownerGear as $g) {
+    $discipline = (string)($g['discipline'] ?? DISCIPLINE_SUMMER);
+    $gearByKey[(int)$g['driver_id'] . ':' . (int)$g['season'] . ':' . $discipline] = $g;
+    if ($discipline === DISCIPLINE_ICE) $iceActivity = true;
+}
+
 $ice = [];
-$iceActivity = (bool)array_filter($userSheets, fn(array $s): bool => techSheetIsIce($s));
-foreach ($drivers as $d) {
-    $did = (int)$d['id'];
-    $iceGear = db_get_gear_record_for_driver($pdo, $did, $iceSeason, DISCIPLINE_ICE);
-    if ($iceGear !== null) $iceActivity = true;
-    $ice[$did] = gearIceSummary($iceGear, db_get_gear_record_for_driver($pdo, $did, $iceSeason - 1), $iceSeason)
-        + ['sheetId' => $iceSheetByDriver[$did] ?? null];
+if ($iceActivity) {
+    foreach ($drivers as $d) {
+        $did = (int)$d['id'];
+        $iceGear = $gearByKey["$did:$iceSeason:" . DISCIPLINE_ICE] ?? null;
+        $summerPrev = $gearByKey["$did:" . ($iceSeason - 1) . ':' . DISCIPLINE_SUMMER] ?? null;
+        $ice[$did] = gearIceSummary($iceGear, $summerPrev, $iceSeason) + ['sheetId' => $iceSheetByDriver[$did] ?? null];
+    }
 }
-if (!$iceActivity) $ice = [];
 
 renderPageStart('Drivers', 'drivers', ['flash' => getFlash()]);
 echo renderDriversHtml([

@@ -99,11 +99,17 @@ $drivers = [];
 foreach ($in['drivers'] as $did => $d) {
     $g = $in['gear']["$did:$season"] ?? null;
     $st = $g !== null ? gearStatus($g) : ['state' => 'none', 'via' => null];
+    $ice = null;
+    if ($hasIceActivity) {
+        // loadReadinessInputs() already loaded the prior-season summer record whenever there's an
+        // active ice event (for carry-over); only query when that key genuinely isn't there.
+        $summerKey = "$did:" . ($iceSeason - 1);
+        $summerPrev = array_key_exists($summerKey, $in['gear']) ? $in['gear'][$summerKey] : db_get_gear_record_for_driver($pdo, $did, $iceSeason - 1);
+        $ice = gearIceSummary($in['iceGear']["$did:$iceSeason"] ?? null, $summerPrev, $iceSeason);
+    }
     $drivers[] = ['name' => (string)$d['name'], 'isSelf' => $did === $in['selfDriverId'],
                   'gearLabel' => gearStatusLabel($st, $season), 'gearState' => $st['state'],
-                  'ice' => $hasIceActivity
-                      ? gearIceSummary($in['iceGear']["$did:$iceSeason"] ?? null, db_get_gear_record_for_driver($pdo, $did, $iceSeason - 1), $iceSeason)
-                      : null];
+                  'ice' => $ice];
 }
 
 $userRow = db_find_user_by_id($pdo, $uid);

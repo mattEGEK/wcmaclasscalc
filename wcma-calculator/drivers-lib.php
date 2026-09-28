@@ -4,7 +4,8 @@
 // Driver profiles for the Drivers page (spec §4): co-drivers, licence numbers, each driver's
 // gear status for the season, and each driver's media profile status (spec 2026-09-27 §3). The
 // profile carries over year to year; the gear check does not.
-// Callers must have loaded db.php, gear-lib.php and media-lib.php.
+// Callers must have loaded db.php, gear-lib.php, ice-sheet-lib.php and media-lib.php.
+require_once __DIR__ . '/ice-sheet-lib.php';   // techSheetIsIce()
 
 /** From January 1 every driver shows "Needs gear tech {season}" until there is gear activity. */
 function driversGearLabel(array $status, int $season): string {
@@ -40,6 +41,30 @@ function driversRows(array $drivers, array $gear, int $selfId, int $season, arra
         $rows[] = $row;
     }
     return $rows;
+}
+
+/**
+ * The newest current-ice-season tech sheet id naming each driver — as the sheet's primary driver
+ * (driver_id) or as an added driver (a tech_sheet_drivers row, per readiness-lib.php's
+ * $sheetDrivers pattern) — for the "Add ice gear photos" action on the Drivers page.
+ *
+ * @param array $sheets tech_sheets rows; non-ice rows and rows for another season are ignored
+ * @param array $sheetDrivers sheet id => int[] added driver ids (e.g. db_get_drivers_for_sheets()
+ *                            rows mapped to their driver_id, as loadReadinessInputs() builds them)
+ * @return array<int,int> driver id => newest sheet id
+ */
+function driversIceSheetIdsByDriver(array $sheets, array $sheetDrivers, int $iceSeason): array {
+    $byDriver = [];
+    foreach ($sheets as $s) {
+        if (!techSheetIsIce($s) || (int)($s['season'] ?? 0) !== $iceSeason) continue;
+        $sid = (int)$s['id'];
+        $driverIds = array_unique(array_merge([(int)($s['driver_id'] ?? 0)], array_map('intval', $sheetDrivers[$sid] ?? [])));
+        foreach ($driverIds as $did) {
+            if ($did <= 0) continue;
+            if (!isset($byDriver[$did]) || $sid > $byDriver[$did]) $byDriver[$did] = $sid;
+        }
+    }
+    return $byDriver;
 }
 
 /** Adds a co-driver the owner manages. @return array{ok: bool, error: ?string, id: ?int} */
