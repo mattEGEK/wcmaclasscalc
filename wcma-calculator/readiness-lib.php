@@ -1,9 +1,9 @@
 <?php
 // wcma-calculator/readiness-lib.php
 //
-// What a competitor still has to do for the events they tagged (spec §3). buildReadiness() is
-// pure: no DB, no HTML. loadReadinessInputs() (Task 5) gathers its input from the database.
-// Callers must have loaded tech-status.php and gear-lib.php.
+// What a competitor still has to do for the events they tagged (spec §3), for both summer and ice
+// events. buildReadiness() is pure: no DB, no HTML. loadReadinessInputs() gathers its input from
+// the database. Callers must have loaded tech-status.php and gear-lib.php.
 require_once __DIR__ . '/ice-sheet-lib.php';   // techSheetIsIce()
 require_once __DIR__ . '/ice-rules.php';
 
@@ -261,8 +261,7 @@ function loadReadinessInputs(PDO $pdo, int $userId, string $today): array {
     $cars = [];
     foreach (db_get_user_cars($pdo, $userId) as $c) $cars[(int)$c['id']] = $c;
 
-    // Summer readiness only (ice readiness is Phase 4): an ice sheet must never count as summer car tech.
-    $sheets = array_values(array_filter(db_get_user_tech_sheets($pdo, $userId), fn(array $s): bool => !techSheetIsIce($s)));
+    $sheets = db_get_user_tech_sheets($pdo, $userId);
     $sheetDrivers = [];
     foreach (db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $sheets)) as $sheetId => $rows) {
         $sheetDrivers[(int)$sheetId] = array_values(array_filter(array_map(fn(array $r): int => (int)($r['driver_id'] ?? 0), $rows)));
@@ -272,19 +271,43 @@ function loadReadinessInputs(PDO $pdo, int $userId, string $today): array {
     foreach (db_get_user_drivers($pdo, $userId) as $d) $drivers[(int)$d['id']] = $d;
     $self = db_get_self_driver($pdo, $userId);
 
-    $events = db_get_active_events($pdo, DISCIPLINE_SUMMER);
-    $seasons = array_values(array_unique(array_map(fn(array $e): int => techSeasonFromDate((string)$e['event_date']), $events)));
+    $events = db_get_active_events($pdo);
+    $summerSeasons = [];
+    $iceSeasons = [];
+    foreach ($events as $e) {
+        $key = seasonForEvent($e);
+        if ($key['discipline'] === DISCIPLINE_ICE) {
+            $iceSeasons[$key['season']] = true;
+            $summerSeasons[$key['season'] - 1] = true;   // summer gear carries over to the next ice season
+        } else {
+            $summerSeasons[$key['season']] = true;
+        }
+    }
     $gear = [];
+    $iceGear = [];
+    $iceGearFhr = [];
     foreach (array_keys($drivers) as $did) {
-        foreach ($seasons as $season) {
+        foreach (array_keys($summerSeasons) as $season) {
             $g = db_get_gear_record_for_driver($pdo, $did, $season);
             if ($g !== null) $gear["$did:$season"] = $g;
+        }
+        foreach (array_keys($iceSeasons) as $season) {
+            $g = db_get_gear_record_for_driver($pdo, $did, $season, DISCIPLINE_ICE);
+            if ($g === null) continue;
+            $iceGear["$did:$season"] = $g;
+            if (($g['accepted_via'] ?? null) === 'photos') {
+                $fhr = db_get_inspection_photos($pdo, 'gear_record', (int)$g['id'])['ice_fhr_label'] ?? null;
+                $iceGearFhr[(int)$g['id']] = $fhr !== null && ($fhr['file_path'] ?? '') !== '';
+            }
         }
     }
 
     $atTrack = [];
-    foreach ($seasons as $season) {
+    foreach (array_keys($summerSeasons) as $season) {
         $atTrack = array_merge($atTrack, db_get_at_track_keys($pdo, array_keys($cars), array_keys($drivers), $season));
+    }
+    foreach (array_keys($iceSeasons) as $season) {
+        $atTrack = array_merge($atTrack, db_get_at_track_keys($pdo, array_keys($cars), array_keys($drivers), $season, DISCIPLINE_ICE));
     }
 
     return [
@@ -298,6 +321,8 @@ function loadReadinessInputs(PDO $pdo, int $userId, string $today): array {
         'drivers' => $drivers,
         'selfDriverId' => $self !== null ? (int)$self['id'] : 0,
         'gear' => $gear,
+        'iceGear' => $iceGear,
+        'iceGearFhr' => $iceGearFhr,
         'atTrack' => array_values(array_unique($atTrack)),
     ];
 }

@@ -47,7 +47,7 @@ final class ReadinessLoaderTest extends TestCase
         $this->assertCount(1, $result['events']);
     }
 
-    public function testTaggedIceEventProducesNoReadinessItems(): void
+    public function testTaggedIceEventNowProducesIceItems(): void
     {
         $pdo = make_temp_pdo();
         $u = db_create_user($pdo, ['email' => 'ice@example.com', 'name' => 'Ice Racer', 'password_hash' => 'x', 'google_id' => null]);
@@ -56,23 +56,32 @@ final class ReadinessLoaderTest extends TestCase
         db_tag_event($pdo, $u, $iceEvent, $car);
 
         $in = loadReadinessInputs($pdo, $u, '2026-09-26');
-        $this->assertSame([], $in['events']);   // the ice event is filtered out at the source
-
-        $result = buildReadiness($in);
-        $this->assertSame([], $result['events']);
-        $this->assertSame([], $result['untagged']);
+        $this->assertSame([$iceEvent], array_map(fn($e) => (int)$e['id'], $in['events']));
+        $kinds = array_map(fn($i) => $i['kind'], buildReadiness($in)['events'][0]['items']);
+        $this->assertNotContains('declaration', $kinds);
+        $this->assertContains('tech_sheet', $kinds);
     }
 
-    public function testLoaderKeepsOnlySummerSheets(): void
+    public function testLoaderGathersIceGearCarryOverFhrAndIceAtTrack(): void
     {
         $pdo = make_temp_pdo();
         $u = db_create_user($pdo, ['email' => 'both@example.com', 'name' => 'Both Seasons', 'password_hash' => 'x', 'google_id' => null]);
         $car = test_make_car($pdo, $u, '7');
-        $ice = db_create_event($pdo, 'NASCC Ice #1', '2027-01-10', null, 'ice', 'NASCC');
-        $sheet = test_make_ice_sheet($pdo, $u, $car, $ice);
-        db_accept_tech_sheet_in_person($pdo, $sheet, $u, 'uploads/sig.png');
+        db_create_event($pdo, 'NASCC Ice #1', '2027-01-10', null, 'ice', 'NASCC');
+        $self = (int)db_get_self_driver($pdo, $u)['id'];
+        $summer = (int)gearCreate($pdo, $u, (string)db_get_driver($pdo, $self)['name'], '', 2026)['id'];
+        $ice = (int)gearCreate($pdo, $u, (string)db_get_driver($pdo, $self)['name'], '', 2027, 'ice')['id'];
+        db_upsert_inspection_photo($pdo, ['subject_type' => 'gear_record', 'subject_id' => $ice, 'requirement_key' => 'ice_fhr_label',
+            'requirement_version' => 1, 'file_path' => 'uploads/x.jpg', 'typed_value' => null]);
+        db_mark_gear_photos_draft($pdo, $ice);
+        db_transition_gear_photo_status($pdo, $ice, ['draft'], 'submitted');
+        gearAcceptByPhotos($pdo, $ice, $u, 'caged');
+        db_set_at_track($pdo, 'car', $car, 2027, 'ice', 'NASCC');
 
         $in = loadReadinessInputs($pdo, $u, '2026-09-26');
-        $this->assertSame([], $in['sheets']);
+        $this->assertSame($summer, (int)$in['gear']["$self:2026"]['id']);
+        $this->assertSame($ice, (int)$in['iceGear']["$self:2027"]['id']);
+        $this->assertTrue($in['iceGearFhr'][$ice]);
+        $this->assertContains("car:$car@ice:NASCC:2027", $in['atTrack']);
     }
 }
