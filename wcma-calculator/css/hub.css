@@ -415,3 +415,42 @@ body.hub .hub-logo, body.hub .auth-links a, body.hub .hub-hero a:not(.hub-btn), 
 }
 body.hub summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; }
 body.hub .checkbox-label, body.hub .checklist-section-name { font-size: 16px; }
+
+/* B3. Contrast. Status words are chips: dark ink on a tint. */
+body.hub .hub-status { padding: 2px 10px 2px 8px; border-radius: 999px; }
+body.hub .hub-status--ok { background: var(--hub-ok-bg); color: var(--hub-ok-ink); }
+body.hub .hub-status--warn { background: var(--hub-warn-bg); color: var(--hub-warn-ink); }
+body.hub .hub-status--todo { background: var(--hub-todo-bg); color: var(--hub-red-ink); }
+body.hub .hub-status--info { background: var(--hub-paper); color: var(--hub-ink-2); }
+
+/* Legacy badges (pre-tech "Photo needed", car status on older pages) as the same chips. */
+body.hub .badge-ok, body.hub .badge-fail, body.hub .badge-pending {
+  display: inline-block; padding: 2px 10px; border-radius: 999px; font-weight: 700; font-size: 16px;
+}
+body.hub .badge-ok { color: var(--hub-ok-ink); background: var(--hub-ok-bg); }
+body.hub .badge-fail { color: var(--hub-red-ink); background: var(--hub-todo-bg); }
+body.hub .badge-pending { color: var(--hub-warn-ink); background: var(--hub-warn-bg); }
+
+/* Checklist OK / N/A and gear Confirm: outlined until chosen, then solid with a tick. */
+body.hub .checklist-chip {
+  min-height: 44px; min-width: 64px; padding: 0 14px; border-radius: 8px;
+  border: 2px solid var(--hub-ink); background: #fff; color: var(--hub-ink); font-size: 16px; font-weight: 700;
+}
+body.hub .checklist-chip-selected-ok { background: var(--hub-ok-ink); border-color: var(--hub-ok-ink); color: #fff; }
+body.hub .checklist-chip-selected-ok::before { content: "\2713\00a0"; }
+body.hub .checklist-chip-selected-na { background: var(--hub-ink-2); border-color: var(--hub-ink-2); color: #fff; }
+body.hub .checklist-section-count, body.hub .checklist-chevron, body.hub .checklist-progress-label { color: var(--hub-ink-2); }
+
+/* The rendered tech sheet keeps its print sizes; on screen its small print is 16px. */
+@media screen {
+  body.hub .sheet-doc [style*="font-size:0.8"] { font-size: 16px !important; }
+}
+
+/* B3 follow-ups found by the audit: auth links, and the rendered sheet's inline status colours on screen
+   (the same markup goes into emails, so it is overridden here rather than changed at the source). */
+body.hub .auth-links a { color: var(--hub-red-ink); }
+@media screen {
+  body.hub .sheet-doc [style*="color:#f39c12"] { color: var(--hub-warn-ink) !important; }
+  body.hub .sheet-doc [style*="color:#27ae60"] { color: var(--hub-ok-ink) !important; }
+  body.hub .sheet-doc [style*="color:#999"] { color: var(--hub-ink-2) !important; }
+}

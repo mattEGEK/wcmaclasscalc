@@ -228,7 +228,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
       <button type="submit" class="hub-btn hub-btn--secondary">Resend email</button>
     </form>
   </div>
-  <?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?>
+  <div class="sheet-doc"><?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?></div>
 </div>
 <script src="js/form-feedback.js"></script>
 <?php renderSiteFooter(); ?>
