@@ -349,3 +349,30 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .sheet-next .hub-todo-item { flex-wrap: nowrap; align-items: flex-start; padding: 16px 0; }
 .sheet-next .hub-todo-n { flex-shrink: 0; }
 .sheet-next .hub-todo-txt { flex: 1; min-width: 0; }
+
+/* ── Phase B: shared style pass (mobile UX spec 2026-09-28 §B) ── */
+
+/* B1. One button language. Legacy .btn classes (auth, tech sheet, pre-tech, gear, admin) become hub buttons. */
+body.hub .btn,
+body.hub button[type="submit"]:not(.hub-btn):not(.link-button):not(.checklist-chip) {
+  min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 0 20px; border-radius: 8px; border: 2px solid var(--hub-red);
+  background: var(--hub-red); color: #fff; font-family: inherit; font-size: 17px; font-weight: 700;
+  text-transform: none; letter-spacing: 0; text-decoration: none; transform: none; box-shadow: none;
+}
+body.hub .btn:hover, body.hub .btn-primary:hover { background: var(--hub-red-ink); border-color: var(--hub-red-ink); transform: none; box-shadow: none; }
+body.hub .btn-secondary, body.hub .pretech-upload { background: #fff; color: var(--hub-ink); border-color: var(--hub-ink); }
+body.hub .btn-secondary:hover, body.hub .pretech-upload:hover { background: var(--hub-paper); color: var(--hub-ink); border-color: var(--hub-ink); }
+body.hub .hub-btn { text-transform: none; }
+
+/* Disabled: dashed outline, muted text. Never grey-filled, so grey always means "not yet". */
+body.hub .btn:disabled, body.hub .hub-btn:disabled, body.hub button:disabled, body.hub .hub-btn[aria-disabled="true"],
+body.hub button[type="submit"]:not(.hub-btn):not(.link-button):not(.checklist-chip):disabled {
+  background: var(--hub-card); color: var(--hub-ink-2); border: 2px dashed var(--hub-ink-2); cursor: not-allowed;
+}
+
+/* Link-style buttons (signature Clear, remove driver) */
+body.hub .link-button {
+  display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px;
+  font-size: 16px; color: var(--hub-red-ink); text-decoration: underline;
+}
