@@ -110,11 +110,12 @@
                 el.textContent = WcmaIceClass.equipmentLabel(TECH_DRIVER_EQUIPMENT_ITEMS.head_neck_restraints.label, hnRequired);
             });
         }
-        function onIceClassChange() {
+        function onIceClassChange(seed) {
             const code = iceClassSelect.value;
             const sections = WcmaIceClass.sectionsFor(window.ICE_SECTIONS_BY_CLASS, code);
             const container = document.getElementById('checklist-container');
-            const carried = WcmaIceClass.carryChecklistState(checklistWidget.getState(), sections);
+            // seed: answers from a restored draft (tech-sheet-draft.js), used on the first render only.
+            const carried = WcmaIceClass.carryChecklistState(Object.assign({}, seed || {}, checklistWidget.getState()), sections);
             container.innerHTML = '';
             checklistWidget = WcmaTechChecklist.render(container, sections, carried);
             TECH_DRIVER_EQUIPMENT_ITEMS.head_neck_restraints.optional = !WcmaIceClass.fhrRequired(window.ICE_FHR_BY_CLASS, code);
@@ -122,12 +123,12 @@
             document.getElementById('ice-class-note').textContent = (window.ICE_CLASS_NOTES || {})[code] || '';
             document.getElementById('ice-helmet-note').textContent = (window.ICE_HELMET_NOTES || {})[code] || '';
         }
-        iceClassSelect.addEventListener('change', onIceClassChange);
+        iceClassSelect.addEventListener('change', function () { onIceClassChange(); });
         // The browser can restore a <select> value on reload/back-navigation without firing
         // `change`, leaving the checklist rendered for the page's original class (or empty, for a
         // fresh form) while the select itself shows something else. Bring the checklist back in
         // sync once on load when that happens.
-        if (iceClassSelect.value !== (window.ICE_RENDERED_CLASS || '')) onIceClassChange();
+        if (iceClassSelect.value !== (window.ICE_RENDERED_CLASS || '')) onIceClassChange(window.TECH_SHEET_EXISTING_CHECKLIST);
         // For a server-rendered selected class on a fresh form, update the label once.
         if (iceClassSelect.value !== '') updateHeadNeckLabel(iceClassSelect.value);
     }
@@ -373,4 +374,6 @@
             return { driver_number: d.number, driver_choice: d.picker.select.value, new_name: d.picker.nameInput.value, equipment: d.state };
         }));
     });
+    // What tech-sheet-draft.js keeps between visits (spec §C1).
+    window.WcmaTechSheetForm = { state: function () { return { checklist: checklistWidget.getState(), equipment: driver1State }; } };
 })();

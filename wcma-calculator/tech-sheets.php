@@ -230,6 +230,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
   </div>
   <div class="sheet-doc"><?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?></div>
 </div>
+<script>try { localStorage.removeItem(<?= json_encode(techSheetDraftKey((int)$sheet['user_id'], (int)$sheet['car_id'], (int)$sheet['event_id'])) ?>); } catch (e) {}</script>
 <script src="js/form-feedback.js"></script>
 <?php renderSiteFooter(); ?>
 </body>
@@ -479,11 +480,13 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
   window.TECH_SHEET_DRIVERS = <?= json_encode($driversForJs, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
   window.TECH_SHEET_HAS_ENTRANT_SIGNATURE = <?= $hasEntrantSignature ? 'true' : 'false' ?>;
   window.TECH_SHEET_HAS_DRIVER_SIGNATURE = <?= $hasDriverSignature ? 'true' : 'false' ?>;
+  <?php if (!$isEdit && $selectedEventId): ?>window.TECH_SHEET_DRAFT_KEY = <?= json_encode(techSheetDraftKey((int)($car['owner_user_id'] ?? 0), (int)$car['id'], (int)$selectedEventId)) ?>;<?php endif; ?>
 </script>
 <script src="js/tech-sheet-checklist.js"></script>
 <script src="js/signature-pad.js"></script>
 <script src="js/driver-choice.js"></script>
 <script src="js/form-problems.js"></script>
+<script src="js/tech-sheet-draft.js"></script>
 <script src="js/tech-sheet-form.js"></script>
 <?php renderSiteFooter(); ?>
 </body>

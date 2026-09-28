@@ -1,0 +1,86 @@
+// wcma-calculator/js/tech-sheet-draft.js
+// Keeps a new tech sheet's answers in this browser while it is filled in, so a phone call, a reload
+// or a flat battery doesn't lose them (mobile UX spec 2026-09-28 §C1). Signatures are never saved.
+// Load it before tech-sheet-form.js: it restores values and the checklist/equipment globals first.
+(function (root) {
+    'use strict';
+    const MAX_AGE_MS = 14 * 24 * 3600 * 1000;
+    const FIELDS = ['event_id', 'sheet_type', 'car_colour', 'car_weight', 'ice_class', 'entrant_name', 'driver1_choice', 'driver1_new_name', 'engine_hp'];
+
+    function encode(data, now) { return JSON.stringify({ savedAt: now, data: data }); }
+
+    function decode(raw, now) {
+        if (!raw) return null;
+        let parsed;
+        try { parsed = JSON.parse(raw); } catch (e) { return null; }
+        if (!parsed || typeof parsed.savedAt !== 'number' || !parsed.data || typeof parsed.data !== 'object') return null;
+        if (now - parsed.savedAt > MAX_AGE_MS || parsed.savedAt - now > 60 * 1000) return null;
+        return parsed.data;
+    }
+
+    function hasStorage(store) {
+        try { store.setItem('wcma-storage-check', '1'); store.removeItem('wcma-storage-check'); return store; } catch (e) { return null; }
+    }
+
+    const api = { MAX_AGE_MS: MAX_AGE_MS, FIELDS: FIELDS, encode: encode, decode: decode, hasStorage: hasStorage };
+    if (typeof module !== 'undefined' && module.exports) { module.exports = api; return; }
+    root.WcmaTechSheetDraft = api;
+
+    const key = root.TECH_SHEET_DRAFT_KEY;
+    let store = null;
+    try { store = key ? hasStorage(root.localStorage) : null; } catch (e) { store = null; }
+    if (!store) return;
+    const doc = root.document;
+    const form = doc.getElementById('tech-sheet-form');
+    if (!form) return;
+
+    let saved = null;
+    try { saved = decode(store.getItem(key), Date.now()); if (saved === null) store.removeItem(key); } catch (e) { saved = null; }
+
+    if (saved) {
+        const fields = saved.fields || {};
+        FIELDS.forEach(function (id) {
+            const el = doc.getElementById(id);
+            if (el && fields[id] != null && fields[id] !== '') el.value = fields[id];
+        });
+        if (saved.checklist) root.TECH_SHEET_EXISTING_CHECKLIST = saved.checklist;
+        if (saved.equipment) root.TECH_SHEET_EXISTING_EQUIPMENT = saved.equipment;
+        if (saved.logBook != null) {
+            const radio = form.querySelector('input[name="log_book_turned_in"][value="' + saved.logBook + '"]');
+            if (radio) radio.checked = true;
+        }
+        const notice = doc.createElement('div');
+        notice.className = 'form-messages show info draft-notice';
+        notice.setAttribute('role', 'status');
+        notice.textContent = 'We kept your answers from earlier. ';
+        const again = doc.createElement('button');
+        again.type = 'button';
+        again.className = 'btn btn-secondary';
+        again.id = 'draft-start-over';
+        again.textContent = 'Start over';
+        again.addEventListener('click', function () {
+            try { store.removeItem(key); } catch (e) { /* nothing to clear */ }
+            form.reset();
+            root.location.assign(root.location.pathname + root.location.search);
+        });
+        notice.appendChild(again);
+        form.insertBefore(notice, form.firstChild);
+    }
+
+    function collect() {
+        const fields = {};
+        FIELDS.forEach(function (id) { const el = doc.getElementById(id); if (el) fields[id] = el.value; });
+        const s = root.WcmaTechSheetForm ? root.WcmaTechSheetForm.state() : {};
+        const log = form.querySelector('input[name="log_book_turned_in"]:checked');
+        return { fields: fields, checklist: s.checklist || {}, equipment: s.equipment || {}, logBook: log ? log.value : null };
+    }
+
+    let pending = null;
+    function scheduleSave() {
+        clearTimeout(pending);
+        pending = setTimeout(function () {
+            try { store.setItem(key, encode(collect(), Date.now())); } catch (e) { /* full or blocked: carry on without a draft */ }
+        }, 150);
+    }
+    ['input', 'change', 'click'].forEach(function (type) { form.addEventListener(type, scheduleSave); });
+})(typeof window !== 'undefined' ? window : globalThis);

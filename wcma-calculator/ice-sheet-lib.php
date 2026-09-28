@@ -101,3 +101,8 @@ function techSheetRecipientEmail(PDO $pdo, array $sheet): ?string {
     $user = db_find_user_by_id($pdo, (int)($sheet['user_id'] ?? 0));
     return $user['email'] ?? null;
 }
+
+/** The browser key a new tech sheet's draft is kept under (mobile UX spec 2026-09-28 §C1): one per user, car and event. */
+function techSheetDraftKey(int $userId, int $carId, int $eventId): string {
+    return 'wcma-tsdraft:' . $userId . ':' . $carId . ':' . $eventId;
+}

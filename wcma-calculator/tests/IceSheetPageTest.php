@@ -19,7 +19,7 @@ final class IceSheetPageTest extends TestCase
 {
     private function vm(?array $sheet = null): array {
         $car = ['id' => 3, 'car_number' => '7', 'year' => '1985', 'make' => 'Chevrolet', 'model' => 'Chevette',
-                'colour' => '', 'engine_cc' => '1600', 'archived_at' => null];
+                'colour' => '', 'engine_cc' => '1600', 'archived_at' => null, 'owner_user_id' => 1];
         $event = ['id' => 20, 'name' => 'NASCC Ice #1', 'event_date' => '2026-12-12', 'discipline' => 'ice', 'host_club' => 'NASCC'];
         $other = ['id' => 21, 'name' => 'WSCC Fire on Ice', 'event_date' => '2027-01-04', 'discipline' => 'ice', 'host_club' => 'WSCC'];
         $drivers = [['id' => 5, 'name' => 'Jordan Lee', 'name_norm' => 'jordan lee', 'user_id' => 1, 'owner_user_id' => 1]];
@@ -114,5 +114,19 @@ final class IceSheetPageTest extends TestCase
         $this->assertMatchesRegularExpression('/<div id="driver-sig-block">\s*<label>Driver\'s signature<\/label>/', $html);
         $this->assertNotFalse(strpos($html, 'id="sig-error"'));
         $this->assertLessThan(strpos($html, 'id="entrant-sig-label"'), strpos($html, 'id="sig-error"'));
+    }
+
+    public function testNewSheetsCarryADraftKeyEditsDoNot(): void
+    {
+        $this->assertSame('wcma-tsdraft:7:3:12', techSheetDraftKey(7, 3, 12));
+        $new = $this->renderNewSheet();
+        $this->assertStringContainsString('window.TECH_SHEET_DRAFT_KEY = "wcma-tsdraft:1:3:20";', $new);
+        $this->assertNotFalse(strpos($new, 'js/tech-sheet-draft.js'));
+        $this->assertLessThan(strpos($new, 'js/tech-sheet-form.js'), strpos($new, 'js/tech-sheet-draft.js'));
+        $sheet = ['id' => 9, 'event_id' => 20, 'class' => 'LS', 'car_weight' => 2300, 'entrant_name' => 'Jordan Lee',
+                  'driver_name' => 'Jordan Lee', 'engine_hp' => '90', 'checklist_json' => '{}',
+                  'driver1_equipment_json' => '{}', 'log_book_turned_in' => 1, 'entrant_signature_path' => 'x.png',
+                  'driver_signature_path' => null];
+        $this->assertStringNotContainsString('TECH_SHEET_DRAFT_KEY', renderIceTechSheetFormHtml($this->vm($sheet)));
     }
 }

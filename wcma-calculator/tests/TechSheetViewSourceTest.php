@@ -44,4 +44,12 @@ final class TechSheetViewSourceTest extends TestCase
             $this->assertStringContainsString($needle, $src);
         }
     }
+
+    public function testViewingASheetClearsItsDraftAndTheSummerFormKeepsOne(): void
+    {
+        $this->assertStringContainsString('localStorage.removeItem(<?= json_encode(techSheetDraftKey(', $this->viewBody());
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../tech-sheets.php'));
+        $this->assertStringContainsString('<script src="js/tech-sheet-draft.js"></script>', $src);
+        $this->assertStringContainsString('window.TECH_SHEET_DRAFT_KEY = <?= json_encode(techSheetDraftKey(', $src);
+    }
 }

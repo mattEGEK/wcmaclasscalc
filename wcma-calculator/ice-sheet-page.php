@@ -27,6 +27,7 @@ function iceSheetFormVm(array $car, array $event, array $iceEvents, array $owner
         'equipmentItems' => iceEquipmentItems(iceClass($club, $selected)),
         'driver1' => techSheetDriver1FormState($ownerDrivers, $sheet), 'ownerDrivers' => $ownerDrivers,
         'sheet' => $sheet, 'csrf' => $csrf,
+        'draftKey' => $sheet === null ? techSheetDraftKey((int)($car['owner_user_id'] ?? 0), (int)$car['id'], (int)$event['id']) : null,
         'action' => $sheet !== null ? 'tech-sheets.php?action=update' : 'tech-sheets.php?action=submit-ice',
     ];
 }
@@ -143,9 +144,10 @@ function renderIceTechSheetFormHtml(array $vm): string {
         . 'window.TECH_SHEET_DRIVERS = ' . json_encode($d1['driversForJs'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . ';'
         . 'window.TECH_SHEET_HAS_ENTRANT_SIGNATURE = ' . ($isEdit && !empty($sheet['entrant_signature_path']) ? 'true' : 'false') . ';'
         . 'window.TECH_SHEET_HAS_DRIVER_SIGNATURE = ' . ($isEdit && !empty($sheet['driver_signature_path']) ? 'true' : 'false') . ';'
+        . (($vm['draftKey'] ?? null) !== null ? 'window.TECH_SHEET_DRAFT_KEY = ' . json_encode($vm['draftKey']) . ';' : '')
         . '</script>'
         . '<script src="js/tech-sheet-checklist.js"></script><script src="js/signature-pad.js"></script>'
         . '<script src="js/driver-choice.js"></script><script src="js/ice-class-picker.js"></script>'
-        . '<script src="js/form-problems.js"></script><script src="js/tech-sheet-form.js"></script>';
+        . '<script src="js/form-problems.js"></script><script src="js/tech-sheet-draft.js"></script><script src="js/tech-sheet-form.js"></script>';
     return $out;
 }

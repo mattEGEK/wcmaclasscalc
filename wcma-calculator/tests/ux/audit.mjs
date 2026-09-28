@@ -168,6 +168,24 @@ try {
   const twoPads = await pads();
   report('two signature pads for a co-driver', twoPads === 2 ? [] : [`expected 2 visible pads, saw ${twoPads}`]);
   await page.selectOption('#driver1_choice', { index: 0 });
+
+  // Answers survive a reload (spec §C1): weight, class and a ticked checklist item.
+  const sheetUrl = page.url();
+  await page.fill('input[name=car_weight]', '2700');
+  await page.locator('.checklist-section-header').first().click();
+  await page.locator('button:text-is("OK")').first().click();
+  await page.waitForTimeout(400);
+  await page.reload();
+  await page.waitForLoadState('networkidle');
+  const kept = await page.evaluate(() => ({
+    notice: !!document.querySelector('.draft-notice'),
+    weight: document.getElementById('car_weight').value,
+    cls: document.getElementById('ice_class').value,
+    okCount: document.querySelectorAll('.checklist-chip-selected-ok').length,
+  }));
+  report('answers kept after a reload', kept.notice && kept.weight === '2700' && kept.cls === 'SS' && kept.okCount >= 1
+    ? [] : [`expected notice, weight 2700, class SS and a ticked item, got ${JSON.stringify(kept)}`]);
+  await audit(page, 'ice tech sheet with a kept draft');
   await page.fill('input[name=car_weight]', '2700');
   await page.fill('input[name=engine_hp]', '140');
   for (const h of await page.locator('.checklist-section-header').all()) await h.click();
@@ -193,6 +211,12 @@ try {
   await audit(page, 'pre-tech photos');
   await page.goto(BASE + '/' + carUrl);
   await audit(page, 'car page');
+
+  // Submitting cleared the draft: the same sheet starts fresh.
+  await page.goto(sheetUrl);
+  await page.waitForLoadState('networkidle');
+  const leftover = await page.locator('.draft-notice').count();
+  report('no draft left after submitting', leftover === 0 ? [] : ['the submitted sheet\'s draft was offered again']);
 } finally {
   await browser.close();
 }
