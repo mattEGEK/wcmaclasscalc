@@ -38,6 +38,20 @@ final class DriversLibTest extends TestCase
         $this->assertSame('Gear pre-teched 2026', $rows[1]['label']);
     }
 
+    public function testRowsCarryIceGearWithTheRightAction(): void
+    {
+        $drivers = [['id' => 5, 'name' => 'Jordan'], ['id' => 6, 'name' => 'Sam'], ['id' => 7, 'name' => 'Alex']];
+        $rows = driversRows($drivers, [], 5, 2026, [], [
+            5 => ['state' => 'accepted', 'label' => 'Ice 2027: from summer 2026', 'gearId' => null, 'sheetId' => 9],
+            6 => ['state' => 'none', 'label' => 'Needs ice gear check 2027', 'gearId' => null, 'sheetId' => 9],
+            7 => ['state' => 'photos_draft', 'label' => 'Photos in progress', 'gearId' => 12, 'sheetId' => null],
+        ]);
+        $this->assertNull($rows[0]['ice']['action']);
+        $this->assertSame(['label' => 'Add ice gear photos', 'url' => 'gear.php?action=start-ice&sheet_id=9'], $rows[1]['ice']['action']);
+        $this->assertSame(['label' => 'View ice gear', 'url' => 'gear.php?action=pretech&id=12'], $rows[2]['ice']['action']);
+        $this->assertArrayNotHasKey('ice', driversRows($drivers, [], 5, 2026)[0]);
+    }
+
     public function testAddCreatesACoDriverAndRejectsBlankLongAndDuplicateNames(): void
     {
         $pdo = make_temp_pdo();

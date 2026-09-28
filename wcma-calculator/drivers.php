@@ -7,6 +7,7 @@ require_once __DIR__ . '/view_helpers.php';
 require __DIR__ . '/cars-lib.php';
 require_once __DIR__ . '/events-lib.php';
 require_once __DIR__ . '/gear-lib.php';
+require_once __DIR__ . '/ice-sheet-lib.php';
 require __DIR__ . '/media-lib.php';
 require __DIR__ . '/drivers-lib.php';
 require __DIR__ . '/home-page.php';
@@ -43,10 +44,29 @@ foreach ($drivers as $d) {
 }
 $self = db_get_self_driver($pdo, $uid);
 
+$iceSeason = gearSeasonNow(DISCIPLINE_ICE);
+$userSheets = db_get_user_tech_sheets($pdo, $uid);
+$iceSheetByDriver = [];
+foreach ($userSheets as $s) {
+    if (!techSheetIsIce($s) || (int)$s['season'] !== $iceSeason) continue;
+    $did = (int)($s['driver_id'] ?? 0);
+    if (!isset($iceSheetByDriver[$did]) || (int)$s['id'] > $iceSheetByDriver[$did]) $iceSheetByDriver[$did] = (int)$s['id'];
+}
+$ice = [];
+$iceActivity = (bool)array_filter($userSheets, fn(array $s): bool => techSheetIsIce($s));
+foreach ($drivers as $d) {
+    $did = (int)$d['id'];
+    $iceGear = db_get_gear_record_for_driver($pdo, $did, $iceSeason, DISCIPLINE_ICE);
+    if ($iceGear !== null) $iceActivity = true;
+    $ice[$did] = gearIceSummary($iceGear, db_get_gear_record_for_driver($pdo, $did, $iceSeason - 1), $iceSeason)
+        + ['sheetId' => $iceSheetByDriver[$did] ?? null];
+}
+if (!$iceActivity) $ice = [];
+
 renderPageStart('Drivers', 'drivers', ['flash' => getFlash()]);
 echo renderDriversHtml([
     'rows' => driversRows($drivers, $gear, $self !== null ? (int)$self['id'] : 0, $season,
-        db_get_media_bundle($pdo, array_map(fn(array $d): int => (int)$d['id'], $drivers))),
+        db_get_media_bundle($pdo, array_map(fn(array $d): int => (int)$d['id'], $drivers)), $ice),
     'season' => $season, 'csrf' => generateCsrfToken(),
     'licenceLink' => seasonLinkMatching(db_get_season_links($pdo, true), 'Licen'),
 ]);

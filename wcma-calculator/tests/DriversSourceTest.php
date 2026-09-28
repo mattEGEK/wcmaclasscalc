@@ -30,6 +30,14 @@ final class DriversSourceTest extends TestCase
         $this->assertStringContainsString('<a href="drivers.php">← Back to Drivers</a>', $this->src('gear-page.php'));
     }
 
+    public function testDriversLoadsIceGearAndPassesItOn(): void
+    {
+        $src = $this->src('drivers.php');
+        $this->assertStringContainsString('DISCIPLINE_ICE', $src);
+        $this->assertStringContainsString('gearIceSummary(', $src);
+        $this->assertStringContainsString(', $ice)', $src);
+    }
+
     public function testNavAndLinksPointAtDrivers(): void
     {
         $this->assertStringContainsString("'href' => 'drivers.php'", $this->src('layout.php'));

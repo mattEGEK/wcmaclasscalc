@@ -64,6 +64,20 @@ final class DriversPageTest extends TestCase
         $this->assertStringContainsString('href="media-profile.php?driver_id=2">Set up media profile</a>', $html);
     }
 
+    public function testIceGearLineShowsWhenPresentAndNotOtherwise(): void
+    {
+        $rows = driversRows([['id' => 1, 'name' => 'Jordan Lee', 'licence_no' => null]], [], 1, 2026, [], [
+            1 => ['state' => 'none', 'label' => 'Needs ice gear check 2027', 'gearId' => null, 'sheetId' => 9],
+        ]);
+        $html = renderDriversHtml($this->vm([], ['rows' => $rows]));
+        $this->assertStringContainsString('Ice gear:', $html);
+        $this->assertStringContainsString('Needs ice gear check 2027', $html);
+        $this->assertStringContainsString('href="gear.php?action=start-ice&amp;sheet_id=9"', $html);
+
+        $withoutIce = renderDriversHtml($this->vm([['id' => 1, 'name' => 'Jordan Lee', 'licence_no' => null]]));
+        $this->assertStringNotContainsString('Ice gear:', $withoutIce);
+    }
+
     public function testNoBannedWording(): void
     {
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i',

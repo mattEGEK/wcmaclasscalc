@@ -17,16 +17,27 @@ function driversGearAction(int $driverId, array $status): array {
     return ['label' => $labels[$status['state']] ?? 'Add photos', 'url' => 'gear.php?action=start&driver_id=' . $driverId];
 }
 
-/** @param array $gear driver id => that driver's gear_records row for $season
- *  @param array $media driver id => db_get_media_bundle() entry */
-function driversRows(array $drivers, array $gear, int $selfId, int $season, array $media = []): array {
+/**
+ * @param array $gear driver id => that driver's gear_records row for $season
+ * @param array $media driver id => db_get_media_bundle() entry
+ * @param array $ice driver id => array{state, label, gearId, sheetId}
+ */
+function driversRows(array $drivers, array $gear, int $selfId, int $season, array $media = [], array $ice = []): array {
     $rows = [];
     foreach ($drivers as $d) {
         $id = (int)$d['id'];
         $status = isset($gear[$id]) ? gearStatus($gear[$id]) : ['state' => 'none', 'via' => null];
-        $rows[] = ['driver' => $d, 'isSelf' => $id === $selfId, 'state' => $status['state'],
-                   'label' => driversGearLabel($status, $season), 'action' => driversGearAction($id, $status),
-                   'media' => mediaProfileStatus($media[$id]['profile'] ?? null, $media[$id]['consent'] ?? null)];
+        $row = ['driver' => $d, 'isSelf' => $id === $selfId, 'state' => $status['state'],
+                'label' => driversGearLabel($status, $season), 'action' => driversGearAction($id, $status),
+                'media' => mediaProfileStatus($media[$id]['profile'] ?? null, $media[$id]['consent'] ?? null)];
+        if (isset($ice[$id])) {
+            $i = $ice[$id];
+            $action = null;
+            if ($i['gearId'] !== null) $action = ['label' => 'View ice gear', 'url' => 'gear.php?action=pretech&id=' . (int)$i['gearId']];
+            elseif ($i['sheetId'] !== null && $i['state'] !== 'accepted') $action = ['label' => 'Add ice gear photos', 'url' => 'gear.php?action=start-ice&sheet_id=' . (int)$i['sheetId']];
+            $row['ice'] = ['state' => $i['state'], 'label' => $i['label'], 'action' => $action];
+        }
+        $rows[] = $row;
     }
     return $rows;
 }

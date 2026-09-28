@@ -263,15 +263,22 @@ function renderHomeHtml(array $vm): string
         foreach ($vm['garage'] as $g) {
             $car = $g['car'];
             $decl = $g['declaration'];
+            $usesSummer = $g['usesSummer'] ?? true;
             $name = trim(implode(' ', array_filter([(string)($car['year'] ?? ''), (string)$car['make'], (string)$car['model']], fn(string $p): bool => trim($p) !== '')));
             $out .= '<div class="hub-glance-item"><div class="hub-glance-head"><span class="hub-plate hub-plate--sm">' . h((string)$car['car_number']) . '</span>'
                 . '<span class="hub-glance-name">' . h($name) . '</span>'
-                . ($decl !== null ? '<span class="hub-class">' . h((string)$decl['calculated_class']) . '</span>' : '') . '</div>'
-                . '<div class="hub-glance-pills">'
-                . ($decl !== null
+                . ($usesSummer && $decl !== null ? '<span class="hub-class">' . h((string)$decl['calculated_class']) . '</span>' : '') . '</div>'
+                . '<div class="hub-glance-pills">';
+            if ($usesSummer) {
+                $out .= ($decl !== null
                     ? homePillHtml($decl['review_status'], 'Class', declarationReviewLabel($decl['review_status']))
                     : homePillHtml('none', 'Class', 'Not declared') . '<a href="calculator.php?car=' . (int)$car['id'] . '">Declare class</a>')
-                . homePillHtml($g['techState'], 'Car tech', $g['techLabel']) . '</div></div>';
+                    . homePillHtml($g['techState'], 'Car tech', $g['techLabel']);
+            }
+            if (!empty($g['ice'])) {
+                $out .= homePillHtml($g['ice']['state'], 'Ice tech', $g['ice']['label']);
+            }
+            $out .= '</div></div>';
         }
         $out .= '<a class="hub-btn hub-btn--secondary" href="garage.php">Open garage &rarr;</a>';
     }
@@ -280,7 +287,11 @@ function renderHomeHtml(array $vm): string
     $out .= '<div class="hub-card"><h3>Drivers</h3>';
     foreach ($vm['drivers'] as $d) {
         $out .= '<div class="hub-glance-item"><div class="hub-glance-head"><span class="hub-glance-name">' . h($d['name']) . ($d['isSelf'] ? ' (you)' : '') . '</span></div>'
-            . '<div class="hub-glance-pills">' . homePillHtml($d['gearState'], 'Gear tech', $d['gearLabel']) . '</div></div>';
+            . '<div class="hub-glance-pills">' . homePillHtml($d['gearState'], 'Gear tech', $d['gearLabel']);
+        if (!empty($d['ice'])) {
+            $out .= homePillHtml($d['ice']['state'], 'Ice gear', $d['ice']['label']);
+        }
+        $out .= '</div></div>';
     }
     $out .= '<a class="hub-btn hub-btn--secondary" href="drivers.php">Manage drivers &rarr;</a></div>';
     $out .= '</div>';
