@@ -2045,3 +2045,13 @@ function db_get_driver_latest_sheet(PDO $pdo, int $driverId, ?int $season = null
     $stmt->execute($params);
     return $stmt->fetch() ?: null;
 }
+
+/** The driver's newest sheet from a current season: summer $summerSeason or ice $iceSeason (so last year's car doesn't show). */
+function db_get_driver_current_sheet(PDO $pdo, int $driverId, int $summerSeason, int $iceSeason): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM tech_sheets
+        WHERE (driver_id = :d OR id IN (SELECT tech_sheet_id FROM tech_sheet_drivers WHERE driver_id = :d))
+          AND ((discipline = 'ice' AND season = :ice) OR (discipline <> 'ice' AND season = :summer))
+        ORDER BY id DESC LIMIT 1");
+    $stmt->execute([':d' => $driverId, ':ice' => $iceSeason, ':summer' => $summerSeason]);
+    return $stmt->fetch() ?: null;
+}

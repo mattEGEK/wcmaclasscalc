@@ -163,6 +163,13 @@ function mediaAnnouncerRoster(PDO $pdo, int $eventId): array {
     return $out;
 }
 
+/** The sheet media shows for a driver: from $season when given, else the newest from the current
+ *  summer or current ice season (a summer driver with no sheet yet this year shows no car, not last year's). */
+function mediaDriverSheet(PDO $pdo, int $driverId, ?int $season): ?array {
+    if ($season !== null) return db_get_driver_latest_sheet($pdo, $driverId, $season);
+    return db_get_driver_current_sheet($pdo, $driverId, (int)date('Y'), iceSeasonFromDate(date('Y-m-d')));
+}
+
 /** mediaEntry() arrays for the drivers usable for clubs, car details from their latest sheet of either
  *  discipline; limited to $season when given (null means the newest sheet of either discipline). */
 function mediaEntriesForDrivers(PDO $pdo, array $driverIds, ?int $season): array {
@@ -171,7 +178,7 @@ function mediaEntriesForDrivers(PDO $pdo, array $driverIds, ?int $season): array
         if (!mediaUsable($b['profile'], $b['consent'], 'club')) continue;
         $driver = db_get_driver($pdo, $did);
         if ($driver === null) continue;
-        $sheet = db_get_driver_latest_sheet($pdo, $did, $season);
+        $sheet = mediaDriverSheet($pdo, $did, $season);
         $out[] = mediaEntry($driver, $b['profile'], $b['sponsors'], (string)($sheet['car_number'] ?? ''),
             $sheet !== null ? mediaCarLabel($sheet) : '', $sheet !== null ? techSheetClassLine($sheet) : '', mediaUsable($b['profile'], $b['consent'], 'public'));
     }
@@ -216,7 +223,7 @@ function mediaReviewQueue(PDO $pdo, ?int $season): array {
         $consent = db_get_latest_media_consent($pdo, $did);
         if (!mediaCurrentConsent($consent)['public']) continue;
         $driver = db_get_driver($pdo, $did);
-        $sheet = db_get_driver_latest_sheet($pdo, $did, $season);
+        $sheet = mediaDriverSheet($pdo, $did, $season);
         $queue[] = ['driver_id' => $did, 'driver_name' => $row['driver_name'], 'updated_at' => (string)$row['updated_at'],
             'entry' => mediaEntry($driver, $row, db_get_sponsors($pdo, $did), (string)($sheet['car_number'] ?? ''),
                 $sheet !== null ? mediaCarLabel($sheet) : '', $sheet !== null ? techSheetClassLine($sheet) : '', false)];

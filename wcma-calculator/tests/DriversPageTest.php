@@ -78,6 +78,19 @@ final class DriversPageTest extends TestCase
         $this->assertStringNotContainsString('Ice gear:', $withoutIce);
     }
 
+    public function testIceOnlyUserSeesNoSummerGearPrompt(): void
+    {
+        $driver = [['id' => 1, 'name' => 'Jordan Lee', 'licence_no' => null]];
+        $ice = [1 => ['state' => 'none', 'label' => 'Needs ice gear check 2027', 'gearId' => null, 'sheetId' => 9]];
+        $iceOnly = renderDriversHtml($this->vm([], ['rows' => driversRows($driver, [], 1, 2026, [], $ice, false)]));
+        $this->assertStringNotContainsString('Needs gear tech 2026', $iceOnly);
+        $this->assertStringNotContainsString('gear.php?action=start&amp;driver_id=1', $iceOnly);
+        $this->assertStringContainsString('Ice gear:', $iceOnly);
+
+        $both = renderDriversHtml($this->vm([], ['rows' => driversRows($driver, [], 1, 2026, [], $ice, true)]));
+        $this->assertStringContainsString('Needs gear tech 2026', $both);
+    }
+
     public function testNoBannedWording(): void
     {
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i',

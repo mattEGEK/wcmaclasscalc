@@ -170,6 +170,16 @@ final class HomePageTest extends TestCase
         $this->assertStringNotContainsString('Declare class', $html);
     }
 
+    public function testAtAGlanceHidesTheSummerGearPillWhenNotShown(): void
+    {
+        $driver = ['name' => 'Jordan Lee', 'isSelf' => true, 'gearLabel' => 'Needs gear check at the track', 'gearState' => 'none',
+                   'ice' => ['state' => 'none', 'label' => 'Needs ice gear check 2027']];
+        $hidden = renderHomeHtml($this->vm(['drivers' => [$driver + ['showSummer' => false]]]));
+        $this->assertStringNotContainsString('Gear tech:', $hidden);
+        $this->assertStringContainsString('Needs ice gear check 2027', $hidden);
+        $this->assertStringContainsString('Gear tech:', renderHomeHtml($this->vm(['drivers' => [$driver]])));
+    }
+
     public function testTagFormOffersOnlyCarsNotYetTaggedToAGoingToEvent(): void
     {
         $vm = $this->vm([

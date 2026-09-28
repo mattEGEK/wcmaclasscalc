@@ -66,6 +66,7 @@ $taggedByCar = [];
 foreach ($in['plans'] as $p) $taggedByCar[(int)$p['car_id']][] = (int)$p['event_id'];
 
 $hasIceActivity = userHasIceActivity($in['sheets'], (bool)$in['iceGear'], $in['plans'], $in['events']);
+$userUsesSummer = userUsesSummer($in['cars'], $in['sheets'], $in['declarations'], $in['plans'], $in['events'], $today);
 
 $garage = [];
 foreach ($in['cars'] as $carId => $car) {
@@ -100,6 +101,7 @@ foreach ($in['drivers'] as $did => $d) {
     }
     $drivers[] = ['name' => (string)$d['name'], 'isSelf' => $did === $in['selfDriverId'],
                   'gearLabel' => gearStatusLabel($st, $season), 'gearState' => $st['state'],
+                  'showSummer' => driverShowsSummerGear($hasIceActivity, $userUsesSummer, $g !== null),
                   'ice' => $ice];
 }
 

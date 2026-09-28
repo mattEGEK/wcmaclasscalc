@@ -18,6 +18,7 @@ final class HomeSourceTest extends TestCase
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../index.php'));
         $this->assertStringContainsString('garageIceSummary(', $src);
         $this->assertStringContainsString('gearIceSummary(', $src);
+        $this->assertStringContainsString('driverShowsSummerGear($hasIceActivity, $userUsesSummer', $src);
     }
 
     public function testGlancePassesTheIceTagToUsesSummer(): void

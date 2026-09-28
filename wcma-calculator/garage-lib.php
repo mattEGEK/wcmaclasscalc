@@ -128,13 +128,16 @@ function garageSummerSheets(array $sheets): array {
 function garageIceSummary(array $carSheets, bool $taggedToIce, int $iceSeason): ?array {
     $ice = array_values(array_filter($carSheets, fn(array $s): bool => techSheetIsIce($s)));
     if (!$ice && !$taggedToIce) return null;
-    $season = array_values(array_filter($ice, fn(array $s): bool => (int)$s['season'] === $iceSeason));
-    if (!$season) return ['state' => 'none', 'label' => 'Needs ice tech'];
+    // This season or a later one: a sheet sent before the July rollover for next winter's event counts.
+    $current = array_values(array_filter($ice, fn(array $s): bool => (int)$s['season'] >= $iceSeason));
+    if (!$current) return ['state' => 'none', 'label' => 'Needs ice tech'];
+    $showSeason = max(array_map(fn(array $s): int => (int)$s['season'], $current));
+    $season = array_values(array_filter($current, fn(array $s): bool => (int)$s['season'] === $showSeason));
     usort($season, fn(array $a, array $b): int => (int)$a['id'] <=> (int)$b['id']);
     $newest = end($season);
     $status = techCarStatus(array_values(array_filter($season, fn(array $s): bool => (string)$s['club'] === (string)$newest['club'])));
     return ['state' => $status['state'],
-            'label' => techCarStatusLabel($status, $iceSeason, DISCIPLINE_ICE) . ' · ' . $newest['club'] . ' · ' . $newest['class']];
+            'label' => techCarStatusLabel($status, $showSeason, DISCIPLINE_ICE) . ' · ' . $newest['club'] . ' · ' . $newest['class']];
 }
 
 /** Whether the car takes part in summer: declared, summer sheets, tagged to summer, or neither ice sheets nor an ice tag. */
@@ -155,6 +158,38 @@ function garageCarUsesSummer(array $declarations, array $carSheets, bool $tagged
  * @param array $plans        event_plans rows (event_id, car_id)
  * @param array $activeEvents the active events (with discipline)
  */
+/**
+ * Whether the user races summer at all: no cars yet (new users default to summer), or any car that
+ * uses summer (garageCarUsesSummer, with its upcoming active-event tags). Home and Drivers share it.
+ */
+function userUsesSummer(array $cars, array $sheets, array $declarationsByCar, array $plans, array $activeEvents, string $today): bool {
+    if (!$cars) return true;
+    $eventsById = [];
+    foreach ($activeEvents as $e) $eventsById[(int)$e['id']] = $e;
+    $tags = [];
+    foreach ($plans as $p) {
+        $e = $eventsById[(int)$p['event_id']] ?? null;
+        if ($e === null || (string)$e['event_date'] < $today) continue;
+        $tags[(int)$p['car_id']][(($e['discipline'] ?? 'summer') === 'ice') ? 'ice' : 'summer'] = true;
+    }
+    foreach (array_keys($cars) as $carId) {
+        $carId = (int)$carId;
+        $carSheets = array_values(array_filter($sheets, fn(array $s): bool => (int)$s['car_id'] === $carId));
+        $decl = $declarationsByCar[$carId] ?? null;
+        if (garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, isset($tags[$carId]['summer']), isset($tags[$carId]['ice']))) return true;
+    }
+    return false;
+}
+
+/**
+ * Whether a driver's summer gear chip shows (spec §4a: one chip per discipline in play). Always for
+ * users with no ice activity; otherwise when the user races summer or the driver already has
+ * summer gear this season. Ice-only competitors don't get a summer "Needs gear tech" prompt.
+ */
+function driverShowsSummerGear(bool $userHasIce, bool $userUsesSummer, bool $hasSummerGear): bool {
+    return !$userHasIce || $userUsesSummer || $hasSummerGear;
+}
+
 function userHasIceActivity(array $sheets, bool $hasIceGear, array $plans, array $activeEvents): bool {
     if ($hasIceGear) return true;
     foreach ($sheets as $s) {

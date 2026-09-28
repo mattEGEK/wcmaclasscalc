@@ -24,14 +24,15 @@ function driversGearAction(int $driverId, array $status): array {
  * @param array $ice driver id => array{state, label, gearId, sheetId, driverNumber?} (driverNumber
  *                   defaults to 1, the sheet's primary driver)
  */
-function driversRows(array $drivers, array $gear, int $selfId, int $season, array $media = [], array $ice = []): array {
+function driversRows(array $drivers, array $gear, int $selfId, int $season, array $media = [], array $ice = [], bool $userUsesSummer = true): array {
     $rows = [];
     foreach ($drivers as $d) {
         $id = (int)$d['id'];
         $status = isset($gear[$id]) ? gearStatus($gear[$id]) : ['state' => 'none', 'via' => null];
         $row = ['driver' => $d, 'isSelf' => $id === $selfId, 'state' => $status['state'],
                 'label' => driversGearLabel($status, $season), 'action' => driversGearAction($id, $status),
-                'media' => mediaProfileStatus($media[$id]['profile'] ?? null, $media[$id]['consent'] ?? null)];
+                'media' => mediaProfileStatus($media[$id]['profile'] ?? null, $media[$id]['consent'] ?? null),
+                'summer' => driverShowsSummerGear(isset($ice[$id]), $userUsesSummer, isset($gear[$id]))];
         if (isset($ice[$id])) {
             $i = $ice[$id];
             $action = null;

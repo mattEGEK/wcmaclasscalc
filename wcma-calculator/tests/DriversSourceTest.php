@@ -35,7 +35,8 @@ final class DriversSourceTest extends TestCase
         $src = $this->src('drivers.php');
         $this->assertStringContainsString('DISCIPLINE_ICE', $src);
         $this->assertStringContainsString('gearIceSummary(', $src);
-        $this->assertStringContainsString(', $ice)', $src);
+        $this->assertStringContainsString('$ice, $userUsesSummer)', $src);
+        $this->assertStringContainsString('userUsesSummer($cars, $userSheets', $src);
     }
 
     public function testNavAndLinksPointAtDrivers(): void
@@ -49,6 +50,8 @@ final class DriversSourceTest extends TestCase
     {
         $src = $this->src('drivers.php');
         $this->assertStringContainsString("require_once __DIR__ . '/garage-lib.php';", $src);
-        $this->assertStringContainsString('userHasIceActivity($userSheets, $hasIceGear, db_get_user_event_plans($pdo, $uid), db_get_active_events($pdo))', $src);
+        $this->assertStringContainsString('$plans = db_get_user_event_plans($pdo, $uid);', $src);
+        $this->assertStringContainsString('$activeEvents = db_get_active_events($pdo);', $src);
+        $this->assertStringContainsString('userHasIceActivity($userSheets, $hasIceGear, $plans, $activeEvents)', $src);
     }
 }

@@ -65,7 +65,12 @@ foreach ($ownerGear as $g) {
     if ($discipline === DISCIPLINE_ICE) $hasIceGear = true;
 }
 // Same rule as Home: an ice sheet, ice gear, or a car tagged to an active ice event.
-$iceActivity = userHasIceActivity($userSheets, $hasIceGear, db_get_user_event_plans($pdo, $uid), db_get_active_events($pdo));
+$plans = db_get_user_event_plans($pdo, $uid);
+$activeEvents = db_get_active_events($pdo);
+$iceActivity = userHasIceActivity($userSheets, $hasIceGear, $plans, $activeEvents);
+$cars = [];
+foreach (db_get_user_cars($pdo, $uid) as $c) $cars[(int)$c['id']] = $c;
+$userUsesSummer = userUsesSummer($cars, $userSheets, db_get_user_current_declarations($pdo, $uid), $plans, $activeEvents, date('Y-m-d'));
 
 $ice = [];
 if ($iceActivity) {
@@ -80,7 +85,7 @@ if ($iceActivity) {
 renderPageStart('Drivers', 'drivers', ['flash' => getFlash()]);
 echo renderDriversHtml([
     'rows' => driversRows($drivers, $gear, $self !== null ? (int)$self['id'] : 0, $season,
-        db_get_media_bundle($pdo, array_map(fn(array $d): int => (int)$d['id'], $drivers)), $ice),
+        db_get_media_bundle($pdo, array_map(fn(array $d): int => (int)$d['id'], $drivers)), $ice, $userUsesSummer),
     'season' => $season, 'csrf' => generateCsrfToken(),
     'licenceLink' => seasonLinkMatching(db_get_season_links($pdo, true), 'Licen'),
 ]);

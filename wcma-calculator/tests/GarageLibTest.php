@@ -133,6 +133,32 @@ final class GarageLibTest extends TestCase
         $this->assertSame(['state' => 'none', 'label' => 'Needs tech at the track · NASCC · SS'], $open);
     }
 
+    public function testIceSummaryCountsASheetForNextWinterSentBeforeTheRollover(): void
+    {
+        // June 2027 (ice season 2027) with a sheet already in for a January 2028 event.
+        $s = garageIceSummary([$this->iceSheet(['season' => 2027, 'id' => 5]), $this->iceSheet(['season' => 2028, 'id' => 6, 'status' => 'submitted', 'accepted_via' => null])], false, 2027);
+        $this->assertSame(['state' => 'none', 'label' => 'Needs tech at the track · NASCC · LS'], $s);
+        $teched = garageIceSummary([$this->iceSheet(['season' => 2028])], false, 2027);
+        $this->assertSame('Teched Ice 2028 · NASCC · LS', $teched['label']);
+    }
+
+    public function testUserUsesSummerAndTheSummerGearChipRule(): void
+    {
+        $ice = $this->iceSheet(['car_id' => 3]);
+        $events = [['id' => 20, 'event_date' => '2027-01-10', 'discipline' => 'ice'], ['id' => 21, 'event_date' => '2027-06-01', 'discipline' => 'summer']];
+        $this->assertTrue(userUsesSummer([], [], [], [], $events, '2026-12-01'));                                   // no cars yet
+        $this->assertFalse(userUsesSummer([3 => ['id' => 3]], [$ice], [], [], $events, '2026-12-01'));             // ice-only car
+        $this->assertFalse(userUsesSummer([3 => ['id' => 3]], [], [], [['event_id' => 20, 'car_id' => 3]], $events, '2026-12-01'));
+        $this->assertTrue(userUsesSummer([3 => ['id' => 3]], [$ice], [], [['event_id' => 21, 'car_id' => 3]], $events, '2026-12-01'));
+        $this->assertTrue(userUsesSummer([3 => ['id' => 3], 4 => ['id' => 4]], [$ice], [], [], $events, '2026-12-01')); // a new second car
+        $this->assertTrue(userUsesSummer([3 => ['id' => 3]], [$ice], [3 => ['id' => 1]], [], $events, '2026-12-01'));   // declared
+
+        $this->assertTrue(driverShowsSummerGear(false, false, false));   // no ice activity: unchanged
+        $this->assertFalse(driverShowsSummerGear(true, false, false));   // ice-only
+        $this->assertTrue(driverShowsSummerGear(true, true, false));     // races both
+        $this->assertTrue(driverShowsSummerGear(true, false, true));     // already has summer gear this season
+    }
+
     public function testIceSummaryWithoutAThisSeasonSheet(): void
     {
         $this->assertSame(['state' => 'none', 'label' => 'Needs ice tech'], garageIceSummary([], true, 2027));

@@ -287,7 +287,7 @@ function renderHomeHtml(array $vm): string
     $out .= '<div class="hub-card"><h3>Drivers</h3>';
     foreach ($vm['drivers'] as $d) {
         $out .= '<div class="hub-glance-item"><div class="hub-glance-head"><span class="hub-glance-name">' . h($d['name']) . ($d['isSelf'] ? ' (you)' : '') . '</span></div>'
-            . '<div class="hub-glance-pills">' . homePillHtml($d['gearState'], 'Gear tech', $d['gearLabel']);
+            . '<div class="hub-glance-pills">' . (($d['showSummer'] ?? true) ? homePillHtml($d['gearState'], 'Gear tech', $d['gearLabel']) : '');
         if (!empty($d['ice'])) {
             $out .= homePillHtml($d['ice']['state'], 'Ice gear', $d['ice']['label']);
         }

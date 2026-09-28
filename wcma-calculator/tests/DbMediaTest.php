@@ -207,4 +207,21 @@ final class DbMediaTest extends TestCase
         $this->assertSame($iceSheet, (int)db_get_driver_latest_sheet($pdo, $did)['id']);
         $this->assertSame($summerSheet, (int)db_get_driver_latest_sheet($pdo, $did, 2026)['id']);
     }
+
+    public function testDriverCurrentSheetOnlyComesFromTheCurrentSummerOrIceSeason(): void
+    {
+        $pdo = make_temp_pdo();
+        $u = $this->user($pdo, 'k@example.com');
+        $summerEvent = db_create_event($pdo, 'Summer Sprint', '2026-07-11', null);
+        $sub = db_insert_submission($pdo, test_declaration_data($pdo, $u, '42'));
+        $summerSheet = test_make_sheet($pdo, $u, $sub, $summerEvent, '42', 'Test Driver');
+        $iceEvent = db_create_event($pdo, 'Ice Classic', '2027-01-11', null, 'ice', 'NASCC');
+        $iceSheet = test_make_ice_sheet($pdo, $u, test_make_car($pdo, $u, '42'), $iceEvent, 'LS');
+        $did = (int)db_find_driver($pdo, $u, 'Test Driver')['id'];
+
+        $this->assertSame($summerSheet, (int)db_get_driver_current_sheet($pdo, $did, 2026, 2026)['id']);
+        $this->assertSame($iceSheet, (int)db_get_driver_current_sheet($pdo, $did, 2026, 2027)['id']);
+        $this->assertSame($iceSheet, (int)db_get_driver_current_sheet($pdo, $did, 2027, 2027)['id']);
+        $this->assertNull(db_get_driver_current_sheet($pdo, $did, 2028, 2028));   // no stale car from an old season
+    }
 }

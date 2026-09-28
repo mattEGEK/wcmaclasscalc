@@ -145,9 +145,9 @@ final class MediaSourceTest extends TestCase
 
     public function testMediaPagesUseEachEventsOwnSheetsRatherThanTheCurrentSeason(): void
     {
-        foreach (['media.php', 'drivers-public.php', 'driver.php'] as $file) {
+        foreach (['media.php', 'drivers-public.php'] as $file) {
             $this->assertStringNotContainsString("(int)date('Y')", $this->src($file), $file);
         }
-        $this->assertStringContainsString('db_get_driver_latest_sheet($pdo, $driverId)', $this->src('driver.php'));
+        $this->assertStringContainsString("db_get_driver_current_sheet(\$pdo, \$driverId, (int)date('Y'), iceSeasonFromDate(date('Y-m-d')))", $this->src('driver.php'));
     }
 }
