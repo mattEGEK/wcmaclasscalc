@@ -22,7 +22,11 @@
         return !!(fhrByClass && fhrByClass[code]);
     }
 
-    const api = { sectionsFor, carryChecklistState, fhrRequired };
+    function equipmentLabel(baseLabel, required) {
+        return required ? baseLabel + ' (required for this class)' : baseLabel;
+    }
+
+    const api = { sectionsFor, carryChecklistState, fhrRequired, equipmentLabel };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else window.WcmaIceClass = api;
 })();

@@ -18,6 +18,7 @@
             const def = TECH_DRIVER_EQUIPMENT_ITEMS[key];
             const row = document.createElement('div');
             row.className = 'checklist-item-row';
+            row.setAttribute('data-equipment-key', key);
             rowRefs[key] = row;
             const label = document.createElement('div');
             label.className = 'checklist-item-label';
@@ -93,6 +94,12 @@
     // Ice form: the checklist and the head & neck rule follow the chosen class.
     const iceClassSelect = document.getElementById('ice_class');
     if (iceClassSelect && window.ICE_SECTIONS_BY_CLASS && window.WcmaIceClass) {
+        function updateHeadNeckLabel(code) {
+            const hnRequired = WcmaIceClass.fhrRequired(window.ICE_FHR_BY_CLASS, code);
+            document.querySelectorAll('[data-equipment-key="head_neck_restraints"] .checklist-item-label').forEach(function (el) {
+                el.textContent = WcmaIceClass.equipmentLabel(TECH_DRIVER_EQUIPMENT_ITEMS.head_neck_restraints.label, hnRequired);
+            });
+        }
         function onIceClassChange() {
             const code = iceClassSelect.value;
             const sections = WcmaIceClass.sectionsFor(window.ICE_SECTIONS_BY_CLASS, code);
@@ -101,6 +108,7 @@
             container.innerHTML = '';
             checklistWidget = WcmaTechChecklist.render(container, sections, carried);
             TECH_DRIVER_EQUIPMENT_ITEMS.head_neck_restraints.optional = !WcmaIceClass.fhrRequired(window.ICE_FHR_BY_CLASS, code);
+            updateHeadNeckLabel(code);
             document.getElementById('ice-class-note').textContent = (window.ICE_CLASS_NOTES || {})[code] || '';
             document.getElementById('ice-helmet-note').textContent = (window.ICE_HELMET_NOTES || {})[code] || '';
         }
@@ -110,6 +118,8 @@
         // fresh form) while the select itself shows something else. Bring the checklist back in
         // sync once on load when that happens.
         if (iceClassSelect.value !== (window.ICE_RENDERED_CLASS || '')) onIceClassChange();
+        // For a server-rendered selected class on a fresh form, update the label once.
+        if (iceClassSelect.value !== '') updateHeadNeckLabel(iceClassSelect.value);
     }
 
     const entrantPad = WcmaSignaturePad.attach(document.getElementById('entrant-sig-canvas'));

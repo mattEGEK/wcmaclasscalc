@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { sectionsFor, carryChecklistState, fhrRequired } = require('../../js/ice-class-picker.js');
+const { sectionsFor, carryChecklistState, fhrRequired, equipmentLabel } = require('../../js/ice-class-picker.js');
 
 const map = {
     SS: { a: { label: 'A', items: { airbags: 'Airbags', tow: 'Tow hooks' } } },
@@ -23,4 +23,9 @@ test('fhrRequired reads the class flag', () => {
     assert.strictEqual(fhrRequired({ LS: true, NS: false }, 'LS'), true);
     assert.strictEqual(fhrRequired({ LS: true }, 'NS'), false);
     assert.strictEqual(fhrRequired(undefined, 'LS'), false);
+});
+
+test('equipmentLabel marks a required item', () => {
+    assert.strictEqual(equipmentLabel('Head & Neck Restraints', true), 'Head & Neck Restraints (required for this class)');
+    assert.strictEqual(equipmentLabel('Head & Neck Restraints', false), 'Head & Neck Restraints');
 });
