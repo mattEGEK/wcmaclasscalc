@@ -282,6 +282,21 @@ final class MediaServiceTest extends TestCase
         $this->assertSame('', $byNumber['9']['class']);   // no summer declaration fallback at an ice event
     }
 
+    public function testSummerRosterDoesNotFallBackToAnIceSheetsDrivers(): void
+    {
+        $pdo = make_temp_pdo();
+        $ice = db_create_event($pdo, 'Ice Classic', date('Y') . '-01-11', null, 'ice', 'NASCC');
+        $summer = db_create_event($pdo, 'Fall Sprint', date('Y') . '-10-11', null);
+        $u = $this->user($pdo, 'a@example.com', 'Ann Ames');
+        $car = test_make_car($pdo, $u, '7');
+        $iceSheet = test_make_ice_sheet($pdo, $u, $car, $ice, 'LS');   // the car's latest sheet is ice
+        db_add_tech_sheet_driver($pdo, $iceSheet, 2, 'Ice Buddy', '{}');
+        db_tag_event($pdo, $u, $summer, $car);                         // no sheet for the summer event
+
+        $roster = mediaAnnouncerRoster($pdo, $summer);
+        $this->assertSame(['Ann Ames'], array_column($roster[0]['drivers'], 'name'));   // owner, not the ice sheet's drivers
+    }
+
     public function testPublicDirectoryListsOnlyLivePublicProfiles(): void
     {
         $pdo = make_temp_pdo();

@@ -123,7 +123,8 @@ function mediaAnnouncerRoster(PDO $pdo, int $eventId): array {
         $lid = db_get_car_latest_tech_sheet_id($pdo, $cid);
         if ($lid === null) continue;
         $sheet = db_get_tech_sheet($pdo, $lid);
-        if ($sheet !== null && (!$isIce || techSheetIsIce($sheet))) $latest[$cid] = $sheet;
+        // Only a sheet of the event's own discipline says who drives the car there.
+        if ($sheet !== null && techSheetIsIce($sheet) === $isIce) $latest[$cid] = $sheet;
     }
     $sheetIds = array_merge(array_column(array_merge(...array_values($byCar ?: [[]])), 'id'), array_column(array_values($latest), 'id'));
     $sheetDrivers = db_get_drivers_for_sheets($pdo, $sheetIds);
