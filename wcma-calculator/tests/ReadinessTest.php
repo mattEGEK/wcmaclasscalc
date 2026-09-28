@@ -368,6 +368,64 @@ final class ReadinessTest extends TestCase
         $this->assertArrayHasKey('gear:5', $summerItems);
     }
 
+    public function testStrictestIceClassIgnoresSheetsFromEventsThatAreNoLongerLive(): void
+    {
+        // Stale sheet's event_id (999) isn't in the world's events at all (as if the event was
+        // deactivated, or is simply long past and dropped from the active-events list).
+        $gear = ['5:2027' => ['id' => 50, 'season' => 2027, 'discipline' => 'ice', 'level' => 'street_safe', 'status' => 'accepted', 'accepted_via' => 'in_person', 'photo_status' => null]];
+        $staleLs = $this->iceSheet(['id' => 71, 'event_id' => 999, 'class' => 'LS']);
+        $items = $this->items(buildReadiness($this->iceWorld(['sheets' => [$staleLs], 'iceGear' => $gear])));
+        $this->assertSame('done', $items['gear:5']['state']);
+    }
+
+    public function testStrictestIceClassIgnoresSheetsForCarsNotInTheDriversCarList(): void
+    {
+        // Sheet's car_id (999) is not in $in['cars'] (as if the car had been archived).
+        $gear = ['5:2027' => ['id' => 50, 'season' => 2027, 'discipline' => 'ice', 'level' => 'street_safe', 'status' => 'accepted', 'accepted_via' => 'in_person', 'photo_status' => null]];
+        $archivedCarLs = $this->iceSheet(['id' => 71, 'car_id' => 999, 'class' => 'LS']);
+        $items = $this->items(buildReadiness($this->iceWorld(['sheets' => [$archivedCarLs], 'iceGear' => $gear])));
+        $this->assertSame('done', $items['gear:5']['state']);
+    }
+
+    public function testCarNumberWithPercentSignRendersSafelyInCarTechDoneLabels(): void
+    {
+        $car = [3 => ['id' => 3, 'car_number' => '5%', 'year' => '2004', 'make' => 'Honda', 'model' => 'S2000']];
+        $summerSheet = ['id' => 70, 'car_id' => 3, 'event_id' => 10, 'season' => 2026, 'status' => 'teched', 'photo_status' => null, 'accepted_via' => 'in_person', 'driver_id' => 5];
+        $summerItems = $this->items(buildReadiness($this->world(['cars' => $car, 'sheets' => [$summerSheet]])));
+        $this->assertStringContainsString('#5%', $summerItems['car_tech:3']['label']);
+        $this->assertStringNotContainsString('#5%%', $summerItems['car_tech:3']['label']);
+
+        $iceSheet = $this->iceSheet(['status' => 'teched', 'accepted_via' => 'in_person']);
+        $iceItems = $this->items(buildReadiness($this->iceWorld(['cars' => $car, 'sheets' => [$iceSheet]])));
+        $this->assertStringContainsString('#5%', $iceItems['car_tech:3']['label']);
+        $this->assertStringNotContainsString('#5%%', $iceItems['car_tech:3']['label']);
+    }
+
+    public function testIceGearPhotosLinkFromALaterEventSheetSameSeason(): void
+    {
+        $sheet = $this->iceSheet(['id' => 70, 'event_id' => 21]);
+        $world = $this->iceWorld([
+            'events' => [
+                ['id' => 20, 'name' => 'NASCC Ice #1', 'event_date' => '2027-01-10', 'discipline' => 'ice', 'host_club' => 'NASCC'],
+                ['id' => 21, 'name' => 'NASCC Ice #2', 'event_date' => '2027-01-24', 'discipline' => 'ice', 'host_club' => 'NASCC'],
+            ],
+            'plans' => [['event_id' => 20, 'car_id' => 3], ['event_id' => 21, 'car_id' => 3]],
+            'sheets' => [$sheet],
+        ]);
+        // The gear item de-dupes onto the soonest (first) event, which has no sheet of its own.
+        $items = $this->items(buildReadiness($world), 0);
+        $this->assertSame('gear.php?action=start-ice&sheet_id=70', $items['gear:5']['action']['url']);
+    }
+
+    public function testIceGearDetailTextWithAndWithoutAnIceSheetLink(): void
+    {
+        $withLink = $this->items(buildReadiness($this->iceWorld(['sheets' => [$this->iceSheet()]])))['gear:5'];
+        $this->assertSame('Pre-tech with photos from your ice tech sheet, or bring it to tech at the track.', $withLink['detail']);
+
+        $withoutLink = $this->items(buildReadiness($this->iceWorld()))['gear:5'];
+        $this->assertSame('Bring it to tech at the track, or add photos once this driver is on an ice tech sheet.', $withoutLink['detail']);
+    }
+
     public function testDriverNameWithPercentSignRendersSafelyInSummerAndIceGearLabels(): void
     {
         $name = '100% Jordan';

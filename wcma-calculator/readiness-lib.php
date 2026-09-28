@@ -35,7 +35,8 @@ function readinessDeclaration(array $car, ?array $decl, int $season): array {
  * $names: label (todo), doneLabel (sprintf with via word + season), atTrackLabel, retakeLabel.
  */
 function readinessTech(string $kind, string $subjectType, int $subjectId, array $status, int $season,
-                       bool $atTrack, array $names, ?string $photosUrl, ?string $retakeUrl, array $atTrackExtra = []): array {
+                       bool $atTrack, array $names, ?string $photosUrl, ?string $retakeUrl, array $atTrackExtra = [],
+                       ?array $detailOverride = null): array {
     switch ($status['state']) {
         case 'accepted':
             $via = ($status['via'] ?? 'in_person') === 'photos' ? 'pre-teched' : 'teched';
@@ -50,8 +51,8 @@ function readinessTech(string $kind, string $subjectType, int $subjectId, array 
         return readinessItem($kind, $subjectType, $subjectId, 'done', $names['atTrackLabel']);
     }
     $detail = $photosUrl !== null
-        ? 'Pre-tech with photos, or bring it to tech at the track.'
-        : 'Pre-tech with photos after you submit the tech sheet, or bring it to tech at the track.';
+        ? ($detailOverride['with'] ?? 'Pre-tech with photos, or bring it to tech at the track.')
+        : ($detailOverride['without'] ?? 'Pre-tech with photos after you submit the tech sheet, or bring it to tech at the track.');
     return readinessItem($kind, $subjectType, $subjectId, 'todo', $names['label'], $detail,
         $photosUrl !== null ? ['label' => 'Add photos', 'url' => $photosUrl] : null,
         ['subject_type' => $subjectType, 'subject_id' => $subjectId, 'season' => $season] + $atTrackExtra);
@@ -62,17 +63,41 @@ function readinessTech(string $kind, string $subjectType, int $subjectId, array 
  * (spec §4a: a shortfall against ANY of the driver's sheets that season is still a shortfall).
  * A caged-group class beats street_safe/drift; among caged classes, one that needs an FHR wins,
  * so the FHR rule is checked whenever any of the driver's sheets that season needs it.
+ *
+ * Only sheets for a live event ($liveEventIds, from buildReadiness(): active, dated today or
+ * later, and tagged) and a car still in $cars (i.e. not archived) count. A stale sheet — a past,
+ * deactivated, or untagged event, or an archived car — must not leave a to-do the competitor has
+ * no way to clear.
  */
-function readinessStrictestIceClass(array $sheets, int $did, int $season): ?array {
+function readinessStrictestIceClass(array $sheets, int $did, int $season, array $liveEventIds, array $cars): ?array {
     $rank = fn(array $c): int => ($c['group'] === 'caged' ? 20 : 10) + ($c['fhr'] ? 1 : 0);
     $best = null;
     foreach ($sheets as $s) {
         if (!techSheetIsIce($s) || (int)($s['season'] ?? 0) !== $season || (int)($s['driver_id'] ?? 0) !== $did) continue;
+        if (!isset($liveEventIds[(int)($s['event_id'] ?? 0)])) continue;
+        if (!isset($cars[(int)($s['car_id'] ?? 0)])) continue;
         $class = iceClass((string)($s['club'] ?? ''), (string)($s['class'] ?? ''));
         if ($class === null) continue;
         if ($best === null || $rank($class) > $rank($best)) $best = $class;
     }
     return $best;
+}
+
+/**
+ * The newest (by id) live ice sheet this season naming $did as its driver, restricted to the same
+ * live events and cars as readinessStrictestIceClass() (spec §4a item 3). Used for the ice gear
+ * "Add photos" link, so it isn't limited to the current event's own sheet.
+ */
+function readinessIceGearPhotosUrl(array $sheets, int $did, int $season, array $liveEventIds, array $cars): ?string {
+    $best = null;
+    foreach ($sheets as $s) {
+        if (!techSheetIsIce($s) || (int)($s['season'] ?? 0) !== $season || (int)($s['driver_id'] ?? 0) !== $did) continue;
+        if (!isset($liveEventIds[(int)($s['event_id'] ?? 0)])) continue;
+        if (!isset($cars[(int)($s['car_id'] ?? 0)])) continue;
+        $id = (int)$s['id'];
+        if ($best === null || $id > $best) $best = $id;
+    }
+    return $best !== null ? 'gear.php?action=start-ice&sheet_id=' . $best : null;
 }
 
 /**
@@ -103,24 +128,26 @@ function readinessIceGear(int $did, string $name, int $season, ?array $iceGear, 
         $via = ($iceStatus['via'] ?? 'in_person') === 'photos' ? 'pre-teched' : 'teched';
         return readinessItem('gear', 'driver', $did, 'done', "Ice gear for $name: $via Ice $season" . ($levelLabel !== '' ? " · $levelLabel" : ''));
     }
-    $safeName = str_replace('%', '%%', $name);
     return readinessTech('gear', 'driver', $did, $iceStatus, $season, $atTrack, [
-        'label' => "Ice gear for $name", 'doneLabel' => "Ice gear for $safeName: %s Ice %d", 'pendingLabel' => "Ice gear photos for $name are with an inspector",
+        'label' => "Ice gear for $name", 'pendingLabel' => "Ice gear photos for $name are with an inspector",
         'retakeLabel' => "Retake ice gear photos for $name", 'atTrackLabel' => "Ice gear for $name: checked at the track",
     ], $photosUrl, $iceGear !== null ? 'gear.php?action=pretech&id=' . (int)$iceGear['id'] : null,
-       ['discipline' => DISCIPLINE_ICE, 'club' => '']);
+       ['discipline' => DISCIPLINE_ICE, 'club' => ''],
+       ['with' => 'Pre-tech with photos from your ice tech sheet, or bring it to tech at the track.',
+        'without' => 'Bring it to tech at the track, or add photos once this driver is on an ice tech sheet.']);
 }
 
 /**
  * Ice to-dos for one car at one ice event: the ice tech sheet, ice car tech for the event's club
  * and season, and ice gear for each driver. $once de-duplicates season-wide items across events.
  */
-function readinessIceCarItems(array $in, array $event, array $key, int $carId, array $sheetsByCar, array $atTrack, callable $once): array {
+function readinessIceCarItems(array $in, array $event, array $key, int $carId, array $sheetsByCar, array $atTrack, callable $once, array $liveEventIds): array {
     $eid = (int)$event['id'];
     $season = $key['season'];
     $club = (string)$key['club'];
     $car = $in['cars'][$carId];
     $n = '#' . $car['car_number'];
+    $safeN = str_replace('%', '%%', $n);
     $items = [];
 
     $eventSheet = null;
@@ -139,7 +166,7 @@ function readinessIceCarItems(array $in, array $event, array $key, int $carId, a
         $ids = array_map(fn(array $s): int => (int)$s['id'], $clubSheets);
         $latest = $ids ? max($ids) : null;
         $items[] = readinessTech('car_tech', 'car', $carId, $status, $season, isset($atTrack[atTrackKey('car', $carId, $season, DISCIPLINE_ICE, $club)]), [
-            'label' => "Ice car tech for $n at $club", 'doneLabel' => "Ice car tech %2\$d for $n at $club: %1\$s",
+            'label' => "Ice car tech for $n at $club", 'doneLabel' => "Ice car tech %2\$d for $safeN at $club: %1\$s",
             'pendingLabel' => "Ice car tech photos for $n are with an inspector", 'retakeLabel' => "Retake ice car photos for $n",
             'atTrackLabel' => "Ice car tech for $n: you'll bring it to tech at the track",
         ], $latest !== null ? 'tech-sheets.php?action=pretech&id=' . $latest : null,
@@ -153,12 +180,13 @@ function readinessIceCarItems(array $in, array $event, array $key, int $carId, a
     foreach ($driverIds as $did) {
         if (!isset($in['drivers'][$did]) || !$once("ice_gear:$did")) continue;
         $iceGear = $in['iceGear']["$did:$season"] ?? null;
-        $class = readinessStrictestIceClass($in['sheets'], $did, $season);
+        $class = readinessStrictestIceClass($in['sheets'], $did, $season, $liveEventIds, $in['cars']);
+        $photosUrl = readinessIceGearPhotosUrl($in['sheets'], $did, $season, $liveEventIds, $in['cars']);
         $items[] = readinessIceGear($did, (string)$in['drivers'][$did]['name'], $season, $iceGear,
             $in['gear']["$did:" . ($season - 1)] ?? null, $class,
             $iceGear !== null && !empty($in['iceGearFhr'][(int)$iceGear['id']]),
             isset($atTrack[atTrackKey('driver', $did, $season, DISCIPLINE_ICE)]),
-            $eventSheet !== null && (int)($eventSheet['driver_id'] ?? 0) === $did ? 'gear.php?action=start-ice&sheet_id=' . (int)$eventSheet['id'] : null);
+            $photosUrl);
     }
     return $items;
 }
@@ -177,6 +205,13 @@ function buildReadiness(array $in): array {
 
     $sheetsByCar = [];
     foreach ($in['sheets'] as $s) $sheetsByCar[(int)$s['car_id']][] = $s;
+
+    // Events the strictest-ice-class and gear-photo-link scans may draw sheets from: active,
+    // dated today or later, and tagged (spec §4a item 1).
+    $liveEventIds = [];
+    foreach ($upcoming as $event) {
+        if (!empty($carsByEvent[(int)$event['id']])) $liveEventIds[(int)$event['id']] = true;
+    }
 
     $seen = [];
     $events = [];
@@ -200,9 +235,10 @@ function buildReadiness(array $in): array {
             $n = '#' . $car['car_number'];
 
             if ($key['discipline'] === DISCIPLINE_ICE) {
-                $items = array_merge($items, readinessIceCarItems($in, $event, $key, $carId, $sheetsByCar, $atTrack, $once));
+                $items = array_merge($items, readinessIceCarItems($in, $event, $key, $carId, $sheetsByCar, $atTrack, $once, $liveEventIds));
                 continue;
             }
+            $safeN = str_replace('%', '%%', $n);
 
             $seasonSheets = array_values(array_filter($sheetsByCar[$carId] ?? [], fn(array $s): bool => (int)$s['season'] === $season && !techSheetIsIce($s)));
             $eventSheet = null;
@@ -225,7 +261,7 @@ function buildReadiness(array $in): array {
                 usort($byId, fn(array $a, array $b): int => (int)$a['id'] <=> (int)$b['id']);
                 $latest = $byId ? (int)end($byId)['id'] : null;
                 $items[] = readinessTech('car_tech', 'car', $carId, $status, $season, isset($atTrack["car:$carId@$season"]), [
-                    'label' => "Car tech for $n", 'doneLabel' => "Car tech $season for $n: %s", 'pendingLabel' => "Car tech photos for $n are with an inspector",
+                    'label' => "Car tech for $n", 'doneLabel' => "Car tech $season for $safeN: %s", 'pendingLabel' => "Car tech photos for $n are with an inspector",
                     'retakeLabel' => "Retake photos for $n", 'atTrackLabel' => "Car tech for $n: you'll bring it to tech at the track",
                 ], $latest !== null ? 'tech-sheets.php?action=pretech&id=' . $latest : null,
                    $status['sheet_id'] !== null ? 'tech-sheets.php?action=pretech&id=' . $status['sheet_id'] : null);
