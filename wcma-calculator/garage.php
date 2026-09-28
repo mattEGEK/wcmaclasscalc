@@ -122,6 +122,7 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
     foreach ($events['tagged'] as $row) {
         if ((($row['event']['discipline'] ?? 'summer') === 'ice')) $taggedIce = true; else $taggedSummer = true;
     }
+    $seasons = garageCarSeasons($car, $declarations, $allSheets, $taggedSummer, $taggedIce);
 
     renderPageStart(carDisplayName($car), 'garage', ['flash' => getFlash(), 'subnav' => '<a href="garage.php">&larr; Back to Garage</a>']);
     echo renderGarageCarHtml([
@@ -130,8 +131,9 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         'techAction' => garageTechPhotosAction($seasonSheets, $status),
         'events' => $events, 'csrf' => generateCsrfToken(), 'detailsForm' => $detailsForm,
         'offerReminders' => remindersShouldOffer(db_find_user_by_id($pdo, $uid)),
-        'usesSummer' => garageCarUsesSummer($declarations, $allSheets, $taggedSummer, $taggedIce),
-        'ice' => garageIceSummary($allSheets, $taggedIce, gearSeasonNow(DISCIPLINE_ICE)),
+        'seasons' => $seasons,
+        'usesSummer' => $seasons['summer'],
+        'ice' => garageIceSummary($allSheets, $taggedIce, gearSeasonNow(DISCIPLINE_ICE), isset($car['disciplines']) ? (string)$car['disciplines'] : null),
     ]);
     renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script>']);
 }
