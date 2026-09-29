@@ -1,9 +1,10 @@
 <?php
 // wcma-calculator/readiness-lib.php
 //
-// What a competitor still has to do for the events they tagged (spec §3), for both summer and ice
+// What a competitor still has to do for the events they tagged (spec §3), for summer, TA/Drift and ice
 // events. buildReadiness() is pure: no DB, no HTML. loadReadinessInputs() gathers its input from
 // the database. Callers must have loaded tech-status.php and gear-lib.php.
+// Item states: done, todo, info (with an inspector) and suggested (TA/Drift spec §4: shown, never counted).
 require_once __DIR__ . '/ice-sheet-lib.php';   // techSheetIsIce()
 require_once __DIR__ . '/ice-rules.php';
 require_once __DIR__ . '/ta-drift-lib.php';
@@ -193,6 +194,122 @@ function readinessIceCarItems(array $in, array $event, array $key, int $carId, a
 }
 
 /**
+ * TA/Drift gear photos open from the TA/Drift tech sheet that names the driver (plan 2's
+ * gear.php?action=start-ta-drift&sheet_id=N[&driver=M], gearStartTaDriftForSheet()). Driver 1 is the
+ * sheet's driver_id; added drivers carry their number. Null when $sheet isn't a TA/Drift sheet or
+ * doesn't name the driver. The only place this URL is built.
+ * @param array $sheetDriverNumbers sheet id => [driver id => driver number] (loadReadinessInputs())
+ */
+function readinessTaDriftGearPhotosUrl(?array $sheet, int $driverId, array $sheetDriverNumbers): ?string {
+    if ($sheet === null || !techSheetIsTaDrift($sheet)) return null;
+    $url = 'gear.php?action=start-ta-drift&sheet_id=' . (int)$sheet['id'];
+    if ((int)($sheet['driver_id'] ?? 0) === $driverId) return $url;
+    $number = $sheetDriverNumbers[(int)$sheet['id']][$driverId] ?? null;
+    return $number !== null ? $url . '&driver=' . (int)$number : null;
+}
+
+/**
+ * TA/Drift to-dos for one car at one summer event (TA/Drift spec §4). No class declaration.
+ * 1. The sheet for this event: required until the car is accepted for the club and year, then
+ *    'suggested' (the driver's own safety check, not counted as outstanding).
+ * 2. TA/Drift car tech for the host club and year; accepted race tech for the year covers it.
+ * 3. Gear for each driver: this event's sheet, else the newest accepted TA/Drift sheet for the club
+ *    and year, else the account's own driver. TA/Drift or race-level gear both cover it.
+ * 4. The supplementary-regulations tick, or this event's TA/Drift sheet.
+ * $once de-duplicates the season-wide items (2 and 3) across events, with keys of their own so a
+ * race entry later in the season still gets race car tech and race gear.
+ */
+function readinessTaDriftCarItems(array $in, array $event, int $season, int $carId, array $entry, array $sheetsByCar, array $atTrack, callable $once): array {
+    $eid = (int)$event['id'];
+    $club = trim((string)$event['host_club']);
+    $n = '#' . $in['cars'][$carId]['car_number'];
+    $safeN = str_replace('%', '%%', $n);
+    $newSheetUrl = "tech-sheets.php?action=new-ta-drift&car_id=$carId&event_id=$eid";
+    $items = [];
+
+    $carSheets = $sheetsByCar[$carId] ?? [];
+    $raceSheets = array_values(array_filter($carSheets, fn(array $s): bool =>
+        (int)$s['season'] === $season && !techSheetIsIce($s) && !techSheetIsTaDrift($s)));
+    $clubSheets = array_values(array_filter($carSheets, fn(array $s): bool =>
+        techSheetIsTaDrift($s) && (string)($s['club'] ?? '') === $club && (int)$s['season'] === $season));
+    $status = taDriftCarTechStatus(techCarStatus($raceSheets), techCarStatus($clubSheets));
+    $clubIds = array_map(fn(array $s): int => (int)$s['id'], $clubSheets);
+    $latestClubSheet = $clubIds ? max($clubIds) : null;
+
+    $eventSheet = null;
+    foreach ($carSheets as $s) {
+        if ((int)$s['event_id'] === $eid && !techSheetIsIce($s)) { $eventSheet = $s; break; }
+    }
+
+    if ($eventSheet !== null) {
+        $items[] = readinessItem('tech_sheet', 'car', $carId, 'done',
+            (techSheetIsTaDrift($eventSheet) ? 'TA/Drift tech sheet' : 'Tech sheet') . ' for ' . $event['name'] . ' submitted');
+    } elseif ($status['state'] === 'accepted') {
+        $items[] = readinessItem('tech_sheet', 'car', $carId, 'suggested', 'Check your car for ' . $event['name'] . ' (recommended)',
+            "You're teched for $club $season. Going through the tech sheet before each event is how you catch a loose lug nut or a leak before it matters.",
+            ['label' => 'Go through the tech sheet', 'url' => $newSheetUrl]);
+    } else {
+        $items[] = readinessItem('tech_sheet', 'car', $carId, 'todo', "Submit a TA/Drift tech sheet for $n",
+            "Check each item on the car before you tick it. One accepted sheet covers $club for $season.",
+            ['label' => 'Submit TA/Drift tech sheet', 'url' => $newSheetUrl]);
+    }
+
+    if ($once("tad_car_tech:$club:$carId")) {
+        if ($status['state'] === 'accepted' && $status['tier'] === TECH_TIER_RACE) {
+            $items[] = readinessItem('car_tech', 'car', $carId, 'done', "TA/Drift car tech $season for $n at $club: covered by race tech");
+        } else {
+            $items[] = readinessTech('car_tech', 'car', $carId, $status, $season,
+                isset($atTrack[atTrackKey('car', $carId, $season, TECH_TIER_TA_DRIFT, $club)]), [
+                'label' => "TA/Drift car tech for $n at $club", 'doneLabel' => "TA/Drift car tech %2\$d for $safeN at $club: %1\$s",
+                'pendingLabel' => "TA/Drift car tech photos for $n are with an inspector", 'retakeLabel' => "Retake TA/Drift car photos for $n",
+                'atTrackLabel' => "TA/Drift car tech for $n: you'll bring it to tech at the track",
+            ], $latestClubSheet !== null ? 'tech-sheets.php?action=pretech&id=' . $latestClubSheet : null,
+               $status['sheet_id'] !== null ? 'tech-sheets.php?action=pretech&id=' . $status['sheet_id'] : null,
+               ['discipline' => TECH_TIER_TA_DRIFT, 'club' => $club],
+               ['with' => 'Pre-tech with photos from your TA/Drift tech sheet, or bring it to tech at the track.',
+                'without' => 'Pre-tech with photos after you submit the TA/Drift tech sheet, or bring it to tech at the track.']);
+        }
+    }
+
+    $source = $eventSheet;
+    if ($source === null) {
+        foreach ($clubSheets as $s) {
+            if (($s['status'] ?? '') === 'teched' && ($source === null || (int)$s['id'] > (int)$source['id'])) $source = $s;
+        }
+    }
+    $driverIds = $source !== null
+        ? array_merge([(int)($source['driver_id'] ?? 0)], array_map('intval', $in['sheetDrivers'][(int)$source['id']] ?? []))
+        : [(int)$in['selfDriverId']];
+    foreach (array_values(array_unique(array_filter($driverIds))) as $did) {
+        if (!isset($in['drivers'][$did]) || !$once("tad_gear:$did")) continue;
+        $name = (string)$in['drivers'][$did]['name'];
+        $safeName = str_replace('%', '%%', $name);
+        $gear = $in['gear']["$did:$season"] ?? null;
+        if (gearCoversTier($gear, TECH_TIER_TA_DRIFT)) {
+            $via = ($gear['accepted_via'] ?? 'in_person') === 'photos' ? 'pre-teched' : 'teched';
+            $items[] = readinessItem('gear', 'driver', $did, 'done', "Gear for $name: $via $season · " . gearSummerLevelLabel($gear['level'] ?? null));
+            continue;
+        }
+        $items[] = readinessTech('gear', 'driver', $did, $gear !== null ? gearStatus($gear) : ['state' => 'none', 'via' => null], $season,
+            isset($atTrack["driver:$did@$season"]), [
+            'label' => "TA/Drift gear for $name", 'doneLabel' => "Gear for $safeName: %s $season",
+            'pendingLabel' => "Gear photos for $name are with an inspector", 'retakeLabel' => "Retake gear photos for $name",
+            'atTrackLabel' => "Gear for $name: checked at the track",
+        ], readinessTaDriftGearPhotosUrl($source, $did, $in['sheetDriverNumbers'] ?? []), $gear !== null ? 'gear.php?action=pretech&id=' . (int)$gear['id'] : null, [],
+           ['with' => 'Pre-tech your helmet with photos, or bring your gear to tech at the track.',
+            'without' => 'Bring it to tech at the track, or add photos once this driver is on a TA/Drift tech sheet.']);
+    }
+
+    $ticked = ($entry['supps_ack_at'] ?? null) !== null || ($eventSheet !== null && techSheetIsTaDrift($eventSheet));
+    $items[] = $ticked
+        ? readinessItem('supps', 'car', $carId, 'done', "$n: $club supplementary regulations read")
+        : readinessItem('supps', 'car', $carId, 'todo', "Confirm you've read the $club supplementary regulations for $n",
+            "Tick the box on this event's card, or submit this event's TA/Drift tech sheet.",
+            ['label' => 'Confirm', 'url' => 'index.php#event-' . $eid]);
+    return $items;
+}
+
+/**
  * One car's entry at one event: its formats, the tech tier they need there (entryTierAtEvent()),
  * and when the supplementary-regulations box was ticked. $plan is its event_plans row, or null.
  * @return array{formats: string[], tier: string, supps_ack_at: ?string}
@@ -204,7 +321,7 @@ function readinessEntry(array $event, ?array $plan): array {
 }
 
 function buildReadiness(array $in): array {
-    $in += ['iceGear' => [], 'iceGearFhr' => []];
+    $in += ['iceGear' => [], 'iceGearFhr' => [], 'sheetDriverNumbers' => []];
     $today = (string)$in['today'];
     $upcoming = array_values(array_filter($in['events'], fn(array $e): bool => (string)$e['event_date'] >= $today));
     usort($upcoming, fn(array $a, array $b): int => strcmp((string)$a['event_date'], (string)$b['event_date']) ?: ((int)$a['id'] <=> (int)$b['id']));
@@ -255,12 +372,18 @@ function buildReadiness(array $in): array {
                 $items = array_merge($items, readinessIceCarItems($in, $event, $key, $carId, $sheetsByCar, $atTrack, $once, $liveEventIds));
                 continue;
             }
+            if ($entries[$carId]['tier'] === TECH_TIER_TA_DRIFT) {
+                $items = array_merge($items, readinessTaDriftCarItems($in, $event, $season, $carId, $entries[$carId], $sheetsByCar, $atTrack, $once));
+                continue;
+            }
             $safeN = str_replace('%', '%%', $n);
 
-            $seasonSheets = array_values(array_filter($sheetsByCar[$carId] ?? [], fn(array $s): bool => (int)$s['season'] === $season && !techSheetIsIce($s)));
+            // Race tech: TA/Drift sheets are neither this event's race sheet nor race car tech (TA/Drift spec §2).
+            $isRaceSheet = fn(array $s): bool => !techSheetIsIce($s) && !techSheetIsTaDrift($s);
+            $seasonSheets = array_values(array_filter($sheetsByCar[$carId] ?? [], fn(array $s): bool => (int)$s['season'] === $season && $isRaceSheet($s)));
             $eventSheet = null;
             foreach ($sheetsByCar[$carId] ?? [] as $s) {
-                if ((int)$s['event_id'] === $eid && !techSheetIsIce($s)) { $eventSheet = $s; break; }
+                if ((int)$s['event_id'] === $eid && $isRaceSheet($s)) { $eventSheet = $s; break; }
             }
 
             if ($once("declaration:$carId")) {
@@ -322,8 +445,12 @@ function loadReadinessInputs(PDO $pdo, int $userId, string $today): array {
 
     $sheets = db_get_user_tech_sheets($pdo, $userId);
     $sheetDrivers = [];
+    $sheetDriverNumbers = [];
     foreach (db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $sheets)) as $sheetId => $rows) {
         $sheetDrivers[(int)$sheetId] = array_values(array_filter(array_map(fn(array $r): int => (int)($r['driver_id'] ?? 0), $rows)));
+        foreach ($rows as $r) {
+            if ((int)($r['driver_id'] ?? 0) > 0) $sheetDriverNumbers[(int)$sheetId][(int)$r['driver_id']] = (int)$r['driver_number'];
+        }
     }
 
     $drivers = [];
@@ -378,6 +505,7 @@ function loadReadinessInputs(PDO $pdo, int $userId, string $today): array {
         'declarations' => db_get_user_current_declarations($pdo, $userId),
         'sheets' => $sheets,
         'sheetDrivers' => $sheetDrivers,
+        'sheetDriverNumbers' => $sheetDriverNumbers,
         'drivers' => $drivers,
         'selfDriverId' => $self !== null ? (int)$self['id'] : 0,
         'gear' => $gear,
