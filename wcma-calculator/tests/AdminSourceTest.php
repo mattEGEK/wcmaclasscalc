@@ -43,9 +43,13 @@ final class AdminSourceTest extends TestCase
     public function testBackOfficePagesUseTheAdminTabs(): void
     {
         $expect = [
-            'admin.php' => ["adminSubnavHtml('users')", "adminSubnavHtml('events')", "adminSubnavHtml('settings')"],
-            'admin-feedback.php' => ["adminSubnavHtml('feedback')"],
-            'admin-season-links.php' => ["adminSubnavHtml('season-links')"],
+            'admin-events.php' => ["adminRenderPage('Events', 'events'"],
+            'admin-clubs.php' => ["adminRenderPage('Clubs', 'clubs'"],
+            'admin-users.php' => ["adminRenderPage('Users & roles', 'users'"],
+            'admin-ui.php' => ["adminSubnavHtml(\$tab)"],
+            'admin-feedback.php' => ["adminRenderPage('Feedback', 'feedback'"],
+            'admin-season-links.php' => ["adminRenderPage('Season links', 'season-links'"],
+            'admin-settings.php' => ["adminRenderPage('Settings', 'settings'"],
         ];
         foreach ($expect as $file => $needles) {
             $src = $this->src($file);
@@ -58,7 +62,7 @@ final class AdminSourceTest extends TestCase
 
     public function testEventsListShowsHowManyCarsAreGoing(): void
     {
-        $admin = $this->src('admin.php');
+        $admin = $this->src('admin-events.php');
         $this->assertStringContainsString('db_count_event_plans($pdo)', $admin);
         $this->assertStringContainsString('<th>Going</th>', $admin);
     }
@@ -74,7 +78,7 @@ final class AdminSourceTest extends TestCase
 
     public function testEventFormHasDisciplineAndHostClub(): void
     {
-        $src = $this->src('admin.php');
+        $src = $this->src('admin-events.php');
         $this->assertStringContainsString('name="discipline"', $src);
         $this->assertStringContainsString('name="host_club"', $src);
         $this->assertStringContainsString('iceEventFields($_POST, ', $src);
@@ -85,7 +89,7 @@ final class AdminSourceTest extends TestCase
     // iceEventFields() itself stays pure — handleEventUpdate() fills the gaps before calling it.
     public function testEventUpdateKeepsCurrentDisciplineWhenPostOmitsIt(): void
     {
-        $body = $this->body('admin.php', 'handleEventUpdate');
+        $body = $this->body('admin-events.php', 'handleEventUpdate');
         $this->assertStringContainsString("db_get_event(\$pdo, \$id)", $body);
         $this->assertStringContainsString("array_key_exists('discipline', \$disciplineInput)", $body);
         $this->assertStringContainsString("iceEventFields(\$disciplineInput, ", $body);
@@ -95,8 +99,9 @@ final class AdminSourceTest extends TestCase
 
     public function testClubsTabIsRoutedAndEventsTakeClubsFromTheList(): void
     {
-        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../admin.php'));
-        foreach (["case 'clubs':", "case 'club-save':", "case 'event-club':", "adminRequirePost('admin.php?action=clubs')",
+        $src = $this->src('admin.php') . $this->src('admin-events.php');
+        $this->assertStringNotContainsString("case 'event-club':", $this->src('admin.php'));
+        foreach (["case 'clubs':", "case 'club-save':", "adminRequirePost('admin.php?action=clubs')",
                   "adminRequirePost('admin.php?action=events')", 'array_column(db_get_clubs($pdo, true), \'code\')'] as $needle) {
             $this->assertStringContainsString($needle, $src);
         }
@@ -104,18 +109,36 @@ final class AdminSourceTest extends TestCase
         $this->assertStringContainsString("'clubs' => ['admin.php?action=clubs', 'Clubs']", $layout);
     }
 
-    public function testDeactivateAndReactivateAreSecondaryButtons(): void
+    public function testUserSaveChecksEverythingBeforeWritingAnything(): void
     {
-        $src = file_get_contents(__DIR__ . '/../admin.php');
-        $this->assertStringContainsString('<button type="submit" class="btn-role btn-role--secondary">Deactivate</button>', $src);
-        $this->assertStringContainsString('<button type="submit" class="btn-role btn-role--secondary">Reactivate</button>', $src);
+        $body = $this->body('admin-users.php', 'handleUserSave');
+        $check = strpos($body, 'adminUserSaveError(');
+        foreach (['db_set_user_name(', 'db_set_user_role(', 'db_set_user_media('] as $write) {
+            $this->assertLessThan(strpos($body, $write), $check, $write);
+        }
+        $this->assertStringContainsString("adminRedirect('admin.php?action=users&edit=' . \$id);", $body);
+        $this->assertStringContainsString('db_count_active_admins($pdo)', $body);
+        // The "Saved …" message is at the top of the page; jumping to the row would scroll it out of sight.
+        foreach (['handleUserSave', 'handleSetActive'] as $fn) {
+            $this->assertStringNotContainsString('#user-', $this->body('admin-users.php', $fn), $fn);
+        }
+        foreach (["case 'set-role':", "case 'set-name':", "case 'set-media':"] as $gone) {
+            $this->assertStringNotContainsString($gone, $this->src('admin.php'));
+        }
     }
 
     public function testEventClubHandlersAcceptTheEventsCurrentClub(): void
     {
-        $this->assertStringContainsString('eventClubOptions(', $this->src('admin.php'));
-        foreach (['handleEventClub', 'handleEventUpdate'] as $fn) {
-            $this->assertStringContainsString('adminEventClubCodes($pdo, ', $this->body('admin.php', $fn));
+        $this->assertStringContainsString('eventClubOptions(', $this->src('admin-events.php'));
+        $this->assertStringContainsString('adminEventClubCodes($pdo, ', $this->body('admin-events.php', 'handleEventUpdate'));
+    }
+
+    public function testEveryAdminTabUsesTheHubPageShell(): void
+    {
+        foreach (['admin.php', 'admin-users.php', 'admin-events.php', 'admin-clubs.php', 'admin-season-links.php', 'admin-settings.php', 'admin-feedback.php'] as $file) {
+            $src = $this->src($file);
+            $this->assertStringNotContainsString('<!DOCTYPE html>', $src, $file);
+            $this->assertStringNotContainsString('renderSiteHeader(', $src, $file);
         }
     }
 }

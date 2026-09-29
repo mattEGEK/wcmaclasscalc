@@ -61,22 +61,7 @@ function feedbackGithubCell(array $f): string {
 }
 
 function renderFeedbackListPage(array $rows, ?array $flash): void {
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Feedback — WCMA Admin</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
-<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
-</head>
-<body class="hub">
-<div class="container">
-  <?php renderSiteHeader('Feedback', adminSubnavHtml('feedback'), 'admin'); ?>
-  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+    ob_start(); ?>
   <p class="list-summary"><?= count($rows) ?> item<?= count($rows) === 1 ? '' : 's' ?></p>
   <table class="data-table">
     <thead>
@@ -98,33 +83,15 @@ function renderFeedbackListPage(array $rows, ?array $flash): void {
     <?php endforeach; endif; ?>
     </tbody>
   </table>
-</div>
-<script src="js/form-feedback.js"></script>
-<?php renderSiteFooter(); ?>
-</body>
-</html><?php
+<?php adminRenderPage('Feedback', 'feedback', (string)ob_get_clean(), $flash);
 }
 
 function renderFeedbackViewPage(array $f, string $csrf, ?array $flash, bool $githubEnabled): void {
     $needsSync = $f['github_issue_number'] === null;
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Feedback #<?= (int)$f['id'] ?> — WCMA Admin</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
-<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
-</head>
-<body class="hub">
-<div class="container">
-  <?php renderSiteHeader('Feedback #' . (int)$f['id'], '<a href="admin.php?action=feedback">← Back to list</a>', 'admin'); ?>
-  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+    ob_start(); ?>
+  <p><a href="admin.php?action=feedback">← Back to list</a></p>
 
-  <div class="detail-card" style="margin-bottom:1.5rem">
+  <div class="detail-card">
     <h2><?= h(feedbackTypeLabel($f['type'])) ?> — <?= h(date('M j, Y H:i', strtotime($f['created_at']))) ?></h2>
     <p><?= nl2br(h($f['message'])) ?></p>
     <table class="detail-table">
@@ -148,7 +115,7 @@ function renderFeedbackViewPage(array $f, string $csrf, ?array $flash, bool $git
     <?php endif; ?>
   </div>
 
-  <div class="detail-card" style="margin-bottom:1.5rem">
+  <div class="detail-card">
     <h2>Status</h2>
     <form method="post" action="admin.php?action=feedback-status" class="edit-form">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
@@ -169,9 +136,5 @@ function renderFeedbackViewPage(array $f, string $csrf, ?array $flash, bool $git
     </form>
     <?php endif; ?>
   </div>
-</div>
-<script src="js/form-feedback.js"></script>
-<?php renderSiteFooter(); ?>
-</body>
-</html><?php
+<?php adminRenderPage('Feedback #' . (int)$f['id'], 'feedback', (string)ob_get_clean(), $flash);
 }
