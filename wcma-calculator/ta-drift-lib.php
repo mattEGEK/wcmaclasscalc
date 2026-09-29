@@ -76,3 +76,14 @@ function gearCoversTier(?array $gear, string $tier): bool {
     if ($gear === null || ($gear['status'] ?? '') !== 'accepted') return false;
     return $tier === TECH_TIER_TA_DRIFT || ($gear['level'] ?? null) === null;
 }
+
+/**
+ * The tech an entry needs at $event (TA/Drift spec §4): ice events are race; a summer TA/Drift entry
+ * needs the event's host club (TA/Drift tech is per club), so an event without one is race. The
+ * only place an entry's stored formats become a tier.
+ */
+function entryTierAtEvent(array $event, ?string $stored): string {
+    if (($event['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) return TECH_TIER_RACE;
+    if (trim((string)($event['host_club'] ?? '')) === '') return TECH_TIER_RACE;
+    return entryTechTier(entryFormatsParse($stored));
+}

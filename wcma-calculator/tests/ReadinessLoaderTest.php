@@ -33,7 +33,7 @@ final class ReadinessLoaderTest extends TestCase
 
         $this->assertSame([$car], array_keys($in['cars']));                     // archived car excluded
         $this->assertSame('2026-09-26', $in['today']);
-        $this->assertSame([['event_id' => $event, 'car_id' => $car]], $in['plans']);
+        $this->assertSame([['event_id' => $event, 'car_id' => $car, 'formats' => 'race', 'supps_ack_at' => null]], $in['plans']);
         $this->assertSame('submitted', $in['declarations'][$car]['review_status']);
         $this->assertCount(1, $in['sheets']);
         $sam = (int)db_find_driver($pdo, $u, 'Sam Patel')['id'];

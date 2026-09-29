@@ -192,6 +192,17 @@ function readinessIceCarItems(array $in, array $event, array $key, int $carId, a
     return $items;
 }
 
+/**
+ * One car's entry at one event: its formats, the tech tier they need there (entryTierAtEvent()),
+ * and when the supplementary-regulations box was ticked. $plan is its event_plans row, or null.
+ * @return array{formats: string[], tier: string, supps_ack_at: ?string}
+ */
+function readinessEntry(array $event, ?array $plan): array {
+    $stored = isset($plan['formats']) ? (string)$plan['formats'] : null;
+    return ['formats' => entryFormatsParse($stored), 'tier' => entryTierAtEvent($event, $stored),
+            'supps_ack_at' => $plan['supps_ack_at'] ?? null];
+}
+
 function buildReadiness(array $in): array {
     $in += ['iceGear' => [], 'iceGearFhr' => []];
     $today = (string)$in['today'];
@@ -199,8 +210,11 @@ function buildReadiness(array $in): array {
     usort($upcoming, fn(array $a, array $b): int => strcmp((string)$a['event_date'], (string)$b['event_date']) ?: ((int)$a['id'] <=> (int)$b['id']));
 
     $carsByEvent = [];
+    $plansByEvent = [];
     foreach ($in['plans'] as $p) {
-        if (isset($in['cars'][(int)$p['car_id']])) $carsByEvent[(int)$p['event_id']][(int)$p['car_id']] = true;
+        if (!isset($in['cars'][(int)$p['car_id']])) continue;
+        $carsByEvent[(int)$p['event_id']][(int)$p['car_id']] = true;
+        $plansByEvent[(int)$p['event_id']][(int)$p['car_id']] = $p;
     }
     $atTrack = array_flip($in['atTrack']);
 
@@ -223,6 +237,7 @@ function buildReadiness(array $in): array {
         $key = seasonForEvent($event);
         $season = $key['season'];
         $items = [];
+        $entries = [];
 
         $once = function (string $key) use (&$seen, $season): bool {
             $k = $key . '@' . $season;
@@ -234,6 +249,7 @@ function buildReadiness(array $in): array {
             if (!isset($carsByEvent[$eid][$carId])) continue;
             $car = $in['cars'][$carId];
             $n = '#' . $car['car_number'];
+            $entries[$carId] = readinessEntry($event, $plansByEvent[$eid][$carId] ?? null);
 
             if ($key['discipline'] === DISCIPLINE_ICE) {
                 $items = array_merge($items, readinessIceCarItems($in, $event, $key, $carId, $sheetsByCar, $atTrack, $once, $liveEventIds));
@@ -281,6 +297,12 @@ function buildReadiness(array $in): array {
                 $name = (string)$in['drivers'][$did]['name'];
                 $safeName = str_replace('%', '%%', $name);
                 $gear = $in['gear']["$did:$season"] ?? null;
+                if ($gear !== null && gearStatus($gear)['state'] === 'accepted' && !gearCoversTier($gear, TECH_TIER_RACE)) {
+                    // Accepted at TA/Drift level only (TA/Drift spec §2): racing needs race-level gear.
+                    $items[] = readinessItem('gear', 'driver', $did, 'todo', "$name's gear is checked for TA/Drift; racing needs race-level gear",
+                        'Bring race-level gear to tech at the track.');
+                    continue;
+                }
                 $status = $gear !== null ? gearStatus($gear) : ['state' => 'none', 'via' => null];
                 $items[] = readinessTech('gear', 'driver', $did, $status, $season, isset($atTrack["driver:$did@$season"]), [
                     'label' => "Gear for $name", 'doneLabel' => "Gear for $safeName: %s $season", 'pendingLabel' => "Gear photos for $name are with an inspector",
@@ -288,7 +310,7 @@ function buildReadiness(array $in): array {
                 ], 'gear.php?action=start&driver_id=' . $did, $gear !== null ? 'gear.php?action=pretech&id=' . (int)$gear['id'] : null);
             }
         }
-        $events[] = ['event' => $event, 'items' => $items];
+        $events[] = ['event' => $event, 'items' => $items, 'entries' => $entries];
     }
     return ['events' => $events, 'untagged' => $untagged];
 }
@@ -351,7 +373,8 @@ function loadReadinessInputs(PDO $pdo, int $userId, string $today): array {
         'today' => $today,
         'cars' => $cars,
         'events' => $events,
-        'plans' => array_map(fn(array $p): array => ['event_id' => (int)$p['event_id'], 'car_id' => (int)$p['car_id']], db_get_user_event_plans($pdo, $userId)),
+        'plans' => array_map(fn(array $p): array => ['event_id' => (int)$p['event_id'], 'car_id' => (int)$p['car_id'],
+            'formats' => (string)($p['formats'] ?? 'race'), 'supps_ack_at' => $p['supps_ack_at'] ?? null], db_get_user_event_plans($pdo, $userId)),
         'declarations' => db_get_user_current_declarations($pdo, $userId),
         'sheets' => $sheets,
         'sheetDrivers' => $sheetDrivers,
