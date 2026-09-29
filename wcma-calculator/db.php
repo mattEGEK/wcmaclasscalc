@@ -838,7 +838,9 @@ function db_get_at_track_keys(PDO $pdo, array $carIds, array $driverIds, int $se
     foreach ($stmt->fetchAll() as $r) {
         $id = (int)$r['subject_id'];
         if (($r['subject_type'] === 'car' && isset($cars[$id])) || ($r['subject_type'] === 'driver' && isset($drivers[$id]))) {
-            $keys[] = atTrackKey($r['subject_type'], $id, $season, $discipline, (string)$r['club']);
+            // A summer row with a club is TA/Drift car tech at that club (TA/Drift spec §2).
+            $keyDiscipline = $discipline === DISCIPLINE_SUMMER && (string)$r['club'] !== '' ? TECH_TIER_TA_DRIFT : $discipline;
+            $keys[] = atTrackKey($r['subject_type'], $id, $season, $keyDiscipline, (string)$r['club']);
         }
     }
     return $keys;

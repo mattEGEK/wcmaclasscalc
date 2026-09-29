@@ -83,15 +83,21 @@ function eventsUntagCar(PDO $pdo, int $userId, int $eventId, int $carId): array 
     return ['ok' => true, 'error' => null];
 }
 
-/** "I'll do it at the track": planning only, it never accepts anything. @return array{ok: bool, error: ?string} */
+/** "I'll do it at the track": planning only, it never accepts anything. $discipline is summer, ice, or TECH_TIER_TA_DRIFT (car tech at one host club). @return array{ok: bool, error: ?string} */
 function eventsSetAtTrack(PDO $pdo, int $userId, string $subjectType, int $subjectId, int $season,
                           string $discipline = DISCIPLINE_SUMMER, string $club = ''): array {
+    $unknown = ['ok' => false, 'error' => 'Unknown item.'];
+    $stored = $discipline;
     if ($discipline === DISCIPLINE_SUMMER) {
         $club = '';
+    } elseif ($discipline === TECH_TIER_TA_DRIFT) {
+        // TA/Drift car tech is per host club: stored as a summer choice that carries the club.
+        if ($subjectType !== 'car' || !preg_match('/^[A-Z0-9-]{2,12}$/', $club)) return $unknown;
+        $stored = DISCIPLINE_SUMMER;
     } elseif ($discipline !== DISCIPLINE_ICE) {
-        return ['ok' => false, 'error' => 'Unknown item.'];
+        return $unknown;
     } elseif ($subjectType === 'car' && !in_array($club, iceClubCodes(), true)) {
-        return ['ok' => false, 'error' => 'Unknown item.'];
+        return $unknown;
     } elseif ($subjectType === 'driver') {
         $club = '';   // ice gear covers both clubs
     }
@@ -101,9 +107,9 @@ function eventsSetAtTrack(PDO $pdo, int $userId, string $subjectType, int $subje
         $driver = db_get_driver($pdo, $subjectId);
         $owned = $driver !== null && (int)$driver['owner_user_id'] === $userId;
     } else {
-        return ['ok' => false, 'error' => 'Unknown item.'];
+        return $unknown;
     }
-    if (!$owned) return ['ok' => false, 'error' => 'Unknown item.'];
-    db_set_at_track($pdo, $subjectType, $subjectId, $season, $discipline, $club);
+    if (!$owned) return $unknown;
+    db_set_at_track($pdo, $subjectType, $subjectId, $season, $stored, $club);
     return ['ok' => true, 'error' => null];
 }
