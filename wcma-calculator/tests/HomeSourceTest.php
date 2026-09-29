@@ -41,6 +41,13 @@ final class HomeSourceTest extends TestCase
         $this->assertStringContainsString('garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, $taggedSummer, $taggedIce, $stored)', $src);
     }
 
+    public function testGlanceGatesUsesRaceOnUsesSummer(): void
+    {
+        // Mirrors garage-page.php's own guard: an ice-only car must never show "Declare class".
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../index.php'));
+        $this->assertStringContainsString("'usesRace' => \$usesSummerCar && garageCarRaces(", $src);
+    }
+
     public function testIceActivityUsesTheSharedHelper(): void
     {
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../index.php'));
