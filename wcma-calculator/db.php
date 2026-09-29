@@ -349,6 +349,18 @@ function db_init(PDO $pdo): void {
     // ── Ice racing (2026-09-27 spec). Added in place: no reset. ──
     db_add_column_if_missing($pdo, 'events', 'discipline', "TEXT NOT NULL DEFAULT 'summer'");
     db_add_column_if_missing($pdo, 'events', 'host_club', 'TEXT');
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS clubs (
+            code       TEXT PRIMARY KEY,
+            name       TEXT NOT NULL,
+            msr_url    TEXT NOT NULL DEFAULT '',
+            active     INTEGER NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL
+        )
+    ");
+    // Clubs spec 2026-09-29 §1: the ice clubs exist from the start; admin edits are never overwritten.
+    $seed = $pdo->prepare("INSERT OR IGNORE INTO clubs (code, name, msr_url, active, created_at) VALUES (:c, :n, '', 1, :t)");
+    foreach (DB_ICE_CLUB_SEED as $code => $name) $seed->execute([':c' => $code, ':n' => $name, ':t' => date('Y-m-d H:i:s')]);
 
     // ── Driver media profiles (2026-09-27 spec). Added in place: no reset. ──
     db_add_column_if_missing($pdo, 'users', 'is_media', 'INTEGER NOT NULL DEFAULT 0');
@@ -1651,6 +1663,30 @@ function db_get_drivers_for_sheets(PDO $pdo, array $sheetIds): array {
         $map[(int)$row['tech_sheet_id']][] = $row;
     }
     return $map;
+}
+
+// ── Clubs ─────────────────────────────────────────────────────────────────────
+/** The ice clubs seeded into `clubs` (their names match ice-rules.php ICE_CLUBS; ClubsTest checks). */
+const DB_ICE_CLUB_SEED = ['NASCC' => 'Northern Alberta Sports Car Club', 'WSCC' => 'Winnipeg Sports Car Club'];
+
+function db_get_clubs(PDO $pdo, bool $activeOnly = false): array {
+    return $pdo->query("SELECT * FROM clubs" . ($activeOnly ? " WHERE active = 1" : "") . " ORDER BY name COLLATE NOCASE ASC")->fetchAll();
+}
+
+function db_get_club(PDO $pdo, string $code): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM clubs WHERE code = :c");
+    $stmt->execute([':c' => $code]);
+    return $stmt->fetch() ?: null;
+}
+
+function db_create_club(PDO $pdo, string $code, string $name, string $url): void {
+    $pdo->prepare("INSERT INTO clubs (code, name, msr_url, active, created_at) VALUES (:c, :n, :u, 1, :t)")
+        ->execute([':c' => $code, ':n' => $name, ':u' => $url, ':t' => date('Y-m-d H:i:s')]);
+}
+
+function db_update_club(PDO $pdo, string $code, string $name, string $url, bool $active): void {
+    $pdo->prepare("UPDATE clubs SET name = :n, msr_url = :u, active = :a WHERE code = :c")
+        ->execute([':c' => $code, ':n' => $name, ':u' => $url, ':a' => $active ? 1 : 0]);
 }
 
 // ── Season links ──────────────────────────────────────────────────────────────
