@@ -87,8 +87,6 @@ function styleFixturesInPage() {
     + '<button type="submit" class="btn btn-primary" id="fx-primary">Accept</button></form>'
     + '<details id="fx-details"><summary>How is my class calculated?</summary><p>x</p></details>'
     + '<button type="button" class="nudge-dismiss" id="fx-nudge">Not now</button>'
-    + '<form><button type="submit" class="btn-role" id="fx-role">Save role</button>'
-    + '<button type="submit" class="btn-role btn-role--secondary" id="fx-role2">Deactivate</button></form>'
     + '<fieldset class="garage-season"><div class="garage-season-options"><label id="fx-season"><input type="radio" name="fx"><span>Ice</span></label></div></fieldset>';
   document.querySelector('main, .container, body').appendChild(box);
   const problems = [];
@@ -101,7 +99,6 @@ function styleFixturesInPage() {
   if (!marker) problems.push('<summary> has no disclosure triangle');
   const season = parseFloat(getComputedStyle(document.getElementById('fx-season')).minHeight);
   if (!(season >= 56)) problems.push(`Garage season card min-height is ${season}px, not its own 56px+`);
-  if (bg('fx-role') === bg('fx-role2')) problems.push(`admin Deactivate looks like Save role (${bg('fx-role2')})`);
   const nudge = document.getElementById('fx-nudge').getBoundingClientRect().height;
   if (nudge < 44) problems.push(`save-nudge dismiss button is ${Math.round(nudge)}px tall`);
   box.remove();
@@ -271,6 +268,42 @@ try {
   await page.waitForLoadState('networkidle');
   const leftover = await page.locator('.draft-notice').count();
   report('no draft left after submitting', leftover === 0 ? [] : ['the submitted sheet\'s draft was offered again']);
+  // Admin tabs (admin desktop UX spec 2026-09-29): phone rules, the edit modal, Deactivate's confirm
+  // inside the modal, and on desktop one-line user rows and a centred modal.
+  const signInAdmin = async ctx => {
+    const p = await ctx.newPage();
+    await p.goto(BASE + '/auth.php?action=login');
+    await p.fill('#email', process.env.UX_ADMIN_EMAIL || 'matt.sinfield@gmail.com');
+    await p.fill('input[name=password]', 'password123');
+    await Promise.all([p.waitForNavigation(), p.click('button[type=submit]')]);
+    return p;
+  };
+  const phoneAdmin = await browser.newContext({ viewport: { width: 375, height: 800 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
+  const ap = await signInAdmin(phoneAdmin);
+  for (const tab of ['users', 'events', 'clubs', 'season-links', 'settings']) {
+    await ap.goto(BASE + '/admin.php?action=' + tab);
+    await audit(ap, 'admin ' + tab);
+  }
+  await ap.goto(BASE + '/admin.php?action=users');
+  await ap.click('#users-table [data-dialog-open]');
+  await audit(ap, 'admin user modal');
+  await ap.click('dialog[open] .admin-dialog-danger button[type=submit]');
+  // The page behind a modal dialog is inert: a confirm box outside the dialog can't be clicked.
+  const answered = await ap.click('dialog[open] .confirm-modal [data-role=cancel]', { timeout: 5000 }).then(() => true, () => false);
+  const stillOpen = await ap.locator('dialog.admin-dialog[open]').count();
+  report('admin: Deactivate asks inside the modal, Cancel keeps the modal open', answered && stillOpen === 1 ? [] : ['the modal closed, or the confirm box could not be answered']);
+  await phoneAdmin.close();
+
+  const deskAdmin = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const dp = await signInAdmin(deskAdmin);
+  await dp.goto(BASE + '/admin.php?action=users');
+  const tallest = await dp.evaluate(() => Math.max(...[...document.querySelectorAll('#users-table tbody tr')].map(r => r.getBoundingClientRect().height)));
+  report('admin: user rows at 1280px are one line', tallest <= 110 ? [] : [`a user row is ${Math.round(tallest)}px tall`]);
+  await dp.click('#users-table [data-dialog-open]');
+  const box = await dp.locator('dialog.admin-dialog[open]').boundingBox();
+  const offCentre = box ? Math.abs(box.x + box.width / 2 - 640) : 999;
+  report('admin: the edit modal is centred at 1280px', offCentre <= 2 ? [] : [`the modal is ${Math.round(offCentre)}px off centre`]);
+  await deskAdmin.close();
 } finally {
   await browser.close();
 }

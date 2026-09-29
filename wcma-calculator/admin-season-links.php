@@ -33,7 +33,7 @@ function renderSeasonLinksPageHtml(array $links, string $csrf): string {
     $csrfField = adminCsrfField($csrf);
     $out = '<p class="admin-intro">These links are shown to competitors as "This season on MotorsportReg". MotorsportReg gives each '
         . 'season\'s waiver and licences new web addresses, so update them at the start of every season.</p>'
-        . '<table class="data-table admin-table"><thead><tr><th class="admin-col-order">Order</th><th>Label</th><th>Web address</th>'
+        . '<table class="data-table admin-table"><thead><tr><th class="admin-col-order">Order</th><th class="admin-col-label">Label</th><th class="admin-col-url">Web address</th>'
         . '<th>Shown</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>';
     if (!$links) {
         $out .= '<tr><td colspan="5" class="empty-row">No links yet. Add one below.</td></tr>';

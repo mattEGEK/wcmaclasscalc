@@ -530,6 +530,12 @@ body.hub .admin-link { display: inline-flex; align-items: center; min-height: 44
 .admin-table .admin-col-order { width: 6rem; }
 body.hub .admin-table .admin-col-order input { width: 5rem; }
 .admin-row-actions { display: flex; gap: 24px; align-items: center; justify-content: flex-end; }
+/* Season links: fields fill their cells, and the web address gets the widest column. */
+body.hub .admin-table td > input[type="text"], body.hub .admin-table td > input[type="url"] { width: 100%; box-sizing: border-box; }
+.admin-table .admin-col-label { width: 28%; }
+.admin-table .admin-col-url { width: 34%; }
+/* url and date fields look like the other fields (calculator.css's base field rule predates them). */
+body.hub input[type="url"], body.hub input[type="date"] { border: 1px solid var(--border-color); border-radius: var(--border-radius); background: #fff; box-sizing: border-box; }
 
 /* Settings: one card, three groups. */
 .admin-settings { max-width: 720px; }
