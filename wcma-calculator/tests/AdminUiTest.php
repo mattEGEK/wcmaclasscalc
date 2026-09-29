@@ -16,6 +16,8 @@ final class AdminUiTest extends TestCase
         $this->assertNull(adminEditTarget(['edit' => '']));
         $this->assertNull(adminEditTarget(['edit' => ['a']]));
         $this->assertNull(adminEditTarget([]));
+        $this->assertSame('2386B6E3-96BC-AE58-0812CF4B556BCBC2', adminEditTarget(['edit' => '2386B6E3-96BC-AE58-0812CF4B556BCBC2']));
+        $this->assertNull(adminEditTarget(['edit' => str_repeat('a', 41)]));
     }
 
     public function testAnErrorFromAModalGoesInsideIt(): void
@@ -76,5 +78,12 @@ final class AdminUiTest extends TestCase
         $this->assertSame('<span class="admin-chip admin-chip--ok">Active</span>', adminChip('Active', 'ok'));
         $field = adminField('x-name', 'Name', '<input id="x-name">', true);
         $this->assertSame('<div class="admin-field admin-form-wide"><label for="x-name">Name</label><input id="x-name"></div>', $field);
+    }
+
+    public function testTheEventsTabCountsWhatIsWaitingOnMotorsportReg(): void
+    {
+        $this->assertStringContainsString('>Events</a>', adminSubnavHtml('users'));
+        $this->assertStringContainsString('>Events (3)</a>', adminSubnavHtml('users', 3));
+        $this->assertStringContainsString('aria-current="page">Events (3)</span>', adminSubnavHtml('events', 3));
     }
 }

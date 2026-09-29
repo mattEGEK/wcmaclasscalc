@@ -96,4 +96,24 @@ final class AdminEventsPageTest extends TestCase
         $this->assertSame(1, substr_count($html, 'data-open-on-load'));
         $this->assertMatchesRegularExpression('/id="event-dialog-new"[^>]*data-open-on-load>.*Event name and date are required\./s', $html);
     }
+
+    public function testEventsListInvitesAReviewOfWhatIsWaitingOnMotorsportReg(): void
+    {
+        $waiting = renderEventsPageHtml($this->events(), [], $this->clubs(), 'tok', null, null, ['pending' => 4, 'connected' => true]);
+        $this->assertStringContainsString('<p class="admin-msr-strip"><strong>From MotorsportReg:</strong> 4 events to review <a class="hub-btn hub-btn--secondary" href="admin.php?action=msr">Review</a></p>', $waiting);
+        $quiet = renderEventsPageHtml($this->events(), [], $this->clubs(), 'tok', null, null, ['pending' => 0, 'connected' => true]);
+        $this->assertStringContainsString('<a class="admin-link" href="admin.php?action=msr">From MotorsportReg</a>', $quiet);
+        $none = renderEventsPageHtml($this->events(), [], $this->clubs(), 'tok', null, null);
+        $this->assertStringNotContainsString('action=msr', $none);
+    }
+
+    public function testEventFieldsAreValidatedInOnePlace(): void
+    {
+        $post = ['name' => ' Fall Sprint ', 'event_date' => '2026-10-11', 'location' => '', 'discipline' => 'summer', 'host_club' => '', 'msr_url' => ''];
+        $ok = adminEventFromPost($post, ['NASCC']);
+        $this->assertSame([true, 'Fall Sprint', '2026-10-11', '', 'summer', null, ''], [$ok['ok'], $ok['name'], $ok['date'], $ok['location'], $ok['discipline'], $ok['club'], $ok['msr_url']]);
+        $this->assertSame('Event name and date are required.', adminEventFromPost(['name' => ''] + $post, [])['error']);
+        $this->assertSame(EVENT_MSR_URL_ERROR, adminEventFromPost(['msr_url' => 'http://x'] + $post, [])['error']);
+        $this->assertFalse(adminEventFromPost(['discipline' => 'ice', 'host_club' => ''] + $post, ['NASCC'])['ok']);
+    }
 }

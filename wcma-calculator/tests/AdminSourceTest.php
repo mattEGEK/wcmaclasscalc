@@ -46,7 +46,7 @@ final class AdminSourceTest extends TestCase
             'admin-events.php' => ["adminRenderPage('Events', 'events'"],
             'admin-clubs.php' => ["adminRenderPage('Clubs', 'clubs'"],
             'admin-users.php' => ["adminRenderPage('Users & roles', 'users'"],
-            'admin-ui.php' => ["adminSubnavHtml(\$tab)"],
+            'admin-ui.php' => ["adminSubnavHtml(\$tab, "],
             'admin-feedback.php' => ["adminRenderPage('Feedback', 'feedback'"],
             'admin-season-links.php' => ["adminRenderPage('Season links', 'season-links'"],
             'admin-settings.php' => ["adminRenderPage('Settings', 'settings'"],
@@ -81,7 +81,7 @@ final class AdminSourceTest extends TestCase
         $src = $this->src('admin-events.php');
         $this->assertStringContainsString('name="discipline"', $src);
         $this->assertStringContainsString('name="host_club"', $src);
-        $this->assertStringContainsString('iceEventFields($_POST, ', $src);
+        $this->assertStringContainsString('iceEventFields($post, ', $src);
     }
 
     // Fix 3: a POST that omits "discipline" (e.g. a stale form, or a script only touching name/date)
@@ -159,5 +159,14 @@ final class AdminSourceTest extends TestCase
         $this->assertStringContainsString("msrOrgIdFromInput(\$msrInput, 'msrHttpGet')", $body);
         $this->assertLessThan(strpos($body, 'msrOrgIdFromInput('), strpos($body, '$msrInput === $currentOrgId'));
         $this->assertStringContainsString("require_once __DIR__ . '/msr-lib.php';", $this->src('admin.php'));
+    }
+
+    public function testTheEventsBadgeIsSetOnceFromTheDatabase(): void
+    {
+        $admin = $this->src('admin.php');
+        $this->assertStringContainsString('adminEventsBadge(msrPendingCount($pdo));', $admin);
+        $this->assertLessThan(strpos($admin, 'switch ($action) {'), strpos($admin, 'adminEventsBadge(msrPendingCount($pdo));'));
+        $this->assertLessThan(strpos($admin, 'adminEventsBadge('), strpos($admin, "require_role('admin');"));
+        $this->assertStringContainsString('adminSubnavHtml($tab, adminEventsBadge())', $this->src('admin-ui.php'));
     }
 }

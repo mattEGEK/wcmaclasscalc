@@ -29,6 +29,7 @@ $movedTo = adminMovedActionUrl(is_string($action) ? $action : '', $_GET);
 if ($movedTo !== null) { header('Location: ' . $movedTo); exit; }
 if ($action === 'login' || $action === 'logout') { header('Location: auth.php?action=' . $action); exit; }
 require_role('admin');
+adminEventsBadge(msrPendingCount($pdo));
 
 /** POST-only and CSRF-checked; otherwise back to $back. */
 function adminRequirePost(string $back): void {
