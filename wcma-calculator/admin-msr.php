@@ -64,7 +64,7 @@ function handleMsrCheck(PDO $pdo): void {
 
 /** One MSR event's cells: dates, name (+ chips), club, MSR link. */
 function adminMsrEventCells(array $r): string {
-    $chip = $r['type'] === 'Ice Racing' ? adminChip('Ice', 'info') : adminChip('Race', 'info');
+    $chip = adminChip(msrTypeChip((string)$r['type']), 'info');
     if ((int)$r['cancelled'] === 1) $chip .= adminChip('Cancelled', 'fail');
     return '<td data-label="Date">' . h(msrDateRange((string)$r['start_date'], (string)$r['end_date'])) . '</td>'
         . '<td data-label="Event"><strong>' . h((string)$r['name']) . '</strong> <span class="admin-chips">' . $chip . '</span>'
@@ -89,7 +89,7 @@ function renderMsrPageHtml(array $rows, array $hubEvents, array $clubs, array $s
         elseif (msrChanges($r)) $changed[] = $r;
     }
     $out = '<p><a class="hub-back-link" href="admin.php?action=events">&larr; Back to events</a></p>'
-        . '<p class="admin-intro">Race events from the clubs\' MotorsportReg calendars. Add them to the hub, attach extra events to a '
+        . '<p class="admin-intro">Race, time attack and drift events from the clubs\' MotorsportReg calendars. Add them to the hub, attach extra events to a '
         . 'weekend that\'s already in the hub, or ignore them. Drivers see nothing here until you add it.</p>';
     $dialogs = '';
 
