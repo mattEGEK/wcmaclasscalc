@@ -16,6 +16,7 @@ require __DIR__ . '/admin-clubs.php';
 require __DIR__ . '/admin-season-links.php';
 require __DIR__ . '/admin-ui.php';
 require __DIR__ . '/admin-users.php';
+require __DIR__ . '/admin-events.php';
 require_once __DIR__ . '/ice-rules.php';
 
 $pdo = db_connect();
@@ -53,11 +54,6 @@ switch ($action) {
 
     case 'events':
         handleEventsList($pdo);
-        break;
-
-    case 'event-club':
-        adminRequirePost('admin.php?action=events');
-        handleEventClub($pdo, $postId);
         break;
 
     case 'clubs':
@@ -132,195 +128,6 @@ switch ($action) {
 
     default:   // 'users'
         handleUsersList($pdo);
-}
-
-/** The club codes an event may take: the active clubs, plus the one it already has (even if inactive). */
-function adminEventClubCodes(PDO $pdo, ?array $event): array {
-    $codes = array_column(db_get_clubs($pdo, true), 'code');
-    $current = (string)($event['host_club'] ?? '');
-    if ($current !== '' && !in_array($current, $codes, true)) $codes[] = $current;
-    return $codes;
-}
-
-/** Sets an existing event's host club from the clubs list (clubs spec 2026-09-29 §1). */
-function handleEventClub(PDO $pdo, int $id): void {
-    $event = db_get_event($pdo, $id);
-    if ($event === null) { setFlash('Event not found.', 'error'); header('Location: admin.php?action=events'); exit; }
-    $fields = iceEventFields(['discipline' => $event['discipline'] ?? 'summer', 'host_club' => (string)($_POST['host_club'] ?? '')],
-        adminEventClubCodes($pdo, $event));
-    if (!$fields['ok']) { setFlash((string)$fields['error'], 'error'); header('Location: admin.php?action=events'); exit; }
-    db_update_event($pdo, $id, (string)$event['name'], (string)$event['event_date'], $event['location'] ?? null, $fields['discipline'], $fields['club']);
-    setFlash('Host club saved.', 'success');
-    header('Location: admin.php?action=events');
-    exit;
-}
-
-function handleEventsList(PDO $pdo): void {
-    renderEventsPage(db_get_all_events($pdo), db_count_event_plans($pdo), generateCsrfToken(), getFlash(), db_get_clubs($pdo));
-}
-
-function handleEventCreate(PDO $pdo): void {
-    $name = trim($_POST['name'] ?? '');
-    $date = trim($_POST['event_date'] ?? '');
-    $location = trim($_POST['location'] ?? '');
-
-    if ($name === '' || $date === '') {
-        setFlash('Event name and date are required.', 'error');
-        header('Location: admin.php?action=events');
-        exit;
-    }
-
-    $fields = iceEventFields($_POST, array_column(db_get_clubs($pdo, true), 'code'));
-    if (!$fields['ok']) {
-        setFlash((string)$fields['error'], 'error');
-        header('Location: admin.php?action=events');
-        exit;
-    }
-
-    db_create_event($pdo, $name, $date, $location !== '' ? $location : null, $fields['discipline'], $fields['club']);
-    setFlash('Event created.', 'success');
-    header('Location: admin.php?action=events');
-    exit;
-}
-
-function handleEventUpdate(PDO $pdo, int $id): void {
-    $name = trim($_POST['name'] ?? '');
-    $date = trim($_POST['event_date'] ?? '');
-    $location = trim($_POST['location'] ?? '');
-
-    if ($name === '' || $date === '') {
-        setFlash('Event name and date are required.', 'error');
-        header('Location: admin.php?action=events');
-        exit;
-    }
-
-    $disciplineInput = $_POST;
-    if (!array_key_exists('discipline', $disciplineInput)) {
-        $current = db_get_event($pdo, $id);
-        if ($current !== null) {
-            $disciplineInput['discipline'] = $current['discipline'] ?? 'summer';
-            if (!array_key_exists('host_club', $disciplineInput)) {
-                $disciplineInput['host_club'] = $current['host_club'] ?? '';
-            }
-        }
-    }
-
-    $fields = iceEventFields($disciplineInput, adminEventClubCodes($pdo, db_get_event($pdo, $id)));
-    if (!$fields['ok']) {
-        setFlash((string)$fields['error'], 'error');
-        header('Location: admin.php?action=events');
-        exit;
-    }
-
-    db_update_event($pdo, $id, $name, $date, $location !== '' ? $location : null, $fields['discipline'], $fields['club']);
-    setFlash('Event updated.', 'success');
-    header('Location: admin.php?action=events');
-    exit;
-}
-
-function handleEventSetActive(PDO $pdo, int $id, bool $active): void {
-    db_set_event_active($pdo, $id, $active);
-    setFlash($active ? 'Event reactivated.' : 'Event deactivated.', 'success');
-    header('Location: admin.php?action=events');
-    exit;
-}
-
-function renderEventsPage(array $events, array $going, string $csrf, ?array $flash, array $clubs = []): void {
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Events — WCMA Admin</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
-<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
-</head>
-<body class="hub">
-<div class="container">
-  <?php renderSiteHeader('Events', adminSubnavHtml('events'), 'admin'); ?>
-  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
-
-  <div class="detail-card" style="margin-bottom:1.5rem">
-    <h2>Add Event</h2>
-    <form method="post" action="admin.php?action=event-create" class="edit-form">
-      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-      <label for="new-event-name">Name</label>
-      <input type="text" id="new-event-name" name="name" required>
-      <label for="new-event-date">Date</label>
-      <input type="date" id="new-event-date" name="event_date" required>
-      <label for="new-event-location">Location</label>
-      <input type="text" id="new-event-location" name="location">
-      <fieldset class="radio-row">
-        <legend>Discipline</legend>
-        <label><input type="radio" name="discipline" value="summer" checked> Summer</label>
-        <label><input type="radio" name="discipline" value="ice"> Ice</label>
-      </fieldset>
-      <label for="new-event-club">Host club</label>
-      <select id="new-event-club" name="host_club">
-        <option value="">—</option>
-        <?php foreach ($clubs as $c): if ((int)$c['active'] !== 1) continue; ?>
-        <option value="<?= h((string)$c['code']) ?>"><?= h($c['code'] . ' — ' . $c['name']) ?></option>
-        <?php endforeach; ?>
-      </select>
-      <p class="form-hint">Ice events need NASCC or WSCC. Add other clubs on the <a href="admin.php?action=clubs">Clubs</a> tab.</p>
-      <div class="form-actions">
-        <button type="submit" class="btn btn-primary">Add Event</button>
-      </div>
-    </form>
-  </div>
-
-  <table class="data-table" id="events-table">
-    <thead><tr><th>Date</th><th>Name</th><th>Location</th><th>Going</th><th>Status</th><th>Actions</th></tr></thead>
-    <tbody>
-    <?php if (empty($events)): ?>
-      <tr><td colspan="6" class="empty-row">No events yet.</td></tr>
-    <?php else: foreach ($events as $e): ?>
-      <tr>
-        <td><?= h(date('M j, Y', strtotime($e['event_date']))) ?></td>
-        <td><?= h($e['name']) ?><?php if (($e['discipline'] ?? 'summer') === 'ice'): ?> <span class="badge-pending">Ice · <?= h((string)$e['host_club']) ?></span><?php endif; ?></td>
-        <td><?= h($e['location'] ?? '—') ?></td>
-        <?php $n = (int)($going[(int)$e['id']] ?? 0); ?>
-        <td><?= $n ?> <?= $n === 1 ? 'car' : 'cars' ?></td>
-        <td class="<?= $e['active'] ? 'badge-ok' : 'badge-fail' ?>"><?= $e['active'] ? 'Active' : 'Inactive' ?></td>
-        <td class="actions">
-          <?php $isIceEvent = ($e['discipline'] ?? 'summer') === 'ice'; ?>
-          <form method="post" action="admin.php?action=event-club" class="event-club-form">
-            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-            <input type="hidden" name="id" value="<?= (int)$e['id'] ?>">
-            <select name="host_club" aria-label="Host club for <?= h($e['name']) ?>">
-              <?php foreach (eventClubOptions($clubs, $e, iceClubCodes()) as $opt): ?>
-              <option value="<?= h($opt['code']) ?>"<?= $opt['selected'] ? ' selected' : '' ?>><?= h($opt['label']) ?></option>
-              <?php endforeach; ?>
-            </select>
-            <button type="submit" class="link-button">Save club</button>
-          </form>
-          <?php if ($e['active']): ?>
-          <form method="post" action="admin.php?action=event-deactivate" style="display:inline" data-confirm="Deactivate <?= h($e['name']) ?>? Competitors won't be able to tag it or pick it for new tech sheets.">
-            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-            <input type="hidden" name="id" value="<?= (int)$e['id'] ?>">
-            <button type="submit" class="link-button">Deactivate</button>
-          </form>
-          <?php else: ?>
-          <form method="post" action="admin.php?action=event-activate" style="display:inline">
-            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-            <input type="hidden" name="id" value="<?= (int)$e['id'] ?>">
-            <button type="submit" class="link-button">Reactivate</button>
-          </form>
-          <?php endif; ?>
-        </td>
-      </tr>
-    <?php endforeach; endif; ?>
-    </tbody>
-  </table>
-</div>
-<script src="js/confirm-modal.js"></script>
-<script src="js/form-feedback.js"></script>
-<?php renderSiteFooter(); ?>
-</body>
-</html><?php
 }
 
 function handleSettings(PDO $pdo): void {

@@ -43,7 +43,8 @@ final class AdminSourceTest extends TestCase
     public function testBackOfficePagesUseTheAdminTabs(): void
     {
         $expect = [
-            'admin.php' => ["adminSubnavHtml('events')", "adminSubnavHtml('settings')"],
+            'admin.php' => ["adminSubnavHtml('settings')"],
+            'admin-events.php' => ["adminRenderPage('Events', 'events'"],
             'admin-users.php' => ["adminRenderPage('Users & roles', 'users'"],
             'admin-ui.php' => ["adminSubnavHtml(\$tab)"],
             'admin-feedback.php' => ["adminSubnavHtml('feedback')"],
@@ -60,7 +61,7 @@ final class AdminSourceTest extends TestCase
 
     public function testEventsListShowsHowManyCarsAreGoing(): void
     {
-        $admin = $this->src('admin.php');
+        $admin = $this->src('admin-events.php');
         $this->assertStringContainsString('db_count_event_plans($pdo)', $admin);
         $this->assertStringContainsString('<th>Going</th>', $admin);
     }
@@ -76,7 +77,7 @@ final class AdminSourceTest extends TestCase
 
     public function testEventFormHasDisciplineAndHostClub(): void
     {
-        $src = $this->src('admin.php');
+        $src = $this->src('admin-events.php');
         $this->assertStringContainsString('name="discipline"', $src);
         $this->assertStringContainsString('name="host_club"', $src);
         $this->assertStringContainsString('iceEventFields($_POST, ', $src);
@@ -87,7 +88,7 @@ final class AdminSourceTest extends TestCase
     // iceEventFields() itself stays pure — handleEventUpdate() fills the gaps before calling it.
     public function testEventUpdateKeepsCurrentDisciplineWhenPostOmitsIt(): void
     {
-        $body = $this->body('admin.php', 'handleEventUpdate');
+        $body = $this->body('admin-events.php', 'handleEventUpdate');
         $this->assertStringContainsString("db_get_event(\$pdo, \$id)", $body);
         $this->assertStringContainsString("array_key_exists('discipline', \$disciplineInput)", $body);
         $this->assertStringContainsString("iceEventFields(\$disciplineInput, ", $body);
@@ -97,8 +98,9 @@ final class AdminSourceTest extends TestCase
 
     public function testClubsTabIsRoutedAndEventsTakeClubsFromTheList(): void
     {
-        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../admin.php'));
-        foreach (["case 'clubs':", "case 'club-save':", "case 'event-club':", "adminRequirePost('admin.php?action=clubs')",
+        $src = $this->src('admin.php') . $this->src('admin-events.php');
+        $this->assertStringNotContainsString("case 'event-club':", $this->src('admin.php'));
+        foreach (["case 'clubs':", "case 'club-save':", "adminRequirePost('admin.php?action=clubs')",
                   "adminRequirePost('admin.php?action=events')", 'array_column(db_get_clubs($pdo, true), \'code\')'] as $needle) {
             $this->assertStringContainsString($needle, $src);
         }
@@ -121,9 +123,7 @@ final class AdminSourceTest extends TestCase
 
     public function testEventClubHandlersAcceptTheEventsCurrentClub(): void
     {
-        $this->assertStringContainsString('eventClubOptions(', $this->src('admin.php'));
-        foreach (['handleEventClub', 'handleEventUpdate'] as $fn) {
-            $this->assertStringContainsString('adminEventClubCodes($pdo, ', $this->body('admin.php', $fn));
-        }
+        $this->assertStringContainsString('eventClubOptions(', $this->src('admin-events.php'));
+        $this->assertStringContainsString('adminEventClubCodes($pdo, ', $this->body('admin-events.php', 'handleEventUpdate'));
     }
 }
