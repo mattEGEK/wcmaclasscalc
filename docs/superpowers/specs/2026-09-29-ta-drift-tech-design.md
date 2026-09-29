@@ -11,9 +11,12 @@ today, and that also covers TA and Drift. An entry that is **only** TA and/or Dr
 new, lighter **TA/Drift** tier:
 
 - a car created without a WCMA class declaration,
-- a **TA/Drift tech sheet**, accepted once per car, per host club, per calendar year,
+- a **TA/Drift tech sheet** for each event. One accepted sheet approves the car for that host
+  club for the calendar year. After that, sheets for later events are **encouraged but not
+  required**.
 - **TA/Drift gear**, accepted once per driver per calendar year,
 - a per-event tick box: "I have read the {club} supplementary regulations and my car complies".
+  Submitting that event's sheet also counts as ticking it.
 
 TA and Drift rules belong to each club (supplementary regulations), not to WCMA. The hub doesn't
 class TA/Drift cars or check them against a club's rules. It carries one shared checklist, built
@@ -38,7 +41,7 @@ from the requirements the clubs' regulations have in common.
 | Winter | Out of scope. WSCC Ice Drift is already an ice class with its own light checklist; leave it there. |
 | How long TA/Drift approval lasts | The calendar year, per car **per host club**. Race approval (all clubs) also covers it. |
 | Substantial change | The inspector revokes the acceptance with a required note ("car changed"); the next entry asks for a new sheet. |
-| Per-event paperwork | No sheet per event. Each TA/Drift-only entry needs the supplementary-regulations tick box. |
+| Per-event paperwork | A TA/Drift sheet for each event is encouraged. It's required only until the car is approved for that club and year. Each TA/Drift-only entry needs the supplementary-regulations tick box (or that event's sheet). |
 | TA/Drift gear | Per driver per calendar year, a lower rung on the summer gear record. Race gear covers it. |
 | Photo pre-tech | Yes, with short photo lists for car and gear. |
 | Tow points | Required (factory ones are fine). |
@@ -189,7 +192,9 @@ club. Summer race choices keep club `''`, so the two don't collide and no new va
 - Car (one of the user's cars), the host club (read-only, taken from the event), "Roll bar or
   cage fitted?", and the checklist.
 - **Drivers**: driver 1 plus optional extra drivers, reusing `tech_sheet_drivers`. The sheet
-  covers the season, so it names everyone who'll drive the car in TA or Drift at this club.
+  names everyone driving the car in TA or Drift at this event.
+- Like race sheets, a TA/Drift sheet belongs to one event (`event_id`). Season approval comes
+  from any accepted sheet with the same `techCarKey`.
 - The gear self-declaration is filled in for each driver.
 - Entrant and driver signatures, the same as the race sheet. There's no class, weight or HP.
 - Files go in the pattern of the ice sheet: `ta-drift-sheet-lib.php` and
@@ -213,13 +218,28 @@ The per-event branch becomes: ice → unchanged; summer → by `entryTechTier`:
 - **race**: unchanged (declaration, sheet for this event, car tech for the year, and race-level
   gear for each driver).
 - **ta_drift**:
-  1. Car tech: `taDriftCarTechStatus` for (car, host club, year), with an "I'll do it at the
+  1. **Sheet for this event.** Once submitted, it's done. If not submitted, then:
+     - if the car isn't approved (`taDriftCarTechStatus` isn't accepted), it's **todo**:
+       "Submit a TA/Drift tech sheet for #N";
+     - if the car is already approved, it's **suggested**: "Tech sheet for this event
+       (recommended): you're teched for {club} {year}, but a sheet for each event helps the
+       inspectors."
+  2. **Car tech**: `taDriftCarTechStatus` for (car, host club, year), with an "I'll do it at the
      track" option.
-  2. Gear: for each driver on the car's TA/Drift sheet for this club and year, `gearCoversTier`
-     at `ta_drift`. If there's no sheet yet, it's the entry owner's own driver.
-  3. The supplementary-regulations box ticked for this entry.
+  3. **Gear**: `gearCoversTier` at `ta_drift` for each driver. The drivers come from this event's
+     TA/Drift sheet; otherwise from the most recent accepted TA/Drift sheet for this club and
+     year; otherwise the entry owner's own driver.
+  4. **Supplementary regulations**: ticked for this entry, or this event's sheet submitted.
 
-  No declaration, and no sheet for each event.
+  There's no declaration.
+
+**New readiness state `suggested`:**
+
+- `readinessItem` gains a third state next to `done` and `todo`.
+- Home shows it in a softer style, with the action button.
+- It doesn't count toward "N things to do" or the event's ready or not-ready status.
+- Reminders leave it out.
+- Only the TA/Drift per-event sheet uses it for now.
 
 ### Home, Garage and Drivers
 
@@ -251,6 +271,9 @@ wording reads right for the new items.
 - The `db_insert_tech_sheet` `ta_drift` branch: it rejects a declaration and rejects an event
   with no host club.
 - Readiness for a TA-only entry, a Race+TA entry, and an ice entry (unchanged).
+- The per-event TA/Drift sheet is `todo` before the car is approved and `suggested` after. A
+  `suggested` item isn't counted as outstanding and isn't reminded about.
+- Submitting this event's sheet satisfies the supplementary-regulations item.
 - Revoking requires a note.
 - MotorsportReg: the TA and Drift types are kept and added as summer events.
 - Phone-layout check: the car-to-event screen with formats, and the TA/Drift sheet form.
