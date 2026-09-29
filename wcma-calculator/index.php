@@ -7,6 +7,7 @@ require_once __DIR__ . '/view_helpers.php';
 require __DIR__ . '/cars-lib.php';
 require_once __DIR__ . '/gear-lib.php';
 require_once __DIR__ . '/events-lib.php';
+require_once __DIR__ . '/clubs-lib.php';
 require_once __DIR__ . '/reminders-lib.php';
 require_once __DIR__ . '/readiness-lib.php';
 require_once __DIR__ . '/garage-lib.php';

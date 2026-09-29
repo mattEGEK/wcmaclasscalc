@@ -75,6 +75,21 @@ final class AdminEventsPageTest extends TestCase
         $this->assertStringContainsString('No events yet.', $html);
     }
 
+    public function testEventsTakeAnOptionalMotorsportRegLink(): void
+    {
+        $events = $this->events();
+        $events[0]['msr_url'] = 'https://msr.example/e/<7>';
+        $html = renderEventsPageHtml($events, [], $this->clubs(), 'tok', null, null);
+        $this->assertStringContainsString('<th>Registration</th>', $html);
+        $this->assertStringContainsString('<td data-label="Registration"><a class="admin-link" href="https://msr.example/e/&lt;7&gt;" target="_blank" rel="noopener">Open ↗</a></td>', $html);
+        $this->assertStringContainsString('<td data-label="Registration">—</td>', $html);
+        $fire = substr($html, strpos($html, 'id="event-dialog-7"'));
+        $fire = substr($fire, 0, strpos($fire, '</dialog>'));
+        $this->assertStringContainsString('<input type="url" id="event-7-msr" name="msr_url" placeholder="https://www.motorsportreg.com/events/…" value="https://msr.example/e/&lt;7&gt;">', $fire);
+        $add = substr($html, strpos($html, 'id="event-dialog-new"'));
+        $this->assertStringContainsString('name="msr_url" placeholder="https://www.motorsportreg.com/events/…" value="">', $add);
+    }
+
     public function testAnAddErrorReopensTheAddModal(): void
     {
         $html = renderEventsPageHtml($this->events(), [], $this->clubs(), 'tok', ['type' => 'error', 'message' => 'Event name and date are required.'], 'new');

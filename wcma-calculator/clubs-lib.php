@@ -24,18 +24,35 @@ function clubUrlOk(string $url): bool {
 
 /**
  * The club to name on an event's register step: its row (active or not — the event already uses it),
- * or for an ice event without a row, the ice rules name. Null when the event has no club.
+ * or for an ice event without a row, the ice rules name. The url is the event's own MotorsportReg
+ * link when set, else the club's page. An event with a link but no club gets name ''. Null when
+ * there is neither a club nor a link.
  * @return ?array{name: string, url: string}
  */
 function clubForEvent(?array $clubRow, ?array $event): ?array {
+    // The event's own MotorsportReg page beats the club's general one.
+    $eventUrl = eventRegisterUrl($event);
     if ($clubRow !== null) {
         $url = (string)($clubRow['msr_url'] ?? '');
-        return ['name' => (string)$clubRow['name'], 'url' => clubUrlOk($url) ? $url : ''];
+        return ['name' => (string)$clubRow['name'], 'url' => $eventUrl !== '' ? $eventUrl : (clubUrlOk($url) ? $url : '')];
     }
     $code = (string)($event['host_club'] ?? '');
-    if ($code === '' || ($event['discipline'] ?? 'summer') !== 'ice') return null;
-    $label = iceClubLabel($code);
-    return $label !== null ? ['name' => $label, 'url' => ''] : null;
+    $label = $code !== '' && ($event['discipline'] ?? 'summer') === 'ice' ? iceClubLabel($code) : null;
+    if ($label !== null) return ['name' => $label, 'url' => $eventUrl];
+    return $eventUrl !== '' ? ['name' => '', 'url' => $eventUrl] : null;
+}
+
+const EVENT_MSR_URL_ERROR = 'Enter the MotorsportReg event link as a full address starting with https://, or leave it blank.';
+
+/** The event's own MotorsportReg link when it is a valid https address, else ''. */
+function eventRegisterUrl(?array $event): string {
+    $url = (string)($event['msr_url'] ?? '');
+    return $url !== '' && clubUrlOk($url) ? $url : '';
+}
+
+/** Why an event's MotorsportReg link can't be saved, or null ('' is fine: no link). */
+function eventMsrUrlError(string $url): ?string {
+    return $url === '' || clubUrlOk($url) ? null : EVENT_MSR_URL_ERROR;
 }
 
 /**

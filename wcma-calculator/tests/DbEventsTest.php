@@ -54,6 +54,17 @@ final class DbEventsTest extends TestCase
         $this->assertSame('New Location', $event['location']);
     }
 
+    public function testEventMsrLinkStartsBlankAndCanBeSet(): void
+    {
+        $pdo = make_temp_pdo();
+        $id = db_create_event($pdo, 'Fall Sprint', '2026-10-11', null);
+        $this->assertSame('', db_get_event($pdo, $id)['msr_url']);
+        db_set_event_msr_url($pdo, $id, 'https://msr.example/events/fall');
+        $this->assertSame('https://msr.example/events/fall', db_get_event($pdo, $id)['msr_url']);
+        db_set_event_msr_url($pdo, $id, '');
+        $this->assertSame('', db_get_event($pdo, $id)['msr_url']);
+    }
+
     public function testEventsDefaultToSummer(): void
     {
         $pdo = make_temp_pdo();

@@ -30,11 +30,14 @@ function handleEventCreate(PDO $pdo): void {
         adminRedirect('admin.php?action=events&edit=new');
     }
     $fields = iceEventFields($_POST, array_column(db_get_clubs($pdo, true), 'code'));
-    if (!$fields['ok']) {
-        setFlash((string)$fields['error'], 'error');
+    $msrUrl = trim((string)($_POST['msr_url'] ?? ''));
+    $error = $fields['ok'] ? eventMsrUrlError($msrUrl) : (string)$fields['error'];
+    if ($error !== null) {
+        setFlash($error, 'error');
         adminRedirect('admin.php?action=events&edit=new');
     }
-    db_create_event($pdo, $name, $date, $location !== '' ? $location : null, $fields['discipline'], $fields['club']);
+    $id = db_create_event($pdo, $name, $date, $location !== '' ? $location : null, $fields['discipline'], $fields['club']);
+    db_set_event_msr_url($pdo, $id, $msrUrl);
     setFlash('Event created.', 'success');
     adminRedirect('admin.php?action=events');
 }
@@ -62,11 +65,15 @@ function handleEventUpdate(PDO $pdo, int $id): void {
         }
     }
     $fields = iceEventFields($disciplineInput, adminEventClubCodes($pdo, db_get_event($pdo, $id)));
-    if (!$fields['ok']) {
-        setFlash((string)$fields['error'], 'error');
+    // A POST without msr_url (a stale form or script) keeps the event's link.
+    $msrUrl = array_key_exists('msr_url', $_POST) ? trim((string)$_POST['msr_url']) : (string)($current['msr_url'] ?? '');
+    $error = $fields['ok'] ? eventMsrUrlError($msrUrl) : (string)$fields['error'];
+    if ($error !== null) {
+        setFlash($error, 'error');
         adminRedirect('admin.php?action=events&edit=' . $id);
     }
     db_update_event($pdo, $id, $name, $date, $location !== '' ? $location : null, $fields['discipline'], $fields['club']);
+    db_set_event_msr_url($pdo, $id, $msrUrl);
     setFlash('Event updated.', 'success');
     adminRedirect('admin.php?action=events');
 }
@@ -93,20 +100,22 @@ function adminEventFieldsHtml(string $p, array $e, array $clubs): string {
         . adminField($p . '-location', 'Location', '<input type="text" id="' . h($p) . '-location" name="location" value="' . h((string)($e['location'] ?? '')) . '">')
         . '<fieldset class="radio-row"><legend>Discipline</legend>' . $radio('summer', 'Summer') . $radio('ice', 'Ice') . '</fieldset>'
         . adminField($p . '-club', 'Host club', '<select id="' . h($p) . '-club" name="host_club">' . $options . '</select>')
-        . '<p class="form-hint admin-form-wide">Ice events need NASCC or WSCC. Add other clubs on the <a href="admin.php?action=clubs">Clubs</a> tab.</p>';
+        . '<p class="form-hint admin-form-wide">Ice events need NASCC or WSCC. Add other clubs on the <a href="admin.php?action=clubs">Clubs</a> tab.</p>'
+        . adminField($p . '-msr', 'MotorsportReg event link (optional)', '<input type="url" id="' . h($p) . '-msr" name="msr_url" placeholder="https://www.motorsportreg.com/events/…" value="' . h((string)($e['msr_url'] ?? '')) . '">', true)
+        . '<p class="form-hint admin-form-wide">Competitors get a Register button for this event. Leave it blank to send them to the host club\'s MotorsportReg page.</p>';
 }
 
 /** The Events page body: Add button, read-only table, then the add modal and one modal per event. Pure. */
 function renderEventsPageHtml(array $events, array $going, array $clubs, string $csrf, ?array $dialogFlash, ?string $edit): string {
     $out = '<div class="admin-toolbar">' . adminAddButton('event-dialog-new', 'Add event') . '</div>'
         . '<table class="data-table admin-table" id="events-table"><thead><tr><th>Date</th><th>Name</th><th>Location</th>'
-        . '<th>Host club</th><th>Going</th><th>Status</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>';
+        . '<th>Host club</th><th>Registration</th><th>Going</th><th>Status</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>';
     $dialogs = adminDialogHtml('event-dialog-new', 'Add an event',
         '<form method="post" action="admin.php?action=event-create" class="admin-form">' . adminCsrfField($csrf)
         . adminEventFieldsHtml('event-new', [], $clubs) . adminDialogActions('Add event') . '</form>',
         $edit === 'new' ? $dialogFlash : null);
     if (!$events) {
-        $out .= '<tr><td colspan="7" class="empty-row">No events yet.</td></tr>';
+        $out .= '<tr><td colspan="8" class="empty-row">No events yet.</td></tr>';
     }
     foreach ($events as $e) {
         $id = (int)$e['id'];
@@ -114,11 +123,14 @@ function renderEventsPageHtml(array $events, array $going, array $clubs, string 
         $isIce = ($e['discipline'] ?? 'summer') === 'ice';
         $club = (string)($e['host_club'] ?? '');
         $location = (string)($e['location'] ?? '');
+        $msr = eventRegisterUrl($e);
         $out .= '<tr id="event-' . $id . '">'
             . '<td data-label="Date">' . h(date('M j, Y', strtotime((string)$e['event_date']))) . '</td>'
             . '<td data-label="Name">' . h((string)$e['name']) . ($isIce ? ' ' . adminChip('Ice', 'pending') : '') . '</td>'
             . '<td data-label="Location">' . h($location !== '' ? $location : '—') . '</td>'
             . '<td data-label="Host club">' . h($club !== '' ? $club : '—') . '</td>'
+            . '<td data-label="Registration">' . ($msr !== ''
+                ? '<a class="admin-link" href="' . h($msr) . '" target="_blank" rel="noopener">Open ↗</a>' : '—') . '</td>'
             . '<td data-label="Going">' . $n . ' ' . ($n === 1 ? 'car' : 'cars') . '</td>'
             . '<td data-label="Status">' . ((int)$e['active'] === 1 ? adminChip('Active', 'ok') : adminChip('Inactive', 'fail')) . '</td>'
             . '<td class="admin-cell-actions">' . adminEditButton('event-dialog-' . $id, (string)$e['name']) . '</td></tr>';

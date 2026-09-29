@@ -36,7 +36,7 @@ function renderTechSheetNextStepsHtml(array $sheet, ?array $event, array $carSta
     }
     $eventName = $event !== null ? (string)$event['name'] : 'the event';
     $step = '<strong>Register with the club</strong><p>The hub doesn\'t register you. Register for ' . h($eventName)
-        . ' with ' . ($club !== null ? 'the ' . h($club['name']) : 'the host club') . '.</p>';
+        . ' with ' . ($club !== null && $club['name'] !== '' ? 'the ' . h($club['name']) : 'the host club') . '.</p>';
     if ($club !== null && $club['url'] !== '') {
         $step .= '<a class="hub-btn hub-btn--secondary" href="' . h($club['url']) . '" target="_blank" rel="noopener">Register on MotorsportReg &#8599;</a>';
     }

@@ -20,6 +20,13 @@ final class HomeSourceTest extends TestCase
         $this->assertStringContainsString("'focusEventId' => is_string(\$_GET['event'] ?? null) && ctype_digit(\$_GET['event']) ? (int)\$_GET['event'] : null,", $src);
     }
 
+    public function testHomeLoadsTheClubsLibForEventRegisterLinks(): void
+    {
+        // home-page.php calls eventRegisterUrl() (clubs-lib.php) for each event card's Register button.
+        $src = file_get_contents(__DIR__ . '/../index.php');
+        $this->assertStringContainsString("require_once __DIR__ . '/clubs-lib.php';", $src);
+    }
+
     public function testHomeGlanceCardsCarryIceSummaries(): void
     {
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../index.php'));

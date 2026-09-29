@@ -4,8 +4,8 @@
 // The hub front door: the signed-out landing page and the signed-in Home to-do list (spec §3,
 // mockup C). Pure view functions — no DB, no session, no echo — so they are unit-testable.
 // Callers must have loaded view_helpers.php (h()), cars-lib.php (carDisplayName(),
-// declarationReviewLabel(), declarationReviewBadgeClass()), events-lib.php (EVENTS_NOT_REGISTERING)
-// and reminders-lib.php (reminderOptInFieldsHtml()).
+// declarationReviewLabel(), declarationReviewBadgeClass()), events-lib.php (EVENTS_NOT_REGISTERING),
+// reminders-lib.php (reminderOptInFieldsHtml()) and clubs-lib.php (eventRegisterUrl()).
 
 /** A labelled status pill for the At a glance cards: "● Class: With an inspector". */
 function homePillHtml(string $state, string $name, string $label): string {
@@ -145,6 +145,10 @@ function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, st
             : '<span class="hub-status hub-status--ok">All set</span>';
     }
     $out .= '</div>';
+    $msr = eventRegisterUrl($event);
+    if ($msr !== '') {
+        $out .= '<p><a class="hub-btn hub-btn--secondary hub-register-link" href="' . h($msr) . '" target="_blank" rel="noopener">Register on MotorsportReg &#8599;</a></p>';
+    }
     foreach (array_keys($goingCarIds) as $carId) {
         if (isset($cars[$carId])) $out .= homeRenderUntagForm($event, $cars[$carId], $csrf);
     }
