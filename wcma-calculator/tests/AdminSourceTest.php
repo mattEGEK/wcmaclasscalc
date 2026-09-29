@@ -43,13 +43,13 @@ final class AdminSourceTest extends TestCase
     public function testBackOfficePagesUseTheAdminTabs(): void
     {
         $expect = [
-            'admin.php' => ["adminSubnavHtml('settings')"],
             'admin-events.php' => ["adminRenderPage('Events', 'events'"],
             'admin-clubs.php' => ["adminRenderPage('Clubs', 'clubs'"],
             'admin-users.php' => ["adminRenderPage('Users & roles', 'users'"],
             'admin-ui.php' => ["adminSubnavHtml(\$tab)"],
-            'admin-feedback.php' => ["adminSubnavHtml('feedback')"],
-            'admin-season-links.php' => ["adminSubnavHtml('season-links')"],
+            'admin-feedback.php' => ["adminRenderPage('Feedback', 'feedback'"],
+            'admin-season-links.php' => ["adminRenderPage('Season links', 'season-links'"],
+            'admin-settings.php' => ["adminRenderPage('Settings', 'settings'"],
         ];
         foreach ($expect as $file => $needles) {
             $src = $this->src($file);
@@ -126,5 +126,14 @@ final class AdminSourceTest extends TestCase
     {
         $this->assertStringContainsString('eventClubOptions(', $this->src('admin-events.php'));
         $this->assertStringContainsString('adminEventClubCodes($pdo, ', $this->body('admin-events.php', 'handleEventUpdate'));
+    }
+
+    public function testEveryAdminTabUsesTheHubPageShell(): void
+    {
+        foreach (['admin.php', 'admin-users.php', 'admin-events.php', 'admin-clubs.php', 'admin-season-links.php', 'admin-settings.php', 'admin-feedback.php'] as $file) {
+            $src = $this->src($file);
+            $this->assertStringNotContainsString('<!DOCTYPE html>', $src, $file);
+            $this->assertStringNotContainsString('renderSiteHeader(', $src, $file);
+        }
     }
 }
