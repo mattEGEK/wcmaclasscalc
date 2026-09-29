@@ -53,8 +53,7 @@ final class RevokeNoteTest extends TestCase
         $pdo = make_temp_pdo();
         $u = db_create_user($pdo, ['email' => 'rg' . uniqid() . '@example.com', 'name' => 'Pat', 'password_hash' => 'x', 'google_id' => null]);
         $id = (int)gearCreate($pdo, $u, 'Pat Winters', '', 2026)['id'];
-        // TODO(Task 6): restore GEAR_LEVEL_TA_DRIFT + level assertion
-        $this->assertTrue(gearAcceptInPerson($pdo, $id, $u)['ok']);
+        $this->assertTrue(gearAcceptInPerson($pdo, $id, $u, GEAR_LEVEL_TA_DRIFT)['ok']);
 
         $this->assertSame(REVOKE_NOTE_REQUIRED, gearRevoke($pdo, $id, '')['error']);
         $this->assertSame('accepted', db_get_gear_record($pdo, $id)['status']);
@@ -62,6 +61,7 @@ final class RevokeNoteTest extends TestCase
         $this->assertTrue(gearRevoke($pdo, $id, 'Helmet expired')['ok']);
         $row = db_get_gear_record($pdo, $id);
         $this->assertSame('Helmet expired', $row['revoke_note']);
+        $this->assertNull($row['level']);
     }
 
     public function testFormsPostTheNoteAndOwnersSeeIt(): void

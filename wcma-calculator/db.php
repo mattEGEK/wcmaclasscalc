@@ -452,6 +452,10 @@ function db_init(PDO $pdo): void {
     db_add_column_if_missing($pdo, 'tech_sheets', 'caged', 'INTEGER NOT NULL DEFAULT 0');
     db_add_column_if_missing($pdo, 'tech_sheets', 'revoke_note', 'TEXT');
     db_add_column_if_missing($pdo, 'gear_records', 'revoke_note', 'TEXT');
+    // TA/Drift gear photos (phase 2): which photo list a summer gear record is on (NULL = race, 'ta_drift'), and
+    // whether its driver's car is caged (adds the head and neck restraint photo).
+    db_add_column_if_missing($pdo, 'gear_records', 'photo_tier', 'TEXT');
+    db_add_column_if_missing($pdo, 'gear_records', 'caged', 'INTEGER NOT NULL DEFAULT 0');
 }
 
 function db_insert_submission(PDO $pdo, array $data): int {
@@ -1756,6 +1760,13 @@ function db_set_gear_level(PDO $pdo, int $id, ?string $level): void {
     }
     $pdo->prepare("UPDATE gear_records SET level = :l, updated_at = :now WHERE id = :id")
         ->execute([':l' => $level, ':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+}
+
+/** A summer gear record's photo list: NULL (race) or GEAR_LEVEL_TA_DRIFT, and whether the car is caged. */
+function db_set_gear_photo_tier(PDO $pdo, int $id, ?string $tier, bool $caged): void {
+    if ($tier !== null && $tier !== GEAR_LEVEL_TA_DRIFT) throw new InvalidArgumentException('Unknown photo tier: ' . $tier);
+    $pdo->prepare("UPDATE gear_records SET photo_tier = :t, caged = :c, updated_at = :now WHERE id = :id")
+        ->execute([':t' => $tier, ':c' => $caged ? 1 : 0, ':now' => date('Y-m-d H:i:s'), ':id' => $id]);
 }
 
 /** Additional drivers for many sheets at once: sheet id => rows ordered by driver number. Sheets with none are absent. */

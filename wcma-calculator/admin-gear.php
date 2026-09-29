@@ -58,7 +58,7 @@ function renderGearAdminListPage(array $records, int $season, string $discipline
     <tbody>
     <?php if (empty($records)): ?>
       <tr><td colspan="5" class="empty-row">No gear records match.</td></tr>
-    <?php else: foreach ($records as $g): $st = gearStatus($g); $statusLabel = gearStatusLabel($st, (int)$g['season'], (string)($g['discipline'] ?? 'summer')); if ($discipline === DISCIPLINE_ICE && $st['state'] === 'accepted' && !empty($g['level'])) { $statusLabel .= ' · ' . (ICE_GEAR_LEVEL_LABELS[$g['level']] ?? $g['level']); } ?>
+    <?php else: foreach ($records as $g): $st = gearStatus($g); $statusLabel = gearStatusLabel($st, (int)$g['season'], (string)($g['discipline'] ?? 'summer')); if ($discipline === DISCIPLINE_ICE && $st['state'] === 'accepted' && !empty($g['level'])) { $statusLabel .= ' · ' . (ICE_GEAR_LEVEL_LABELS[$g['level']] ?? $g['level']); } elseif ($st['state'] === 'accepted' && ($g['level'] ?? null) === GEAR_LEVEL_TA_DRIFT) { $statusLabel .= ' · TA/Drift'; } ?>
       <tr>
         <td><?= h($g['driver_name']) ?></td>
         <td><?= h((string)($g['licence_no'] ?? '')) ?></td>
@@ -170,7 +170,8 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
     <h2>Gear review</h2>
     <p><?= h($gear['driver_name']) ?> — <?= (int)$gear['season'] ?><?= !empty($gear['licence_no']) ? ' (licence ' . h($gear['licence_no']) . ')' : '' ?></p>
     <?php if ($owner): ?><p>Entered by <?= h($owner['name']) ?> (<?= h($owner['email']) ?>)</p><?php endif; ?>
-    <?php if (($gear['discipline'] ?? 'summer') === 'ice'): ?><p>Ice gear<?= !empty($gear['level']) ? ' — level: ' . h(ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']) : '' ?></p><?php endif; ?>
+    <?php if (($gear['discipline'] ?? 'summer') === 'ice'): ?><p>Ice gear<?= !empty($gear['level']) ? ' — level: ' . h(ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']) : '' ?></p>
+    <?php else: ?><p>Summer gear<?= $accepted ? ' — level: ' . h(gearSummerLevelLabel($gear['level'] ?? null)) : '' ?><?= ($gear['photo_tier'] ?? null) === GEAR_LEVEL_TA_DRIFT ? ' · TA/Drift photo list' : '' ?></p><?php endif; ?>
     <p>Gear status: <strong class="<?= h(gearStatusBadgeClass($st['state'])) ?>"><?= h(gearStatusLabel($st, (int)$gear['season'], (string)($gear['discipline'] ?? 'summer'))) ?></strong></p>
 
     <?php if (!empty($gear['revoke_note'])): ?><p class="form-hint">Revoked earlier: <?= h((string)$gear['revoke_note']) ?></p><?php endif; ?>
@@ -197,6 +198,14 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
         <?php endforeach; ?>
       </select>
       <p class="form-hint">Caged: SA/FIA helmet (and a frontal head restraint where the class needs one). Uncaged classes: Snell M2015+ or ECE 22.05/22.06.</p>
+      <?php else: ?>
+      <label for="gear-level">Gear level</label>
+      <select id="gear-level" name="level" required>
+        <?php foreach (GEAR_SUMMER_LEVEL_LABELS as $value => $label): ?>
+        <option value="<?= h($value) ?>"<?= $value === (($gear['photo_tier'] ?? null) === GEAR_LEVEL_TA_DRIFT ? 'ta_drift' : 'race') ? ' selected' : '' ?>><?= h($label) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <p class="form-hint">Race: full WCMA race gear (suit, gloves, shoes, head and neck restraint). TA/Drift: a helmet and natural-fibre clothing, and a head and neck restraint in a caged car.</p>
       <?php endif; ?>
       <button type="submit" class="btn btn-primary" id="gear-inperson-btn">Accept — gear teched in person</button>
     </form>
@@ -273,6 +282,16 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
         <?php endforeach; ?>
       </select>
       <p class="form-hint">Suggested from the helmet standard in the photo. Caged: Snell SA or FIA helmet (NASCC caged classes need SA2020 or newer). Uncaged classes: Snell M2015+ or ECE 22.05/22.06.</p>
+      <?php elseif (($gear['photo_tier'] ?? null) === GEAR_LEVEL_TA_DRIFT): ?>
+      <input type="hidden" name="level" value="ta_drift">
+      <p class="form-hint">These are the TA/Drift gear photos, so they are accepted at TA/Drift.</p>
+      <?php else: ?>
+      <label for="gear-photos-level">Gear level</label>
+      <select id="gear-photos-level" name="level" required>
+        <?php foreach (GEAR_SUMMER_LEVEL_LABELS as $value => $label): ?>
+        <option value="<?= h($value) ?>"<?= $value === 'race' ? ' selected' : '' ?>><?= h($label) ?></option>
+        <?php endforeach; ?>
+      </select>
       <?php endif; ?>
       <button type="submit" class="btn btn-primary" id="gear-accept-btn">Accept photos (pre-teched)</button>
     </form>

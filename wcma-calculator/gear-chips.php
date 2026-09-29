@@ -6,8 +6,11 @@
 require_once __DIR__ . '/view_helpers.php';
 require_once __DIR__ . '/gear-lib.php';
 
-/** The inspector's one-tap form for a driver with no gear record (posts to inspect.php). */
-function gearChipCreateForm(string $csrf, int $sheetId, int $driverNumber, array $hidden, ?string $defaultLevel = null, bool $isIce = false): string {
+/**
+ * The inspector's one-tap form for a driver with no gear record (posts to inspect.php). $levels are the
+ * level choices (value => label) or [] for none (race sheets); $defaultLevel is preselected.
+ */
+function gearChipCreateForm(string $csrf, int $sheetId, int $driverNumber, array $hidden, ?string $defaultLevel = null, array $levels = []): string {
     $out = '<form method="post" action="inspect.php?action=gear-create-accept" class="gear-inline-form">'
         . '<input type="hidden" name="csrf_token" value="' . h($csrf) . '">'
         . '<input type="hidden" name="sheet_id" value="' . $sheetId . '">'
@@ -15,11 +18,11 @@ function gearChipCreateForm(string $csrf, int $sheetId, int $driverNumber, array
     foreach ($hidden as $name => $value) {
         $out .= '<input type="hidden" name="' . h((string)$name) . '" value="' . h((string)$value) . '">';
     }
-    if ($isIce) {
+    if ($levels) {
         $out .= '<label class="gear-level-label">Gear level <select name="level" required>';
         $out .= $defaultLevel === null ? '<option value="">Choose</option>' : '';
-        foreach (ICE_GEAR_LEVEL_LABELS as $value => $label) {
-            $out .= '<option value="' . h($value) . '"' . ($value === $defaultLevel ? ' selected' : '') . '>' . h($label) . '</option>';
+        foreach ($levels as $value => $label) {
+            $out .= '<option value="' . h((string)$value) . '"' . ((string)$value === $defaultLevel ? ' selected' : '') . '>' . h($label) . '</option>';
         }
         $out .= '</select></label> ';
     }
@@ -50,14 +53,22 @@ function renderGearChips(array $links, string $audience, array $opts = []): stri
         $gear = $l['gear'];
         $linkDiscipline = (string)($l['discipline'] ?? DISCIPLINE_SUMMER);
         $isIce = $linkDiscipline === DISCIPLINE_ICE;
+        $isTaDrift = ($l['tier'] ?? TECH_TIER_RACE) === TECH_TIER_TA_DRIFT;
         $seasonOk = $sheetSeason === 0 || $sheetSeason === gearSeasonNow($linkDiscipline);
+        $driverParam = (int)$l['driver_number'] >= 2 ? '&amp;driver=' . (int)$l['driver_number'] : '';
         if ($gear === null) {
+            if ($isTaDrift && $audience === 'owner') {
+                $html .= '<li class="gear-chip">' . $name . ': <span class="badge-pending">No gear record</span>'
+                    . ($seasonOk && $sheetId > 0
+                        ? ' <a href="gear.php?action=start-ta-drift&amp;sheet_id=' . $sheetId . $driverParam . '">Add gear photos</a> or have it checked at the track.'
+                        : ' Gear is checked at the track.')
+                    . '</li>';
+                continue;
+            }
             if ($isIce && $audience === 'owner') {
                 $html .= '<li class="gear-chip">' . $name . ': <span class="badge-pending">No gear record</span>'
                     . ($seasonOk && $sheetId > 0
-                        ? ' <a href="gear.php?action=start-ice&amp;sheet_id=' . $sheetId
-                            . ((int)$l['driver_number'] >= 2 ? '&amp;driver=' . (int)$l['driver_number'] : '')
-                            . '">Add gear photos</a> or have it checked at the track.'
+                        ? ' <a href="gear.php?action=start-ice&amp;sheet_id=' . $sheetId . $driverParam . '">Add gear photos</a> or have it checked at the track.'
                         : ' Gear is checked at the track.')
                     . '</li>';
                 continue;
@@ -66,7 +77,8 @@ function renderGearChips(array $links, string $audience, array $opts = []): stri
             if ($audience === 'owner' && $seasonOk) {
                 $html .= ' <a href="drivers.php">Go to Drivers</a>';
             } elseif ($audience === 'admin' && $seasonOk && $csrf !== '' && $sheetId > 0) {
-                $html .= ' ' . gearChipCreateForm($csrf, $sheetId, (int)$l['driver_number'], $hidden, $l['default_level'] ?? null, $isIce);
+                $levels = $isIce ? ICE_GEAR_LEVEL_LABELS : ($isTaDrift ? GEAR_SUMMER_LEVEL_LABELS : []);
+                $html .= ' ' . gearChipCreateForm($csrf, $sheetId, (int)$l['driver_number'], $hidden, $l['default_level'] ?? null, $levels);
             }
             $html .= '</li>';
             continue;
@@ -74,10 +86,15 @@ function renderGearChips(array $links, string $audience, array $opts = []): stri
         $label = gearStatusLabel($l['status'], (int)$gear['season'], (string)($gear['discipline'] ?? DISCIPLINE_SUMMER));
         if (($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE && !empty($gear['level']) && $l['status']['state'] === 'accepted') {
             $label .= ' · ' . (ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']);
+        } elseif (($gear['level'] ?? null) === GEAR_LEVEL_TA_DRIFT && $l['status']['state'] === 'accepted') {
+            $label .= ' · TA/Drift';
         }
         $class = gearStatusBadgeClass($l['status']['state']);
+        // An open record with no photos yet, reached from a TA/Drift sheet, starts on the TA/Drift photo list.
+        $startTaDrift = $isTaDrift && $sheetId > 0 && ($gear['status'] ?? '') === 'open' && ($gear['photo_status'] ?? null) === null
+            && ($gear['photo_tier'] ?? null) !== GEAR_LEVEL_TA_DRIFT;
         $href = $audience === 'owner'
-            ? 'gear.php?action=pretech&amp;id=' . (int)$gear['id']
+            ? ($startTaDrift ? 'gear.php?action=start-ta-drift&amp;sheet_id=' . $sheetId . $driverParam : 'gear.php?action=pretech&amp;id=' . (int)$gear['id'])
             : 'inspect.php?action=gear-record&amp;id=' . (int)$gear['id'];
         $html .= '<li class="gear-chip">' . $name . ': <a class="' . h($class) . '" href="' . $href . '">' . h($label) . '</a></li>';
     }
