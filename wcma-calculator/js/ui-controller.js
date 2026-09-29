@@ -642,7 +642,7 @@ function updateModifierValues() {
             const el = document.getElementById(id);
             if (el) {
                 el.textContent = '+0.00';
-                el.style.color = '#999';
+                el.style.color = 'var(--hub-ink-2, #555b64)';
             }
         });
         return;
@@ -666,14 +666,14 @@ function updateModifierValues() {
                 if (value !== null) {
                     const sign = value >= 0 ? '+' : '';
                     modifierEl.textContent = `${sign}${formatNumber(value)}`;
-                    modifierEl.style.color = value !== 0 ? 'var(--secondary-color)' : '#999';
+                    modifierEl.style.color = value !== 0 ? 'var(--hub-red-ink, #a80f16)' : 'var(--hub-ink-2, #555b64)';
                 } else {
                     modifierEl.textContent = 'N/A';
-                    modifierEl.style.color = '#999';
+                    modifierEl.style.color = 'var(--hub-ink-2, #555b64)';
                 }
             } else {
                 modifierEl.textContent = '+0.00';
-                modifierEl.style.color = '#999';
+                modifierEl.style.color = 'var(--hub-ink-2, #555b64)';
             }
         }
     });
@@ -696,10 +696,10 @@ function updateModifierValues() {
         if (totalValue !== 0) {
             const sign = totalValue >= 0 ? '+' : '';
             modifierEl.textContent = `${sign}${formatNumber(totalValue)}`;
-            modifierEl.style.color = 'var(--secondary-color)';
+            modifierEl.style.color = 'var(--hub-red-ink, #a80f16)';
         } else {
             modifierEl.textContent = '+0.00';
-            modifierEl.style.color = '#999';
+            modifierEl.style.color = 'var(--hub-ink-2, #555b64)';
         }
     });
 }

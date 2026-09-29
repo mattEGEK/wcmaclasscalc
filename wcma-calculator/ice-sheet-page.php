@@ -97,7 +97,7 @@ function renderIceTechSheetFormHtml(array $vm): string {
             . h((string)$d['name']) . ((int)$d['id'] === $d1['selfId'] ? ' (you)' : '') . '</option>';
     }
     $out .= '<option value="new"' . ($d1['choice'] === 'new' ? ' selected' : '') . '>+ Add a co-driver</option></select>'
-        . '<input type="text" id="driver1_new_name" name="driver1_new_name" maxlength="100" placeholder="Driver\'s name" aria-label="Driver name" value="' . h($d1['newName']) . '"></div>'
+        . '<input type="text" id="driver1_new_name" name="driver1_new_name" maxlength="100" placeholder="Driver\'s name" aria-label="Driver name" data-message="Enter the co-driver\'s name." value="' . h($d1['newName']) . '"></div>'
         . '<div><label for="engine_hp">Engine HP (optional)</label><input type="text" id="engine_hp" name="engine_hp" value="' . h($isEdit ? (string)($sheet['engine_hp'] ?? '') : '') . '"></div>'
         . '</div></div>';
 
@@ -118,7 +118,7 @@ function renderIceTechSheetFormHtml(array $vm): string {
     $out .= '<div class="detail-card"><h2>Declaration &amp; Signatures</h2>'
         . '<p><em>I hereby stipulate that the above vehicle meets the regulations for the event.</em></p>'
         . ($isEdit ? '<p class="form-hint">Leave the pads blank to keep the signatures already on file.</p>' : '')
-        . '<p id="sig-error" class="field-message" role="alert" hidden></p>'
+        . '<p id="sig-error" class="field-message" hidden></p>'
         . '<label id="entrant-sig-label">Entrant\'s signature</label><div class="sig-pad-wrap"><canvas id="entrant-sig-canvas"></canvas></div>'
         . '<div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="entrant">Clear</button></div>'
         . '<div id="driver-sig-block"><label>Driver\'s signature</label><div class="sig-pad-wrap"><canvas id="driver-sig-canvas"></canvas></div>'

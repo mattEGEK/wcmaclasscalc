@@ -21,6 +21,7 @@ require __DIR__ . '/garage-page.php';
 require_once __DIR__ . '/events-lib.php';
 require __DIR__ . '/ice-sheet-page.php';
 require_once __DIR__ . '/tech-sheet-next.php';
+require_once __DIR__ . '/clubs-lib.php';
 require_once __DIR__ . '/email-copy.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
@@ -197,7 +198,8 @@ function handleView(PDO $pdo, array $user, int $id): void {
     $gearLinks = gearLinksForSheet($sheet, $drivers, db_get_user_gear_records($pdo, (int)$user['id']));
     $csrf = generateCsrfToken();
     $flash = getFlash();
-    $title = techSheetViewTitle($sheet, $event);
+    $title = techSheetViewTitle($sheet, $event, db_get_car($pdo, (int)$sheet['car_id']));
+    $club = clubForEvent($event !== null && !empty($event['host_club']) ? db_get_club($pdo, (string)$event['host_club']) : null, $event);
     $chips = $gearLinks ? renderGearChips($gearLinks, 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0), 'sheet_id' => (int)$sheet['id']]) : '';
     ?><!DOCTYPE html>
 <html lang="en">
@@ -216,7 +218,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
   <?php renderSiteHeader($title, '<a href="garage.php?car=' . (int)$sheet['car_id'] . '">← Back to Garage</a>', 'garage'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
   <p class="no-print">Car status: <span class="hub-status <?= h(homeStatusClass($carStatus['state'])) ?>"><?= h(techCarStatusLabel($carStatus, (int)($sheet['season'] ?? date('Y')), (string)($sheet['discipline'] ?? 'summer'))) ?></span></p>
-  <?= renderTechSheetNextStepsHtml($sheet, $event, $carStatus, $chips) ?>
+  <?= renderTechSheetNextStepsHtml($sheet, $event, $carStatus, $chips, $club) ?>
   <div class="sheet-actions no-print">
     <?php if (pretechSheetEditable($sheet)): ?>
     <a href="tech-sheets.php?action=edit&id=<?= (int)$sheet['id'] ?>" class="hub-btn hub-btn--secondary">Edit</a>
@@ -413,7 +415,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
             <?php endforeach; ?>
             <option value="new"<?= $driver1Choice === 'new' ? ' selected' : '' ?>>+ Add a co-driver</option>
           </select>
-          <input type="text" id="driver1_new_name" name="driver1_new_name" maxlength="100" placeholder="Co-driver's name" aria-label="Driver 1 name" value="<?= h($driver1NewName) ?>">
+          <input type="text" id="driver1_new_name" name="driver1_new_name" maxlength="100" placeholder="Co-driver's name" aria-label="Driver 1 name" data-message="Enter the co-driver's name." value="<?= h($driver1NewName) ?>">
         </div>
         <div><label for="engine_hp">Engine HP (optional)</label><input type="text" id="engine_hp" name="engine_hp" value="<?= h((string)$engineHp) ?>"></div>
       </div>
@@ -452,7 +454,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
       <h2>Declaration &amp; Signatures</h2>
       <p><em>I hereby stipulate that the above vehicle meets the regulations for the event.</em></p>
       <?php if ($isEdit): ?><p class="form-hint">Leave the pads blank to keep the signatures already on file.</p><?php endif; ?>
-      <p id="sig-error" class="field-message" role="alert" hidden></p>
+      <p id="sig-error" class="field-message" hidden></p>
       <label id="entrant-sig-label">Entrant's signature</label>
       <?php if ($hasEntrantSignature): ?><div><?= techSheetSignatureImg($existingSheet['entrant_signature_path'], 'entrant', techSheetSignatureResolverWeb((int)$existingSheet['id'])) ?></div><?php endif; ?>
       <div class="sig-pad-wrap"><canvas id="entrant-sig-canvas"></canvas></div>

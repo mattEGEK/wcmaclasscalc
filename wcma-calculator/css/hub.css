@@ -354,7 +354,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 
 /* B1. One button language. Legacy .btn classes (auth, tech sheet, pre-tech, gear, admin) become hub buttons. */
 body.hub .btn,
-body.hub button[type="submit"]:where(:not(.hub-btn, .link-button, .checklist-chip, .btn)) {
+body.hub button[type="submit"]:where(:not(.hub-btn, .link-button, .checklist-chip, .btn, .btn-role)) {
   min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 0 20px; border-radius: 8px; border: 2px solid var(--hub-red);
   background: var(--hub-red); color: #fff; font-family: inherit; font-size: 17px; font-weight: 700;
@@ -367,7 +367,7 @@ body.hub .hub-btn { text-transform: none; }
 
 /* Disabled: dashed outline, muted text. Never grey-filled, so grey always means "not yet". */
 body.hub .btn:disabled, body.hub .hub-btn:disabled, body.hub button:disabled, body.hub .hub-btn[aria-disabled="true"],
-body.hub button[type="submit"]:where(:not(.hub-btn, .link-button, .checklist-chip, .btn)):disabled {
+body.hub button[type="submit"]:where(:not(.hub-btn, .link-button, .checklist-chip, .btn, .btn-role)):disabled {
   background: var(--hub-card); color: var(--hub-ink-2); border: 2px dashed var(--hub-ink-2); cursor: not-allowed;
 }
 
@@ -468,3 +468,28 @@ body.hub .field-message[hidden] { display: none; }
   body.hub #equipment-container .checklist-item-row { flex-wrap: wrap; }
   body.hub #equipment-container .checklist-item-row input[type="text"] { flex: 1 1 100%; margin: 6px 0 0 !important; }
 }
+
+/* Admin user actions (spec 2026-09-29 §2.7): Save is primary, Deactivate/Reactivate secondary. */
+body.hub .btn-role { min-height: 44px; padding: 0 14px; border-radius: 8px; border: 2px solid var(--hub-red);
+  background: var(--hub-red); color: #fff; font-size: 16px; font-weight: 700; text-transform: none; }
+body.hub .btn-role:hover { background: var(--hub-red-ink); border-color: var(--hub-red-ink); }
+body.hub .btn-role--secondary { background: #fff; color: var(--hub-ink); border-color: var(--hub-ink); }
+body.hub .btn-role--secondary:hover { background: var(--hub-paper); color: var(--hub-ink); border-color: var(--hub-ink); }
+
+/* ── Class Calculator (spec 2026-09-29 §2.3): phone rules and hub colours ── */
+/* Result boxes: solid ink like the hub hero, not the old purple gradient. */
+body.hub .calculation-results-box, body.hub .results-section { background: var(--hub-ink); color: #fff; }
+/* Small print up to 16px. */
+body.hub .summary-help, body.hub .field-help, body.hub .field-note, body.hub .class-name, body.hub .class-range,
+body.hub .submit-note, body.hub .higher-class-note, body.hub .inline-result, body.hub .modifier-value { font-size: 16px; }
+/* Legacy blue and light grey text to hub ink. */
+body.hub .calc-explainer-details summary { color: var(--hub-red-ink); }
+body.hub .required { color: var(--hub-red-ink); }
+body.hub .inline-result { color: var(--hub-ink); }
+body.hub .modifier-value { color: var(--hub-ink-2); }
+body.hub .hub-footer a, body.hub .hub-footer a:visited { color: var(--hub-ink-2); min-height: 44px; }
+body.hub .password-toggle, body.hub .password-toggle.is-showing { color: var(--hub-ink); }
+/* Guest save nudge: a real 44px button. */
+body.hub .nudge-dismiss { min-height: 44px; min-width: 44px; padding: 0 12px; font-size: 16px; color: var(--hub-red-ink); }
+body.hub .rulebook-disclaimer { color: var(--hub-ink-2); }
+body.hub .rulebook-disclaimer a { color: var(--hub-red-ink); }

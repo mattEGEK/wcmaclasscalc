@@ -160,6 +160,26 @@
     driver1Choice.addEventListener('change', syncSigners);
     syncSigners();
 
+    const entrantSigWrap = document.getElementById('entrant-sig-canvas').closest('.sig-pad-wrap');
+    const driverSigWrap = document.getElementById('driver-sig-canvas').closest('.sig-pad-wrap');
+    // The signature message goes once the member starts signing the pad(s) it names (spec 2026-09-29 §2.6).
+    const sigMissing = { entrant: false, driver: false };
+    [['entrant', 'entrant-sig-canvas', entrantSigWrap], ['driver', 'driver-sig-canvas', driverSigWrap]].forEach(function (pad) {
+        document.getElementById(pad[1]).addEventListener('pointerdown', function () {
+            if (!sigMissing[pad[0]]) return;
+            sigMissing[pad[0]] = false;
+            pad[2].classList.remove('field-error');
+            const errorEl = document.getElementById('tech-sheet-error');
+            if (sigMissing.entrant || sigMissing.driver) {
+                sigError.textContent = 'Please sign in the ' + (sigMissing.entrant ? 'Entrant' : 'Driver') + '\'s signature box.';
+                errorEl.textContent = sigError.textContent;
+            } else {
+                sigError.hidden = true;
+                errorEl.hidden = true;
+            }
+        });
+    });
+
     const sheetTypeSelect = document.getElementById('sheet_type');
     const enduranceCard = document.getElementById('endurance-drivers-card');
     const additionalDriversContainer = document.getElementById('additional-drivers-container');
@@ -255,9 +275,6 @@
     if (additionalDriversContainer && existingDrivers.length > 0) {
         existingDrivers.forEach(function (d) { addDriverRow(d); });
     }
-
-    const entrantSigWrap = document.getElementById('entrant-sig-canvas').closest('.sig-pad-wrap');
-    const driverSigWrap = document.getElementById('driver-sig-canvas').closest('.sig-pad-wrap');
 
     function clearAllHighlights() {
         checklistWidget.clearHighlights();
@@ -357,6 +374,8 @@
             const box = one ? 'the signature box' : (entrantSignatureMissing && driverSignatureMissing ? 'both signature boxes'
                 : (entrantSignatureMissing ? 'the Entrant\'s signature box' : 'the Driver\'s signature box'));
             sigError.textContent = 'Please sign in ' + box + '.';
+            sigMissing.entrant = entrantSignatureMissing;
+            sigMissing.driver = driverSignatureMissing;
             sigError.hidden = false;
             errorEl.textContent = sigError.textContent;
             errorEl.hidden = false;

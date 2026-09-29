@@ -78,8 +78,14 @@
         nameInput.maxLength = 100;
         nameInput.placeholder = "Co-driver's name";
         nameInput.setAttribute('aria-label', 'Driver ' + number + ' name');
+        nameInput.setAttribute('data-message', coDriverNameMessage(number));
         nameInput.value = newName || '';
         return { select: select, nameInput: nameInput, sync: wire(select, nameInput) };
+    }
+
+    /** The words for an empty co-driver name box (spec 2026-09-29 §2.5). */
+    function coDriverNameMessage(number) {
+        return number > 1 ? 'Enter Driver ' + number + '\'s name.' : 'Enter the co-driver\'s name.';
     }
 
     /** Whether Driver 1 is the signed-in user themself, so one signature covers entrant and driver (spec §C4). */
@@ -87,7 +93,7 @@
         return (drivers || []).some(function (d) { return d.self && String(d.id) === String(choice); });
     }
 
-    const api = { NEW, driverChoiceOptions, driverChoiceComplete, duplicateDriverChoice, isSelfChoice, wire, build };
+    const api = { NEW, driverChoiceOptions, driverChoiceComplete, duplicateDriverChoice, isSelfChoice, coDriverNameMessage, wire, build };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else window.WcmaDriverChoice = api;
 })();
