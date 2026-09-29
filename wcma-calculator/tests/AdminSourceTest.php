@@ -169,4 +169,14 @@ final class AdminSourceTest extends TestCase
         $this->assertLessThan(strpos($admin, 'adminEventsBadge('), strpos($admin, "require_role('admin');"));
         $this->assertStringContainsString('adminSubnavHtml($tab, adminEventsBadge())', $this->src('admin-ui.php'));
     }
+
+    public function testMotorsportRegRoutesArePostOnlyAndReturnToTheReviewPage(): void
+    {
+        $admin = $this->src('admin.php');
+        foreach (['msr-add', 'msr-attach', 'msr-ignore', 'msr-restore', 'msr-apply', 'msr-keep', 'msr-check'] as $route) {
+            $this->assertMatchesRegularExpression("/case '$route':\\s*adminRequirePost\\('admin.php\\?action=msr'\\);/", $admin, $route);
+        }
+        $this->assertStringContainsString("case 'msr':", $admin);
+        $this->assertStringContainsString("require_once __DIR__ . '/admin-msr.php';", $admin);
+    }
 }

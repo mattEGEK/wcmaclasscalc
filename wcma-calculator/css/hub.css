@@ -588,3 +588,7 @@ body.hub .hub-todo { margin-bottom: 24px; }
 
 /* MotorsportReg import (spec 2026-09-29-msr-calendar-import-design.md §3). */
 .admin-msr-strip { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; background: var(--hub-card); border-left: 4px solid var(--hub-red); padding: 12px 16px; border-radius: 8px; margin: 0 0 16px; }
+.admin-msr-changes { margin: 0; padding-left: 18px; font-size: 16px; }
+.admin-msr-status { padding-left: 18px; }
+.admin-msr-ignored { margin: 16px 0; }
+.admin-msr-ignored li { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }

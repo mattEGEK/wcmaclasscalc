@@ -18,6 +18,7 @@ require __DIR__ . '/admin-season-links.php';
 require __DIR__ . '/admin-ui.php';
 require __DIR__ . '/admin-users.php';
 require __DIR__ . '/admin-events.php';
+require_once __DIR__ . '/admin-msr.php';
 require __DIR__ . '/admin-settings.php';
 require_once __DIR__ . '/ice-rules.php';
 
@@ -127,6 +128,45 @@ switch ($action) {
     case 'season-link-delete':
         adminRequirePost('admin.php?action=season-links');
         handleSeasonLinkDelete($pdo, $postId);
+        break;
+
+    case 'msr':
+        handleMsrList($pdo);
+        break;
+
+    case 'msr-add':
+        adminRequirePost('admin.php?action=msr');
+        handleMsrAdd($pdo);
+        break;
+
+    case 'msr-attach':
+        adminRequirePost('admin.php?action=msr');
+        handleMsrAttach($pdo);
+        break;
+
+    case 'msr-ignore':
+        adminRequirePost('admin.php?action=msr');
+        handleMsrSimple($pdo, $action);
+        break;
+
+    case 'msr-restore':
+        adminRequirePost('admin.php?action=msr');
+        handleMsrSimple($pdo, $action);
+        break;
+
+    case 'msr-apply':
+        adminRequirePost('admin.php?action=msr');
+        handleMsrSimple($pdo, $action);
+        break;
+
+    case 'msr-keep':
+        adminRequirePost('admin.php?action=msr');
+        handleMsrSimple($pdo, $action);
+        break;
+
+    case 'msr-check':
+        adminRequirePost('admin.php?action=msr');
+        handleMsrCheck($pdo);
         break;
 
     default:   // 'users'
