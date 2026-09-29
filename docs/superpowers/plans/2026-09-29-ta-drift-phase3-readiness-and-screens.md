@@ -6,10 +6,10 @@
 - **Readiness:** TA/Drift items on the per-event to-do list, including a new `suggested` state.
 - **Picking formats:** Race, Time Attack and Drift checkboxes when a driver says "I'm going" (Home and Garage), which they can change later.
 - **Garage:** TA/Drift-only cars, TA/Drift chips and links to the TA/Drift sheet.
-- **Revoke notes and gear levels:** shown to owners.
-- **Inspect:** TA/Drift rows on the roster and in the review queue, and a gear level filter.
+- **Revoke notes and gear levels:** shown to owners on the Garage car page and the Drivers page.
+- **Inspect:** roster rows for TA/Drift entries with no sheet yet, and a gear level filter.
 - **MotorsportReg:** Time Trial and Drift events come in from the import.
-- **Seed and phone audit:** a TA/Drift event in the seed data, and phone-audit coverage.
+- **Phone audit:** the picker and the TA/Drift to-do list.
 
 **Architecture:**
 - **Readiness:** `buildReadiness()` (pure) reads each entry's formats. The one rule `entryTierAtEvent()` turns those into a tier. For a summer entry the tier picks one of two branches:
@@ -38,19 +38,21 @@ From plan 1 (`docs/superpowers/plans/2026-09-29-ta-drift-phase1-foundations.md`,
 | `readiness-lib.php`, `gear-lib.php` | already `require_once __DIR__ . '/ta-drift-lib.php'` (plan 1 Task 9) |
 | `tests/bootstrap.php` | `test_make_ta_drift_sheet()`, `test_ta_drift_sheet_data()` |
 
-**Assumptions about plan 2** (written in parallel; check each before starting, and if it differs, change only the one line named):
+**Depends on plan 2** (`docs/superpowers/plans/2026-09-29-ta-drift-phase2-sheet-and-gear.md`, committed 2c5649e; see its "Produces for plan 3"). This plan uses these names exactly as plan 2 defines them:
 
-1. **The TA/Drift sheet form** opens at `tech-sheets.php?action=new-ta-drift&car_id=<id>&event_id=<id>`. The query names are the same as the existing `new-ice` route (`tech-sheets.php?action=new-ice&car_id=&event_id=`). This plan builds the URL in three places:
-   - `readinessTaDriftCarItems()`: the `$newSheetUrl` line
-   - `garageAfterAdd()`
-   - `garageTaDriftSheetUrl()`
-2. **TA/Drift gear photos** open at `gear.php?action=start-ta-drift&sheet_id=<id>`, following ice's `gear.php?action=start-ice&sheet_id=`. Only `readinessTaDriftGearPhotosUrl()` builds this URL.
-3. **Revoking** fills `revoke_note` through plan 1's `db_revoke_tech_sheet_acceptance($pdo, $id, $note)` and `db_revoke_gear_acceptance($pdo, $id, $note)`. This plan only reads the column.
-4. **Submitting a TA/Drift sheet** tags the event through `eventsTagCar()`, so a submitted sheet always has an entry.
-5. **Plan 2 owns the Inspect sheet page and the gear review page** (the TA/Drift chip on the sheet, and the level select when accepting). This plan owns:
-   - the event roster rows
-   - the review queue line
-   - the Gear tab list and its level filter
+| From plan 2 | Used here for |
+|---|---|
+| `tech-sheets.php?action=new-ta-drift&car_id=N[&event_id=M]`. Without `event_id`, it opens the first open TA/Drift event, so every link here passes `event_id`. | The readiness "Submit TA/Drift tech sheet" and "Go through the tech sheet" actions; Garage buttons; `garageAfterAdd` |
+| `gear.php?action=start-ta-drift&sheet_id=N[&driver=M]` (`gearStartTaDriftForSheet`) | The TA/Drift gear "Add photos" action, built only in `readinessTaDriftGearPhotosUrl()` |
+| `eventsTagForSheet()`. Submitting a TA/Drift sheet makes a Time Attack entry if there's none, and sets `supps_ack_at` on a TA/Drift entry. | Readiness counts the regulations item as done when `supps_ack_at` is set *or* this event's TA/Drift sheet is submitted. Both paths agree. |
+| `taDriftSheetCarStatus(array $sheet, array $ownerSheets)` and `taDriftCarTechStatusLabel(array $status, int $season, string $club)` | The Garage TA/Drift chips (Task 6) |
+| `GEAR_SUMMER_LEVEL_LABELS` and `gearSummerLevelLabel(?string $level)` (`gear-lib.php`) | The gear level in readiness labels and on Drivers and Home (Tasks 2 and 8) |
+| `revoke-lib.php`: `revokeNoticeHtml(?string $note, string $what)` | The revoke notices on the Garage car page and the Drivers page (Task 8). Plan 2 already shows them on the sheet and gear pages. |
+| Inspect (plan 2 Task 8): roster rows whose **event sheet** is TA/Drift (`tier`, the status from `taDriftCarTechStatus`, `ice_class` = `"TA/Drift (CLUB)"`, the chip, the label from `taDriftCarTechStatusLabel`); queue details ` · TA/Drift · CLUB` and the gear ` · TA/Drift` / ` · Upgrade to race`; the admin Gear list's ` · TA/Drift` suffix | Task 9 adds only the rows for TA/Drift **entries with no sheet yet** and the Gear tab level filter |
+| The seed event "WSCC Time Attack" (summer, WSCC, +24 days), `HubDbToolsTest` at 5 events, and the phone audit of the TA/Drift form (`TA/Drift tech sheet` and `(caged)`) | Task 11 reuses the event and adds only the picker and readiness screens to the audit |
+| `gearChipCreateForm(..., ?string $defaultLevel = null, array $levels = [])` (the last parameter is now a level list); `gear_records.photo_tier` and `caged` | Not called here: this plan renders gear chips only through `renderGearChips()`, as today |
+
+Test files plan 2 creates, so this plan uses other names: `InspectTaDriftTest.php`, `RevokeNoteTest.php`, `GearTaDriftTest.php`, `EventsTagForSheetTest.php`, and `TaDriftSheet*Test.php`.
 
 ### Roadmap
 
@@ -58,7 +60,7 @@ From plan 1 (`docs/superpowers/plans/2026-09-29-ta-drift-phase1-foundations.md`,
 |---|---|
 | 1 — Foundations | done (merge first) |
 | 2 — TA/Drift sheet and gear | done (merge first) |
-| **3 — Readiness and screens (this plan)** | Readiness with the `suggested` state; the formats picker on Home and Garage; TA/Drift-only cars in Garage; TA/Drift chips; revoke notes; the Drivers gear level; Inspect roster, queue and Gear filter; MotorsportReg Time Trial and Drift types; the seed event; the phone audit |
+| **3 — Readiness and screens (this plan)** | Readiness with the `suggested` state; the formats picker on Home and Garage; TA/Drift-only cars in Garage; TA/Drift chips; revoke notices on Garage and Drivers; the Drivers gear level; Inspect roster rows for TA/Drift entries with no sheet, and the Gear level filter; MotorsportReg Time Trial and Drift types; the phone audit of the picker and readiness |
 
 ## Global Constraints
 
@@ -102,7 +104,7 @@ From plan 1 (`docs/superpowers/plans/2026-09-29-ta-drift-phase1-foundations.md`,
 ### Task 1: Entries in readiness, the tier rule, and race-level gear
 
 **Files:**
-- Modify: `ta-drift-lib.php` (add `entryTierAtEvent`, `gearLevelSuffix`)
+- Modify: `ta-drift-lib.php` (add `entryTierAtEvent`)
 - Modify: `readiness-lib.php` (`buildReadiness`, `loadReadinessInputs`, new `readinessEntry`)
 - Test: `tests/ReadinessTaDriftTest.php` (new)
 
@@ -113,7 +115,6 @@ From plan 1 (`docs/superpowers/plans/2026-09-29-ta-drift-phase1-foundations.md`,
     - ice events return `TECH_TIER_RACE`
     - a summer event with no host club returns `TECH_TIER_RACE`
     - otherwise it returns `entryTechTier(entryFormatsParse($stored))`
-  - `gearLevelSuffix(?array $gear): string`: `' · TA/Drift'` for accepted gear at level `ta_drift`, otherwise `''`.
   - `readinessEntry(array $event, ?array $plan): array{formats: string[], tier: string, supps_ack_at: ?string}`
   - Each row in `buildReadiness()['events']` gains `'entries' => array<int carId, readinessEntry()>`.
   - `loadReadinessInputs()` `plans` rows carry `formats` and `supps_ack_at`.
@@ -169,14 +170,6 @@ final class ReadinessTaDriftTest extends TestCase
         $this->assertSame(TECH_TIER_RACE, entryTierAtEvent($summer, null));                                   // legacy entry
         $this->assertSame(TECH_TIER_RACE, entryTierAtEvent(['discipline' => 'summer', 'host_club' => ''], 'ta'));   // club removed since
         $this->assertSame(TECH_TIER_RACE, entryTierAtEvent(['discipline' => 'ice', 'host_club' => 'WSCC'], 'drift'));
-    }
-
-    public function testGearLevelSuffix(): void
-    {
-        $this->assertSame(' · TA/Drift', gearLevelSuffix(['status' => 'accepted', 'level' => 'ta_drift']));
-        $this->assertSame('', gearLevelSuffix(['status' => 'accepted', 'level' => null]));
-        $this->assertSame('', gearLevelSuffix(['status' => 'open', 'level' => 'ta_drift']));
-        $this->assertSame('', gearLevelSuffix(null));
     }
 
     public function testEntriesCarryFormatsAndTier(): void
@@ -235,7 +228,7 @@ final class ReadinessTaDriftTest extends TestCase
 Run: `php phpunit.phar --filter ReadinessTaDriftTest`
 Expected: FAIL. `entryTierAtEvent` is undefined.
 
-- [ ] **Step 4: Add the two helpers to `ta-drift-lib.php`**
+- [ ] **Step 4: Add the tier rule to `ta-drift-lib.php`**
 
 Append to the end of `ta-drift-lib.php`:
 
@@ -250,11 +243,6 @@ function entryTierAtEvent(array $event, ?string $stored): string {
     if (($event['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) return TECH_TIER_RACE;
     if (trim((string)($event['host_club'] ?? '')) === '') return TECH_TIER_RACE;
     return entryTechTier(entryFormatsParse($stored));
-}
-
-/** ' · TA/Drift' after an accepted summer gear status that is TA/Drift level, else ''. */
-function gearLevelSuffix(?array $gear): string {
-    return $gear !== null && ($gear['status'] ?? '') === 'accepted' && ($gear['level'] ?? null) === GEAR_LEVEL_TA_DRIFT ? ' · TA/Drift' : '';
 }
 ```
 
@@ -405,14 +393,15 @@ Claude-Session: https://claude.ai/code/session_013Ka2ckHFvimiiH8JfC7tX5"
 ### Task 2: TA/Drift to-dos and the `suggested` state
 
 **Files:**
-- Modify: `readiness-lib.php` (new `readinessTaDriftCarItems`, `readinessTaDriftGearPhotosUrl`; the summer branch in `buildReadiness`)
+- Modify: `readiness-lib.php` (new `readinessTaDriftCarItems`, `readinessTaDriftGearPhotosUrl`; the summer branch in `buildReadiness`; `loadReadinessInputs` adds `sheetDriverNumbers`)
 - Test: `tests/ReadinessTaDriftTest.php` (add tests)
 
 **Interfaces:**
-- Consumes: Task 1's `readinessEntry`, and plan 1's `taDriftCarTechStatus`, `gearCoversTier` and `atTrackKey(..., TECH_TIER_TA_DRIFT, $club)`.
+- Consumes: Task 1's `readinessEntry`; plan 1's `taDriftCarTechStatus`, `gearCoversTier` and `atTrackKey(..., TECH_TIER_TA_DRIFT, $club)`; plan 2's `gearSummerLevelLabel()` and its `gear.php?action=start-ta-drift&sheet_id=N[&driver=M]` route.
 - Produces:
   - `readinessTaDriftCarItems(array $in, array $event, int $season, int $carId, array $entry, array $sheetsByCar, array $atTrack, callable $once): array`
-  - `readinessTaDriftGearPhotosUrl(?int $sheetId): ?string`
+  - `readinessTaDriftGearPhotosUrl(?array $sheet, int $driverId, array $sheetDriverNumbers): ?string`. For the sheet's driver 1 it returns `gear.php?action=start-ta-drift&sheet_id=N`, and for an added driver `...&driver=M`. It returns `null` when `$sheet` isn't a TA/Drift sheet or doesn't name the driver.
+  - `loadReadinessInputs()` gains `sheetDriverNumbers` (sheet id => [driver id => driver number]). `buildReadiness()` defaults it to `[]`.
   - The new item kind `supps` (subject `car`).
   - The new item state `suggested`.
   - The `$once` keys `tad_car_tech:CLUB:carId` and `tad_gear:driverId`. These are separate from race's `car_tech:carId` and `gear:driverId`.
@@ -503,10 +492,15 @@ Add these methods to `tests/ReadinessTaDriftTest.php`, inside the class:
         $this->assertArrayNotHasKey('gear:5', $withSheet);
 
         $accepted = $this->sheet(9, 19, ['driver_id' => 6, 'status' => 'teched', 'accepted_via' => 'in_person']);
-        $fromSeason = $this->items(buildReadiness($this->world(['sheets' => [$accepted], 'sheetDrivers' => [9 => [5]]])));
+        $fromSeason = $this->items(buildReadiness($this->world(['sheets' => [$accepted], 'sheetDrivers' => [9 => [5]], 'sheetDriverNumbers' => [9 => [5 => 2]]])));
         $this->assertArrayHasKey('gear:6', $fromSeason);
         $this->assertArrayHasKey('gear:5', $fromSeason);
-        $this->assertSame('gear.php?action=start-ta-drift&sheet_id=9', $fromSeason['gear:6']['action']['url']);
+        $this->assertSame('gear.php?action=start-ta-drift&sheet_id=9', $fromSeason['gear:6']['action']['url']);           // driver 1
+        $this->assertSame('gear.php?action=start-ta-drift&sheet_id=9&driver=2', $fromSeason['gear:5']['action']['url']);  // added driver
+
+        $noSheet = $this->items(buildReadiness($this->world()));
+        $this->assertNull($noSheet['gear:5']['action']);   // not on a TA/Drift sheet yet: bring it to the track
+        $this->assertSame('Bring it to tech at the track, or add photos once this driver is on a TA/Drift tech sheet.', $noSheet['gear:5']['detail']);
     }
 
     public function testTaDriftGearAndRaceGearBothCoverATaEntry(): void
@@ -516,7 +510,7 @@ Add these methods to `tests/ReadinessTaDriftTest.php`, inside the class:
         $tad = $this->items(buildReadiness($this->world(['gear' => $gear('ta_drift')])))['gear:5'];
         $this->assertSame(['done', 'Gear for Jordan Lee: pre-teched 2026 · TA/Drift'], [$tad['state'], $tad['label']]);
         $race = $this->items(buildReadiness($this->world(['gear' => $gear(null)])))['gear:5'];
-        $this->assertSame(['done', 'Gear for Jordan Lee: pre-teched 2026 · race level'], [$race['state'], $race['label']]);
+        $this->assertSame(['done', 'Gear for Jordan Lee: pre-teched 2026 · Race'], [$race['state'], $race['label']]);   // plan 2's gearSummerLevelLabel()
     }
 
     public function testAtTheTrackChoiceIsPerClub(): void
@@ -567,11 +561,18 @@ In `readiness-lib.php`, directly above the `readinessEntry` doc comment added in
 
 ```php
 /**
- * TA/Drift gear photos open from a TA/Drift tech sheet (plan 2's gear.php route, shaped like ice's
- * start-ice). Null when the driver isn't on one yet. The only place this URL is built.
+ * TA/Drift gear photos open from the TA/Drift tech sheet that names the driver (plan 2's
+ * gear.php?action=start-ta-drift&sheet_id=N[&driver=M], gearStartTaDriftForSheet()). Driver 1 is the
+ * sheet's driver_id; added drivers carry their number. Null when $sheet isn't a TA/Drift sheet or
+ * doesn't name the driver. The only place this URL is built.
+ * @param array $sheetDriverNumbers sheet id => [driver id => driver number] (loadReadinessInputs())
  */
-function readinessTaDriftGearPhotosUrl(?int $sheetId): ?string {
-    return $sheetId !== null ? 'gear.php?action=start-ta-drift&sheet_id=' . $sheetId : null;
+function readinessTaDriftGearPhotosUrl(?array $sheet, int $driverId, array $sheetDriverNumbers): ?string {
+    if ($sheet === null || !techSheetIsTaDrift($sheet)) return null;
+    $url = 'gear.php?action=start-ta-drift&sheet_id=' . (int)$sheet['id'];
+    if ((int)($sheet['driver_id'] ?? 0) === $driverId) return $url;
+    $number = $sheetDriverNumbers[(int)$sheet['id']][$driverId] ?? null;
+    return $number !== null ? $url . '&driver=' . (int)$number : null;
 }
 
 /**
@@ -653,8 +654,7 @@ function readinessTaDriftCarItems(array $in, array $event, int $season, int $car
         $gear = $in['gear']["$did:$season"] ?? null;
         if (gearCoversTier($gear, TECH_TIER_TA_DRIFT)) {
             $via = ($gear['accepted_via'] ?? 'in_person') === 'photos' ? 'pre-teched' : 'teched';
-            $level = gearCoversTier($gear, TECH_TIER_RACE) ? 'race level' : 'TA/Drift';
-            $items[] = readinessItem('gear', 'driver', $did, 'done', "Gear for $name: $via $season · $level");
+            $items[] = readinessItem('gear', 'driver', $did, 'done', "Gear for $name: $via $season · " . gearSummerLevelLabel($gear['level'] ?? null));
             continue;
         }
         $items[] = readinessTech('gear', 'driver', $did, $gear !== null ? gearStatus($gear) : ['state' => 'none', 'via' => null], $season,
@@ -662,7 +662,7 @@ function readinessTaDriftCarItems(array $in, array $event, int $season, int $car
             'label' => "TA/Drift gear for $name", 'doneLabel' => "Gear for $safeName: %s $season",
             'pendingLabel' => "Gear photos for $name are with an inspector", 'retakeLabel' => "Retake gear photos for $name",
             'atTrackLabel' => "Gear for $name: checked at the track",
-        ], readinessTaDriftGearPhotosUrl($latestClubSheet), $gear !== null ? 'gear.php?action=pretech&id=' . (int)$gear['id'] : null, [],
+        ], readinessTaDriftGearPhotosUrl($source, $did, $in['sheetDriverNumbers'] ?? []), $gear !== null ? 'gear.php?action=pretech&id=' . (int)$gear['id'] : null, [],
            ['with' => 'Pre-tech your helmet with photos, or bring your gear to tech at the track.',
             'without' => 'Bring it to tech at the track, or add photos once this driver is on a TA/Drift tech sheet.']);
     }
@@ -678,7 +678,31 @@ function readinessTaDriftCarItems(array $in, array $event, int $season, int $car
 
 ```
 
-The `testGearDriversComeFrom…` test expects `sheet_id=9` for driver 6. That's the newest TA/Drift sheet for the club and year (`$latestClubSheet`), which here is the accepted sheet itself.
+The gear photo link comes from the same sheet the drivers came from (`$source`). Driver 1 opens it plainly, and an added driver gets `&driver=M`, so that plan 2's `gearStartTaDriftForSheet()` starts that driver's record rather than driver 1's.
+
+Add the driver numbers to `loadReadinessInputs()`. Replace:
+
+```php
+    $sheetDrivers = [];
+    foreach (db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $sheets)) as $sheetId => $rows) {
+        $sheetDrivers[(int)$sheetId] = array_values(array_filter(array_map(fn(array $r): int => (int)($r['driver_id'] ?? 0), $rows)));
+    }
+```
+
+with:
+
+```php
+    $sheetDrivers = [];
+    $sheetDriverNumbers = [];
+    foreach (db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $sheets)) as $sheetId => $rows) {
+        $sheetDrivers[(int)$sheetId] = array_values(array_filter(array_map(fn(array $r): int => (int)($r['driver_id'] ?? 0), $rows)));
+        foreach ($rows as $r) {
+            if ((int)($r['driver_id'] ?? 0) > 0) $sheetDriverNumbers[(int)$sheetId][(int)$r['driver_id']] = (int)$r['driver_number'];
+        }
+    }
+```
+
+In its return array, after `'sheetDrivers' => $sheetDrivers,`, add `'sheetDriverNumbers' => $sheetDriverNumbers,`. In `buildReadiness`, replace `$in += ['iceGear' => [], 'iceGearFhr' => []];` with `$in += ['iceGear' => [], 'iceGearFhr' => [], 'sheetDriverNumbers' => []];`.
 
 - [ ] **Step 4: Branch the summer entries on the tier, and keep race sheets race-only**
 
@@ -1780,9 +1804,9 @@ Claude-Session: https://claude.ai/code/session_013Ka2ckHFvimiiH8JfC7tX5"
 - Test: `tests/GarageTaDriftTest.php` (add tests)
 
 **Interfaces:**
-- Consumes: Task 5's `garageRaceSheets` and `garageEntryTiers`, and plan 1's `taDriftCarTechStatus`.
+- Consumes: Task 5's `garageEntryTiers`, and plan 2's `taDriftSheetCarStatus(array $sheet, array $ownerSheets)` and `taDriftCarTechStatusLabel(array $status, int $season, string $club)`.
 - Produces:
-  - `garageTaDriftSummaries(array $carSheets, array $entryClubs, int $season): array<int, array{club: string, state: string, label: string}>`. The label is `TA/Drift {club} {year}: {status word}`.
+  - `garageTaDriftSummaries(int $carId, array $carSheets, array $entryClubs, int $season): array<int, array{club: string, state: string, label: string}>`. The label is `taDriftCarTechStatusLabel()`'s, for example "Pre-teched TA/Drift WSCC 2026", "Teched 2026 (race)" or "Needs tech at the track". Screens show it after a `TA/Drift {club}` heading.
   - Cards, the car page and the Home glance carry `taDrift` (that list).
 
 - [ ] **Step 1: Write the failing tests**
@@ -1797,22 +1821,22 @@ Add these methods to `tests/GarageTaDriftTest.php`, inside the class:
 
     public function testTaDriftSummaryPerClub(): void
     {
-        $this->assertSame([], garageTaDriftSummaries([], [], 2026));
-        $this->assertSame([['club' => 'WSCC', 'state' => 'none', 'label' => 'TA/Drift WSCC 2026: needs tech']], garageTaDriftSummaries([], ['WSCC'], 2026));
+        $this->assertSame([], garageTaDriftSummaries(3, [], [], 2026));
+        $this->assertSame([['club' => 'WSCC', 'state' => 'none', 'label' => 'Needs tech at the track']], garageTaDriftSummaries(3, [], ['WSCC'], 2026));
 
         $sheets = [$this->sheet(9, ['status' => 'teched', 'accepted_via' => 'photos']), $this->sheet(10, ['club' => 'NASCC', 'photo_status' => 'submitted'])];
         $this->assertSame([
-            ['club' => 'NASCC', 'state' => 'pending_review', 'label' => 'TA/Drift NASCC 2026: photos with an inspector'],
-            ['club' => 'WSCC', 'state' => 'accepted', 'label' => 'TA/Drift WSCC 2026: pre-teched'],
-        ], garageTaDriftSummaries($sheets, [], 2026));
-        $this->assertSame([], garageTaDriftSummaries($sheets, [], 2027));   // another year
+            ['club' => 'NASCC', 'state' => 'pending_review', 'label' => 'Photos pending review'],
+            ['club' => 'WSCC', 'state' => 'accepted', 'label' => 'Pre-teched TA/Drift WSCC 2026'],
+        ], garageTaDriftSummaries(3, $sheets, [], 2026));
+        $this->assertSame([], garageTaDriftSummaries(3, $sheets, [], 2027));   // another year
     }
 
     public function testRaceTechCoversEveryClub(): void
     {
         $race = $this->sheet(8, ['sheet_type' => 'standard', 'club' => null, 'status' => 'teched', 'accepted_via' => 'in_person']);
-        $this->assertSame([['club' => 'WSCC', 'state' => 'accepted', 'label' => 'TA/Drift WSCC 2026: covered by race tech']],
-            garageTaDriftSummaries([$race], ['WSCC'], 2026));
+        $this->assertSame([['club' => 'WSCC', 'state' => 'accepted', 'label' => 'Teched 2026 (race)']],
+            garageTaDriftSummaries(3, [$race], ['WSCC'], 2026));
     }
 
     public function testTaDriftSheetDoesNotCountAsRaceCarTech(): void
@@ -1820,9 +1844,9 @@ Add these methods to `tests/GarageTaDriftTest.php`, inside the class:
         $card = garageCard(['id' => 3, 'car_number' => '86', 'make' => 'Subaru', 'model' => 'BRZ', 'disciplines' => 'summer', 'archived_at' => null],
             [], [$this->sheet(9, ['status' => 'teched', 'accepted_via' => 'in_person'])], [20], [self::TA], 2026, '2026-06-01', 2027, [20 => 'ta']);
         $this->assertSame('none', $card['techState']);
-        $this->assertSame([['club' => 'WSCC', 'state' => 'accepted', 'label' => 'TA/Drift WSCC 2026: teched']], $card['taDrift']);
+        $this->assertSame([['club' => 'WSCC', 'state' => 'accepted', 'label' => 'Teched TA/Drift WSCC 2026']], $card['taDrift']);
         $html = garageRenderCard($card);
-        $this->assertStringContainsString('<div><dt>TA/Drift tech</dt><dd><span class="hub-status hub-status--ok">TA/Drift WSCC 2026: teched</span></dd></div>', $html);
+        $this->assertStringContainsString('<div><dt>TA/Drift WSCC</dt><dd><span class="hub-status hub-status--ok">Teched TA/Drift WSCC 2026</span></dd></div>', $html);
     }
 
     public function testCarPageListsTaDriftTech(): void
@@ -1832,8 +1856,8 @@ Add these methods to `tests/GarageTaDriftTest.php`, inside the class:
                'techState' => 'none', 'techLabel' => 'Needs tech at the track', 'techAction' => null,
                'events' => ['tagged' => [], 'untagged' => [], 'earlierSheets' => []], 'seasons' => ['summer' => true, 'ice' => false],
                'csrf' => 'tok', 'detailsForm' => null, 'usesSummer' => true, 'usesRace' => false, 'ice' => null,
-               'taDrift' => [['club' => 'WSCC', 'state' => 'none', 'label' => 'TA/Drift WSCC 2026: needs tech']]];
-        $this->assertStringContainsString('<section class="hub-card"><h2>TA/Drift tech</h2><p><span class="hub-status hub-status--warn">TA/Drift WSCC 2026: needs tech</span></p></section>',
+               'taDrift' => [['club' => 'WSCC', 'state' => 'none', 'label' => 'Needs tech at the track']]];
+        $this->assertStringContainsString('<section class="hub-card"><h2>TA/Drift tech</h2><p>TA/Drift WSCC: <span class="hub-status hub-status--warn">Needs tech at the track</span></p></section>',
             renderGarageCarHtml($vm));
     }
 ```
@@ -1850,26 +1874,24 @@ In `garage-lib.php`, directly after `garageCarRaces`, add:
 ```php
 
 /**
- * A car's TA/Drift tech for $season, one row per host club, sorted by club (TA/Drift spec §4 "TA/Drift
- * {club} {year}"): the clubs it has TA/Drift sheets for that season plus $entryClubs (the host clubs
- * of its upcoming TA/Drift entries, garageEntryTiers()). Accepted race tech covers every club.
+ * A car's TA/Drift tech for $season, one row per host club, sorted by club (TA/Drift spec §4): the
+ * clubs it has TA/Drift sheets for that season plus $entryClubs (the host clubs of its upcoming
+ * TA/Drift entries, garageEntryTiers()). Status and label come from plan 2's taDriftSheetCarStatus()
+ * and taDriftCarTechStatusLabel(), with a key-only stand-in sheet for a club that has none yet;
+ * accepted race tech covers every club.
  * @return array<int, array{club: string, state: string, label: string}>
  */
-function garageTaDriftSummaries(array $carSheets, array $entryClubs, int $season): array {
-    $race = techCarStatus(array_values(array_filter(garageRaceSheets($carSheets), fn(array $s): bool => (int)$s['season'] === $season)));
-    $byClub = array_fill_keys(array_map('strval', $entryClubs), []);
+function garageTaDriftSummaries(int $carId, array $carSheets, array $entryClubs, int $season): array {
+    $clubs = array_fill_keys(array_map('strval', $entryClubs), true);
     foreach ($carSheets as $s) {
-        if (techSheetIsTaDrift($s) && (int)$s['season'] === $season) $byClub[(string)$s['club']][] = $s;
+        if (techSheetIsTaDrift($s) && (int)$s['season'] === $season) $clubs[(string)$s['club']] = true;
     }
-    ksort($byClub);
-    $words = ['needs_changes' => 'photos need changes', 'pending_review' => 'photos with an inspector', 'photos_draft' => 'photos in progress'];
+    ksort($clubs);
     $out = [];
-    foreach ($byClub as $club => $sheets) {
-        $st = taDriftCarTechStatus($race, techCarStatus($sheets));
-        $word = $st['state'] === 'accepted'
-            ? ($st['tier'] === TECH_TIER_RACE ? 'covered by race tech' : (($st['via'] ?? 'in_person') === 'photos' ? 'pre-teched' : 'teched'))
-            : ($words[$st['state']] ?? 'needs tech');
-        $out[] = ['club' => (string)$club, 'state' => $st['state'], 'label' => "TA/Drift $club $season: $word"];
+    foreach (array_keys($clubs) as $club) {
+        $key = ['car_id' => $carId, 'season' => $season, 'discipline' => DISCIPLINE_SUMMER, 'sheet_type' => SHEET_TYPE_TA_DRIFT, 'club' => (string)$club];
+        $st = taDriftSheetCarStatus($key, $carSheets);
+        $out[] = ['club' => (string)$club, 'state' => $st['state'], 'label' => taDriftCarTechStatusLabel($st, $season, (string)$club)];
     }
     return $out;
 }
@@ -1878,14 +1900,14 @@ function garageTaDriftSummaries(array $carSheets, array $entryClubs, int $season
 In `garageCard`'s return array, after `'ice' => …,`, add:
 
 ```php
-        'taDrift' => garageTaDriftSummaries($carSheets, $tiers['taDriftClubs'], $season),
+        'taDrift' => garageTaDriftSummaries((int)$car['id'], $carSheets, $tiers['taDriftClubs'], $season),
 ```
 
 In `garage-page.php` `garageRenderCard`, directly after the `if (!empty($card['ice'])) { … }` block in the facts list, add:
 
 ```php
     foreach ($card['taDrift'] ?? [] as $t) {
-        $out .= '<div><dt>TA/Drift tech</dt><dd><span class="hub-status ' . h(homeStatusClass($t['state'])) . '">' . h($t['label']) . '</span></dd></div>';
+        $out .= '<div><dt>' . h('TA/Drift ' . $t['club']) . '</dt><dd><span class="hub-status ' . h(homeStatusClass($t['state'])) . '">' . h($t['label']) . '</span></dd></div>';
     }
 ```
 
@@ -1896,7 +1918,7 @@ In `renderGarageCarHtml`, directly before `// Ice tech`, add:
     if (!empty($vm['taDrift'])) {
         $out .= '<section class="hub-card"><h2>TA/Drift tech</h2>';
         foreach ($vm['taDrift'] as $t) {
-            $out .= '<p><span class="hub-status ' . h(homeStatusClass($t['state'])) . '">' . h($t['label']) . '</span></p>';
+            $out .= '<p>' . h('TA/Drift ' . $t['club']) . ': <span class="hub-status ' . h(homeStatusClass($t['state'])) . '">' . h($t['label']) . '</span></p>';
         }
         $out .= '</section>';
     }
@@ -1906,24 +1928,24 @@ In `renderGarageCarHtml`, directly before `// Ice tech`, add:
 In `garage.php` `garageShowCar`, in the `renderGarageCarHtml([...])` call, after the `'usesRace' => …` line from Task 5, add:
 
 ```php
-        'taDrift' => garageTaDriftSummaries($allSheets, garageEntryTiers($formatsByEvent, db_get_active_events($pdo), $today)['taDriftClubs'], $season),
+        'taDrift' => garageTaDriftSummaries($carId, $allSheets, garageEntryTiers($formatsByEvent, db_get_active_events($pdo), $today)['taDriftClubs'], $season),
 ```
 
 In `index.php`, in the `$garage[] = [...]` builder, after the `'usesRace' => …` line, add:
 
 ```php
-                 'taDrift' => garageTaDriftSummaries($carSheets, garageEntryTiers($formatsByCar[$carId] ?? [], $in['events'], $today)['taDriftClubs'], $season),
+                 'taDrift' => garageTaDriftSummaries((int)$carId, $carSheets, garageEntryTiers($formatsByCar[$carId] ?? [], $in['events'], $today)['taDriftClubs'], $season),
 ```
 
 In `home-page.php`, in the glance loop, directly after the `if (!empty($g['ice'])) { … }` block, add:
 
 ```php
             foreach ($g['taDrift'] ?? [] as $t) {
-                $out .= '<span class="hub-pill hub-status ' . h(homeStatusClass($t['state'])) . '">' . h($t['label']) . '</span>';
+                $out .= homePillHtml($t['state'], 'TA/Drift ' . $t['club'], $t['label']);
             }
 ```
 
-The label already names the tier, club and year (for example `● TA/Drift WSCC 2026: teched`), so it's shown as-is, without `homePillHtml()`'s "Name:" prefix.
+This renders, for example, `● TA/Drift WSCC: Teched TA/Drift WSCC 2026`.
 
 - [ ] **Step 4: Run the tests to confirm they pass, then run the full suite**
 
@@ -2215,7 +2237,7 @@ Claude-Session: https://claude.ai/code/session_013Ka2ckHFvimiiH8JfC7tX5"
 
 ---
 
-### Task 8: Revoke notes for owners, and the gear level on Drivers and Home
+### Task 8: Revoke notices on the Garage car page and Drivers, and the gear level on Drivers and Home
 
 **Files:**
 - Modify: `garage-lib.php` (new `garageRevokeNotes`)
@@ -2225,20 +2247,25 @@ Claude-Session: https://claude.ai/code/session_013Ka2ckHFvimiiH8JfC7tX5"
 - Modify: `drivers-page.php` (shows the note)
 - Modify: `drivers.php` (ice revoke note)
 - Modify: `index.php` (Home glance gear label suffix)
-- Test: `tests/RevokeNotesTest.php` (new)
+- Test: `tests/OwnerRevokeNoticeTest.php` (new; plan 2 already has `RevokeNoteTest.php`)
 
 **Interfaces:**
-- Consumes: Task 1's `gearLevelSuffix`, and the plan 1 columns `tech_sheets.revoke_note` and `gear_records.revoke_note`.
+- Consumes:
+  - plan 2's `revokeNoticeHtml(?string $note, string $what)` (`revoke-lib.php`), which renders `<div class="form-messages show error" role="status"><strong>{what} revoked:</strong> {note}</div>` or `''`
+  - plan 2's `gearSummerLevelLabel(?string $level)`
+  - the plan 1 columns `tech_sheets.revoke_note` and `gear_records.revoke_note`
+
+  Plan 2 already shows the notice on the tech sheet page and the gear page; this task adds it where owners look first.
 - Produces:
   - `garageRevokeNotes(array $carSheets): string[]`. For every car tech identity (`techCarKey`) that isn't accepted, it returns the newest non-empty `revoke_note`.
-  - `driversRows()` rows gain `revokeNote` (`?string`, for the season's summer gear when it isn't accepted). The summer label gets `gearLevelSuffix()`.
+  - `driversRows()` rows gain `revokeNote` (`?string`, for the season's summer gear when it isn't accepted). An accepted TA/Drift-level summer label ends in `' · ' . gearSummerLevelLabel('ta_drift')` (" · TA/Drift"). Race-level labels are unchanged.
   - The `ice` entry in `driversRows()`'s `$ice` input may carry `revokeNote`, which the row passes through.
 
 - [ ] **Step 1: Write the failing test**
 
 ```php
 <?php
-// wcma-calculator/tests/RevokeNotesTest.php
+// wcma-calculator/tests/OwnerRevokeNoticeTest.php
 require_once __DIR__ . '/../view_helpers.php';
 require_once __DIR__ . '/../cars-lib.php';
 require_once __DIR__ . '/../events-lib.php';
@@ -2253,10 +2280,11 @@ require_once __DIR__ . '/../ice-sheet-lib.php';
 require_once __DIR__ . '/../media-lib.php';
 require_once __DIR__ . '/../drivers-lib.php';
 require_once __DIR__ . '/../drivers-page.php';
+require_once __DIR__ . '/../revoke-lib.php';
 
 use PHPUnit\Framework\TestCase;
 
-final class RevokeNotesTest extends TestCase
+final class OwnerRevokeNoticeTest extends TestCase
 {
     private function sheet(int $id, array $o = []): array {
         return array_merge(['id' => $id, 'car_id' => 3, 'event_id' => 20, 'season' => 2026, 'discipline' => 'summer', 'sheet_type' => 'standard',
@@ -2281,7 +2309,7 @@ final class RevokeNotesTest extends TestCase
                'techState' => 'none', 'techLabel' => 'Needs tech at the track', 'techAction' => null,
                'events' => ['tagged' => [], 'untagged' => [], 'earlierSheets' => []], 'seasons' => ['summer' => true, 'ice' => false],
                'csrf' => 'tok', 'detailsForm' => null, 'usesSummer' => true, 'ice' => null, 'revokeNotes' => ['New <engine>']];
-        $this->assertStringContainsString('<p class="garage-note" role="status"><strong>Tech revoked:</strong> New &lt;engine&gt;</p>', renderGarageCarHtml($vm));
+        $this->assertStringContainsString(revokeNoticeHtml('New <engine>', 'Tech'), renderGarageCarHtml($vm));
     }
 
     public function testDriversShowTheLevelAndTheNote(): void
@@ -2294,17 +2322,17 @@ final class RevokeNotesTest extends TestCase
         $this->assertNull($rows[0]['revokeNote']);
         $this->assertSame('Helmet expired', $rows[1]['revokeNote']);
         $html = renderDriversHtml(['rows' => $rows, 'season' => 2026, 'csrf' => 'tok', 'licenceLink' => null]);
-        $this->assertStringContainsString('<p class="garage-note" role="status"><strong>Gear check revoked:</strong> Helmet expired</p>', $html);
+        $this->assertStringContainsString(revokeNoticeHtml('Helmet expired', 'Gear'), $html);
     }
 }
 ```
 
 - [ ] **Step 2: Run the test to confirm it fails**
 
-Run: `php phpunit.phar --filter RevokeNotesTest`
+Run: `php phpunit.phar --filter OwnerRevokeNoticeTest`
 Expected: FAIL. `garageRevokeNotes` is undefined.
 
-- [ ] **Step 3: Implement the Garage notes**
+- [ ] **Step 3: Implement the Garage notices**
 
 In `garage-lib.php`, directly after `garageTaDriftSummaries`, add:
 
@@ -2329,11 +2357,11 @@ function garageRevokeNotes(array $carSheets): array {
 }
 ```
 
-In `garage-page.php` `renderGarageCarHtml`, directly before `$out .= garageNextStepHtml($vm);`, add:
+In `garage-page.php`, add `require_once __DIR__ . '/revoke-lib.php';` under its existing `require_once` lines. In `renderGarageCarHtml`, directly before `$out .= garageNextStepHtml($vm);`, add:
 
 ```php
     foreach ($vm['revokeNotes'] ?? [] as $note) {
-        $out .= '<p class="garage-note" role="status"><strong>Tech revoked:</strong> ' . h($note) . '</p>';
+        $out .= revokeNoticeHtml($note, 'Tech');   // plan 2's notice, as on the sheet page
     }
 ```
 
@@ -2341,7 +2369,7 @@ In `garage.php` `garageShowCar`, in the `renderGarageCarHtml([...])` call, add `
 
 - [ ] **Step 4: Implement the Drivers level and note**
 
-In `drivers-lib.php`, add `require_once __DIR__ . '/ta-drift-lib.php';` under its existing `require_once`. In `driversRows`, replace:
+In `driversRows` (`drivers-lib.php`), replace:
 
 ```php
         $row = ['driver' => $d, 'isSelf' => $id === $selfId, 'state' => $status['state'],
@@ -2353,7 +2381,9 @@ with:
 ```php
         $note = trim((string)($gear[$id]['revoke_note'] ?? ''));
         $row = ['driver' => $d, 'isSelf' => $id === $selfId, 'state' => $status['state'],
-                'label' => driversGearLabel($status, $season) . gearLevelSuffix($gear[$id] ?? null), 'action' => driversGearAction($id, $status),
+                'label' => driversGearLabel($status, $season)
+                    . ($status['state'] === 'accepted' && ($gear[$id]['level'] ?? null) === GEAR_LEVEL_TA_DRIFT ? ' · ' . gearSummerLevelLabel(GEAR_LEVEL_TA_DRIFT) : ''),
+                'action' => driversGearAction($id, $status),
                 'revokeNote' => $status['state'] !== 'accepted' && $note !== '' ? $note : null,
 ```
 
@@ -2369,18 +2399,16 @@ with:
             $row['ice'] = ['state' => $i['state'], 'label' => $i['label'], 'action' => $action, 'revokeNote' => $i['revokeNote'] ?? null];
 ```
 
-In `drivers-page.php` `driversRenderRow`, directly after the `</form>` of the licence form (`. '<button type="submit" class="hub-btn hub-btn--link">Save</button></form>';`), add:
+In `drivers-page.php`, add `require_once __DIR__ . '/revoke-lib.php';` under the header comment. In `driversRenderRow`, directly after the `</form>` of the licence form (`. '<button type="submit" class="hub-btn hub-btn--link">Save</button></form>';`), add:
 
 ```php
-    if (($row['summer'] ?? true) && !empty($row['revokeNote'])) {
-        $out .= '<p class="garage-note" role="status"><strong>Gear check revoked:</strong> ' . h((string)$row['revokeNote']) . '</p>';
-    }
+    if ($row['summer'] ?? true) $out .= revokeNoticeHtml($row['revokeNote'] ?? null, 'Gear');
 ```
 
 Inside `if (!empty($row['ice'])) { … }`, after the ice `</p>`, add:
 
 ```php
-        if (!empty($i['revokeNote'])) $out .= '<p class="garage-note" role="status"><strong>Ice gear check revoked:</strong> ' . h((string)$i['revokeNote']) . '</p>';
+        $out .= revokeNoticeHtml($i['revokeNote'] ?? null, 'Ice gear');
 ```
 
 In `drivers.php`, replace:
@@ -2397,17 +2425,22 @@ with:
             + ['revokeNote' => $iceNote !== '' ? $iceNote : null];
 ```
 
-In `index.php`, in the `$drivers[] = [...]` builder, replace `'gearLabel' => gearStatusLabel($st, $season),` with `'gearLabel' => gearStatusLabel($st, $season) . gearLevelSuffix($g),`.
+In `index.php`, in the `$drivers[] = [...]` builder, replace `'gearLabel' => gearStatusLabel($st, $season),` with:
+
+```php
+                  'gearLabel' => gearStatusLabel($st, $season)
+                      . ($st['state'] === 'accepted' && ($g['level'] ?? null) === GEAR_LEVEL_TA_DRIFT ? ' · ' . gearSummerLevelLabel(GEAR_LEVEL_TA_DRIFT) : ''),
+```
 
 - [ ] **Step 5: Run the test to confirm it passes, then run the full suite**
 
-Run: `php phpunit.phar --filter RevokeNotesTest` → PASS. Then `php phpunit.phar` → all PASS. `DriversLibTest` rows have no `level` or `revoke_note`, so their labels are unchanged.
+Run: `php phpunit.phar --filter OwnerRevokeNoticeTest` → PASS. Then `php phpunit.phar` → all PASS. `DriversLibTest` rows have no `level` or `revoke_note`, so their labels are unchanged.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add garage-lib.php garage-page.php garage.php drivers-lib.php drivers-page.php drivers.php index.php tests/RevokeNotesTest.php
-git commit -m "feat(ta-drift): owners see why tech was revoked, and TA/Drift-level gear is labelled
+git add garage-lib.php garage-page.php garage.php drivers-lib.php drivers-page.php drivers.php index.php tests/OwnerRevokeNoticeTest.php
+git commit -m "feat(ta-drift): revoke notices on the car page and Drivers; TA/Drift-level gear is labelled
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013Ka2ckHFvimiiH8JfC7tX5"
@@ -2415,22 +2448,45 @@ Claude-Session: https://claude.ai/code/session_013Ka2ckHFvimiiH8JfC7tX5"
 
 ---
 
-### Task 9: Inspect (roster rows, review queue, Gear tab level filter)
+### Task 9: Inspect roster for TA/Drift entries with no sheet yet, and the Gear tab level filter
+
+Plan 2 Task 8 already handles these in Inspect:
+- **Roster rows whose event sheet is a TA/Drift sheet:**
+  - `status` from `taDriftCarTechStatus`, with `tier`
+  - `ice_class` = `"TA/Drift (CLUB)"`, so the row isn't counted as "class not accepted"
+  - the `TA/Drift` admin chip and the `taDriftCarTechStatusLabel()` status
+- **The review queue:** ` · TA/Drift · CLUB` for car photos, and ` · TA/Drift` or ` · Upgrade to race` for gear.
+- **The sheet page.**
+- **The Gear list's ` · TA/Drift` suffix.**
+
+This task adds only what plan 2 leaves for plan 3:
+- A car whose **entry** is TA/Drift but which has **no sheet** for the event yet shows its TA/Drift standing, not race.
+- The Gear tab gets a level filter.
 
 **Files:**
-- Modify: `db.php` (`db_get_event_roster_cars` returns the entry's `formats`)
-- Modify: `inspect-lib.php` (`inspectRosterRows` takes the host club; TA/Drift rows; the `class_not_accepted` filter; the queue detail)
-- Modify: `inspect-page.php` (the class cell for TA/Drift rows)
+- Modify: `db.php` (`db_get_event_roster_cars` also returns the entry's `formats`)
+- Modify: `inspect-lib.php` (`inspectRosterRows` takes the host club; the `class_not_accepted` filter)
+- Modify: `inspect-page.php` (the status label and class cell for these rows, built on plan 2's `$statusLabel`)
 - Modify: `inspect.php` (passes the host club)
 - Modify: `gear-lib.php` (new `GEAR_ADMIN_LEVELS`, `gearRosterLevelFilter`)
-- Modify: `admin-gear.php` (the level select and the TA/Drift suffix)
-- Test: `tests/InspectTaDriftTest.php` (new)
+- Modify: `admin-gear.php` (the level select only; plan 2 already appends ` · TA/Drift` to the status)
+- Test: `tests/InspectRosterEntryTest.php` (new; plan 2 owns `InspectTaDriftTest.php`)
 
 **Interfaces:**
-- Consumes: Task 1's `entryTierAtEvent`, and plan 1's `taDriftCarTechStatus`, `techSheetIsTaDrift`, `entryFormatsLabel`, `entryFormatsParse` and `gearLevelSuffix`.
+- Consumes:
+  - from Task 1: `entryTierAtEvent`
+  - from plan 1: `taDriftCarTechStatus`, `techCarKey`, `SHEET_TYPE_TA_DRIFT`, `entryFormatsLabel`, `entryFormatsParse`
+  - from plan 2 (Task 8), the roster block in `inspectRosterRows()`:
+    ```php
+    $status = techCarStatus(...);
+    $isTaDrift = !$isIce && $sheet !== null && techSheetIsTaDrift($sheet);
+    if ($isTaDrift) { $status = taDriftCarTechStatus(...); }
+    ```
+    and the `$statusLabel` in `inspectRosterRowHtml()`.
 - Produces:
-  - `inspectRosterRows(…, array $key = [...], ?string $hostClub = null)`. Rows gain `tier` (`race` or `ta_drift`) and `formats` (a label).
-  - A TA/Drift row's `status` is `taDriftCarTechStatus(...)`.
+  - `inspectRosterRows(…, array $key = [...], ?string $hostClub = null)`
+  - Rows gain `tier` (`race` or `ta_drift`), `club` (the club TA/Drift standing is read at) and `formats` (a label, for example "Time Attack · Drift").
+  - For a summer car with no sheet for the event, whose entry is TA/Drift (`entryTierAtEvent`), `status` is `taDriftCarTechStatus(race, TA/Drift at the host club)`.
   - `GEAR_ADMIN_LEVELS = ['all' => 'Any level', 'race' => 'Accepted at race level', 'ta_drift' => 'Accepted at TA/Drift level']`
   - `gearRosterLevelFilter(array $records, string $level): array`
 
@@ -2438,7 +2494,7 @@ Claude-Session: https://claude.ai/code/session_013Ka2ckHFvimiiH8JfC7tX5"
 
 ```php
 <?php
-// wcma-calculator/tests/InspectTaDriftTest.php
+// wcma-calculator/tests/InspectRosterEntryTest.php
 require_once __DIR__ . '/../view_helpers.php';
 require_once __DIR__ . '/../cars-lib.php';
 require_once __DIR__ . '/../tech-status.php';
@@ -2452,58 +2508,50 @@ require_once __DIR__ . '/../inspect-page.php';
 
 use PHPUnit\Framework\TestCase;
 
-final class InspectTaDriftTest extends TestCase
+final class InspectRosterEntryTest extends TestCase
 {
     private function car(array $o = []): array {
         return array_merge(['id' => 3, 'owner_user_id' => 1, 'car_number' => '86', 'year' => '', 'make' => 'Subaru', 'model' => 'BRZ',
                             'owner_name' => 'Jordan Lee', 'tagged' => 1, 'formats' => 'ta'], $o);
     }
 
-    private function sheet(int $id, array $o = []): array {
-        return array_merge(['id' => $id, 'car_id' => 3, 'user_id' => 1, 'event_id' => 20, 'season' => 2026, 'discipline' => 'summer',
+    /** An accepted TA/Drift sheet from an earlier event (event 19), so the car has none for this one. */
+    private function earlier(array $o = []): array {
+        return array_merge(['id' => 9, 'car_id' => 3, 'user_id' => 1, 'event_id' => 19, 'season' => 2026, 'discipline' => 'summer',
                             'sheet_type' => 'ta_drift', 'club' => 'WSCC', 'status' => 'teched', 'accepted_via' => 'in_person',
                             'photo_status' => null, 'driver_name' => 'Jordan Lee'], $o);
     }
 
-    private function rows(array $cars, array $seasonSheets, array $eventSheets = []): array {
-        return inspectRosterRows($cars, $eventSheets, $seasonSheets, [], [], [], [], 2026, ['discipline' => 'summer', 'club' => null], 'WSCC');
+    private function rows(array $cars, array $seasonSheets, ?string $club = 'WSCC'): array {
+        return inspectRosterRows($cars, [], $seasonSheets, [], [], [], [], 2026, ['discipline' => 'summer', 'club' => null], $club);
     }
 
-    public function testTaDriftRowsUseTheClubsTaDriftTech(): void
+    public function testATaDriftEntryWithNoSheetShowsTheClubsTaDriftStanding(): void
     {
-        $row = $this->rows([$this->car()], [$this->sheet(9)])[0];
-        $this->assertSame('ta_drift', $row['tier']);
-        $this->assertSame('Time Attack', $row['formats']);
+        $row = $this->rows([$this->car()], [$this->earlier()])[0];
+        $this->assertSame(['ta_drift', 'WSCC', 'Time Attack'], [$row['tier'], $row['club'], $row['formats']]);
         $this->assertSame('accepted', $row['status']['state']);
 
-        $race = $this->rows([$this->car(['formats' => 'race,ta'])], [$this->sheet(9)])[0];
-        $this->assertSame('race', $race['tier']);
-        $this->assertSame('none', $race['status']['state']);   // a TA/Drift sheet doesn't accept race tech
-
-        $otherClub = $this->rows([$this->car()], [$this->sheet(9, ['club' => 'NASCC'])])[0];
-        $this->assertSame('none', $otherClub['status']['state']);
+        $this->assertSame('race', $this->rows([$this->car(['formats' => 'race,ta'])], [$this->earlier()])[0]['tier']);
+        $this->assertSame('none', $this->rows([$this->car(['formats' => 'race,ta'])], [$this->earlier()])[0]['status']['state']);
+        $this->assertSame('none', $this->rows([$this->car()], [$this->earlier(['club' => 'NASCC'])])[0]['status']['state']);
+        $this->assertSame('race', $this->rows([$this->car()], [$this->earlier()], null)[0]['tier']);   // no host club passed: as before
     }
 
-    public function testTaDriftRowsAreNeverClassNotAccepted(): void
+    public function testTaDriftEntriesAreNeverClassNotAccepted(): void
     {
         $rows = $this->rows([$this->car()], []);
         $this->assertSame([], inspectRosterFilter($rows, 'class_not_accepted'));
         $this->assertCount(1, inspectRosterFilter($rows, 'needs_tech'));
     }
 
-    public function testRosterRowShowsTaDriftInsteadOfTheClass(): void
+    public function testRowShowsTheFormatsAndTheTaDriftLabel(): void
     {
-        $row = $this->rows([$this->car(['formats' => 'ta,drift'])], [])[0];
+        $row = $this->rows([$this->car(['formats' => 'ta,drift'])], [$this->earlier()])[0];
         $html = inspectRosterRowHtml($row, ['season' => 2026, 'csrf' => 'tok', 'filter' => 'all', 'discipline' => 'summer']);
-        $this->assertStringContainsString('<p><span class="hub-status hub-status--info">TA/Drift</span> Time Attack · Drift</p>', $html);
+        $this->assertStringContainsString('<p><span class="admin-chip admin-chip--info">TA/Drift</span> Time Attack · Drift</p>', $html);
+        $this->assertStringContainsString('Teched TA/Drift WSCC 2026', $html);   // plan 2's taDriftCarTechStatusLabel()
         $this->assertStringNotContainsString('No class declared yet', $html);
-    }
-
-    public function testQueueLineNamesTaDriftAndTheClub(): void
-    {
-        $items = inspectReviewQueue([], [$this->sheet(9, ['entrant_name' => 'Jordan Lee', 'event_name' => 'WSCC TA', 'car_make' => 'Subaru',
-            'car_model' => 'BRZ', 'car_number' => '86', 'updated_at' => '2026-07-01 10:00:00'])], []);
-        $this->assertSame('Jordan Lee · WSCC TA · TA/Drift · WSCC', $items[0]['detail']);
     }
 
     public function testGearLevelFilter(): void
@@ -2522,15 +2570,14 @@ final class InspectTaDriftTest extends TestCase
         $src = (string)file_get_contents(__DIR__ . '/../admin-gear.php');
         $this->assertStringContainsString('id="gear-level-filter" name="level"', $src);
         $this->assertStringContainsString('gearRosterLevelFilter(', $src);
-        $this->assertStringContainsString('gearLevelSuffix($g)', $src);
     }
 }
 ```
 
 - [ ] **Step 2: Run the test to confirm it fails**
 
-Run: `php phpunit.phar --filter InspectTaDriftTest`
-Expected: FAIL. The rows have no `tier`, and `gearRosterLevelFilter` is undefined.
+Run: `php phpunit.phar --filter InspectRosterEntryTest`
+Expected: FAIL. `inspectRosterRows` doesn't take a host club yet, the rows have no `tier`/`club`/`formats` for cars without a sheet, and `gearRosterLevelFilter` is undefined.
 
 - [ ] **Step 3: The roster query returns the formats**
 
@@ -2547,96 +2594,87 @@ with:
                (SELECT p.formats FROM event_plans p WHERE p.event_id = :e AND p.car_id = c.id) AS formats
 ```
 
-- [ ] **Step 4: Roster rows and the queue**
+- [ ] **Step 4: Build on plan 2's roster block**
 
-In `inspect-lib.php`, add `require_once __DIR__ . '/ta-drift-lib.php';` under its existing `require_once`.
-
-Replace the signature of `inspectRosterRows`:
+In `inspect-lib.php`, replace the signature of `inspectRosterRows`:
 
 ```php
-function inspectRosterRows(array $cars, array $eventSheets, array $seasonSheets, array $declarations,
-                           array $sheetDrivers, array $selfDrivers, array $seasonGear, int $season,
                            array $key = ['discipline' => 'summer', 'club' => null]): array {
 ```
 
 with:
 
 ```php
-function inspectRosterRows(array $cars, array $eventSheets, array $seasonSheets, array $declarations,
-                           array $sheetDrivers, array $selfDrivers, array $seasonGear, int $season,
                            array $key = ['discipline' => 'summer', 'club' => null], ?string $hostClub = null): array {
 ```
 
-Add to its doc comment: ` * @param ?string $hostClub the event's host club: a summer entry whose formats need TA/Drift (entryTierAtEvent()), or whose sheet here is TA/Drift, shows that club's TA/Drift tech (race tech covers it).`
+Add this to its doc comment: ` * @param ?string $hostClub the event's host club. A summer car with no sheet here whose entry needs TA/Drift (entryTierAtEvent()) shows that club's TA/Drift standing (race tech covers it); plan 2 handles cars whose sheet here is TA/Drift.`
 
-Replace:
+In plan 2's block, replace:
 
 ```php
-        $rows[] = [
-            'car' => $car,
-            'sheet' => $sheet,
-            'class' => garageClassLine($declarations[$cid] ?? []),
-            'status' => techCarStatus($groups[techCarKey(['car_id' => $cid, 'season' => $season, 'discipline' => $key['discipline'], 'club' => $key['club']])] ?? []),
+        $isTaDrift = !$isIce && $sheet !== null && techSheetIsTaDrift($sheet);
+        if ($isTaDrift) {
 ```
 
 with:
 
 ```php
-        $status = techCarStatus($groups[techCarKey(['car_id' => $cid, 'season' => $season, 'discipline' => $key['discipline'], 'club' => $key['club']])] ?? []);
-        $tier = $isIce ? TECH_TIER_RACE
-            : entryTierAtEvent(['discipline' => 'summer', 'host_club' => $hostClub], isset($car['formats']) ? (string)$car['formats'] : null);
-        if (!$isIce && $sheet !== null && techSheetIsTaDrift($sheet)) $tier = TECH_TIER_TA_DRIFT;
-        if ($tier === TECH_TIER_TA_DRIFT) {
-            $tadKey = techCarKey(['car_id' => $cid, 'season' => $season, 'sheet_type' => SHEET_TYPE_TA_DRIFT, 'club' => (string)$hostClub]);
+        $isTaDrift = !$isIce && $sheet !== null && techSheetIsTaDrift($sheet);
+        // No sheet here yet: the entry's formats decide (TA/Drift spec §4), so a TA/Drift-only entry isn't shown as race.
+        $entryTaDrift = !$isIce && $sheet === null && $hostClub !== null && $hostClub !== ''
+            && entryTierAtEvent(['discipline' => DISCIPLINE_SUMMER, 'host_club' => $hostClub], isset($car['formats']) ? (string)$car['formats'] : null) === TECH_TIER_TA_DRIFT;
+        if ($entryTaDrift) {
+            $tadKey = techCarKey(['car_id' => $cid, 'season' => $season, 'sheet_type' => SHEET_TYPE_TA_DRIFT, 'club' => $hostClub]);
             $status = taDriftCarTechStatus($status, techCarStatus($groups[$tadKey] ?? []));
         }
-        $rows[] = [
-            'car' => $car,
-            'sheet' => $sheet,
-            'class' => garageClassLine($declarations[$cid] ?? []),
-            'status' => $status,
-            'tier' => $tier,
+        if ($isTaDrift) {
+```
+
+In the same function's `$rows[] = [...]`, directly after plan 2's `'ice_class' => …,` line, add:
+
+```php
+            'tier' => ($isTaDrift || $entryTaDrift) ? TECH_TIER_TA_DRIFT : TECH_TIER_RACE,
+            'club' => $isTaDrift ? (string)$sheet['club'] : (string)$hostClub,
             'formats' => entryFormatsLabel(entryFormatsParse(isset($car['formats']) ? (string)$car['formats'] : null)),
 ```
+
+`inspect-lib.php` reaches `entryTierAtEvent`, `entryFormatsLabel` and `entryFormatsParse` through `ice-sheet-lib.php` → `ta-drift-sheet-lib.php`, which requires `ta-drift-lib.php` (plan 2 Task 1). No new require is needed.
 
 In `inspectRosterFilter`, replace:
 
 ```php
-        // class_not_accepted: an ice row's class comes from its sheet, not the summer declaration.
         if (($r['ice_class'] ?? '') !== '') return false;
 ```
 
 with:
 
 ```php
-        // class_not_accepted: an ice row's class comes from its sheet, and a TA/Drift row has none.
-        if (($r['ice_class'] ?? '') !== '' || ($r['tier'] ?? TECH_TIER_RACE) === TECH_TIER_TA_DRIFT) return false;
+        if (($r['ice_class'] ?? '') !== '' || ($r['tier'] ?? TECH_TIER_RACE) === TECH_TIER_TA_DRIFT) return false;   // no class for TA/Drift
 ```
 
-In `inspectReviewQueue`, replace:
+Update the comment above it to `// class_not_accepted: an ice or TA/Drift row's class line comes from its sheet or entry, not a declaration.`
+
+In `inspect-page.php` `inspectRosterRowHtml`, plan 2's status label reads:
 
 ```php
-                . (techSheetIsIce($s) ? ' · Ice · ' . techSheetClassLine($s) : ''),
+    $statusLabel = ($sheet !== null && techSheetIsTaDrift($sheet))
+        ? taDriftCarTechStatusLabel($row['status'], $vm['season'], (string)$sheet['club'])
 ```
 
-with:
+Replace those two lines with:
 
 ```php
-                . (techSheetIsIce($s) ? ' · Ice · ' . techSheetClassLine($s) : '')
-                . (techSheetIsTaDrift($s) ? ' · TA/Drift · ' . $s['club'] : ''),
+    $statusLabel = (($row['tier'] ?? 'race') === 'ta_drift')
+        ? taDriftCarTechStatusLabel($row['status'], $vm['season'], (string)$row['club'])
 ```
 
-In `inspect-page.php` `inspectRosterRowHtml`, replace:
+Directly after the line `if (($row['ice_class'] ?? '') !== '') $classCell = '<p>' . h($row['ice_class']) . '</p>';`, add:
 
 ```php
-    if (($row['ice_class'] ?? '') !== '') $classCell = '<p>' . h($row['ice_class']) . '</p>';
-```
-
-with:
-
-```php
-    if (($row['ice_class'] ?? '') !== '') $classCell = '<p>' . h($row['ice_class']) . '</p>';
-    if (($row['tier'] ?? 'race') === 'ta_drift') $classCell = '<p><span class="hub-status hub-status--info">TA/Drift</span> ' . h((string)$row['formats']) . '</p>';
+    if ($sheet === null && ($row['tier'] ?? 'race') === 'ta_drift') {
+        $classCell = '<p><span class="admin-chip admin-chip--info">TA/Drift</span> ' . h((string)$row['formats']) . '</p>';
+    }
 ```
 
 In `inspect.php`, replace:
@@ -2659,7 +2697,7 @@ In `gear-lib.php`, directly after `gearRosterFilter`, add:
 
 ```php
 
-/** The Gear tab's summer level filter (TA/Drift spec §5). */
+/** The Gear tab's summer level filter (TA/Drift spec §5), next to plan 2's GEAR_SUMMER_LEVEL_LABELS. */
 const GEAR_ADMIN_LEVELS = ['all' => 'Any level', 'race' => 'Accepted at race level', 'ta_drift' => 'Accepted at TA/Drift level'];
 
 /** $level is a GEAR_ADMIN_LEVELS key; unknown means 'all'. Race is accepted with no level (TA/Drift spec §2). */
@@ -2683,9 +2721,7 @@ with:
     renderGearAdminListPage(gearRosterLevelFilter(gearRosterFilter($records, $filter), $level), $season, $discipline, $filter, $counts, getFlash(), $level);
 ```
 
-Change the `renderGearAdminListPage` signature to add `, string $level = 'all'` at the end.
-
-In its filter form, directly after the `</select>` that closes `#gear-filter`, add:
+Add `, string $level = 'all'` to the end of the `renderGearAdminListPage` signature. In its filter form, directly after the `</select>` that closes `#gear-filter`, add:
 
 ```php
     <?php if ($discipline === DISCIPLINE_SUMMER): ?>
@@ -2698,29 +2734,19 @@ In its filter form, directly after the `</select>` that closes `#gear-filter`, a
     <?php endif; ?>
 ```
 
-In the table row, replace:
-
-```php
-if ($discipline === DISCIPLINE_ICE && $st['state'] === 'accepted' && !empty($g['level'])) { $statusLabel .= ' · ' . (ICE_GEAR_LEVEL_LABELS[$g['level']] ?? $g['level']); } ?>
-```
-
-with:
-
-```php
-if ($discipline === DISCIPLINE_ICE && $st['state'] === 'accepted' && !empty($g['level'])) { $statusLabel .= ' · ' . (ICE_GEAR_LEVEL_LABELS[$g['level']] ?? $g['level']); } elseif ($discipline === DISCIPLINE_SUMMER) { $statusLabel .= gearLevelSuffix($g); } ?>
-```
-
-`admin-gear.php` loads `gear-lib.php`, which requires `ta-drift-lib.php` (plan 1 Task 9), so `gearLevelSuffix` is available.
+Don't touch the table row's status label: plan 2 Task 6 already appends ` · TA/Drift` for accepted TA/Drift-level gear.
 
 - [ ] **Step 6: Run the test to confirm it passes, then run the full suite**
 
-Run: `php phpunit.phar --filter InspectTaDriftTest` → PASS. Then `php phpunit.phar` → all PASS. `InspectLibTest` rows have no `formats`, so they read as race and their statuses are unchanged.
+Run: `php phpunit.phar --filter InspectRosterEntryTest` → PASS. Then `php phpunit.phar` → all PASS.
+
+`InspectLibTest` and plan 2's `InspectTaDriftTest` don't pass a host club, so their rows keep today's standing. They gain the `tier`, `club` and `formats` keys, which no assertion there pins.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add db.php inspect-lib.php inspect-page.php inspect.php gear-lib.php admin-gear.php tests/InspectTaDriftTest.php
-git commit -m "feat(ta-drift): Inspect roster and queue show TA/Drift; Gear tab filters by level
+git add db.php inspect-lib.php inspect-page.php inspect.php gear-lib.php admin-gear.php tests/InspectRosterEntryTest.php
+git commit -m "feat(ta-drift): Inspect roster reads TA/Drift entries with no sheet yet; Gear tab filters by level
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013Ka2ckHFvimiiH8JfC7tX5"
@@ -2883,45 +2909,35 @@ Claude-Session: https://claude.ai/code/session_013Ka2ckHFvimiiH8JfC7tX5"
 
 ---
 
-### Task 11: The seed TA/Drift event and the phone audit
+### Task 11: Phone audit of the picker and the TA/Drift to-dos
+
+Plan 2 Task 9 already does three things:
+- seeds the summer event **"WSCC Time Attack"** (host club WSCC, 24 days out)
+- sets `HubDbToolsTest` to 5 events
+- audits the TA/Drift form (`TA/Drift tech sheet` and `TA/Drift tech sheet (caged)`)
+
+This task reuses that event. It adds no seed data, doesn't change the event count, and doesn't audit the form again. It adds the screens this plan introduces:
+- Add a car → "Summer TA/Drift only"
+- Home with a TA/Drift entry (its to-dos)
+- the picker with Time Attack and Drift disabled (no host club)
+- the "Change" form on the card
 
 **Files:**
-- Modify: `hub-db-tools.php` (`hubSeed` adds a summer WSCC Time Attack event)
-- Modify: `tests/HubDbToolsTest.php` (the event count goes from 4 to 5)
-- Modify: `tests/ux/audit.mjs` (the TA/Drift flow)
+- Modify: `tests/ux/audit.mjs`
 
 **Interfaces:**
-- Consumes: plan 2's TA/Drift sheet form at `tech-sheets.php?action=new-ta-drift`, and Tasks 4, 5 and 7.
-- Produces: the seed event `WSCC Time Attack` (summer, host club WSCC, today + 24 days, Gimli Motorsports Park). The phone audit gains three pages:
-  - `TA/Drift tech sheet`
+- Consumes:
+  - plan 2's seed event "WSCC Time Attack"
+  - plan 2's audit block (it runs right after the `car page (edit details open)` step)
+  - Tasks 3, 4, 5 and 7
+- Produces: three audited pages:
+  - `add a Summer TA/Drift only car`
   - `home with a TA/Drift entry`
   - `home (change what you are running)`
 
-- [ ] **Step 1: Update the seed test**
+  Plus two checks: the new car lands on `new-ta-drift` **with its `event_id`**, and Time Attack is disabled for an event with no host club.
 
-In `tests/HubDbToolsTest.php`, replace `$this->assertCount(4, db_get_active_events($pdo));` with `$this->assertCount(5, db_get_active_events($pdo));`. Then add this at the end of the same test method:
-
-```php
-        $ta = array_values(array_filter(db_get_all_events($pdo), fn(array $e): bool => $e['name'] === 'WSCC Time Attack'));
-        $this->assertSame(['summer', 'WSCC'], [$ta[0]['discipline'], $ta[0]['host_club']]);
-```
-
-Run: `php phpunit.phar --filter HubDbToolsTest`
-Expected: FAIL (4 events).
-
-- [ ] **Step 2: Seed the event**
-
-In `hub-db-tools.php` `hubSeed`, directly after the `Season Finale` line, add:
-
-```php
-    db_create_event($pdo, 'WSCC Time Attack', date('Y-m-d', strtotime('+24 days')), 'Gimli Motorsports Park', 'summer', 'WSCC');
-```
-
-In its `return [...]`, replace `'events' => 4` with `'events' => 5`.
-
-Run: `php phpunit.phar --filter HubDbToolsTest` → PASS. Then `php phpunit.phar` → all PASS. Any other test that asserts the seed summary array needs `'events' => 5`.
-
-- [ ] **Step 3: Add the TA/Drift flow to the phone audit**
+- [ ] **Step 1: Add the flow to the audit**
 
 In `tests/ux/audit.mjs`, directly after:
 
@@ -2932,42 +2948,51 @@ In `tests/ux/audit.mjs`, directly after:
 add:
 
 ```js
-  // TA/Drift (2026-09-29 spec): a Summer TA/Drift only car for a summer event, its sheet, and the
-  // Race / Time Attack / Drift picker (the Season Finale card has no host club, so it shows the
-  // picker with Time Attack and Drift disabled).
+  // TA/Drift readiness (2026-09-29 spec §3, §4). Uses plan 2's seeded "WSCC Time Attack" event. Plan 2
+  // audits the sheet itself, so here: adding a Summer TA/Drift only car for that event, Home's
+  // TA/Drift to-dos, the picker (Season Finale has no host club, so Time Attack and Drift are
+  // disabled), and the card's "Change" form.
   await page.goto(BASE + '/index.php');
   await go('section.hub-event:has-text("WSCC Time Attack") a:has-text("Add a car for this event")');
   await page.check('input[name=disciplines][value=ta_drift]');
+  await audit(page, 'add a Summer TA/Drift only car');
   await page.fill('#car-car_number', '86');
   await page.fill('#car-make', 'Subaru');
   await page.fill('#car-model', 'BRZ');
   await page.fill('#car-colour', 'White');
   await go('button:has-text("Add car")');
-  report('a TA/Drift-only car goes straight to the TA/Drift tech sheet', page.url().includes('action=new-ta-drift')
-    ? [] : [`expected the TA/Drift sheet, got ${page.url()}`]);
-  await audit(page, 'TA/Drift tech sheet');
+  const landed = new URL(page.url());
+  report('a Summer TA/Drift only car goes to its event\'s TA/Drift sheet',
+    landed.searchParams.get('action') === 'new-ta-drift' && landed.searchParams.get('event_id')
+      ? [] : [`expected new-ta-drift with an event_id, got ${page.url()}`]);
   await page.goto(BASE + '/index.php');
   await audit(page, 'home with a TA/Drift entry');
-  const picker = await page.locator('section.hub-event:has-text("Season Finale") input[name="formats[]"][value=ta]').isDisabled();
-  report('no host club: Time Attack is disabled', picker ? [] : ['Time Attack was enabled for an event with no host club']);
+  const disabled = await page.locator('section.hub-event:has-text("Season Finale") input[name="formats[]"][value=ta]').isDisabled();
+  report('no host club: Time Attack is disabled', disabled ? [] : ['Time Attack was enabled for an event with no host club']);
   await page.click('section.hub-event:has-text("WSCC Time Attack") .hub-entry-formats summary');
   await audit(page, 'home (change what you are running)');
 ```
 
-- [ ] **Step 4: Run the phone audit**
+- [ ] **Step 2: Run the phone audit**
 
 Run from the repo root: `bash wcma-calculator/tests/ux/run-audit.sh`
-Expected: every page passes, including the three new ones, and both new `report(...)` checks print no problems.
+Expected: every page passes, including the three new ones and plan 2's two TA/Drift form pages, and both new `report(...)` checks print no problems.
 
-The audit fails on tap targets under 44px, checkboxes under 24px, text under 16px and low contrast. If a new element fails one of these, fix it in `css/hub.css`:
+The audit fails on:
+- tap targets under 44px
+- checkboxes under 24px
+- text under 16px
+- low contrast
+
+If a new element fails one of these, fix it in `css/hub.css`. Don't use `no-audit`.
 - The picker already has `min-height: var(--hub-tap)` and 16px text.
 - A disabled label uses `--hub-ink-2`, which meets 4.5:1 on the card background (it's used for the `.hub-status--info` text).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit**
 
 ```bash
-git add hub-db-tools.php tests/HubDbToolsTest.php tests/ux/audit.mjs
-git commit -m "test(ta-drift): seed a WSCC Time Attack event and audit the TA/Drift flow on a phone
+git add tests/ux/audit.mjs
+git commit -m "test(ta-drift): phone audit covers the formats picker and TA/Drift to-dos
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_013Ka2ckHFvimiiH8JfC7tX5"
@@ -2984,11 +3009,11 @@ Claude-Session: https://claude.ai/code/session_013Ka2ckHFvimiiH8JfC7tX5"
 | §3 Entry: checkboxes and defaults, regulations box, no host club disabled, ice has no picker, changing formats later, cards show formats | Tasks 4 and 7 |
 | §4 Garage: TA/Drift chips, `garageAfterAdd`, no class for a TA/Drift-only car | Tasks 5, 6 and 7 |
 | §2 cars: the `Summer TA/Drift only` option | Task 5 |
-| §3 revoke note shown to the owner ("Tech revoked: {note}") | Task 8 |
+| §3 revoke note shown to the owner ("Tech revoked: {note}"). Plan 2 covers the sheet and gear pages; Task 8 covers the Garage car page and Drivers with `revokeNoticeHtml()` | Task 8 |
 | §4 Drivers: gear level label | Task 8 |
 | §4 Reminders: TA/Drift items with no code of their own, and suggested left out | Task 3 (test) |
 | §5 MotorsportReg: Time Trial and Drift types, labels, added as summer with host club | Task 10 |
-| §5 admin: Gear level filter, and TA/Drift on the tech sheet lists | Task 9 |
+| §5 admin: Gear level filter; TA/Drift on the tech sheet lists (plan 2 Task 8 for sheets; Task 9 here for entries with no sheet) | Task 9 |
 | §6 Testing: readiness for TA-only, Race+TA and ice (unchanged); suggested counting; the regulations tick; MotorsportReg; phone layout | Tasks 1–4, 10 and 11 |
 
 `ReadinessTest` covers ice entries staying unchanged. It keeps running unmodified in every task.
