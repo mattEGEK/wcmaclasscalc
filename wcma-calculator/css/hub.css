@@ -179,6 +179,13 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .hub-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--hub-line); }
 .hub-line:first-of-type { border-top: 0; }
 .hub-tag-form { flex-wrap: wrap; gap: 8px 12px; }
+.hub-formats { border: 0; padding: 0; margin: 0; flex-basis: 100%; }
+.hub-formats legend { font-weight: 700; padding: 0; margin-bottom: 4px; }
+.hub-formats-options { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.hub-formats-options label, .hub-formats-supps { display: inline-flex; gap: 10px; align-items: center; min-height: var(--hub-tap); font-size: 16px; margin: 0; }
+.hub-formats-options label:has(input:disabled) { color: var(--hub-ink-2); }
+.hub-entry-formats { margin: 0 0 8px; }
+.hub-entry-formats summary { min-height: var(--hub-tap); display: flex; align-items: center; cursor: pointer; font-size: 16px; }
 
 /* Landing */
 .hub-hero { background: var(--hub-ink); color: #fff; padding: 32px 36px; border-radius: var(--hub-radius); margin-bottom: 18px; }

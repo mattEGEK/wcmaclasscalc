@@ -87,3 +87,14 @@ function entryTierAtEvent(array $event, ?string $stored): string {
     if (trim((string)($event['host_club'] ?? '')) === '') return TECH_TIER_RACE;
     return entryTechTier(entryFormatsParse($stored));
 }
+
+/**
+ * The formats a form posted. Null when the form had no picker (formats_shown missing), so the
+ * entry keeps or gets its defaults; [] when the picker was shown and nothing was ticked, which
+ * entryFormatsValidate() refuses.
+ * @return ?string[]
+ */
+function entryFormatsFromPost(array $post): ?array {
+    if (!isset($post['formats_shown'])) return null;
+    return is_array($post['formats'] ?? null) ? array_values($post['formats']) : [];
+}

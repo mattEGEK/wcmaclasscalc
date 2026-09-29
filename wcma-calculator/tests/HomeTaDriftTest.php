@@ -76,4 +76,64 @@ final class HomeTaDriftTest extends TestCase
         $readiness['events'][0]['items'] = [$this->item('tech_sheet', 'suggested', 'Check your car')];
         $this->assertSame([], reminderDigests($readiness, '2026-07-05'));
     }
+
+    public function testTagFormOffersFormatsForASummerEventWithTheDefaultsTicked(): void
+    {
+        $event = ['id' => 21, 'name' => 'WSCC TA #3', 'event_date' => '2099-09-01', 'discipline' => 'summer', 'host_club' => 'WSCC'];
+        $cars = [3 => ['id' => 3, 'car_number' => '86', 'make' => 'Subaru', 'model' => 'BRZ']];
+        $html = homeRenderTagForm($event, $cars, 'tok', false, ['ta', 'drift']);
+        $this->assertStringContainsString('<input type="hidden" name="formats_shown" value="1">', $html);
+        $this->assertStringContainsString('<input type="checkbox" name="formats[]" value="race"> Race</label>', $html);
+        $this->assertStringContainsString('<input type="checkbox" name="formats[]" value="ta" checked> Time Attack</label>', $html);
+        $this->assertStringContainsString('<input type="checkbox" name="formats[]" value="drift" checked> Drift</label>', $html);
+        $this->assertStringContainsString('<input type="checkbox" name="supps_ack" value="1"> For Time Attack and Drift: I have read the WSCC supplementary regulations and my car complies</label>', $html);
+    }
+
+    public function testNoHostClubDisablesTimeAttackAndDrift(): void
+    {
+        $event = ['id' => 22, 'name' => 'Open Day', 'event_date' => '2099-09-01', 'discipline' => 'summer', 'host_club' => null];
+        $html = homeFormatsFieldsHtml($event, ['race']);
+        $this->assertStringContainsString('value="race" checked>', $html);
+        $this->assertStringContainsString('value="ta" disabled>', $html);
+        $this->assertStringContainsString('value="drift" disabled>', $html);
+        $this->assertStringContainsString(h(ENTRY_NO_HOST_CLUB), $html);
+        $this->assertStringNotContainsString('supps_ack', $html);
+    }
+
+    public function testUnknownEventKeepsEveryBoxAndGenericWording(): void
+    {
+        $html = homeFormatsFieldsHtml(null, ['race']);
+        $this->assertStringNotContainsString('disabled', $html);
+        $this->assertStringContainsString(h("For Time Attack and Drift: I have read the host club's supplementary regulations and my car complies"), $html);
+    }
+
+    public function testIceEventHasNoFormatPicker(): void
+    {
+        $event = ['id' => 30, 'name' => 'Ice #1', 'event_date' => '2099-01-10', 'discipline' => 'ice', 'host_club' => 'WSCC'];
+        $html = homeRenderTagForm($event, [3 => ['id' => 3, 'car_number' => '86', 'make' => 'Subaru', 'model' => 'BRZ']], 'tok');
+        $this->assertStringNotContainsString('formats', $html);
+    }
+
+    public function testGoingCarShowsItsFormatsAndAChangeForm(): void
+    {
+        $html = renderHomeHtml($this->vm([$this->item('tech_sheet', 'todo', 'Submit a TA/Drift tech sheet for #86')]));
+        $this->assertStringContainsString('<details class="hub-entry-formats"><summary>Time Attack · Change</summary>', $html);
+        $this->assertStringContainsString('<input type="hidden" name="action" value="formats">', $html);
+        $this->assertStringContainsString('<input type="checkbox" name="formats[]" value="ta" checked> Time Attack</label>', $html);
+    }
+
+    public function testTaDriftOnlyCarsAreNotOfferedIceEvents(): void
+    {
+        $cars = [1 => ['id' => 1, 'disciplines' => 'ta_drift'], 2 => ['id' => 2, 'disciplines' => 'ice'], 3 => ['id' => 3, 'disciplines' => 'summer'], 4 => ['id' => 4]];
+        $this->assertSame([2, 4], array_keys(homeCarsForEvent($cars, ['discipline' => 'ice'])));
+        $this->assertSame([1, 3, 4], array_keys(homeCarsForEvent($cars, ['discipline' => 'summer'])));
+    }
+
+    public function testFormatsFromPost(): void
+    {
+        $this->assertNull(entryFormatsFromPost(['action' => 'tag']));
+        $this->assertSame([], entryFormatsFromPost(['formats_shown' => '1']));
+        $this->assertSame([], entryFormatsFromPost(['formats_shown' => '1', 'formats' => 'ta']));
+        $this->assertSame(['ta', 'drift'], entryFormatsFromPost(['formats_shown' => '1', 'formats' => ['x' => 'ta', 'y' => 'drift']]));
+    }
 }

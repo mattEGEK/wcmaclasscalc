@@ -5,7 +5,9 @@
 // mockup C). Pure view functions — no DB, no session, no echo — so they are unit-testable.
 // Callers must have loaded view_helpers.php (h()), cars-lib.php (carDisplayName(),
 // declarationReviewLabel(), declarationReviewBadgeClass()), events-lib.php (EVENTS_NOT_REGISTERING),
-// reminders-lib.php (reminderOptInFieldsHtml()) and clubs-lib.php (eventRegisterUrl()).
+// reminders-lib.php (reminderOptInFieldsHtml()) and clubs-lib.php (eventRegisterUrl()), and
+// ta-drift-lib.php (ENTRY_FORMATS).
+require_once __DIR__ . '/ta-drift-lib.php';
 
 /** A labelled status pill for the At a glance cards: "● Class: With an inspector". */
 function homePillHtml(string $state, string $name, string $label): string {
@@ -79,8 +81,43 @@ function homeRenderTodoItem(int $n, array $item, string $csrf, bool $suggested =
     return $out;
 }
 
-/** The tag ("I'm going") form for one event, inside that event's card: pick the car (or name it). */
-function homeRenderTagForm(array $event, array $cars, string $csrf, bool $offerReminders = false): string {
+/**
+ * The Race / Time Attack / Drift checkboxes and the supplementary-regulations tick (TA/Drift spec §3
+ * Entry). $event null: the event isn't chosen yet (Garage's event select), so every box is enabled
+ * and the wording names no club; the server still checks the host club. Without a host club, Time
+ * Attack and Drift are disabled with ENTRY_NO_HOST_CLUB.
+ */
+function homeFormatsFieldsHtml(?array $event, array $checked, bool $suppsTicked = false): string {
+    $club = $event === null ? null : trim((string)($event['host_club'] ?? ''));
+    $out = '<fieldset class="hub-formats"><legend>Running</legend><input type="hidden" name="formats_shown" value="1"><div class="hub-formats-options">';
+    foreach (ENTRY_FORMATS as $value => $label) {
+        $disabled = $value !== 'race' && $club === '';
+        $out .= '<label><input type="checkbox" name="formats[]" value="' . h($value) . '"'
+            . (in_array($value, $checked, true) && !$disabled ? ' checked' : '') . ($disabled ? ' disabled' : '') . '> ' . h($label) . '</label>';
+    }
+    $out .= '</div>';
+    if ($club === '') {
+        return $out . '<p class="form-hint">' . h(ENTRY_NO_HOST_CLUB) . '</p></fieldset>';
+    }
+    $who = $club === null ? "the host club's" : "the $club";
+    return $out . '<label class="hub-formats-supps"><input type="checkbox" name="supps_ack" value="1"' . ($suppsTicked ? ' checked' : '') . '> '
+        . h("For Time Attack and Drift: I have read $who supplementary regulations and my car complies") . '</label></fieldset>';
+}
+
+/** A going car's formats on its event card, with a "Change" form (summer events only). */
+function homeRenderEntryFormatsHtml(array $event, array $car, array $entry, string $csrf): string {
+    if (($event['discipline'] ?? 'summer') === 'ice') return '';
+    return '<details class="hub-entry-formats"><summary>' . h(entryFormatsLabel($entry['formats'])) . ' · Change</summary>'
+        . '<form method="post" action="index.php" class="hub-line hub-tag-form">' . homeCsrfField($csrf)
+        . '<input type="hidden" name="action" value="formats">'
+        . '<input type="hidden" name="event_id" value="' . (int)$event['id'] . '">'
+        . '<input type="hidden" name="car_id" value="' . (int)$car['id'] . '">'
+        . homeFormatsFieldsHtml($event, $entry['formats'], ($entry['supps_ack_at'] ?? null) !== null)
+        . '<button type="submit" class="hub-btn hub-btn--secondary">Save</button></form></details>';
+}
+
+/** The tag ("I'm going") form for one event: pick the car (or name it) and, for summer, what it runs ($defaults: the first car's eventsDefaultFormats()). */
+function homeRenderTagForm(array $event, array $cars, string $csrf, bool $offerReminders = false, array $defaults = ['race']): string {
     $eid = (int)$event['id'];
     $out = '<form method="post" action="index.php" class="hub-line hub-tag-form">' . homeCsrfField($csrf)
         . '<input type="hidden" name="action" value="tag">'
@@ -97,15 +134,19 @@ function homeRenderTagForm(array $event, array $cars, string $csrf, bool $offerR
         }
         $out .= '</select>';
     }
+    if (($event['discipline'] ?? 'summer') !== 'ice') $out .= homeFormatsFieldsHtml($event, $defaults);
     if ($offerReminders) $out .= reminderOptInFieldsHtml();
     $out .= '<button type="submit" class="hub-btn">I\'m going</button></form>';
     return $out;
 }
 
-/** The cars (keyed by id) that can go to $event: a car stored for the other season can't (mobile UX spec §A4). */
+/**
+ * The cars (keyed by id) that can go to $event: a car stored for the other season can't (mobile UX
+ * spec §A4), and a summer TA/Drift-only car never goes to an ice event.
+ */
 function homeCarsForEvent(array $cars, array $event): array {
-    $other = ($event['discipline'] ?? 'summer') === 'ice' ? 'summer' : 'ice';
-    return array_filter($cars, fn(array $c): bool => ($c['disciplines'] ?? null) !== $other);
+    $exclude = ($event['discipline'] ?? 'summer') === 'ice' ? ['summer', 'ta_drift'] : ['ice'];
+    return array_filter($cars, fn(array $c): bool => !in_array($c['disciplines'] ?? null, $exclude, true));
 }
 
 /** Whether the soonest active event on or after $today is an ice event (the landing hero leads with ice). */
@@ -131,7 +172,7 @@ function homeShortDate(string $eventDate): string {
  * links to that event's list: up to the top when it is already there ($isFocus), else reloading
  * Home with that event's list at the top.
  */
-function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, string $csrf, bool $offerReminders, bool $isFocus = false): string {
+function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, string $csrf, bool $offerReminders, bool $isFocus = false, array $tagDefaults = []): string {
     $out = '<section class="hub-card hub-event" id="event-' . (int)$event['id'] . '"><div class="hub-event-head"><h3>' . h((string)$event['name']) . '</h3>';
     $date = homeShortDate((string)$event['event_date']);
     if ($date !== '') $out .= '<span class="hub-event-date">' . h($date) . '</span>';
@@ -155,11 +196,13 @@ function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, st
         $out .= '<p><a class="hub-btn hub-btn--secondary hub-register-link" href="' . h($msr) . '" target="_blank" rel="noopener">Register on MotorsportReg &#8599;</a></p>';
     }
     foreach (array_keys($goingCarIds) as $carId) {
-        if (isset($cars[$carId])) $out .= homeRenderUntagForm($event, $cars[$carId], $csrf);
+        if (!isset($cars[$carId])) continue;
+        $out .= homeRenderUntagForm($event, $cars[$carId], $csrf)
+            . homeRenderEntryFormatsHtml($event, $cars[$carId], $readinessEvent['entries'][$carId] ?? ['formats' => ['race'], 'supps_ack_at' => null], $csrf);
     }
     $notGoing = homeCarsForEvent(array_diff_key($cars, $goingCarIds), $event);
     if ($notGoing) {
-        $out .= homeRenderTagForm($event, $notGoing, $csrf, $offerReminders);
+        $out .= homeRenderTagForm($event, $notGoing, $csrf, $offerReminders, $tagDefaults[array_key_first($notGoing)] ?? ['race']);
     } elseif (!$goingCarIds) {
         $out .= '<p><a class="hub-btn hub-btn--secondary" href="garage.php?action=add&amp;event_id=' . (int)$event['id'] . '">Add a car for this event</a></p>';
     }
@@ -292,7 +335,7 @@ function renderHomeHtml(array $vm): string
         usort($cardsByDate, fn(array $a, array $b): int => strcmp((string)$a[0]['event_date'], (string)$b[0]['event_date']));
         foreach ($cardsByDate as [$event, $readinessEvent]) {
             $out .= homeEventCardHtml($event, $readinessEvent, $cars, $csrf, $offerReminders,
-                $readinessEvent !== null && (int)$event['id'] === $focusId);
+                $readinessEvent !== null && (int)$event['id'] === $focusId, $vm['tagDefaults'][(int)$event['id']] ?? []);
         }
     }
 

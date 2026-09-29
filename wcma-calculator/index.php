@@ -25,9 +25,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $uid = (int)$user['id'];
     switch ($_POST['action'] ?? '') {
         case 'tag':
-            $r = eventsTagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), (int)($_POST['car_id'] ?? 0));
+            $r = eventsTagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), (int)($_POST['car_id'] ?? 0),
+                entryFormatsFromPost($_POST), !empty($_POST['supps_ack']));
             $extra = $r['ok'] ? remindersRecordTagChoice($pdo, $uid, $_POST) : '';
             setFlash($r['ok'] ? 'Added to your events. ' . EVENTS_NOT_REGISTERING . $extra : (string)$r['error'], $r['ok'] ? 'success' : 'error');
+            break;
+        case 'formats':
+            $r = eventsSetFormats($pdo, $uid, (int)($_POST['event_id'] ?? 0), (int)($_POST['car_id'] ?? 0),
+                entryFormatsFromPost($_POST) ?? [], !empty($_POST['supps_ack']));
+            setFlash($r['ok'] ? 'Saved what this car is running.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
             break;
         case 'untag':
             $r = eventsUntagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), (int)($_POST['car_id'] ?? 0));
@@ -59,6 +65,13 @@ $in = loadReadinessInputs($pdo, $uid, date('Y-m-d'));
 $season = gearSeasonNow();
 $iceSeason = gearSeasonNow(DISCIPLINE_ICE);
 $today = (string)$in['today'];
+
+// What "I'm going" starts ticked, per upcoming summer event and car (TA/Drift spec §3 Entry).
+$tagDefaults = [];
+foreach ($in['events'] as $e) {
+    if (($e['discipline'] ?? 'summer') === 'ice' || (string)$e['event_date'] < $today) continue;
+    foreach ($in['cars'] as $cid => $car) $tagDefaults[(int)$e['id']][(int)$cid] = eventsDefaultFormats($pdo, $car, $e);
+}
 
 // Which upcoming active event(s) each car is tagged to, keyed by discipline, for usesSummer/ice.
 $eventsById = [];
@@ -124,6 +137,7 @@ echo renderHomeHtml([
     'garage' => $garage, 'drivers' => $drivers, 'seasonLinks' => db_get_season_links($pdo, true),
     'csrf' => generateCsrfToken(), 'offerReminders' => remindersShouldOffer($userRow),
     'mediaPrompt' => $mediaPrompt,
+    'tagDefaults' => $tagDefaults,
     'focusEventId' => is_string($_GET['event'] ?? null) && ctype_digit($_GET['event']) ? (int)$_GET['event'] : null,
 ]);
 renderPageEnd();
