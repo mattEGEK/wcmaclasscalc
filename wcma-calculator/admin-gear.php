@@ -104,7 +104,7 @@ function handleGearAdminAcceptInPerson(PDO $pdo, int $id): void {
 }
 
 function handleGearAdminRevoke(PDO $pdo, int $id): void {
-    $r = gearRevoke($pdo, $id);
+    $r = gearRevoke($pdo, $id, $_POST['revoke_note'] ?? null);
     setFlash($r['ok'] ? 'Acceptance revoked. The gear record is open again.' : $r['error'], $r['ok'] ? 'success' : 'error');
     header('Location: inspect.php?action=gear-record&id=' . $id);
     exit;
@@ -173,11 +173,14 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
     <?php if (($gear['discipline'] ?? 'summer') === 'ice'): ?><p>Ice gear<?= !empty($gear['level']) ? ' — level: ' . h(ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']) : '' ?></p><?php endif; ?>
     <p>Gear status: <strong class="<?= h(gearStatusBadgeClass($st['state'])) ?>"><?= h(gearStatusLabel($st, (int)$gear['season'], (string)($gear['discipline'] ?? 'summer'))) ?></strong></p>
 
+    <?php if (!empty($gear['revoke_note'])): ?><p class="form-hint">Revoked earlier: <?= h((string)$gear['revoke_note']) ?></p><?php endif; ?>
     <?php if ($accepted): ?>
     <p><?= h($acceptedLine) ?></p>
     <form method="post" action="inspect.php?action=gear-record-revoke" data-confirm="Revoke this acceptance? The gear record goes back to open<?= ($gear['accepted_via'] ?? '') === 'photos' ? ' and its photos return to the review queue' : '' ?>.">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
+      <label for="gear-revoke-note">Why are you revoking it? The account holder sees this.</label>
+      <textarea id="gear-revoke-note" name="revoke_note" maxlength="500" rows="2" required data-message="Say why you are revoking this acceptance." placeholder="For example: helmet expired"></textarea>
       <button type="submit" class="btn btn-secondary">Revoke acceptance</button>
     </form>
     <?php else: ?>

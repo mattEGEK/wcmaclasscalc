@@ -38,7 +38,7 @@ function handleTechSheetAccept(PDO $pdo, int $id): void {
 }
 
 function handleTechSheetRevoke(PDO $pdo, int $id): void {
-    $result = techReviewRevoke($pdo, __DIR__, $id);
+    $result = techReviewRevoke($pdo, __DIR__, $id, $_POST['revoke_note'] ?? null);
     setFlash($result['ok'] ? 'Acceptance revoked. The sheet is back to submitted.' : $result['error'], $result['ok'] ? 'success' : 'error');
     header('Location: inspect.php?action=tech-sheet&id=' . $id);
     exit;
@@ -87,11 +87,14 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
     <p>Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h($statusLabel) ?></strong></p>
     <?php if ($gearLinks): ?><p>Driver gear:</p><?= renderGearChips($gearLinks, 'admin', ['sheet_season' => (int)($sheet['season'] ?? 0), 'csrf' => $csrf, 'sheet_id' => $id, 'hidden' => ['back' => 'sheet']]) ?><?php endif; ?>
 
+    <?php if (!empty($sheet['revoke_note'])): ?><p class="form-hint">Revoked earlier: <?= h((string)$sheet['revoke_note']) ?></p><?php endif; ?>
     <?php if ($accepted): ?>
     <p><?= h($acceptedLine) ?></p>
     <form method="post" action="inspect.php?action=tech-sheet-revoke" data-confirm="Revoke this acceptance? The sheet goes back to submitted and the inspector signature is removed.">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
+      <label for="revoke-note">Why are you revoking it? The competitor sees this.</label>
+      <textarea id="revoke-note" name="revoke_note" maxlength="500" rows="2" required data-message="Say why you are revoking this acceptance." placeholder="For example: car changed, new engine"></textarea>
       <button type="submit" class="btn btn-secondary">Revoke acceptance</button>
     </form>
     <?php else: ?>

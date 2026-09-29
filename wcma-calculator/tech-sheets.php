@@ -24,6 +24,7 @@ require __DIR__ . '/ta-drift-sheet-page.php';
 require_once __DIR__ . '/tech-sheet-next.php';
 require_once __DIR__ . '/clubs-lib.php';
 require_once __DIR__ . '/email-copy.php';
+require_once __DIR__ . '/revoke-lib.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -239,6 +240,7 @@ function handleView(PDO $pdo, array $user, int $id): void {
 <div class="container">
   <?php renderSiteHeader($title, '<a href="garage.php?car=' . (int)$sheet['car_id'] . '">← Back to Garage</a>', 'garage'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+  <?= revokeNoticeHtml($sheet['revoke_note'] ?? null, 'Tech') ?>
   <p class="no-print">Car status: <span class="hub-status <?= h(homeStatusClass($carStatus['state'])) ?>"><?= h($statusLabel) ?></span></p>
   <?= renderTechSheetNextStepsHtml($sheet, $event, $carStatus, $chips, $club) ?>
   <div class="sheet-actions no-print">

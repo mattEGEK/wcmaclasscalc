@@ -9,6 +9,7 @@ require_once __DIR__ . '/pretech-lib.php';   // pretechPlural(), pretechCapText(
 require_once __DIR__ . '/tech-status.php';   // techCarStatusBadgeClass()
 require_once __DIR__ . '/ice-rules.php';
 require_once __DIR__ . '/ta-drift-lib.php';
+require_once __DIR__ . '/revoke-lib.php';
 
 function gearNameNorm(string $name): string {
     return db_driver_name_norm($name);
@@ -255,22 +256,24 @@ function gearAcceptInPerson(PDO $pdo, int $id, int $reviewerUserId, ?string $lev
     return ['ok' => true, 'error' => null];
 }
 
-/** Undo an acceptance (for example the wrong driver was accepted). @return array{ok: bool, error: ?string} */
-function gearRevoke(PDO $pdo, int $id): array {
+/** Undo an acceptance (for example the wrong driver was accepted). $note (required) is kept for the owner to see. @return array{ok: bool, error: ?string} */
+function gearRevoke(PDO $pdo, int $id, mixed $note): array {
     $gear = db_get_gear_record($pdo, $id);
     if ($gear === null) return ['ok' => false, 'error' => 'Gear record not found.'];
+    $clean = revokeNoteClean($note);
+    if ($clean === null) return ['ok' => false, 'error' => REVOKE_NOTE_REQUIRED];
     $viaPhotos = ($gear['accepted_via'] ?? null) === 'photos';
 
     $own = !$pdo->inTransaction();
     if ($own) $pdo->beginTransaction();
     try {
-        if (!db_revoke_gear_acceptance($pdo, $id)) {
+        if (!db_revoke_gear_acceptance($pdo, $id, $clean)) {
             if ($own) $pdo->rollBack();
             return ['ok' => false, 'error' => 'This gear record has not been accepted.'];
         }
         // The photos go back to awaiting review along with the record.
         if ($viaPhotos) db_set_all_photos_review_status($pdo, 'gear_record', $id, 'pending');
-        if (($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) db_set_gear_level($pdo, $id, null);
+        db_set_gear_level($pdo, $id, null);   // ice or TA/Drift: the next acceptance sets the level again
         if ($own) $pdo->commit();
     } catch (Throwable $e) {
         if ($own && $pdo->inTransaction()) $pdo->rollBack();

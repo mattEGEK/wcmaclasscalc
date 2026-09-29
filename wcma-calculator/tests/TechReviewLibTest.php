@@ -100,7 +100,7 @@ final class TechReviewLibTest extends TestCase
         $file = $this->dir . "/uploads/tech-sheets/$sheetId/tech.png";
         $this->assertFileExists($file);
 
-        $r = techReviewRevoke($pdo, $this->dir, $sheetId);
+        $r = techReviewRevoke($pdo, $this->dir, $sheetId, 'Wrong car');
 
         $this->assertTrue($r['ok'], (string)$r['error']);
         $this->assertSame('submitted', db_get_tech_sheet($pdo, $sheetId)['status']);
@@ -112,8 +112,8 @@ final class TechReviewLibTest extends TestCase
         $pdo = make_temp_pdo();
         [$sheetId] = $this->makeSheet($pdo);
 
-        $this->assertFalse(techReviewRevoke($pdo, $this->dir, 99999)['ok']);
-        $r = techReviewRevoke($pdo, $this->dir, $sheetId);
+        $this->assertFalse(techReviewRevoke($pdo, $this->dir, 99999, 'Wrong car')['ok']);
+        $r = techReviewRevoke($pdo, $this->dir, $sheetId, 'Wrong car');
         $this->assertFalse($r['ok']);
         $this->assertStringContainsString('not been accepted', $r['error']);
     }
@@ -125,7 +125,7 @@ final class TechReviewLibTest extends TestCase
         $messages = [
             techReviewAcceptInPerson($pdo, $this->dir, 99999, $adminId, self::PNG)['error'],
             techReviewAcceptInPerson($pdo, $this->dir, $sheetId, $adminId, '')['error'],
-            techReviewRevoke($pdo, $this->dir, $sheetId)['error'],
+            techReviewRevoke($pdo, $this->dir, $sheetId, 'Wrong car')['error'],
         ];
         foreach ($messages as $m) {
             $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', $m);

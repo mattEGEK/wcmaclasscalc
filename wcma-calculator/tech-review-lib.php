@@ -4,6 +4,7 @@
 // Inspector review actions on a tech sheet. Session-free (the admin handler injects the
 // reviewer id and base directory) so it is unit-testable. Callers must have loaded db.php
 // and tech-sheet-files.php.
+require_once __DIR__ . '/revoke-lib.php';
 
 /**
  * Accept a submitted sheet in person: the inspector's canvas signature is required.
@@ -35,17 +36,20 @@ function techReviewAcceptInPerson(PDO $pdo, string $baseDir, int $sheetId, int $
 }
 
 /**
- * Undo an acceptance (for example an inspector accepted the wrong car): the sheet returns to
- * 'submitted' and its inspector signature is removed.
+ * Undo an acceptance, for example when an inspector accepted the wrong car, or when the car has
+ * changed substantially. The sheet returns to 'submitted', its inspector signature is removed, and
+ * $note (required) is kept for the owner to see.
  *
  * @return array{ok: bool, error: ?string}
  */
-function techReviewRevoke(PDO $pdo, string $baseDir, int $sheetId): array {
+function techReviewRevoke(PDO $pdo, string $baseDir, int $sheetId, mixed $note): array {
     $sheet = db_get_tech_sheet($pdo, $sheetId);
     if ($sheet === null) return ['ok' => false, 'error' => 'Tech sheet not found.'];
+    $clean = revokeNoteClean($note);
+    if ($clean === null) return ['ok' => false, 'error' => REVOKE_NOTE_REQUIRED];
 
     $signaturePath = $sheet['tech_signature_path'] ?? null;
-    if (!db_revoke_tech_sheet_acceptance($pdo, $sheetId)) {
+    if (!db_revoke_tech_sheet_acceptance($pdo, $sheetId, $clean)) {
         return ['ok' => false, 'error' => 'This sheet has not been accepted.'];
     }
     techSheetDeleteSignature($baseDir, $signaturePath);

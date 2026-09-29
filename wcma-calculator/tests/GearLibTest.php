@@ -224,7 +224,7 @@ final class GearLibTest extends TestCase
         }
         $this->assertFalse(gearAcceptByPhotos($pdo, $id, $admin)['ok']);
 
-        $this->assertTrue(gearRevoke($pdo, $id)['ok']);
+        $this->assertTrue(gearRevoke($pdo, $id, 'Wrong driver')['ok']);
         $this->assertSame('open', db_get_gear_record($pdo, $id)['status']);
         $this->assertSame('submitted', db_get_gear_record($pdo, $id)['photo_status']);
         $photos = db_get_inspection_photos($pdo, 'gear_record', $id);
@@ -232,8 +232,8 @@ final class GearLibTest extends TestCase
         foreach ($photos as $photo) {
             $this->assertSame('pending', $photo['review_status']);
         }
-        $this->assertStringContainsString('has not been accepted', gearRevoke($pdo, $id)['error']);
-        $this->assertFalse(gearRevoke($pdo, 99999)['ok']);
+        $this->assertStringContainsString('has not been accepted', gearRevoke($pdo, $id, 'Wrong driver')['error']);
+        $this->assertFalse(gearRevoke($pdo, 99999, 'Wrong driver')['ok']);
     }
 
     public function testRevokeOfInPersonAcceptanceLeavesPhotosUnchanged(): void
@@ -246,7 +246,7 @@ final class GearLibTest extends TestCase
         $this->assertNotEmpty($before);
 
         $this->assertTrue(gearAcceptInPerson($pdo, $id, $admin)['ok']);
-        $this->assertTrue(gearRevoke($pdo, $id)['ok']);
+        $this->assertTrue(gearRevoke($pdo, $id, 'Wrong driver')['ok']);
 
         $after = db_get_inspection_photos($pdo, 'gear_record', $id);
         foreach ($before as $key => $photo) {
@@ -285,7 +285,7 @@ final class GearLibTest extends TestCase
         $id = $this->newGear($pdo, $owner);
         $messages = [
             gearSubmit($pdo, $id)['error'], gearSubmit($pdo, 99999)['error'], gearAcceptByPhotos($pdo, $id, $admin)['error'],
-            gearSendBack($pdo, $id, [])['error'], gearRevoke($pdo, $id)['error'], gearCreate($pdo, $owner, '', '', 2026)['error'],
+            gearSendBack($pdo, $id, [])['error'], gearRevoke($pdo, $id, 'Wrong driver')['error'], gearCreate($pdo, $owner, '', '', 2026)['error'],
         ];
         foreach ($messages as $m) {
             $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', (string)$m);
@@ -372,7 +372,7 @@ final class GearLibTest extends TestCase
         $this->assertTrue(gearAcceptInPerson($pdo, $id, $owner, 'caged')['ok']);
         $this->assertSame('caged', db_get_gear_record($pdo, $id)['level']);
 
-        $this->assertTrue(gearRevoke($pdo, $id)['ok']);
+        $this->assertTrue(gearRevoke($pdo, $id, 'Wrong driver')['ok']);
         $this->assertNull(db_get_gear_record($pdo, $id)['level']);
     }
 

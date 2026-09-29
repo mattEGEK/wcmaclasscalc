@@ -47,6 +47,7 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
 <div class="container">
   <?php renderSiteHeader('Gear pre-tech', $backLink, $isIce ? 'garage' : 'drivers'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+  <?= revokeNoticeHtml($gear['revoke_note'] ?? null, 'Gear') ?>
 
   <div class="detail-card">
     <h2><?= h($driverLine) ?></h2>
