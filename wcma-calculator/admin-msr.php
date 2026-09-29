@@ -73,8 +73,8 @@ function adminMsrEventCells(array $r): string {
         . '</td><td data-label="Club">' . h((string)$r['club_code']) . '</td>';
 }
 
-function adminMsrPostForm(string $action, string $msrId, string $csrf, string $button, string $class = 'btn btn-secondary'): string {
-    return '<form method="post" action="admin.php?action=' . h($action) . '">' . adminCsrfField($csrf)
+function adminMsrPostForm(string $action, string $msrId, string $csrf, string $button, string $class = 'btn btn-secondary', string $confirm = ''): string {
+    return '<form method="post" action="admin.php?action=' . h($action) . '"' . ($confirm !== '' ? ' data-confirm="' . h($confirm) . '"' : '') . '>' . adminCsrfField($csrf)
         . '<input type="hidden" name="msr_id" value="' . h($msrId) . '"><button type="submit" class="' . h($class) . '">' . h($button) . '</button></form>';
 }
 
@@ -108,7 +108,13 @@ function renderMsrPageHtml(array $rows, array $hubEvents, array $clubs, array $s
             $actions = '';
             if ((int)$r['is_primary'] === 1 && $r['status'] !== 'gone') {
                 $cancels = in_array(['field' => 'cancelled', 'old' => '0', 'new' => '1'], $changes, true);
-                $actions .= adminMsrPostForm('msr-apply', (string)$r['msr_id'], $csrf, $cancels ? 'Deactivate hub event' : 'Apply to hub event', 'btn btn-primary');
+                $confirm = '';
+                if ($cancels) {
+                    $others = array_map('msrChangeText', array_values(array_filter($changes, fn(array $c): bool => $c['field'] !== 'cancelled')));
+                    $confirm = 'Deactivate ' . ($hub !== null ? (string)$hub['name'] : 'this event') . '? It was cancelled on MotorsportReg, so drivers won\'t be able to tag it or pick it for new tech sheets.'
+                        . ($others ? ' This also applies: ' . implode('; ', $others) . '.' : '');
+                }
+                $actions .= adminMsrPostForm('msr-apply', (string)$r['msr_id'], $csrf, $cancels ? 'Deactivate hub event' : 'Apply to hub event', 'btn btn-primary', $confirm);
             }
             $actions .= adminMsrPostForm('msr-keep', (string)$r['msr_id'], $csrf, 'Keep as is');
             $out .= '<tr>' . adminMsrEventCells($r)

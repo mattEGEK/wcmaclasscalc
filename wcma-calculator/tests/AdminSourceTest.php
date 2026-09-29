@@ -179,4 +179,10 @@ final class AdminSourceTest extends TestCase
         $this->assertStringContainsString("case 'msr':", $admin);
         $this->assertStringContainsString("require_once __DIR__ . '/admin-msr.php';", $admin);
     }
+
+    public function testChangingAClubsCalendarForgetsItsPendingEvents(): void
+    {
+        $body = $this->body('admin-clubs.php', 'handleClubSave');
+        $this->assertMatchesRegularExpression('/if \(\$orgId !== \$currentOrgId\) msrForgetClub\(\$pdo, \$v\[\'code\'\]\);/', $body);
+    }
 }

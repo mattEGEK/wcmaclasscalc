@@ -39,7 +39,7 @@ final class MsrLibTest extends TestCase
     {
         $this->assertNull(msrParseFeed('not json'));
         $this->assertNull(msrParseFeed('{"response":{}}'));
-        $this->assertSame(['events' => [], 'skipped' => 0], msrParseFeed('{"response":{"events":[]}}'));
+        $this->assertSame(['events' => [], 'skipped' => 0, 'remaining' => 0], msrParseFeed('{"response":{"events":[]}}'));
         $bad = json_encode(['response' => ['events' => [
             ['id' => 'nope', 'name' => 'X', 'start' => '2026-01-01', 'type' => 'Ice Racing'],
             ['id' => '2386B6E3-96BC-AE58-0812CF4B556BCBC2', 'name' => ' ', 'start' => '2026-01-01', 'type' => 'Ice Racing'],

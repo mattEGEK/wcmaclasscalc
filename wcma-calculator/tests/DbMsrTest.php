@@ -122,4 +122,47 @@ final class DbMsrTest extends TestCase
         $this->assertSame(['NASCC'], array_column($results, 'code'));
         $this->assertSame([msrFeedUrl(self::NASCC)], $urls);
     }
+
+    public function testAFeedWithMorePagesChangesNothing(): void
+    {
+        $pdo = make_temp_pdo();
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev()]), '2026-10-01', '2026-10-01 06:00:00');
+        db_set_msr_status($pdo, self::EV, 'ignored');
+        $body = json_encode(['response' => ['recordset' => ['total' => 120, 'remaining' => 20, 'page' => 1], 'events' => []]]);
+        $r = msrSyncClub($pdo, $this->nascc($pdo), fn($u) => ['ok' => true, 'status' => 200, 'body' => $body, 'error' => ''], '2026-10-02', '2026-10-02 06:00:00');
+        $this->assertFalse($r['ok']);
+        $this->assertSame('MotorsportReg sent only part of the calendar.', $r['error']);
+        $this->assertSame('ignored', db_get_msr_event($pdo, self::EV)['status']);   // the admin's decision survives
+    }
+
+    public function testUnreadableEntriesStopTheCleanupForThatRun(): void
+    {
+        $pdo = make_temp_pdo();
+        $other = 'BBBBBBBB-BBBB-CCCC-DDDDDDDDDDDDDDDD';
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev(), $this->ev(['id' => $other])]), '2026-10-01', '2026-10-01 06:00:00');
+        db_set_msr_status($pdo, $other, 'ignored');
+        $hub = db_create_event($pdo, 'Ice Race #1', '2027-01-16', null, 'ice', 'NASCC');
+        db_mark_msr_added($pdo, self::EV, $hub, true);
+        // MSR changes its date format: every entry is unreadable.
+        $r = msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev(['start' => '2027-01-16T08:00']), $this->ev(['id' => $other, 'start' => '2027-01-16T08:00'])]), '2026-10-02', '2026-10-02 06:00:00');
+        $this->assertTrue($r['ok']);
+        $this->assertSame(2, $r['skipped']);
+        $this->assertSame('added', db_get_msr_event($pdo, self::EV)['status']);   // not flagged "gone"
+        $this->assertSame('ignored', db_get_msr_event($pdo, $other)['status']);  // not deleted
+    }
+
+    public function testDisconnectingAClubForgetsItsPendingEvents(): void
+    {
+        $pdo = make_temp_pdo();
+        $ids = ['AAAAAAAA-BBBB-CCCC-DDDDDDDDDDDDDDDD', 'BBBBBBBB-BBBB-CCCC-DDDDDDDDDDDDDDDD', 'CCCCCCCC-BBBB-CCCC-DDDDDDDDDDDDDDDD', 'DDDDDDDD-BBBB-CCCC-DDDDDDDDDDDDDDDD'];
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed(array_map(fn($id) => $this->ev(['id' => $id]), $ids)), '2026-10-01', '2026-10-01 06:00:00');
+        $hub = db_create_event($pdo, 'Ice Race #1', '2027-01-16', null, 'ice', 'NASCC');
+        db_set_msr_status($pdo, $ids[1], 'ignored');
+        db_mark_msr_added($pdo, $ids[2], $hub, true);
+        db_mark_msr_added($pdo, $ids[3], $hub, false);
+        db_set_msr_status($pdo, $ids[3], 'gone');
+        msrForgetClub($pdo, 'NASCC');
+        $this->assertSame([$ids[2]], array_column(db_get_msr_events($pdo), 'msr_id'));   // only the one a hub event came from
+        $this->assertSame(0, msrPendingCount($pdo));
+    }
 }

@@ -48,8 +48,8 @@ function msrIsDate(string $s): bool {
 }
 
 /**
- * The race events in a calendar feed response, tidied, and how many entries were unreadable
- * (no valid id, name or start). Other types are left out without counting. Null when the body is
+ * The race events in a calendar feed response, tidied, how many entries were unreadable
+ * (no valid id, name or start), and how many more MSR says are on later pages (recordset.remaining). Other types are left out without counting. Null when the body is
  * not a calendar response at all.
  */
 function msrParseFeed(string $body): ?array {
@@ -76,7 +76,8 @@ function msrParseFeed(string $body): ?array {
             'cancelled' => !empty($e['cancelled']) ? 1 : 0,
         ];
     }
-    return ['events' => $out, 'skipped' => $skipped];
+    $remaining = is_array($data['response']['recordset'] ?? null) ? (int)($data['response']['recordset']['remaining'] ?? 0) : 0;
+    return ['events' => $out, 'skipped' => $skipped, 'remaining' => $remaining];
 }
 
 /** The organization ID in a club's MSR page: the uidClub/<ID> link, else the page's only ID; null if none or ambiguous. */
@@ -157,6 +158,8 @@ function msrSyncClub(PDO $pdo, array $club, callable $fetch, string $today, stri
     if (!$res['ok']) return $fail((string)$res['error']);
     $parsed = msrParseFeed((string)$res['body']);
     if ($parsed === null) return $fail("MotorsportReg sent something the hub couldn't read.");
+    // A partial calendar would make the missing events look deleted.
+    if ($parsed['remaining'] > 0) return $fail('MotorsportReg sent only part of the calendar.');
 
     $pdo->beginTransaction();
     $seen = [];
@@ -168,6 +171,8 @@ function msrSyncClub(PDO $pdo, array $club, callable $fetch, string $today, stri
         $id = (string)$row['msr_id'];
         if (isset($seen[$id])) {
             if ($row['status'] === 'gone') db_set_msr_status($pdo, $id, 'added');
+        } elseif ($parsed['skipped'] > 0) {
+            continue;   // some entries were unreadable: a missing event may just be one of them
         } elseif ((string)$row['end_date'] < $today || in_array($row['status'], ['new', 'ignored'], true)) {
             db_delete_msr_event($pdo, $id);   // finished, or never used
         } elseif ($row['status'] === 'added') {
@@ -201,6 +206,11 @@ function msrSyncStatus(PDO $pdo): array {
                   'error' => (string)db_get_setting($pdo, 'msr_sync_error_' . $code, '')];
     }
     return $out;
+}
+
+/** A club's calendar was disconnected or changed: forget its events, except those a hub event came from. */
+function msrForgetClub(PDO $pdo, string $code): void {
+    $pdo->prepare("DELETE FROM msr_events WHERE club_code = :c AND NOT (status = 'added')")->execute([':c' => $code]);
 }
 
 /** New events plus changed ones: the Events tab badge. DB only, never calls MSR. */

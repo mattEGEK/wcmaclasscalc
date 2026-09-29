@@ -99,4 +99,15 @@ final class AdminMsrPageTest extends TestCase
             ['type' => 'error', 'message' => 'Event name and date are required.'], 'AAAAAAAA-BBBB-CCCC-DDDDDDDDDDDDDDDD');
         $this->assertMatchesRegularExpression('/id="msr-add-aaaaaaaa-bbbb-cccc-dddddddddddddddd"[^>]*data-open-on-load>.*Event name and date are required\./s', $html);
     }
+
+    public function testDeactivatingAHubEventAsksFirstAndSaysWhatElseChanges(): void
+    {
+        $primary = $this->row(['status' => 'added', 'hub_event_id' => 7, 'is_primary' => 1, 'cancelled' => 1, 'start_date' => '2027-01-23',
+            'snap_name' => 'Ice <Race> #1', 'snap_start' => '2027-01-16', 'snap_venue' => 'Lake Wabamun', 'snap_cancelled' => 0]);
+        $html = renderMsrPageHtml([$primary], $this->hub(), $this->clubs(), $this->syncStatus(), 'tok', null, null);
+        $this->assertStringContainsString('action="admin.php?action=msr-apply" data-confirm="Deactivate NASCC Ice #1? It was cancelled on MotorsportReg, so drivers won&#039;t be able to tag it or pick it for new tech sheets. This also applies: Date: Jan 16 → Jan 23."', $html);
+        $plain = $this->row(['status' => 'added', 'hub_event_id' => 7, 'is_primary' => 1, 'start_date' => '2027-01-23',
+            'snap_name' => 'Ice <Race> #1', 'snap_start' => '2027-01-16', 'snap_venue' => 'Lake Wabamun', 'snap_cancelled' => 0]);
+        $this->assertStringNotContainsString('data-confirm', renderMsrPageHtml([$plain], $this->hub(), $this->clubs(), $this->syncStatus(), 'tok', null, null));
+    }
 }

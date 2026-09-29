@@ -47,6 +47,7 @@ function handleClubSave(PDO $pdo): void {
         setFlash('Club saved.', 'success');
     }
     db_set_club_msr_org_id($pdo, $v['code'], $orgId);
+    if ($orgId !== $currentOrgId) msrForgetClub($pdo, $v['code']);
     adminRedirect('admin.php?action=clubs');
 }
 
