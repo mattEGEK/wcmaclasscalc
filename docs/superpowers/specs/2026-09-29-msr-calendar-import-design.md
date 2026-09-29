@@ -49,7 +49,9 @@ integration", step 1.
   (`new` | `ignored` | `added` | `gone`), `hub_event_id` (nullable, FK-by-convention to `events.id`),
   snapshot columns `snap_name`, `snap_start`, `snap_venue`, `snap_cancelled` (the values when an
   admin last added/applied/kept it; null while `new`), `first_seen_at`, `last_seen_at`.
-  Several rows may point at the same `hub_event_id` (multi-event weekends).
+  `is_primary` (1 when the hub event was created from this row by **Add to hub**, 0 when it was
+  attached by **Add to an existing event**). Several rows may point at the same `hub_event_id`
+  (multi-event weekends).
 - **"Changed"** is derived, not stored: a row with `status = 'added'` whose current name, start,
   venue or cancelled differs from its snapshot, or whose `status = 'gone'` (added, then missing
   from a successful fetch).
@@ -66,7 +68,9 @@ integration", step 1.
   included). On success:
   - Upsert each race-type event (update name/dates/type/venue/link/cancelled and `last_seen_at`;
     keep `status`, `hub_event_id` and snapshots).
-  - A stored row for this club that is not in the feed: `new` or `ignored` → deleted; `added` →
+  - The feed lists only events that haven't ended. A stored row not in the feed whose `end_date` is
+    before today has simply finished: deleted, whatever its status (the hub event is untouched).
+  - Any other stored row for this club that is not in the feed: `new` or `ignored` → deleted; `added` →
     `gone` (never deactivates the hub event). A `gone` row that is back in the feed → `added`
     again (change detection against its snapshot resumes).
   - Save `msr_sync_ok_<CODE>`, clear the error.
@@ -89,6 +93,9 @@ integration", step 1.
        `event_date`, venue → `location`, name → `name`; cancellation → deactivates the hub event,
        button labelled **Deactivate hub event**); then snapshot := current. Not offered for `gone`.
      - **Keep as is**: snapshot := current (for `gone`: row deleted).
+     - Rows attached to an existing event (`is_primary = 0`) show their changes with **Keep as is**
+       only, and the note "One of several MotorsportReg events for this hub event — change the hub
+       event by hand if needed." (Cancelling one part of a weekend must not deactivate the weekend.)
   2. **New**, soonest first: dates, name, club, **Ice** / **Race** chip, **Open on MotorsportReg ↗**.
      - **Add to hub**: the Add event modal pre-filled — name, start date, venue as location,
        discipline `ice` for "Ice Racing" else `summer`, host club, MSR link. Saving creates the hub
@@ -105,7 +112,8 @@ integration", step 1.
 - Every action is a CSRF-checked POST via `adminRequirePost()`, and is guarded by the row's
   expected state (Add/Ignore need `new`; Restore needs `ignored`; Apply/Keep need a changed
   `added`/`gone` row). A stale action shows "That MotorsportReg event was already handled." and
-  changes nothing. Errors reopen the modal via the admin `?edit=` pattern.
+  changes nothing. Errors reopen the modal via the admin `?edit=` pattern (`adminEditTarget()`
+  accepts up to 40 characters so a 35-character MSR ID fits).
 - **Clubs tab:** the club modal gains **MotorsportReg page** (`https://www.motorsportreg.com/orgs/…`
   address, or the organization ID itself). On save the hub fetches the page and extracts the one
   organization ID; if none is found: "Couldn't find a MotorsportReg organization on that page.
