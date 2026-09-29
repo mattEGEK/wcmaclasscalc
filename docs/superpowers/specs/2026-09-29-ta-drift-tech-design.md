@@ -191,6 +191,8 @@ club. Summer race choices keep club `''`, so the two don't collide and no new va
 
 - Car (one of the user's cars), the host club (read-only, taken from the event), "Roll bar or
   cage fitted?", and the checklist.
+- The form opens with one line setting out the purpose: "Check each item on the car itself
+  before you tick it. You're confirming your car is safe to go on track."
 - **Drivers**: driver 1 plus optional extra drivers, reusing `tech_sheet_drivers`. The sheet
   names everyone driving the car in TA or Drift at this event.
 - Like race sheets, a TA/Drift sheet belongs to one event (`event_id`). Season approval comes
@@ -221,9 +223,10 @@ The per-event branch becomes: ice → unchanged; summer → by `entryTechTier`:
   1. **Sheet for this event.** Once submitted, it's done. If not submitted, then:
      - if the car isn't approved (`taDriftCarTechStatus` isn't accepted), it's **todo**:
        "Submit a TA/Drift tech sheet for #N";
-     - if the car is already approved, it's **suggested**: "Tech sheet for this event
-       (recommended): you're teched for {club} {year}, but a sheet for each event helps the
-       inspectors."
+     - if the car is already approved, it's **suggested**. Label: "Check your car for {event}
+       (recommended)". Detail: "You're teched for {club} {year}. Going through the tech sheet
+       before each event is how you catch a loose lug nut or a leak before it matters." The
+       point is the driver checking their own car's safety, not paperwork for the inspectors.
   2. **Car tech**: `taDriftCarTechStatus` for (car, host club, year), with an "I'll do it at the
      track" option.
   3. **Gear**: `gearCoversTier` at `ta_drift` for each driver. The drivers come from this event's
