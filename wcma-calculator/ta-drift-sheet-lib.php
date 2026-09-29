@@ -7,6 +7,7 @@
 require_once __DIR__ . '/ta-drift-rules.php';
 require_once __DIR__ . '/ta-drift-lib.php';
 require_once __DIR__ . '/tech-sheet-data.php';
+require_once __DIR__ . '/tech-status.php';
 
 /** The events a TA/Drift sheet can be for: summer events with a host club (TA/Drift tech is per club). */
 function taDriftOpenEvents(array $events): array {
