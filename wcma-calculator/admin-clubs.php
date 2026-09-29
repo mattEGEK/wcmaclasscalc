@@ -1,84 +1,81 @@
 <?php
 // wcma-calculator/admin-clubs.php
 //
-// Admin: host clubs (clubs spec 2026-09-29 §1). Each club has a name and a MotorsportReg link that
-// competitors see after submitting a tech sheet. Loaded by admin.php, which has already checked
+// Admin: host clubs (clubs spec 2026-09-29 §1; admin desktop UX spec §5): a table with add and edit
+// modals. Each club has a name and a MotorsportReg link that competitors see after submitting a tech sheet. Loaded by admin.php, which has already checked
 // the admin role; POST handlers are reached through adminRequirePost() (CSRF).
 
 function handleClubsList(PDO $pdo): void {
-    renderClubsPage(db_get_clubs($pdo), generateCsrfToken(), getFlash());
+    $clubs = db_get_clubs($pdo);
+    $edit = adminEditTarget($_GET);
+    $place = adminFlashPlacement(getFlash(), $edit, array_merge(['new'], array_column($clubs, 'code')));
+    adminRenderPage('Clubs', 'clubs', renderClubsPageHtml($clubs, generateCsrfToken(), $place['dialog'], $edit), $place['top']);
 }
 
 function handleClubSave(PDO $pdo): void {
     $isNew = ($_POST['is_new'] ?? '') === '1';
     $v = clubValidate((string)($_POST['code'] ?? ''), (string)($_POST['name'] ?? ''), (string)($_POST['msr_url'] ?? ''));
+    if (!$isNew && db_get_club($pdo, $v['code']) === null) {
+        setFlash('Club not found.', 'error');
+        adminRedirect('admin.php?action=clubs');
+    }
+    $reopen = 'admin.php?action=clubs&edit=' . ($isNew ? 'new' : rawurlencode($v['code']));
     if (!$v['ok']) {
         setFlash((string)$v['error'], 'error');
-    } elseif ($isNew && db_get_club($pdo, $v['code']) !== null) {
+        adminRedirect($reopen);
+    }
+    if ($isNew && db_get_club($pdo, $v['code']) !== null) {
         setFlash('A club with the code ' . $v['code'] . ' already exists.', 'error');
-    } elseif ($isNew) {
+        adminRedirect($reopen);
+    }
+    if ($isNew) {
         db_create_club($pdo, $v['code'], $v['name'], $v['url']);
         setFlash('Club added.', 'success');
-    } elseif (db_get_club($pdo, $v['code']) === null) {
-        setFlash('Club not found.', 'error');
     } else {
         db_update_club($pdo, $v['code'], $v['name'], $v['url'], !empty($_POST['active']));
         setFlash('Club saved.', 'success');
     }
-    header('Location: admin.php?action=clubs');
-    exit;
+    adminRedirect('admin.php?action=clubs');
 }
 
-/** The page body: one editable card per club, then an Add form. Pure. */
-function renderClubsPageHtml(array $clubs, string $csrf): string {
-    $csrfField = '<input type="hidden" name="csrf_token" value="' . h($csrf) . '">';
-    $out = '<div class="detail-card"><p>Clubs host events. A club\'s MotorsportReg link is shown to competitors after they '
-        . 'submit a tech sheet, so they can register for the event. NASCC and WSCC run the ice races.</p></div>';
+/** The page body: intro, Add club, a read-only table, then the add modal and one modal per club. Pure. */
+function renderClubsPageHtml(array $clubs, string $csrf, ?array $dialogFlash = null, ?string $edit = null): string {
+    $csrfField = adminCsrfField($csrf);
+    $out = '<p class="admin-intro">Clubs host events. A club\'s MotorsportReg link is shown to competitors after they '
+        . 'submit a tech sheet, so they can register for the event. NASCC and WSCC run the ice races.</p>'
+        . '<div class="admin-toolbar">' . adminAddButton('club-dialog-new', 'Add club') . '</div>'
+        . '<table class="data-table admin-table" id="clubs-table"><thead><tr><th>Code</th><th>Name</th><th>MotorsportReg</th>'
+        . '<th>Status</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>';
+    $dialogs = adminDialogHtml('club-dialog-new', 'Add a club',
+        '<form method="post" action="admin.php?action=club-save" class="admin-form">' . $csrfField
+        . '<input type="hidden" name="is_new" value="1">'
+        . adminField('club-new-code', 'Short code (letters, numbers or dashes)', '<input type="text" id="club-new-code" name="code" maxlength="12" required placeholder="ESCC">')
+        . adminField('club-new-name', 'Name', '<input type="text" id="club-new-name" name="name" maxlength="120" required>')
+        . adminField('club-new-url', 'MotorsportReg link (optional)', '<input type="url" id="club-new-url" name="msr_url" placeholder="https://">', true)
+        . adminDialogActions('Add club') . '</form>',
+        $edit === 'new' ? $dialogFlash : null);
+    if (!$clubs) {
+        $out .= '<tr><td colspan="5" class="empty-row">No clubs yet.</td></tr>';
+    }
     foreach ($clubs as $c) {
         $code = (string)$c['code'];
         $id = 'club-' . strtolower($code);
-        $out .= '<form method="post" action="admin.php?action=club-save" class="detail-card">' . $csrfField
+        $url = (string)$c['msr_url'];
+        $active = (int)$c['active'] === 1;
+        $out .= '<tr id="' . h($id) . '"><td data-label="Code"><strong>' . h($code) . '</strong></td>'
+            . '<td data-label="Name">' . h((string)$c['name']) . '</td>'
+            . '<td data-label="MotorsportReg">' . ($url !== ''
+                ? '<a class="admin-link" href="' . h($url) . '" target="_blank" rel="noopener">Open ↗</a>' : '—') . '</td>'
+            . '<td data-label="Status">' . ($active ? adminChip('Active', 'ok') : adminChip('Inactive', 'fail')) . '</td>'
+            . '<td class="admin-cell-actions">' . adminEditButton('club-dialog-' . strtolower($code), $code) . '</td></tr>';
+        $dialogs .= adminDialogHtml('club-dialog-' . strtolower($code), 'Edit ' . $code,
+            '<form method="post" action="admin.php?action=club-save" class="admin-form">' . $csrfField
             . '<input type="hidden" name="code" value="' . h($code) . '">'
-            . '<h2>' . h($code) . '</h2>'
-            . '<label for="' . h($id) . '-name">Name</label>'
-            . '<input type="text" id="' . h($id) . '-name" name="name" maxlength="120" required value="' . h((string)$c['name']) . '">'
-            . '<label for="' . h($id) . '-url">MotorsportReg link (optional)</label>'
-            . '<input type="url" id="' . h($id) . '-url" name="msr_url" placeholder="https://" value="' . h((string)$c['msr_url']) . '">'
-            . '<label class="checkbox-label"><input type="checkbox" name="active" value="1"' . ((int)$c['active'] === 1 ? ' checked' : '') . '> Shown</label>'
-            . '<div class="form-actions"><button type="submit" class="btn btn-primary">Save</button></div></form>';
+            . adminField($id . '-name', 'Name', '<input type="text" id="' . h($id) . '-name" name="name" maxlength="120" required value="' . h((string)$c['name']) . '">', true)
+            . adminField($id . '-url', 'MotorsportReg link (optional)', '<input type="url" id="' . h($id) . '-url" name="msr_url" placeholder="https://" value="' . h($url) . '">', true)
+            . '<label class="admin-form-wide"><input type="checkbox" name="active" value="1"' . ($active ? ' checked' : '') . '> Active — can host new events</label>'
+            . adminDialogActions('Save') . '</form>',
+            $edit === $code ? $dialogFlash : null);
     }
-    $out .= '<form method="post" action="admin.php?action=club-save" class="detail-card">' . $csrfField
-        . '<input type="hidden" name="is_new" value="1"><h2>Add a club</h2>'
-        . '<label for="club-new-code">Short code (letters, numbers or dashes)</label>'
-        . '<input type="text" id="club-new-code" name="code" maxlength="12" required placeholder="ESCC">'
-        . '<label for="club-new-name">Name</label><input type="text" id="club-new-name" name="name" maxlength="120" required>'
-        . '<label for="club-new-url">MotorsportReg link (optional)</label>'
-        . '<input type="url" id="club-new-url" name="msr_url" placeholder="https://">'
-        . '<div class="form-actions"><button type="submit" class="btn btn-primary">Add club</button></div></form>';
-    return $out;
-}
-
-function renderClubsPage(array $clubs, string $csrf, ?array $flash): void {
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Clubs — WCMA Admin</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
-<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
-</head>
-<body class="hub">
-<div class="container">
-  <?php renderSiteHeader('Clubs', adminSubnavHtml('clubs'), 'admin'); ?>
-  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
-  <?= renderClubsPageHtml($clubs, $csrf) ?>
-</div>
-<script src="js/form-feedback.js"></script>
-<?php renderSiteFooter(); ?>
-</body>
-</html><?php
+    return $out . '</tbody></table><div class="admin-dialogs">' . $dialogs . '</div>';
 }

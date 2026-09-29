@@ -45,6 +45,7 @@ final class AdminSourceTest extends TestCase
         $expect = [
             'admin.php' => ["adminSubnavHtml('settings')"],
             'admin-events.php' => ["adminRenderPage('Events', 'events'"],
+            'admin-clubs.php' => ["adminRenderPage('Clubs', 'clubs'"],
             'admin-users.php' => ["adminRenderPage('Users & roles', 'users'"],
             'admin-ui.php' => ["adminSubnavHtml(\$tab)"],
             'admin-feedback.php' => ["adminSubnavHtml('feedback')"],
