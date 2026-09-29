@@ -1,5 +1,5 @@
 /**
- * Replaces native confirm() for forms marked with data-confirm="message".
+ * Replaces native confirm() for forms marked with data-confirm="message", including forms inside an open <dialog>.
  * Intercepts submit, shows a styled modal, and re-submits (bypassing this
  * same listener) if the user confirms.
  */
@@ -20,12 +20,13 @@
             '  </div>' +
             '</div>';
 
-        document.body.appendChild(overlay);
         return overlay;
     }
 
-    function askConfirm(message) {
+    function askConfirm(message, host) {
         if (!modalEl) modalEl = buildModal();
+        // A modal <dialog> makes the rest of the page inert, so the box must sit inside it.
+        host.appendChild(modalEl);
         const messageEl = modalEl.querySelector('#confirm-modal-message');
         const confirmBtn = modalEl.querySelector('[data-role="confirm"]');
         const cancelBtn = modalEl.querySelector('[data-role="cancel"]');
@@ -46,7 +47,11 @@
             function onConfirm() { cleanup(true); }
             function onCancel() { cleanup(false); }
             function onOverlayClick(e) { if (e.target === modalEl) cleanup(false); }
-            function onKeydown(e) { if (e.key === 'Escape') cleanup(false); }
+            function onKeydown(e) {
+                if (e.key !== 'Escape') return;
+                e.preventDefault();   // Esc answers the question; it must not also close an open dialog
+                cleanup(false);
+            }
 
             confirmBtn.addEventListener('click', onConfirm);
             cancelBtn.addEventListener('click', onCancel);
@@ -62,7 +67,7 @@
         if (!message || form.dataset.confirmed === '1') return;
 
         event.preventDefault();
-        askConfirm(message).then(function (ok) {
+        askConfirm(message, form.closest('dialog') || document.body).then(function (ok) {
             if (!ok) return;
             form.dataset.confirmed = '1';
             form.requestSubmit ? form.requestSubmit() : form.submit();

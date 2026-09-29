@@ -354,7 +354,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 
 /* B1. One button language. Legacy .btn classes (auth, tech sheet, pre-tech, gear, admin) become hub buttons. */
 body.hub .btn,
-body.hub button[type="submit"]:where(:not(.hub-btn, .link-button, .checklist-chip, .btn, .btn-role)) {
+body.hub button[type="submit"]:where(:not(.hub-btn, .link-button, .checklist-chip, .btn)) {
   min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 0 20px; border-radius: 8px; border: 2px solid var(--hub-red);
   background: var(--hub-red); color: #fff; font-family: inherit; font-size: 17px; font-weight: 700;
@@ -367,7 +367,7 @@ body.hub .hub-btn { text-transform: none; }
 
 /* Disabled: dashed outline, muted text. Never grey-filled, so grey always means "not yet". */
 body.hub .btn:disabled, body.hub .hub-btn:disabled, body.hub button:disabled, body.hub .hub-btn[aria-disabled="true"],
-body.hub button[type="submit"]:where(:not(.hub-btn, .link-button, .checklist-chip, .btn, .btn-role)):disabled {
+body.hub button[type="submit"]:where(:not(.hub-btn, .link-button, .checklist-chip, .btn)):disabled {
   background: var(--hub-card); color: var(--hub-ink-2); border: 2px dashed var(--hub-ink-2); cursor: not-allowed;
 }
 
@@ -380,7 +380,7 @@ body.hub .link-button {
 /* B2. Tap targets and text. Baselines use :where() so any component rule still wins. */
 :where(body.hub) button, :where(body.hub) input, :where(body.hub) select, :where(body.hub) textarea { font-family: inherit; font-size: 16px; }
 body.hub input[type="text"], body.hub input[type="email"], body.hub input[type="number"], body.hub input[type="password"],
-body.hub input[type="tel"], body.hub input[type="search"], body.hub input[type="date"], body.hub select {
+body.hub input[type="tel"], body.hub input[type="url"], body.hub input[type="search"], body.hub input[type="date"], body.hub select {
   min-height: 48px; font-size: 17px; padding: 10px 12px;
 }
 body.hub textarea { min-height: 96px; font-size: 17px; }
@@ -469,13 +469,6 @@ body.hub .field-message[hidden] { display: none; }
   body.hub #equipment-container .checklist-item-row input[type="text"] { flex: 1 1 100%; margin: 6px 0 0 !important; }
 }
 
-/* Admin user actions (spec 2026-09-29 §2.7): Save is primary, Deactivate/Reactivate secondary. */
-body.hub .btn-role { min-height: 44px; padding: 0 14px; border-radius: 8px; border: 2px solid var(--hub-red);
-  background: var(--hub-red); color: #fff; font-size: 16px; font-weight: 700; text-transform: none; }
-body.hub .btn-role:hover { background: var(--hub-red-ink); border-color: var(--hub-red-ink); }
-body.hub .btn-role--secondary { background: #fff; color: var(--hub-ink); border-color: var(--hub-ink); }
-body.hub .btn-role--secondary:hover { background: var(--hub-paper); color: var(--hub-ink); border-color: var(--hub-ink); }
-
 /* ── Class Calculator (spec 2026-09-29 §2.3): phone rules and hub colours ── */
 /* Result boxes: solid ink like the hub hero, not the old purple gradient. */
 body.hub .calculation-results-box, body.hub .results-section { background: var(--hub-ink); color: #fff; }
@@ -493,3 +486,85 @@ body.hub .password-toggle, body.hub .password-toggle.is-showing { color: var(--h
 body.hub .nudge-dismiss { min-height: 44px; min-width: 44px; padding: 0 12px; font-size: 16px; color: var(--hub-red-ink); }
 body.hub .rulebook-disclaimer { color: var(--hub-ink-2); }
 body.hub .rulebook-disclaimer a { color: var(--hub-red-ink); }
+
+/* ── Admin tabs (admin desktop UX spec 2026-09-29) ── */
+body.admin .hub-page-title { margin: 8px 0 20px; }
+body.admin .admin-intro { font-size: 16px; color: var(--hub-ink-2); max-width: 72ch; margin: -8px 0 20px; }
+body.admin .detail-card h2, body.admin .detail-card h3 { font-size: 22px; color: var(--hub-ink); border-bottom: 0; padding-bottom: 0; margin: 0 0 12px; }
+
+/* Toolbar: search, filter and the Add button on one line. */
+.admin-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+.admin-toolbar-filters { display: flex; flex-wrap: wrap; gap: 12px; flex: 1 1 auto; }
+body.hub .admin-toolbar .table-search { flex: 1 1 260px; max-width: 360px; width: auto; margin: 0; }
+body.hub .admin-toolbar .table-filter { flex: 0 0 auto; width: auto; margin: 0; }
+
+/* Form grid: fields side by side on desktop, one column on phones. */
+.admin-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 20px; max-width: 880px; align-items: start; }
+.admin-form-wide { grid-column: 1 / -1; }
+.admin-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.admin-field label { font-size: 16px; font-weight: 700; color: var(--hub-ink); }
+body.hub .admin-field input, body.hub .admin-field select { width: 100%; box-sizing: border-box; margin: 0; }
+.admin-form .form-hint { margin: 0; }
+.admin-form-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+body.hub fieldset.radio-row { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-wrap: wrap; gap: 0 24px; }
+body.hub fieldset.radio-row legend { padding: 0; margin-bottom: 6px; font-size: 16px; font-weight: 700; color: var(--hub-ink); }
+
+/* Chips (status, role) sit inside a cell, never on it. */
+.admin-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-chip { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 16px; font-weight: 700; line-height: 1.4; white-space: nowrap; }
+.admin-chip--ok { color: var(--hub-ok-ink); background: var(--hub-ok-bg); }
+.admin-chip--fail { color: var(--hub-red-ink); background: var(--hub-todo-bg); }
+.admin-chip--pending { color: var(--hub-warn-ink); background: var(--hub-warn-bg); }
+.admin-chip--info { color: var(--hub-ink-2); background: var(--hub-paper); }
+.admin-chip--ink { color: #fff; background: var(--hub-ink); }
+
+/* Tables: read-only rows, one Edit button at the right. */
+body.hub .data-table.admin-table { display: table; white-space: normal; }
+body.hub .admin-table th { font-size: 16px; }
+body.hub .admin-table td { vertical-align: middle; }
+body.admin .data-table .empty-row { color: var(--hub-ink-2); }
+.admin-table .admin-sub { display: block; font-size: 16px; color: var(--hub-ink-2); overflow-wrap: anywhere; }
+.admin-table .admin-cell-actions { text-align: right; white-space: nowrap; width: 1%; }
+body.hub .admin-edit { min-height: 44px; padding: 0 16px; font-size: 16px; }
+body.hub .admin-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--hub-red-ink); }
+.admin-table .admin-col-order { width: 6rem; }
+body.hub .admin-table .admin-col-order input { width: 5rem; }
+.admin-row-actions { display: flex; gap: 24px; align-items: center; justify-content: flex-end; }
+
+/* Settings: one card, three groups. */
+.admin-settings { max-width: 720px; }
+.admin-settings fieldset { border: 0; padding: 0; margin: 0 0 24px; min-width: 0; }
+.admin-settings legend { font-family: var(--hub-font-narrow); font-size: 22px; font-weight: 700; margin-bottom: 8px; padding: 0; }
+
+/* Edit modal. */
+dialog.admin-dialog { width: min(640px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 32px); padding: 0; border: 0;
+  border-radius: var(--hub-radius); box-shadow: 0 20px 60px rgba(0, 0, 0, .35); color: var(--hub-ink); background: var(--hub-card); }
+dialog.admin-dialog::backdrop { background: rgba(17, 19, 23, .55); }
+.admin-dialog-body { padding: 24px; }
+.admin-dialog h2 { margin: 0 0 4px; font-size: 26px; }
+.admin-dialog-sub { margin: 0; font-size: 16px; color: var(--hub-ink-2); overflow-wrap: anywhere; }
+.admin-dialog .form-messages { margin: 16px 0 0; }
+.admin-dialog .admin-form { max-width: none; margin-top: 20px; }
+.admin-dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; padding-top: 4px; }
+.admin-dialog-danger { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--hub-line); }
+.admin-dialog-danger h3 { margin: 0 0 4px; font-size: 18px; }
+.admin-dialog-danger p { margin: 0 0 12px; font-size: 16px; color: var(--hub-ink-2); }
+
+@media (max-width: 700px) {
+  /* Each row becomes a card: "Label  value" lines, Edit full width at the bottom. */
+  body.hub .data-table.admin-table, .admin-table tbody, .admin-table tr, .admin-table td { display: block; width: auto; }
+  .admin-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .admin-table tr { padding: 12px 16px; border-bottom: 1px solid var(--hub-line); }
+  body.hub .admin-table td { display: flex; gap: 12px; align-items: center; padding: 4px 0; border: 0; }
+  .admin-table td[data-label]::before { content: attr(data-label); flex: 0 0 7.5em; font-weight: 700; color: var(--hub-ink-2); }
+  .admin-table td > input:not([type="checkbox"]) { flex: 1; min-width: 0; }
+  .admin-table .admin-cell-actions { width: auto; padding-top: 8px; }
+  .admin-table .admin-cell-actions .btn, .admin-row-actions { flex: 1; }
+  .admin-row-actions { justify-content: flex-start; }
+  body.hub .admin-table .empty-row { display: block; }
+}
+@media (max-width: 480px) {
+  dialog.admin-dialog { width: 100vw; max-height: 100dvh; height: 100dvh; margin: 0; border-radius: 0; }
+  .admin-dialog-body { padding: 16px; }
+  .admin-dialog-actions .btn { flex: 1; }
+}
