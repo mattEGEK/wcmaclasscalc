@@ -37,3 +37,23 @@ function clubForEvent(?array $clubRow, ?array $event): ?array {
     $label = iceClubLabel($code);
     return $label !== null ? ['name' => $label, 'url' => ''] : null;
 }
+
+/**
+ * The host club options for one event's row picker (spec 2026-09-29 §1): active clubs (ice events:
+ * only clubs with ice rules), plus the event's current club even when it is inactive, so saving the
+ * row never changes or clears it by accident. Summer events also get "No host club".
+ * @return list<array{code: string, label: string, selected: bool}>
+ */
+function eventClubOptions(array $clubs, array $event, array $iceCodes): array {
+    $isIce = ($event['discipline'] ?? 'summer') === 'ice';
+    $current = (string)($event['host_club'] ?? '');
+    $out = $isIce ? [] : [['code' => '', 'label' => 'No host club', 'selected' => $current === '']];
+    foreach ($clubs as $c) {
+        $code = (string)$c['code'];
+        $active = (int)$c['active'] === 1;
+        if ($isIce && !in_array($code, $iceCodes, true)) continue;
+        if (!$active && $code !== $current) continue;
+        $out[] = ['code' => $code, 'label' => $code . ' — ' . $c['name'] . ($active ? '' : ' (inactive)'), 'selected' => $code === $current];
+    }
+    return $out;
+}

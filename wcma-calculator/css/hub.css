@@ -354,7 +354,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 
 /* B1. One button language. Legacy .btn classes (auth, tech sheet, pre-tech, gear, admin) become hub buttons. */
 body.hub .btn,
-body.hub button[type="submit"]:where(:not(.hub-btn, .link-button, .checklist-chip, .btn)) {
+body.hub button[type="submit"]:where(:not(.hub-btn, .link-button, .checklist-chip, .btn, .btn-role)) {
   min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 0 20px; border-radius: 8px; border: 2px solid var(--hub-red);
   background: var(--hub-red); color: #fff; font-family: inherit; font-size: 17px; font-weight: 700;
@@ -367,7 +367,7 @@ body.hub .hub-btn { text-transform: none; }
 
 /* Disabled: dashed outline, muted text. Never grey-filled, so grey always means "not yet". */
 body.hub .btn:disabled, body.hub .hub-btn:disabled, body.hub button:disabled, body.hub .hub-btn[aria-disabled="true"],
-body.hub button[type="submit"]:where(:not(.hub-btn, .link-button, .checklist-chip, .btn)):disabled {
+body.hub button[type="submit"]:where(:not(.hub-btn, .link-button, .checklist-chip, .btn, .btn-role)):disabled {
   background: var(--hub-card); color: var(--hub-ink-2); border: 2px dashed var(--hub-ink-2); cursor: not-allowed;
 }
 

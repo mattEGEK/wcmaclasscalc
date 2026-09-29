@@ -87,6 +87,8 @@ function styleFixturesInPage() {
     + '<button type="submit" class="btn btn-primary" id="fx-primary">Accept</button></form>'
     + '<details id="fx-details"><summary>How is my class calculated?</summary><p>x</p></details>'
     + '<button type="button" class="nudge-dismiss" id="fx-nudge">Not now</button>'
+    + '<form><button type="submit" class="btn-role" id="fx-role">Save role</button>'
+    + '<button type="submit" class="btn-role btn-role--secondary" id="fx-role2">Deactivate</button></form>'
     + '<fieldset class="garage-season"><div class="garage-season-options"><label id="fx-season"><input type="radio" name="fx"><span>Ice</span></label></div></fieldset>';
   document.querySelector('main, .container, body').appendChild(box);
   const problems = [];
@@ -99,6 +101,7 @@ function styleFixturesInPage() {
   if (!marker) problems.push('<summary> has no disclosure triangle');
   const season = parseFloat(getComputedStyle(document.getElementById('fx-season')).minHeight);
   if (!(season >= 56)) problems.push(`Garage season card min-height is ${season}px, not its own 56px+`);
+  if (bg('fx-role') === bg('fx-role2')) problems.push(`admin Deactivate looks like Save role (${bg('fx-role2')})`);
   const nudge = document.getElementById('fx-nudge').getBoundingClientRect().height;
   if (nudge < 44) problems.push(`save-nudge dismiss button is ${Math.round(nudge)}px tall`);
   box.remove();
@@ -230,11 +233,18 @@ try {
   report('a signature wiped by changing the driver is asked for again', /Driver's signature box/.test(sigMsg) && page.url().includes('new-ice')
     ? [] : [`expected "Please sign in the Driver's signature box." and no submit, got "${sigMsg}" (box: "${await page.locator('#tech-sheet-error').textContent()}") at ${page.url()}`]);
   await page.evaluate(() => {
+    const cv = document.getElementById('entrant-sig-canvas'); const r = cv.getBoundingClientRect();
+    cv.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 }));
+    cv.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, pointerId: 1, pointerType: 'touch', isPrimary: true }));
+  });
+  report('touching the other pad keeps the message', await page.evaluate(() => !document.getElementById('sig-error').hidden)
+    ? [] : ['the Driver\'s signature message went away when the Entrant pad was touched']);
+  await page.evaluate(() => {
     const cv = document.getElementById('driver-sig-canvas'); const r = cv.getBoundingClientRect();
     cv.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 }));
     cv.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, pointerId: 1, pointerType: 'touch', isPrimary: true }));
   });
-  report('the signature message goes when you start signing', await page.evaluate(() => document.getElementById('sig-error').hidden)
+  report('the signature message goes when you start signing', await page.evaluate(() => document.getElementById('sig-error').hidden && document.getElementById('tech-sheet-error').hidden)
     ? [] : ['the signature message is still showing after starting to sign']);
   await page.evaluate(() => {
     for (const cv of document.querySelectorAll('canvas')) {
@@ -254,6 +264,7 @@ try {
   await audit(page, 'pre-tech photos');
   await page.goto(BASE + '/' + carUrl);
   await audit(page, 'car page');
+  await page.click('.garage-edit summary'); await audit(page, 'car page (edit details open)');
 
   // Submitting cleared the draft: the same sheet starts fresh.
   await page.goto(sheetUrl);

@@ -316,12 +316,20 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 </html><?php
 }
 
+/** The club codes an event may take: the active clubs, plus the one it already has (even if inactive). */
+function adminEventClubCodes(PDO $pdo, ?array $event): array {
+    $codes = array_column(db_get_clubs($pdo, true), 'code');
+    $current = (string)($event['host_club'] ?? '');
+    if ($current !== '' && !in_array($current, $codes, true)) $codes[] = $current;
+    return $codes;
+}
+
 /** Sets an existing event's host club from the clubs list (clubs spec 2026-09-29 §1). */
 function handleEventClub(PDO $pdo, int $id): void {
     $event = db_get_event($pdo, $id);
     if ($event === null) { setFlash('Event not found.', 'error'); header('Location: admin.php?action=events'); exit; }
     $fields = iceEventFields(['discipline' => $event['discipline'] ?? 'summer', 'host_club' => (string)($_POST['host_club'] ?? '')],
-        array_column(db_get_clubs($pdo, true), 'code'));
+        adminEventClubCodes($pdo, $event));
     if (!$fields['ok']) { setFlash((string)$fields['error'], 'error'); header('Location: admin.php?action=events'); exit; }
     db_update_event($pdo, $id, (string)$event['name'], (string)$event['event_date'], $event['location'] ?? null, $fields['discipline'], $fields['club']);
     setFlash('Host club saved.', 'success');
@@ -330,7 +338,7 @@ function handleEventClub(PDO $pdo, int $id): void {
 }
 
 function handleEventsList(PDO $pdo): void {
-    renderEventsPage(db_get_all_events($pdo), db_count_event_plans($pdo), generateCsrfToken(), getFlash(), db_get_clubs($pdo, true));
+    renderEventsPage(db_get_all_events($pdo), db_count_event_plans($pdo), generateCsrfToken(), getFlash(), db_get_clubs($pdo));
 }
 
 function handleEventCreate(PDO $pdo): void {
@@ -379,7 +387,7 @@ function handleEventUpdate(PDO $pdo, int $id): void {
         }
     }
 
-    $fields = iceEventFields($disciplineInput, array_column(db_get_clubs($pdo, true), 'code'));
+    $fields = iceEventFields($disciplineInput, adminEventClubCodes($pdo, db_get_event($pdo, $id)));
     if (!$fields['ok']) {
         setFlash((string)$fields['error'], 'error');
         header('Location: admin.php?action=events');
@@ -435,7 +443,7 @@ function renderEventsPage(array $events, array $going, string $csrf, ?array $fla
       <label for="new-event-club">Host club</label>
       <select id="new-event-club" name="host_club">
         <option value="">—</option>
-        <?php foreach ($clubs as $c): ?>
+        <?php foreach ($clubs as $c): if ((int)$c['active'] !== 1) continue; ?>
         <option value="<?= h((string)$c['code']) ?>"><?= h($c['code'] . ' — ' . $c['name']) ?></option>
         <?php endforeach; ?>
       </select>
@@ -465,9 +473,8 @@ function renderEventsPage(array $events, array $going, string $csrf, ?array $fla
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$e['id'] ?>">
             <select name="host_club" aria-label="Host club for <?= h($e['name']) ?>">
-              <?php if (!$isIceEvent): ?><option value="">No host club</option><?php endif; ?>
-              <?php foreach ($clubs as $c): if ($isIceEvent && !in_array((string)$c['code'], iceClubCodes(), true)) continue; ?>
-              <option value="<?= h((string)$c['code']) ?>"<?= (string)($e['host_club'] ?? '') === (string)$c['code'] ? ' selected' : '' ?>><?= h($c['code'] . ' — ' . $c['name']) ?></option>
+              <?php foreach (eventClubOptions($clubs, $e, iceClubCodes()) as $opt): ?>
+              <option value="<?= h($opt['code']) ?>"<?= $opt['selected'] ? ' selected' : '' ?>><?= h($opt['label']) ?></option>
               <?php endforeach; ?>
             </select>
             <button type="submit" class="link-button">Save club</button>

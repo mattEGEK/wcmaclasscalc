@@ -110,4 +110,12 @@ final class AdminSourceTest extends TestCase
         $this->assertStringContainsString('<button type="submit" class="btn-role btn-role--secondary">Deactivate</button>', $src);
         $this->assertStringContainsString('<button type="submit" class="btn-role btn-role--secondary">Reactivate</button>', $src);
     }
+
+    public function testEventClubHandlersAcceptTheEventsCurrentClub(): void
+    {
+        $this->assertStringContainsString('eventClubOptions(', $this->src('admin.php'));
+        foreach (['handleEventClub', 'handleEventUpdate'] as $fn) {
+            $this->assertStringContainsString('adminEventClubCodes($pdo, ', $this->body('admin.php', $fn));
+        }
+    }
 }

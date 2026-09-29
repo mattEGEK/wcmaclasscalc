@@ -56,4 +56,23 @@ final class ClubsTest extends TestCase
         // A stored link that isn't https is never shown.
         $this->assertSame('', clubForEvent(['code' => 'X', 'name' => 'X', 'msr_url' => 'http://x', 'active' => 1], ['host_club' => 'X'])['url']);
     }
+
+    public function testRowPickerKeepsAnInactiveCurrentClubSelected(): void
+    {
+        $clubs = [
+            ['code' => 'ESCC', 'name' => 'Edmonton', 'msr_url' => '', 'active' => 0],
+            ['code' => 'NASCC', 'name' => 'Northern Alberta', 'msr_url' => '', 'active' => 0],
+            ['code' => 'WSCC', 'name' => 'Winnipeg', 'msr_url' => '', 'active' => 1],
+        ];
+        $summer = eventClubOptions($clubs, ['discipline' => 'summer', 'host_club' => 'ESCC'], ['NASCC', 'WSCC']);
+        $this->assertSame(['', 'ESCC', 'WSCC'], array_column($summer, 'code'));
+        $this->assertSame('ESCC — Edmonton (inactive)', $summer[1]['label']);
+        $this->assertSame([false, true, false], array_column($summer, 'selected'));
+        $ice = eventClubOptions($clubs, ['discipline' => 'ice', 'host_club' => 'NASCC'], ['NASCC', 'WSCC']);
+        $this->assertSame(['NASCC', 'WSCC'], array_column($ice, 'code'));
+        $this->assertSame([true, false], array_column($ice, 'selected'));
+        $none = eventClubOptions($clubs, ['discipline' => 'summer', 'host_club' => null], ['NASCC', 'WSCC']);
+        $this->assertSame(['', 'WSCC'], array_column($none, 'code'));
+        $this->assertTrue($none[0]['selected']);
+    }
 }
