@@ -1,7 +1,7 @@
 # MotorsportReg Calendar Import — Design Spec
 **Date:** 2026-09-29
 **Project:** WCMA Hub (221racing.com)
-**Status:** Approved in conversation (2026-09-29), section by section.
+**Status:** Approved (2026-09-29): design section by section, written spec reviewed.
 
 Hub events are typed in by admins today, and each event's MotorsportReg link (`events.msr_url`,
 added 2026-09-29) is pasted by hand. MotorsportReg (MSR) publishes every club's
@@ -37,7 +37,7 @@ integration", step 1.
 - MSR's API terms: use is "subject to prior approval", feeds may change, fetch and cache rather
   than calling live, and displayed listings carry "Powered by MotorsportReg.com" attribution.
   This feature fetches once a day and shows the data only to admins, with an attribution line.
-  A courtesy note to MSR / the clubs is recommended (not a code task).
+  The feed is public; no approval request is planned (owner's decision, 2026-09-29).
 
 ## 1. Data
 
