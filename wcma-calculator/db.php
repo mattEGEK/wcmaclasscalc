@@ -827,10 +827,31 @@ function db_get_gear_record_for_driver(PDO $pdo, int $driverId, int $season, str
 
 // ── Tech Sheets ───────────────────────────────────────────────────────────────
 
+/** The host club a TA/Drift sheet is keyed to: its event's host_club. Throws if the event has none. */
+function db_ta_drift_club(PDO $pdo, int $eventId): string {
+    $club = trim((string)(db_get_event($pdo, $eventId)['host_club'] ?? ''));
+    if ($club === '') throw new InvalidArgumentException('A TA/Drift tech sheet needs an event with a host club.');
+    return $club;
+}
+
 function db_insert_tech_sheet(PDO $pdo, array $data): int {
     $now = date('Y-m-d H:i:s');
     $identity = db_tech_sheet_identity($pdo, (string)$data['car_number'], (int)$data['event_id']);
-    if ($identity['discipline'] === DISCIPLINE_ICE) {
+    if (($data['sheet_type'] ?? '') === SHEET_TYPE_TA_DRIFT) {
+        if ($identity['discipline'] !== DISCIPLINE_SUMMER) {
+            throw new InvalidArgumentException('A TA/Drift tech sheet is for summer events.');
+        }
+        if (!empty($data['submission_id'])) {
+            throw new InvalidArgumentException('A TA/Drift tech sheet does not take a class declaration.');
+        }
+        $car = db_get_user_car($pdo, (int)$data['user_id'], (int)($data['car_id'] ?? 0));
+        if ($car === null) {
+            throw new InvalidArgumentException('A TA/Drift tech sheet needs one of your cars.');
+        }
+        $identity['club'] = db_ta_drift_club($pdo, (int)$data['event_id']);
+        $submissionId = null;
+        $carId = (int)$car['id'];
+    } elseif ($identity['discipline'] === DISCIPLINE_ICE) {
         if (!empty($data['submission_id'])) {
             throw new InvalidArgumentException('An ice tech sheet does not take a class declaration.');
         }
@@ -855,14 +876,14 @@ function db_insert_tech_sheet(PDO $pdo, array $data): int {
             entrant_name, driver_name, driver_id, car_make, car_model, car_colour, car_number,
             class, engine_cc, engine_hp, car_weight,
             checklist_json, driver1_equipment_json, log_book_turned_in,
-            car_number_norm, season, discipline, club,
+            car_number_norm, season, discipline, club, caged,
             status, created_at, updated_at
         ) VALUES (
             :submission_id, :car_id, :user_id, :event_id, :sheet_type,
             :entrant_name, :driver_name, :driver_id, :car_make, :car_model, :car_colour, :car_number,
             :class, :engine_cc, :engine_hp, :car_weight,
             :checklist_json, :driver1_equipment_json, :log_book_turned_in,
-            :car_number_norm, :season, :discipline, :club,
+            :car_number_norm, :season, :discipline, :club, :caged,
             'submitted', :created_at, :updated_at
         )
     ");
@@ -876,7 +897,7 @@ function db_insert_tech_sheet(PDO $pdo, array $data): int {
         ':checklist_json' => $data['checklist_json'], ':driver1_equipment_json' => $data['driver1_equipment_json'],
         ':log_book_turned_in' => $data['log_book_turned_in'] ?? null,
         ':car_number_norm' => $identity['car_number_norm'], ':season' => $identity['season'],
-        ':discipline' => $identity['discipline'], ':club' => $identity['club'],
+        ':discipline' => $identity['discipline'], ':club' => $identity['club'], ':caged' => empty($data['caged']) ? 0 : 1,
         ':created_at' => $now, ':updated_at' => $now,
     ]);
     return (int)$pdo->lastInsertId();
@@ -914,6 +935,11 @@ function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
     if ($current !== null && ($current['discipline'] ?? DISCIPLINE_SUMMER) !== $identity['discipline']) {
         throw new InvalidArgumentException('A tech sheet cannot move between summer and ice events.');
     }
+    $isTaDrift = ($data['sheet_type'] ?? '') === SHEET_TYPE_TA_DRIFT;
+    if ($current !== null && (($current['sheet_type'] ?? '') === SHEET_TYPE_TA_DRIFT) !== $isTaDrift) {
+        throw new InvalidArgumentException('A tech sheet cannot change between TA/Drift and race.');
+    }
+    if ($isTaDrift) $identity['club'] = db_ta_drift_club($pdo, (int)$data['event_id']);
     $owner = (int)($current['user_id'] ?? 0);
     $driverId = db_find_or_create_driver($pdo, $owner, (string)$data['driver_name']);
     $pdo->prepare("
@@ -924,7 +950,7 @@ function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
             class = :class, engine_cc = :engine_cc, engine_hp = :engine_hp, car_weight = :car_weight,
             checklist_json = :checklist_json, driver1_equipment_json = :driver1_equipment_json,
             log_book_turned_in = :log_book_turned_in,
-            car_number_norm = :car_number_norm, season = :season, club = :club, updated_at = :updated_at
+            car_number_norm = :car_number_norm, season = :season, club = :club, caged = :caged, updated_at = :updated_at
         WHERE id = :id
     ")->execute([
         ':event_id' => $data['event_id'], ':sheet_type' => $data['sheet_type'],
@@ -935,7 +961,7 @@ function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
         ':checklist_json' => $data['checklist_json'], ':driver1_equipment_json' => $data['driver1_equipment_json'],
         ':log_book_turned_in' => $data['log_book_turned_in'] ?? null,
         ':car_number_norm' => $identity['car_number_norm'], ':season' => $identity['season'],
-        ':club' => $identity['club'],
+        ':club' => $identity['club'], ':caged' => empty($data['caged']) ? 0 : 1,
         ':updated_at' => date('Y-m-d H:i:s'), ':id' => $id,
     ]);
 }

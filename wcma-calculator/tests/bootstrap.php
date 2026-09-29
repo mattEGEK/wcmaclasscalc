@@ -62,3 +62,18 @@ function test_make_ice_sheet(PDO $pdo, int $userId, int $carId, int $eventId, st
         'car_weight' => 2300, 'checklist_json' => '{}', 'driver1_equipment_json' => '{}', 'log_book_turned_in' => 1,
     ]);
 }
+
+/** A submitted TA/Drift tech sheet (no declaration) for car $carId at summer event $eventId, which needs a host club. */
+function test_make_ta_drift_sheet(PDO $pdo, int $userId, int $carId, int $eventId, bool $caged = false): int {
+    return db_insert_tech_sheet($pdo, test_ta_drift_sheet_data($userId, $carId, $eventId, $caged));
+}
+
+/** The db_insert_tech_sheet()/db_update_tech_sheet() array for a TA/Drift sheet. */
+function test_ta_drift_sheet_data(int $userId, int $carId, int $eventId, bool $caged = false): array {
+    return [
+        'car_id' => $carId, 'user_id' => $userId, 'event_id' => $eventId, 'sheet_type' => 'ta_drift', 'caged' => $caged,
+        'entrant_name' => 'Test Driver', 'driver_name' => 'Test Driver', 'car_make' => 'Subaru', 'car_model' => 'BRZ',
+        'car_colour' => 'White', 'car_number' => '86', 'class' => '', 'engine_cc' => null, 'engine_hp' => null,
+        'car_weight' => 0, 'checklist_json' => '{}', 'driver1_equipment_json' => '{}', 'log_book_turned_in' => null,
+    ];
+}
