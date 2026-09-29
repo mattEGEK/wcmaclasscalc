@@ -211,3 +211,72 @@ function msrPendingCount(PDO $pdo): int {
     }
     return $n;
 }
+
+/** Add a new, not cancelled MSR event as a hub event. $f is already validated (adminEventFromPost()). */
+function msrAddToHub(PDO $pdo, string $msrId, array $f): ?string {
+    $row = db_get_msr_event($pdo, $msrId);
+    if ($row === null || $row['status'] !== 'new' || (int)$row['cancelled'] === 1) return MSR_STALE;
+    $pdo->beginTransaction();
+    $eventId = db_create_event($pdo, (string)$f['name'], (string)$f['date'], $f['location'] !== '' ? (string)$f['location'] : null,
+        (string)$f['discipline'], $f['club']);
+    db_set_event_msr_url($pdo, $eventId, (string)$f['msr_url']);
+    db_mark_msr_added($pdo, $msrId, $eventId, true);
+    $pdo->commit();
+    return null;
+}
+
+/** Attach a new MSR event to an existing hub event (another part of the same weekend). */
+function msrAttach(PDO $pdo, string $msrId, int $eventId): ?string {
+    $row = db_get_msr_event($pdo, $msrId);
+    if ($row === null || $row['status'] !== 'new') return MSR_STALE;
+    if (db_get_event($pdo, $eventId) === null) return 'Choose a hub event.';
+    db_mark_msr_added($pdo, $msrId, $eventId, false);
+    return null;
+}
+
+function msrIgnore(PDO $pdo, string $msrId): ?string {
+    $row = db_get_msr_event($pdo, $msrId);
+    if ($row === null || $row['status'] !== 'new') return MSR_STALE;
+    db_set_msr_status($pdo, $msrId, 'ignored');
+    return null;
+}
+
+function msrRestore(PDO $pdo, string $msrId): ?string {
+    $row = db_get_msr_event($pdo, $msrId);
+    if ($row === null || $row['status'] !== 'ignored') return MSR_STALE;
+    db_set_msr_status($pdo, $msrId, 'new');
+    return null;
+}
+
+/** Copy what changed on MSR onto the hub event it created. Only for primary, still-listed rows. */
+function msrApply(PDO $pdo, string $msrId): ?string {
+    $row = db_get_msr_event($pdo, $msrId);
+    $changes = $row !== null ? msrChanges($row) : [];
+    if ($row === null || $row['status'] !== 'added' || (int)$row['is_primary'] !== 1 || !$changes) return MSR_STALE;
+    $event = db_get_event($pdo, (int)$row['hub_event_id']);
+    if ($event === null) return MSR_STALE;
+    $name = (string)$event['name'];
+    $date = (string)$event['event_date'];
+    $location = $event['location'];
+    foreach ($changes as $c) {
+        if ($c['field'] === 'name') $name = $c['new'];
+        if ($c['field'] === 'start_date') $date = $c['new'];
+        if ($c['field'] === 'venue') $location = $c['new'] !== '' ? $c['new'] : null;
+        if ($c['field'] === 'cancelled') db_set_event_active($pdo, (int)$event['id'], $c['new'] !== '1');
+    }
+    db_update_event($pdo, (int)$event['id'], $name, $date, $location, (string)$event['discipline'], $event['host_club']);
+    db_snapshot_msr_event($pdo, $msrId);
+    return null;
+}
+
+/** The admin has seen the change and keeps the hub event as it is. A gone row is forgotten. */
+function msrKeep(PDO $pdo, string $msrId): ?string {
+    $row = db_get_msr_event($pdo, $msrId);
+    if ($row === null || !msrChanges($row)) return MSR_STALE;
+    if ($row['status'] === 'gone') {
+        db_delete_msr_event($pdo, $msrId);
+    } else {
+        db_snapshot_msr_event($pdo, $msrId);
+    }
+    return null;
+}
