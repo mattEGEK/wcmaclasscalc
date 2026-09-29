@@ -6,6 +6,7 @@
 // the database. Callers must have loaded tech-status.php and gear-lib.php.
 require_once __DIR__ . '/ice-sheet-lib.php';   // techSheetIsIce()
 require_once __DIR__ . '/ice-rules.php';
+require_once __DIR__ . '/ta-drift-lib.php';
 
 function readinessItem(string $kind, string $subjectType, int $subjectId, string $state, string $label,
                        string $detail = '', ?array $action = null, ?array $atTrack = null): array {
@@ -101,14 +102,14 @@ function readinessIceGearPhotosUrl(array $sheets, int $did, int $season, array $
 }
 
 /**
- * One ice gear item (spec §4, §4a). Accepted summer gear from the season before satisfies ice as
- * caged gear (FHR included) and wins over any shortfall in an ice-season gear record. Otherwise,
- * accepted ice gear must cover the strictest class among the driver's ice sheets this season
- * (level, and a frontal head restraint when that class needs one).
+ * One ice gear item (spec §4, §4a). Accepted race-level summer gear from the season before
+ * satisfies ice as caged gear (FHR included) and wins over any shortfall in an ice-season gear
+ * record. Otherwise, accepted ice gear must cover the strictest class among the driver's ice
+ * sheets this season (level, and a frontal head restraint when that class needs one).
  */
 function readinessIceGear(int $did, string $name, int $season, ?array $iceGear, ?array $summerGear, ?array $class,
                           bool $fhrSeen, bool $atTrack, ?string $photosUrl): array {
-    if ($summerGear !== null && gearStatus($summerGear)['state'] === 'accepted') {
+    if (gearCoversTier($summerGear, TECH_TIER_RACE)) {   // race-level summer gear only (TA/Drift spec §2)
         return readinessItem('gear', 'driver', $did, 'done', "Ice gear for $name: from summer " . ($season - 1));
     }
     $iceStatus = $iceGear !== null ? gearStatus($iceGear) : ['state' => 'none', 'via' => null];

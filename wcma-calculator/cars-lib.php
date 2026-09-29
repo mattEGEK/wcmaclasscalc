@@ -66,8 +66,8 @@ function carsValidateDetails(array $post, bool $requireSeason = false): array {
     if ($data['year'] !== '' && !preg_match('/^(19|20)\d{2}$/', $data['year'])) return $fail('Enter the year as four digits, like 2004.');
     $data['year'] = $data['year'] === '' ? null : $data['year'];
     $data['engine_cc'] = $data['engine_cc'] === '' ? null : $data['engine_cc'];
-    if (($season === '' && $requireSeason) || ($season !== '' && !in_array($season, ['ice', 'summer', 'both'], true))) {
-        return $fail('Choose where this car will race: ice, summer or both.');
+    if (($season === '' && $requireSeason) || ($season !== '' && !in_array($season, ['ice', 'summer', 'both', 'ta_drift'], true))) {
+        return $fail('Choose where this car will race: ice, summer, both, or summer TA/Drift only.');
     }
     return ['ok' => true, 'error' => null, 'data' => $data];
 }

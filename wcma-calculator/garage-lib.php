@@ -6,8 +6,11 @@
 require_once __DIR__ . '/ice-sheet-lib.php';   // techSheetIsIce()
 require_once __DIR__ . '/tech-status.php';     // techCarStatus(), techCarStatusLabel()
 
-/** A car's stored season (mobile UX spec 2026-09-28 §A1). Null on cars added before it existed. */
-const CAR_DISCIPLINES = ['ice', 'summer', 'both'];
+/**
+ * A car's stored season (mobile UX spec 2026-09-28 §A1). Null on cars added before it existed.
+ * 'ta_drift' is a summer car that only runs Time Attack and Drift (TA/Drift spec §2): no class declaration.
+ */
+const CAR_DISCIPLINES = ['ice', 'summer', 'both', 'ta_drift'];
 
 /**
  * Which seasons a car races. A stored season wins, but activity is never hidden: a declaration,
@@ -18,7 +21,7 @@ const CAR_DISCIPLINES = ['ice', 'summer', 'both'];
 function carSeasons(?string $stored, bool $summerActivity, bool $iceActivity): array {
     $s = in_array($stored, CAR_DISCIPLINES, true) ? $stored : null;
     if ($s === null) return ['summer' => $summerActivity || !$iceActivity, 'ice' => $iceActivity];
-    return ['summer' => $s !== 'ice' || $summerActivity, 'ice' => $s !== 'summer' || $iceActivity];
+    return ['summer' => $s !== 'ice' || $summerActivity, 'ice' => in_array($s, ['ice', 'both'], true) || $iceActivity];
 }
 
 /** carSeasons() for one car, from its declarations, sheets and upcoming event tags. @return array{summer: bool, ice: bool} */

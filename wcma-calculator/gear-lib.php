@@ -8,6 +8,7 @@ require_once __DIR__ . '/inspection-lib.php';
 require_once __DIR__ . '/pretech-lib.php';   // pretechPlural(), pretechCapText()
 require_once __DIR__ . '/tech-status.php';   // techCarStatusBadgeClass()
 require_once __DIR__ . '/ice-rules.php';
+require_once __DIR__ . '/ta-drift-lib.php';
 
 function gearNameNorm(string $name): string {
     return db_driver_name_norm($name);
@@ -437,8 +438,8 @@ function gearStartIceForSheet(PDO $pdo, array $sheet, int $ownerId, int $driverN
 }
 
 /**
- * A driver's ice gear for $iceSeason (spec §4a): an accepted ice record, else accepted summer gear
- * from the season before (it counts as caged ice gear), else the ice record's state.
+ * A driver's ice gear for $iceSeason (spec §4a): an accepted ice record, else accepted race-level
+ * summer gear from the season before (it counts as caged ice gear), else the ice record's state.
  * @return array{state: string, label: string, gearId: ?int}
  */
 function gearIceSummary(?array $iceGear, ?array $summerPrev, int $iceSeason): array {
@@ -449,7 +450,8 @@ function gearIceSummary(?array $iceGear, ?array $summerPrev, int $iceSeason): ar
                 'label' => gearStatusLabel($iceStatus, $iceSeason, DISCIPLINE_ICE) . ($level !== '' ? ' · ' . (ICE_GEAR_LEVEL_LABELS[$level] ?? $level) : ''),
                 'gearId' => (int)$iceGear['id']];
     }
-    if ($summerPrev !== null && gearStatus($summerPrev)['state'] === 'accepted') {
+    // Only race-level summer gear counts on ice; TA/Drift-level gear doesn't meet caged standards.
+    if (gearCoversTier($summerPrev, TECH_TIER_RACE)) {
         return ['state' => 'accepted', 'label' => iceSeasonLabel($iceSeason) . ': from summer ' . ($iceSeason - 1), 'gearId' => null];
     }
     if ($iceStatus !== null && $iceStatus['state'] !== 'none') {
