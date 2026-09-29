@@ -82,6 +82,9 @@ foreach ($in['plans'] as $p) $taggedByCar[(int)$p['car_id']][] = (int)$p['event_
 $hasIceActivity = userHasIceActivity($in['sheets'], (bool)$in['iceGear'], $in['plans'], $in['events'], $in['cars']);
 $userUsesSummer = userUsesSummer($in['cars'], $in['sheets'], $in['declarations'], $in['plans'], $in['events'], $today);
 
+$formatsByCar = [];
+foreach ($in['plans'] as $p) $formatsByCar[(int)$p['car_id']][(int)$p['event_id']] = (string)$p['formats'];
+
 $garage = [];
 foreach ($in['cars'] as $carId => $car) {
     $status = techCarStatus(db_get_identity_sheets($pdo, $carId, $season));
@@ -97,6 +100,7 @@ foreach ($in['cars'] as $carId => $car) {
     $garage[] = ['car' => $car, 'declaration' => $decl,
                  'techLabel' => techCarStatusLabel($status, $season), 'techState' => $status['state'],
                  'usesSummer' => garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, $taggedSummer, $taggedIce, $stored),
+                 'usesRace' => garageCarRaces($car, $decl !== null ? [$decl] : [], $carSheets, garageEntryTiers($formatsByCar[$carId] ?? [], $in['events'], $today)['race']),
                  'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason, $stored)];
 }
 $drivers = [];

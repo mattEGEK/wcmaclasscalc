@@ -348,7 +348,7 @@ function renderHomeHtml(array $vm): string
         foreach ($vm['garage'] as $g) {
             $car = $g['car'];
             $decl = $g['declaration'];
-            $usesSummer = $g['usesSummer'] ?? true;
+            $usesSummer = ($g['usesRace'] ?? $g['usesSummer'] ?? true);   // class and race tech: not for a TA/Drift-only car
             $name = trim(implode(' ', array_filter([(string)($car['year'] ?? ''), (string)$car['make'], (string)$car['model']], fn(string $p): bool => trim($p) !== '')));
             $out .= '<div class="hub-glance-item"><div class="hub-glance-head"><span class="hub-plate hub-plate--sm">' . h((string)$car['car_number']) . '</span>'
                 . '<span class="hub-glance-name">' . h($name) . '</span>'

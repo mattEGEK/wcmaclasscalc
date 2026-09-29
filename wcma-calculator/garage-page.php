@@ -49,10 +49,10 @@ function garageClassHtml(array $line): string {
     return $out . '</p>';
 }
 
-/** "Where will this car race?" as three large radio cards (mobile UX spec 2026-09-28 §A2). */
+/** "Where will this car race?" as four large radio cards (mobile UX spec 2026-09-28 §A2; TA/Drift spec §2). */
 function garageSeasonFieldHtml(?string $value, bool $required): string {
     $out = '<fieldset class="garage-season"><legend>Where will this car race?' . ($required ? ' (required)' : '') . '</legend><div class="garage-season-options">';
-    foreach (['ice' => 'Ice', 'summer' => 'Summer', 'both' => 'Both'] as $v => $label) {
+    foreach (['ice' => 'Ice', 'summer' => 'Summer', 'both' => 'Both', 'ta_drift' => 'Summer TA/Drift only'] as $v => $label) {
         $out .= '<label><input type="radio" name="disciplines" value="' . $v . '"' . ($required ? ' required' : '')
             . ($value === $v ? ' checked' : '') . '><span>' . $label . '</span></label>';
     }
@@ -86,11 +86,12 @@ function garageRenderCard(array $card): string {
         . '<span class="hub-plate hub-plate--lg">' . h((string)$car['car_number']) . '</span><div>'
         . '<h2><a href="garage.php?car=' . $id . '">' . h(garageCarTitle($car)) . '</a></h2>';
     if (garageCarSub($car) !== '') $out .= '<p class="garage-card-sub">' . h(garageCarSub($car)) . '</p>';
-    if ($card['usesSummer'] ?? true) $out .= garageClassHtml($card['class']);
+    $usesRace = $card['usesRace'] ?? ($card['usesSummer'] ?? true);
+    if ($usesRace) $out .= garageClassHtml($card['class']);
     $out .= '</div></div>';
 
     $out .= '<dl class="garage-card-facts">';
-    if ($card['usesSummer'] ?? true) {
+    if ($usesRace) {
         $out .= '<div><dt>Car tech</dt><dd><span class="hub-status ' . h(homeStatusClass($card['techState'])) . '">'
             . h($card['techLabel']) . '</span></dd></div>';
     }
@@ -107,7 +108,7 @@ function garageRenderCard(array $card): string {
     }
     $out .= '</dl><div class="garage-card-actions">';
     $nextIsIce = $next !== null && (($next['event']['discipline'] ?? 'summer') === 'ice');
-    if (($card['usesSummer'] ?? true) && $card['class']['current'] === null && !$nextIsIce) {
+    if ($usesRace && $card['class']['current'] === null && !$nextIsIce) {
         $out .= '<a class="hub-btn" href="calculator.php?car=' . $id . '">Declare class</a>';
     } elseif ($next !== null && $next['sheet'] === null) {
         $out .= $nextIsIce
@@ -228,9 +229,10 @@ function renderGarageCarHtml(array $vm): string {
         . garageDetailsFields($form['values'] ?? $car) . '<button type="submit" class="hub-btn">Save details</button></form></details></section>';
 
     $usesSummer = $vm['usesSummer'] ?? true;
+    $usesRace = $vm['usesRace'] ?? $usesSummer;   // a TA/Drift-only car has no class or race tech (TA/Drift spec §2)
 
     // Class
-    if ($usesSummer) {
+    if ($usesRace) {
         $out .= '<section class="hub-card"><h2>Class</h2>' . garageClassHtml($vm['class']);
         if ($cur !== null) {
             $out .= '<p>Declared ' . h(date('M j, Y', strtotime((string)$cur['submitted_at']))) . ' · '
@@ -257,7 +259,7 @@ function renderGarageCarHtml(array $vm): string {
     }
 
     // Car tech
-    if ($usesSummer) {
+    if ($usesRace) {
         $out .= '<section class="hub-card"><h2>Car tech ' . (int)$vm['season'] . '</h2>'
             . '<p><span class="hub-status ' . h(homeStatusClass((string)$vm['techState'])) . '">' . h((string)$vm['techLabel']) . '</span></p>';
         if ($vm['techAction'] !== null) {
@@ -276,7 +278,7 @@ function renderGarageCarHtml(array $vm): string {
 
     // Events
     $ev = $vm['events'];
-    $out .= '<section class="hub-card"><h2>Events</h2>';
+    $out .= '<section class="hub-card" id="events"><h2>Events</h2>';
     if (!$ev['tagged']) $out .= '<p>This car isn\'t going to any events yet.</p>';
     foreach ($ev['tagged'] as $row) {
         $e = $row['event'];
