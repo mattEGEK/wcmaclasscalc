@@ -60,7 +60,7 @@ final class HomePageTest extends TestCase
         $this->assertStringContainsString('Already done for Fall Sprint', $html);
         $this->assertStringNotContainsString('<details class="hub-done" open', $html);   // starts closed
         // One card per event, soonest first, with the event's to-do badge in its header.
-        $this->assertStringContainsString('<h3>Fall Sprint</h3><span class="hub-event-date">Sun, Oct 11</span><span class="hub-status hub-status--todo">2 things to do</span>', $html);
+        $this->assertStringContainsString('<h3>Fall Sprint</h3><span class="hub-event-date">Sun, Oct 11</span><a class="hub-status hub-status--todo hub-todo-link" href="#todo">2 things to do</a>', $html);
         $this->assertLessThan(strpos($html, '<h3>Season Finale</h3>'), strpos($html, '<h3>Fall Sprint</h3>'));
         $this->assertSame(1, substr_count($html, EVENTS_NOT_REGISTERING));
         $this->assertStringNotContainsString('Next after that', $html);
@@ -305,6 +305,51 @@ final class HomePageTest extends TestCase
         $this->assertStringContainsString('<a class="hub-btn" href="auth.php?action=register&amp;redirect=index.php">Create account</a>', $html);
         $this->assertStringNotContainsString('<a class="hub-btn" href="calculator.php">', $html);
         $this->assertStringContainsString('href="calculator.php">Summer class calculator</a>', $html);
+    }
+
+    /** The default vm plus a second event the driver is going to, with one thing to do. */
+    private function vmTwoEvents(array $o = []): array {
+        $vm = $this->vm($o);
+        $vm['readiness']['events'][] = [
+            'event' => ['id' => 11, 'name' => 'Season <Finale>', 'event_date' => '2099-10-25'],
+            'items' => [$this->item('tech_sheet', 3, 'todo', 'Submit a tech sheet for #42 (finale)', ['label' => 'Submit tech sheet', 'url' => 'tech-sheets.php?action=new&car_id=3&event_id=11'])],
+        ];
+        $vm['readiness']['untagged'] = [];
+        return $vm;
+    }
+
+    public function testEachEventsToDoCountLinksToThatEventsList(): void
+    {
+        $html = renderHomeHtml($this->vmTwoEvents());
+        $this->assertStringContainsString('<h1 id="todo" tabindex="-1">2 things to do before Fall Sprint</h1>', $html);
+        // The soonest event's list is already at the top: its count jumps there.
+        $this->assertStringContainsString('<a class="hub-status hub-status--todo hub-todo-link" href="#todo">2 things to do</a>', $html);
+        // A later event's list isn't on the page yet: its count reloads Home with that list at the top.
+        $this->assertStringContainsString('<a class="hub-status hub-status--todo hub-todo-link" href="index.php?event=11#todo">1 thing to do</a>', $html);
+        $this->assertStringNotContainsString('Submit a tech sheet for #42 (finale)', $html);
+        $this->assertStringNotContainsString('Back to', $html);
+    }
+
+    public function testAChosenEventFillsTheTopListWithAWayBack(): void
+    {
+        $html = renderHomeHtml($this->vmTwoEvents(['focusEventId' => 11]));
+        $this->assertStringContainsString('<h1 id="todo" tabindex="-1">1 thing to do before Season &lt;Finale&gt;</h1>', $html);
+        $this->assertStringContainsString('Submit a tech sheet for #42 (finale)', $html);
+        $this->assertStringContainsString('href="tech-sheets.php?action=new&amp;car_id=3&amp;event_id=11"', $html);
+        $this->assertStringNotContainsString('<strong>Submit a tech sheet for #42</strong>', $html);   // Fall Sprint's list isn't shown
+        $this->assertStringContainsString('<a class="hub-back-link" href="index.php#todo">&larr; Back to Fall Sprint</a>', $html);
+        $this->assertStringContainsString('<a class="hub-status hub-status--todo hub-todo-link" href="#todo">1 thing to do</a>', $html);
+        $this->assertStringContainsString('<a class="hub-status hub-status--todo hub-todo-link" href="index.php?event=10#todo">2 things to do</a>', $html);
+    }
+
+    public function testAnUnknownEventFallsBackToTheSoonest(): void
+    {
+        $events = $this->vmTwoEvents()['readiness']['events'];
+        $this->assertSame(0, homeFocusIndex($events, null));
+        $this->assertSame(1, homeFocusIndex($events, 11));
+        $this->assertSame(0, homeFocusIndex($events, 999));
+        $html = renderHomeHtml($this->vmTwoEvents(['focusEventId' => 999]));
+        $this->assertStringContainsString('2 things to do before Fall Sprint', $html);
     }
 
     public function testLandingNextIsIceLooksAtTheSoonestUpcomingEvent(): void

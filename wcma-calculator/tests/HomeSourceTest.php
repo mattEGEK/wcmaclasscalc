@@ -13,6 +13,13 @@ final class HomeSourceTest extends TestCase
         $this->assertStringContainsString("(string)(\$_POST['club'] ?? '')", $src);
     }
 
+    public function testHomePassesTheChosenEventToTheTopList(): void
+    {
+        $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../index.php'));
+        // ?event=<id> from an event card's "N things to do" link; anything else is ignored.
+        $this->assertStringContainsString("'focusEventId' => is_string(\$_GET['event'] ?? null) && ctype_digit(\$_GET['event']) ? (int)\$_GET['event'] : null,", $src);
+    }
+
     public function testHomeGlanceCardsCarryIceSummaries(): void
     {
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../index.php'));

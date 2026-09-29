@@ -16,14 +16,25 @@ function homePlural(int $n, string $singular, string $plural): string {
     return $n === 1 ? $singular : $plural;
 }
 
-/** The <h1> for Home, per spec §3. */
-function homeHeadline(array $readiness): string
+/**
+ * Which going-to event fills the top to-do list: the one a card's "N things to do" link chose
+ * (?event=<id>), else the soonest. Returns an index into $events (0 when $events is empty).
+ */
+function homeFocusIndex(array $events, ?int $eventId): int {
+    foreach ($events as $i => $ev) {
+        if ($eventId !== null && (int)$ev['event']['id'] === $eventId) return $i;
+    }
+    return 0;
+}
+
+/** The <h1> for Home, per spec §3, for the event at $focus (see homeFocusIndex()). */
+function homeHeadline(array $readiness, int $focus = 0): string
 {
     $events = $readiness['events'];
     if (!$events) {
         return 'Which events are you going to?';
     }
-    $first = $events[0];
+    $first = $events[$focus] ?? $events[0];
     $todoCount = count(array_filter($first['items'], fn(array $i): bool => $i['state'] === 'todo'));
     $name = (string)$first['event']['name'];
     if ($todoCount === 0) {
@@ -111,9 +122,11 @@ function homeShortDate(string $eventDate): string {
 /**
  * One upcoming event as a card: name, date and (when you're going) a to-do badge in the header;
  * inside, each car you're taking with "Not going anymore", then an "I'm going" row for the rest.
- * $readinessEvent is the buildReadiness() entry when you're going, null otherwise.
+ * $readinessEvent is the buildReadiness() entry when you're going, null otherwise. The to-do badge
+ * links to that event's list: up to the top when it is already there ($isFocus), else reloading
+ * Home with that event's list at the top.
  */
-function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, string $csrf, bool $offerReminders): string {
+function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, string $csrf, bool $offerReminders, bool $isFocus = false): string {
     $out = '<section class="hub-card hub-event"><div class="hub-event-head"><h3>' . h((string)$event['name']) . '</h3>';
     $date = homeShortDate((string)$event['event_date']);
     if ($date !== '') $out .= '<span class="hub-event-date">' . h($date) . '</span>';
@@ -127,7 +140,8 @@ function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, st
         }
         $todo = count(array_filter($readinessEvent['items'], fn(array $i): bool => $i['state'] === 'todo'));
         $out .= $todo > 0
-            ? '<span class="hub-status hub-status--todo">' . h($todo . ' ' . homePlural($todo, 'thing', 'things') . ' to do') . '</span>'
+            ? '<a class="hub-status hub-status--todo hub-todo-link" href="' . ($isFocus ? '#todo' : 'index.php?event=' . (int)$event['id'] . '#todo') . '">'
+                . h($todo . ' ' . homePlural($todo, 'thing', 'things') . ' to do') . '</a>'
             : '<span class="hub-status hub-status--ok">All set</span>';
     }
     $out .= '</div>';
@@ -182,9 +196,12 @@ function renderHomeHtml(array $vm): string
     $csrf = (string)$vm['csrf'];
     $offerReminders = !empty($vm['offerReminders']);
 
-    $out = '<h1>' . h(homeHeadline($readiness)) . '</h1>';
+    $focus = homeFocusIndex($events, isset($vm['focusEventId']) ? (int)$vm['focusEventId'] : null);
+    // id="todo" is where every event card's "N things to do" link lands.
+    $out = '<h1 id="todo" tabindex="-1">' . h(homeHeadline($readiness, $focus)) . '</h1>';
 
-    $first = $events[0] ?? null;
+    $first = $events[$focus] ?? null;
+    $focusId = $first !== null ? (int)$first['event']['id'] : null;
 
     if ($first !== null) {
         $eventDate = (string)$first['event']['event_date'];
@@ -195,6 +212,9 @@ function renderHomeHtml(array $vm): string
             $out .= '<p class="hub-intro">' . h($date->format('l, F j')) . ' &middot; in ' . h((string)$days) . ' days</p>';
         } catch (Exception $e) {
             // Unparseable date: skip the date line.
+        }
+        if ($focus !== 0) {
+            $out .= '<p class="hub-intro"><a class="hub-back-link" href="index.php#todo">&larr; Back to ' . h((string)$events[0]['event']['name']) . '</a></p>';
         }
 
         $items = $first['items'];
@@ -252,7 +272,8 @@ function renderHomeHtml(array $vm): string
         foreach ($untagged as $event) $cardsByDate[] = [$event, null];
         usort($cardsByDate, fn(array $a, array $b): int => strcmp((string)$a[0]['event_date'], (string)$b[0]['event_date']));
         foreach ($cardsByDate as [$event, $readinessEvent]) {
-            $out .= homeEventCardHtml($event, $readinessEvent, $cars, $csrf, $offerReminders);
+            $out .= homeEventCardHtml($event, $readinessEvent, $cars, $csrf, $offerReminders,
+                $readinessEvent !== null && (int)$event['id'] === $focusId);
         }
     }
 

@@ -123,5 +123,6 @@ echo renderHomeHtml([
     'garage' => $garage, 'drivers' => $drivers, 'seasonLinks' => db_get_season_links($pdo, true),
     'csrf' => generateCsrfToken(), 'offerReminders' => remindersShouldOffer($userRow),
     'mediaPrompt' => $mediaPrompt,
+    'focusEventId' => is_string($_GET['event'] ?? null) && ctype_digit($_GET['event']) ? (int)$_GET['event'] : null,
 ]);
 renderPageEnd();
