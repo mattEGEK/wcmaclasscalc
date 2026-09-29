@@ -415,7 +415,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
             <?php endforeach; ?>
             <option value="new"<?= $driver1Choice === 'new' ? ' selected' : '' ?>>+ Add a co-driver</option>
           </select>
-          <input type="text" id="driver1_new_name" name="driver1_new_name" maxlength="100" placeholder="Co-driver's name" aria-label="Driver 1 name" value="<?= h($driver1NewName) ?>">
+          <input type="text" id="driver1_new_name" name="driver1_new_name" maxlength="100" placeholder="Co-driver's name" aria-label="Driver 1 name" data-message="Enter the co-driver's name." value="<?= h($driver1NewName) ?>">
         </div>
         <div><label for="engine_hp">Engine HP (optional)</label><input type="text" id="engine_hp" name="engine_hp" value="<?= h((string)$engineHp) ?>"></div>
       </div>
@@ -454,7 +454,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
       <h2>Declaration &amp; Signatures</h2>
       <p><em>I hereby stipulate that the above vehicle meets the regulations for the event.</em></p>
       <?php if ($isEdit): ?><p class="form-hint">Leave the pads blank to keep the signatures already on file.</p><?php endif; ?>
-      <p id="sig-error" class="field-message" role="alert" hidden></p>
+      <p id="sig-error" class="field-message" hidden></p>
       <label id="entrant-sig-label">Entrant's signature</label>
       <?php if ($hasEntrantSignature): ?><div><?= techSheetSignatureImg($existingSheet['entrant_signature_path'], 'entrant', techSheetSignatureResolverWeb((int)$existingSheet['id'])) ?></div><?php endif; ?>
       <div class="sig-pad-wrap"><canvas id="entrant-sig-canvas"></canvas></div>

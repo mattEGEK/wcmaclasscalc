@@ -103,4 +103,11 @@ final class AdminSourceTest extends TestCase
         $layout = file_get_contents(__DIR__ . '/../layout.php');
         $this->assertStringContainsString("'clubs' => ['admin.php?action=clubs', 'Clubs']", $layout);
     }
+
+    public function testDeactivateAndReactivateAreSecondaryButtons(): void
+    {
+        $src = file_get_contents(__DIR__ . '/../admin.php');
+        $this->assertStringContainsString('<button type="submit" class="btn-role btn-role--secondary">Deactivate</button>', $src);
+        $this->assertStringContainsString('<button type="submit" class="btn-role btn-role--secondary">Reactivate</button>', $src);
+    }
 }

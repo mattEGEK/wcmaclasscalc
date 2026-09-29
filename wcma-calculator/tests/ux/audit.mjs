@@ -223,6 +223,13 @@ try {
   report('a signature wiped by changing the driver is asked for again', /Driver's signature box/.test(sigMsg) && page.url().includes('new-ice')
     ? [] : [`expected "Please sign in the Driver's signature box." and no submit, got "${sigMsg}" (box: "${await page.locator('#tech-sheet-error').textContent()}") at ${page.url()}`]);
   await page.evaluate(() => {
+    const cv = document.getElementById('driver-sig-canvas'); const r = cv.getBoundingClientRect();
+    cv.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, pointerId: 1, pointerType: 'touch', isPrimary: true, buttons: 1 }));
+    cv.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: r.left + 10, clientY: r.top + 10, pointerId: 1, pointerType: 'touch', isPrimary: true }));
+  });
+  report('the signature message goes when you start signing', await page.evaluate(() => document.getElementById('sig-error').hidden)
+    ? [] : ['the signature message is still showing after starting to sign']);
+  await page.evaluate(() => {
     for (const cv of document.querySelectorAll('canvas')) {
       if (!cv.getBoundingClientRect().width) continue;
       const r = cv.getBoundingClientRect();

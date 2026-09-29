@@ -250,14 +250,14 @@ final class GarageLibTest extends TestCase
         $this->assertNull(garageIceSummary([], false, 2027));
         $this->assertNull(garageIceSummary([], false, 2027, 'summer'));
         $this->assertSame('Needs ice tech', garageIceSummary([], false, 2027, 'ice')['label']);
-        $this->assertSame('Needs ice tech', garageIceSummary([], false, 2027, 'both')['label']);
+        $this->assertNull(garageIceSummary([], false, 2027, 'both'));
     }
 
     public function testUserHasIceActivityWhenACarIsStoredAsIce(): void
     {
         $this->assertFalse(userHasIceActivity([], false, [], [], [3 => ['id' => 3, 'disciplines' => null]]));
         $this->assertTrue(userHasIceActivity([], false, [], [], [3 => ['id' => 3, 'disciplines' => 'ice']]));
-        $this->assertTrue(userHasIceActivity([], false, [], [], [3 => ['id' => 3, 'disciplines' => 'both']]));
+        $this->assertFalse(userHasIceActivity([], false, [], [], [3 => ['id' => 3, 'disciplines' => 'both']]));
     }
 
     public function testUserUsesSummerFalseWhenEveryCarIsStoredAsIce(): void

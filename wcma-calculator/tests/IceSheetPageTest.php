@@ -129,4 +129,11 @@ final class IceSheetPageTest extends TestCase
                   'driver_signature_path' => null];
         $this->assertStringNotContainsString('TECH_SHEET_DRAFT_KEY', renderIceTechSheetFormHtml($this->vm($sheet)));
     }
+
+    public function testCoDriverBoxHasAMessageAndTheSignatureNoteIsNotASecondAlert(): void
+    {
+        $html = $this->renderNewSheet();
+        $this->assertMatchesRegularExpression('/id="driver1_new_name"[^>]*data-message="Enter the co-driver(\'|&#039;)s name\."/', $html);
+        $this->assertStringContainsString('<p id="sig-error" class="field-message" hidden></p>', $html);
+    }
 }

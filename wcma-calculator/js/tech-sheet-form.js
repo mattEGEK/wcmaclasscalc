@@ -160,6 +160,16 @@
     driver1Choice.addEventListener('change', syncSigners);
     syncSigners();
 
+    const entrantSigWrap = document.getElementById('entrant-sig-canvas').closest('.sig-pad-wrap');
+    const driverSigWrap = document.getElementById('driver-sig-canvas').closest('.sig-pad-wrap');
+    // The signature message goes as soon as the member starts signing (spec 2026-09-29 §2.6).
+    [['entrant-sig-canvas', entrantSigWrap], ['driver-sig-canvas', driverSigWrap]].forEach(function (pair) {
+        document.getElementById(pair[0]).addEventListener('pointerdown', function () {
+            sigError.hidden = true;
+            pair[1].classList.remove('field-error');
+        });
+    });
+
     const sheetTypeSelect = document.getElementById('sheet_type');
     const enduranceCard = document.getElementById('endurance-drivers-card');
     const additionalDriversContainer = document.getElementById('additional-drivers-container');
@@ -255,9 +265,6 @@
     if (additionalDriversContainer && existingDrivers.length > 0) {
         existingDrivers.forEach(function (d) { addDriverRow(d); });
     }
-
-    const entrantSigWrap = document.getElementById('entrant-sig-canvas').closest('.sig-pad-wrap');
-    const driverSigWrap = document.getElementById('driver-sig-canvas').closest('.sig-pad-wrap');
 
     function clearAllHighlights() {
         checklistWidget.clearHighlights();

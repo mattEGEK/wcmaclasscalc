@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { NEW, driverChoiceOptions, driverChoiceComplete, duplicateDriverChoice, isSelfChoice } = require('../../js/driver-choice.js');
+const { NEW, driverChoiceOptions, driverChoiceComplete, duplicateDriverChoice, isSelfChoice, coDriverNameMessage } = require('../../js/driver-choice.js');
 
 const drivers = [{ id: 5, name: 'Jordan Lee', self: true }, { id: 6, name: 'Sam Patel', self: false }];
 
@@ -47,4 +47,9 @@ test('isSelfChoice is true only for the signed-in users own profile', () => {
     assert.strictEqual(isSelfChoice(drivers, '6'), false);
     assert.strictEqual(isSelfChoice(drivers, NEW), false);
     assert.strictEqual(isSelfChoice([], '5'), false);
+});
+
+test('co-driver name messages name the driver row', () => {
+    assert.strictEqual(coDriverNameMessage(1), "Enter the co-driver's name.");
+    assert.strictEqual(coDriverNameMessage(3), "Enter Driver 3's name.");
 });

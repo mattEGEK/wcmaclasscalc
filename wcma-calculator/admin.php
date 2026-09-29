@@ -287,13 +287,13 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
           <form method="post" action="admin.php?action=deactivate" style="display:inline" data-confirm="Deactivate <?= h($u['email']) ?>? They won't be able to sign in until reactivated.">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-            <button type="submit" class="btn-role">Deactivate</button>
+            <button type="submit" class="btn-role btn-role--secondary">Deactivate</button>
           </form>
           <?php else: ?>
           <form method="post" action="admin.php?action=activate" style="display:inline">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
             <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-            <button type="submit" class="btn-role">Reactivate</button>
+            <button type="submit" class="btn-role btn-role--secondary">Reactivate</button>
           </form>
           <?php endif; ?>
         </td>

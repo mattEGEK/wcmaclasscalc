@@ -212,7 +212,8 @@ function garageSummerSheets(array $sheets): array {
  */
 function garageIceSummary(array $carSheets, bool $taggedToIce, int $iceSeason, ?string $stored = null): ?array {
     $ice = array_values(array_filter($carSheets, fn(array $s): bool => techSheetIsIce($s)));
-    if (!$ice && !$taggedToIce && !in_array($stored, ['ice', 'both'], true)) return null;
+    // A 'both' car shows ice tech once it has ice activity; an 'ice' car always (spec 2026-09-29 §2.2).
+    if (!$ice && !$taggedToIce && $stored !== 'ice') return null;
     // This season or a later one: a sheet sent before the July rollover for next winter's event counts.
     $current = array_values(array_filter($ice, fn(array $s): bool => (int)$s['season'] >= $iceSeason));
     if (!$current) return ['state' => 'none', 'label' => 'Needs ice tech'];
@@ -235,7 +236,7 @@ function garageCarUsesSummer(array $declarations, array $carSheets, bool $tagged
 
 /**
  * Whether the user has any ice activity: an ice sheet, an ice gear record, a car tagged to an
- * active ice event, or a car stored as an ice car. Home and the Drivers page both use this so they agree.
+ * active ice event, or a car stored as ice only (a 'both' car counts once it has ice activity). Home and the Drivers page both use this so they agree.
  *
  * @param array $plans        event_plans rows (event_id, car_id)
  * @param array $activeEvents the active events (with discipline)
@@ -286,7 +287,7 @@ function userHasIceActivity(array $sheets, bool $hasIceGear, array $plans, array
         if (isset($ice[(int)$p['event_id']])) return true;
     }
     foreach ($cars as $car) {
-        if (in_array($car['disciplines'] ?? null, ['ice', 'both'], true)) return true;
+        if (($car['disciplines'] ?? null) === 'ice') return true;
     }
     return false;
 }
