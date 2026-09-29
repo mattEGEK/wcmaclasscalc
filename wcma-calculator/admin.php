@@ -1,7 +1,7 @@
 <?php
-// wcma-calculator/admin.php — the Admin back office (spec §5): Users & roles, Events, Season links,
-// Settings and Feedback. Admins only. Inspector work (classing, tech sheets, gear) lives in inspect.php;
-// old admin.php links to it are redirected by adminMovedActionUrl() (roles.php).
+// wcma-calculator/admin.php — the Admin back office router (spec §5; admin desktop UX spec 2026-09-29). Each tab's
+// handlers and page live in admin-<tab>.php. Admins only. Inspector work (classing, tech sheets, gear) lives in
+// inspect.php; old admin.php links to it are redirected by adminMovedActionUrl() (roles.php).
 require __DIR__ . '/session_bootstrap.php';
 date_default_timezone_set('America/Denver');
 
@@ -14,6 +14,8 @@ require __DIR__ . '/season-links-lib.php';
 require_once __DIR__ . '/clubs-lib.php';
 require __DIR__ . '/admin-clubs.php';
 require __DIR__ . '/admin-season-links.php';
+require __DIR__ . '/admin-ui.php';
+require __DIR__ . '/admin-users.php';
 require_once __DIR__ . '/ice-rules.php';
 
 $pdo = db_connect();
@@ -34,19 +36,9 @@ function adminRequirePost(string $back): void {
 $postId = is_scalar($_POST['id'] ?? null) ? (int)$_POST['id'] : 0;
 
 switch ($action) {
-    case 'set-role':
+    case 'user-save':
         adminRequirePost('admin.php?action=users');
-        handleSetRole($pdo, $postId, (string)($_POST['role'] ?? ''));
-        break;
-
-    case 'set-name':
-        adminRequirePost('admin.php?action=users');
-        handleSetName($pdo, $postId, (string)($_POST['name'] ?? ''));
-        break;
-
-    case 'set-media':
-        adminRequirePost('admin.php?action=users');
-        handleSetMedia($pdo, $postId, ($_POST['is_media'] ?? '') === '1');
+        handleUserSave($pdo, $postId);
         break;
 
     case 'deactivate':
@@ -140,180 +132,6 @@ switch ($action) {
 
     default:   // 'users'
         handleUsersList($pdo);
-}
-
-function handleUsersList(PDO $pdo): void {
-    $users = db_get_all_users($pdo);
-    $submissionCounts = db_count_submissions_by_user($pdo);
-    $csrf = generateCsrfToken();
-    $flash = getFlash();
-    renderUsersPage($users, $submissionCounts, $csrf, $flash);
-}
-
-function handleSetRole(PDO $pdo, int $id, string $role): void {
-    $target = db_find_user_by_id($pdo, $id);
-    if ($target === null || !isset(ROLE_LEVELS[$role])) {
-        setFlash('Choose a valid user and role.', 'error');
-    } elseif ($target['role'] === 'admin' && $role !== 'admin' && db_count_admins($pdo) <= 1) {
-        setFlash('Cannot change the role of the last remaining admin.', 'error');
-    } elseif ($role !== 'user' && !userHasFirstAndLastName((string)$target['name'])) {
-        setFlash('Add a first and last name for this account before giving it the ' . $role . ' role. Review emails name the inspector.', 'error');
-    } else {
-        db_set_user_role($pdo, $id, $role);
-        setFlash('Role updated. They will see the change the next time they sign in.', 'success');
-    }
-    header('Location: admin.php?action=users');
-    exit;
-}
-
-function handleSetName(PDO $pdo, int $id, string $name): void {
-    $name = trim((string)preg_replace('/\s+/', ' ', $name));
-    if (db_find_user_by_id($pdo, $id) === null || $name === '' || mb_strlen($name, 'UTF-8') > 100) {
-        setFlash('Enter a name of 100 characters or fewer.', 'error');
-    } else {
-        db_set_user_name($pdo, $id, $name);
-        setFlash('Name updated.', 'success');
-    }
-    header('Location: admin.php?action=users');
-    exit;
-}
-
-function handleSetMedia(PDO $pdo, int $id, bool $on): void {
-    if (db_find_user_by_id($pdo, $id) === null) {
-        setFlash('Choose a valid user.', 'error');
-    } else {
-        db_set_user_media($pdo, $id, $on);
-        setFlash('Media access ' . ($on ? 'given' : 'removed') . '. They will see the change the next time they sign in.', 'success');
-    }
-    header('Location: admin.php?action=users');
-    exit;
-}
-
-function handleSetActive(PDO $pdo, int $id, bool $active): void {
-    if (!$active && db_count_active_admins($pdo) <= 1) {
-        $target = db_find_user_by_id($pdo, $id);
-        if ($target && $target['role'] === 'admin') {
-            setFlash('Cannot deactivate the last remaining active admin.', 'error');
-            header('Location: admin.php?action=users');
-            exit;
-        }
-    }
-
-    db_set_user_active($pdo, $id, $active);
-    setFlash($active ? 'User reactivated.' : 'User deactivated.', 'success');
-    header('Location: admin.php?action=users');
-    exit;
-}
-
-function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?array $flash): void {
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Users &amp; roles — WCMA Admin</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
-<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
-<style>
-  .btn-role { background: none; border: 1px solid var(--secondary-color); color: var(--secondary-color); border-radius: var(--border-radius); padding: .3rem .7rem; cursor: pointer; font-size: .8rem; font-family: inherit; }
-  .btn-role:hover { background: #f0f7ff; }
-</style>
-</head>
-<body class="hub">
-<div class="container">
-  <?php renderSiteHeader('Users & roles', adminSubnavHtml('users'), 'admin'); ?>
-  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
-  <?php if (!empty($users)): ?>
-  <div class="list-toolbar">
-    <input type="search" id="users-search" class="table-search" placeholder="Search users…" aria-label="Search users">
-    <select id="users-role-filter" class="table-filter" aria-label="Filter by role">
-      <option value="">All roles</option>
-      <option value="admin">Admin</option>
-      <option value="inspector">Inspector</option>
-      <option value="user">User</option>
-    </select>
-  </div>
-  <?php endif; ?>
-  <table class="data-table" id="users-table">
-    <thead><tr>
-      <th data-sort data-sort-type="text">Email</th>
-      <th data-sort data-sort-type="text">Name</th>
-      <th data-sort data-sort-type="text">Role</th>
-      <th>Login Method</th>
-      <th data-sort data-sort-type="number">Submissions</th>
-      <th>Status</th>
-      <th data-sort data-sort-type="date">Created</th>
-      <th>Actions</th>
-    </tr></thead>
-    <tbody>
-    <?php foreach ($users as $u): ?>
-      <tr id="user-<?= (int)$u['id'] ?>" data-role="<?= h($u['role']) ?>">
-        <td><?= h($u['email']) ?></td>
-        <td><?= h($u['name']) ?><?php if ($u['role'] !== 'user' && !userHasFirstAndLastName((string)$u['name'])): ?> <span class="badge-fail">Needs first &amp; last name</span><?php endif; ?></td>
-        <td class="<?= $u['role'] === 'admin' ? 'badge-admin' : '' ?>"><?= h($u['role']) ?></td>
-        <td><?= h(trim(($u['password_hash'] ? 'Password ' : '') . ($u['google_id'] ? 'Google' : ''))) ?></td>
-        <td><?= (int)($submissionCounts[(int)$u['id']] ?? 0) ?></td>
-        <td class="<?= $u['active'] ? 'badge-ok' : 'badge-fail' ?>"><?= $u['active'] ? 'Active' : 'Inactive' ?></td>
-        <td data-sort-value="<?= h($u['created_at']) ?>"><?= h(date('M j, Y', strtotime($u['created_at']))) ?></td>
-        <td>
-          <form method="post" action="admin.php?action=set-role" style="display:inline">
-            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-            <label class="visually-hidden" for="role-<?= (int)$u['id'] ?>">Role for <?= h($u['email']) ?></label>
-            <select id="role-<?= (int)$u['id'] ?>" name="role">
-              <?php foreach (array_keys(ROLE_LEVELS) as $r): ?>
-              <option value="<?= h($r) ?>"<?= $u['role'] === $r ? ' selected' : '' ?>><?= h(ucfirst($r)) ?></option>
-              <?php endforeach; ?>
-            </select>
-            <button type="submit" class="btn-role">Save role</button>
-          </form>
-          <form method="post" action="admin.php?action=set-name" style="display:inline">
-            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-            <label class="visually-hidden" for="name-<?= (int)$u['id'] ?>">Name for <?= h($u['email']) ?></label>
-            <input type="text" id="name-<?= (int)$u['id'] ?>" name="name" value="<?= h($u['name']) ?>" maxlength="100" required>
-            <button type="submit" class="btn-role">Save name</button>
-          </form>
-          <form method="post" action="admin.php?action=set-media" style="display:inline">
-            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-            <label><input type="checkbox" name="is_media" value="1"<?= (int)($u['is_media'] ?? 0) === 1 ? ' checked' : '' ?>> Media staff</label>
-            <button type="submit" class="btn-role">Save media</button>
-          </form>
-          <?php if ($u['active']): ?>
-          <form method="post" action="admin.php?action=deactivate" style="display:inline" data-confirm="Deactivate <?= h($u['email']) ?>? They won't be able to sign in until reactivated.">
-            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-            <button type="submit" class="btn-role btn-role--secondary">Deactivate</button>
-          </form>
-          <?php else: ?>
-          <form method="post" action="admin.php?action=activate" style="display:inline">
-            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-            <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
-            <button type="submit" class="btn-role btn-role--secondary">Reactivate</button>
-          </form>
-          <?php endif; ?>
-        </td>
-      </tr>
-    <?php endforeach; ?>
-    </tbody>
-  </table>
-  <p class="no-results-message" hidden>No users match your search.</p>
-</div>
-<script src="js/table-tools.js"></script>
-<script src="js/confirm-modal.js"></script>
-<script src="js/form-feedback.js"></script>
-<script>
-  WcmaTableTools.enableSearch(document.getElementById('users-search'), document.getElementById('users-table'));
-  WcmaTableTools.enableSort(document.getElementById('users-table'));
-  WcmaTableTools.enableFilter(document.getElementById('users-role-filter'), document.getElementById('users-table'), 'role');
-</script>
-<?php renderSiteFooter(); ?>
-</body>
-</html><?php
 }
 
 /** The club codes an event may take: the active clubs, plus the one it already has (even if inactive). */

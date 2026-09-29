@@ -37,11 +37,11 @@ final class MediaSourceTest extends TestCase
 
     public function testAdminCanSetTheMediaFlagByCsrfCheckedPost(): void
     {
-        $src = $this->src('admin.php');
-        $this->assertMatchesRegularExpression("/case 'set-media':\s*adminRequirePost\('admin.php\?action=users'\);\s*handleSetMedia\(\\\$pdo, \\\$postId, \(\\\$_POST\['is_media'\] \?\? ''\) === '1'\);/", $src);
-        $this->assertStringContainsString('function handleSetMedia(PDO $pdo, int $id, bool $on): void', $src);
-        $this->assertStringContainsString('action="admin.php?action=set-media"', $src);
-        $this->assertStringContainsString('name="is_media" value="1"', $src);
+        $admin = $this->src('admin.php');
+        $this->assertMatchesRegularExpression("/case 'user-save':\s*adminRequirePost\('admin.php\?action=users'\);\s*handleUserSave\(\\\$pdo, \\\$postId\);/", $admin);
+        $users = $this->src('admin-users.php');
+        $this->assertStringContainsString("db_set_user_media(\$pdo, \$id, (\$_POST['is_media'] ?? '') === '1');", $users);
+        $this->assertStringContainsString('name="is_media" value="1"', $users);
     }
 
     public function testMediaProfileControllerGuardsOwnershipAndCsrf(): void

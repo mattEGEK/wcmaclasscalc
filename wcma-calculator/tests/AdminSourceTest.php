@@ -43,7 +43,9 @@ final class AdminSourceTest extends TestCase
     public function testBackOfficePagesUseTheAdminTabs(): void
     {
         $expect = [
-            'admin.php' => ["adminSubnavHtml('users')", "adminSubnavHtml('events')", "adminSubnavHtml('settings')"],
+            'admin.php' => ["adminSubnavHtml('events')", "adminSubnavHtml('settings')"],
+            'admin-users.php' => ["adminRenderPage('Users & roles', 'users'"],
+            'admin-ui.php' => ["adminSubnavHtml(\$tab)"],
             'admin-feedback.php' => ["adminSubnavHtml('feedback')"],
             'admin-season-links.php' => ["adminSubnavHtml('season-links')"],
         ];
@@ -104,11 +106,17 @@ final class AdminSourceTest extends TestCase
         $this->assertStringContainsString("'clubs' => ['admin.php?action=clubs', 'Clubs']", $layout);
     }
 
-    public function testDeactivateAndReactivateAreSecondaryButtons(): void
+    public function testUserSaveChecksEverythingBeforeWritingAnything(): void
     {
-        $src = file_get_contents(__DIR__ . '/../admin.php');
-        $this->assertStringContainsString('<button type="submit" class="btn-role btn-role--secondary">Deactivate</button>', $src);
-        $this->assertStringContainsString('<button type="submit" class="btn-role btn-role--secondary">Reactivate</button>', $src);
+        $body = $this->body('admin-users.php', 'handleUserSave');
+        $check = strpos($body, 'adminUserSaveError(');
+        foreach (['db_set_user_name(', 'db_set_user_role(', 'db_set_user_media('] as $write) {
+            $this->assertLessThan(strpos($body, $write), $check, $write);
+        }
+        $this->assertStringContainsString("adminRedirect('admin.php?action=users&edit=' . \$id);", $body);
+        foreach (["case 'set-role':", "case 'set-name':", "case 'set-media':"] as $gone) {
+            $this->assertStringNotContainsString($gone, $this->src('admin.php'));
+        }
     }
 
     public function testEventClubHandlersAcceptTheEventsCurrentClub(): void
