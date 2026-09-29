@@ -36,4 +36,13 @@ final class IceEventFieldsTest extends TestCase
         $this->assertFalse(iceEventFields(['discipline' => 'rally'])['ok']);
         $this->assertFalse(iceEventFields(['discipline' => ['ice']])['ok']);
     }
+
+    public function testSummerEventsTakeAListedClubOrNone(): void
+    {
+        $this->assertSame('ESCC', iceEventFields(['discipline' => 'summer', 'host_club' => 'ESCC'], ['ESCC', 'NASCC'])['club']);
+        $this->assertNull(iceEventFields(['discipline' => 'summer', 'host_club' => 'NOPE'], ['ESCC'])['club']);
+        $this->assertNull(iceEventFields(['discipline' => 'summer', 'host_club' => ''], ['ESCC'])['club']);
+        // Ice still only takes clubs with ice rules, whatever the list says.
+        $this->assertFalse(iceEventFields(['discipline' => 'ice', 'host_club' => 'ESCC'], ['ESCC'])['ok']);
+    }
 }

@@ -206,13 +206,16 @@ function iceGearSatisfies(?string $level, string $group): bool {
  * Discipline and host club from the admin event form. Summer events never keep a club.
  * @return array{ok: bool, discipline: string, club: ?string, error: ?string}
  */
-function iceEventFields(array $post): array {
+function iceEventFields(array $post, array $summerClubCodes = []): array {
     $discipline = $post['discipline'] ?? 'summer';
     if (!is_string($discipline) || !in_array($discipline, ['summer', 'ice'], true)) {
         return ['ok' => false, 'discipline' => 'summer', 'club' => null, 'error' => 'Choose summer or ice.'];
     }
     if ($discipline === 'summer') {
-        return ['ok' => true, 'discipline' => 'summer', 'club' => null, 'error' => null];
+        // Summer events may name any listed club (clubs spec 2026-09-29 §1), or none.
+        $club = $post['host_club'] ?? '';
+        $club = is_string($club) && in_array($club, $summerClubCodes, true) ? $club : null;
+        return ['ok' => true, 'discipline' => 'summer', 'club' => $club, 'error' => null];
     }
     $club = $post['host_club'] ?? '';
     if (!is_string($club) || !in_array($club, iceClubCodes(), true)) {

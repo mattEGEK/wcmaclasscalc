@@ -86,6 +86,7 @@ const INSPECT_TABS = [
 const ADMIN_TABS = [
     'users' => ['admin.php?action=users', 'Users & roles'],
     'events' => ['admin.php?action=events', 'Events'],
+    'clubs' => ['admin.php?action=clubs', 'Clubs'],
     'season-links' => ['admin.php?action=season-links', 'Season links'],
     'settings' => ['admin.php?action=settings', 'Settings'],
     'feedback' => ['admin.php?action=feedback', 'Feedback'],

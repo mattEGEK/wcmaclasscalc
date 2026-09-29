@@ -11,6 +11,8 @@ require_once __DIR__ . '/view_helpers.php';
 require __DIR__ . '/feedback-lib.php';
 require __DIR__ . '/admin-feedback.php';
 require __DIR__ . '/season-links-lib.php';
+require_once __DIR__ . '/clubs-lib.php';
+require __DIR__ . '/admin-clubs.php';
 require __DIR__ . '/admin-season-links.php';
 require_once __DIR__ . '/ice-rules.php';
 
@@ -59,6 +61,20 @@ switch ($action) {
 
     case 'events':
         handleEventsList($pdo);
+        break;
+
+    case 'event-club':
+        adminRequirePost('admin.php?action=events');
+        handleEventClub($pdo, $postId);
+        break;
+
+    case 'clubs':
+        handleClubsList($pdo);
+        break;
+
+    case 'club-save':
+        adminRequirePost('admin.php?action=clubs');
+        handleClubSave($pdo);
         break;
 
     case 'event-create':
@@ -300,8 +316,21 @@ function renderUsersPage(array $users, array $submissionCounts, string $csrf, ?a
 </html><?php
 }
 
+/** Sets an existing event's host club from the clubs list (clubs spec 2026-09-29 §1). */
+function handleEventClub(PDO $pdo, int $id): void {
+    $event = db_get_event($pdo, $id);
+    if ($event === null) { setFlash('Event not found.', 'error'); header('Location: admin.php?action=events'); exit; }
+    $fields = iceEventFields(['discipline' => $event['discipline'] ?? 'summer', 'host_club' => (string)($_POST['host_club'] ?? '')],
+        array_column(db_get_clubs($pdo, true), 'code'));
+    if (!$fields['ok']) { setFlash((string)$fields['error'], 'error'); header('Location: admin.php?action=events'); exit; }
+    db_update_event($pdo, $id, (string)$event['name'], (string)$event['event_date'], $event['location'] ?? null, $fields['discipline'], $fields['club']);
+    setFlash('Host club saved.', 'success');
+    header('Location: admin.php?action=events');
+    exit;
+}
+
 function handleEventsList(PDO $pdo): void {
-    renderEventsPage(db_get_all_events($pdo), db_count_event_plans($pdo), generateCsrfToken(), getFlash());
+    renderEventsPage(db_get_all_events($pdo), db_count_event_plans($pdo), generateCsrfToken(), getFlash(), db_get_clubs($pdo, true));
 }
 
 function handleEventCreate(PDO $pdo): void {
@@ -315,7 +344,7 @@ function handleEventCreate(PDO $pdo): void {
         exit;
     }
 
-    $fields = iceEventFields($_POST);
+    $fields = iceEventFields($_POST, array_column(db_get_clubs($pdo, true), 'code'));
     if (!$fields['ok']) {
         setFlash((string)$fields['error'], 'error');
         header('Location: admin.php?action=events');
@@ -350,7 +379,7 @@ function handleEventUpdate(PDO $pdo, int $id): void {
         }
     }
 
-    $fields = iceEventFields($disciplineInput);
+    $fields = iceEventFields($disciplineInput, array_column(db_get_clubs($pdo, true), 'code'));
     if (!$fields['ok']) {
         setFlash((string)$fields['error'], 'error');
         header('Location: admin.php?action=events');
@@ -370,7 +399,7 @@ function handleEventSetActive(PDO $pdo, int $id, bool $active): void {
     exit;
 }
 
-function renderEventsPage(array $events, array $going, string $csrf, ?array $flash): void {
+function renderEventsPage(array $events, array $going, string $csrf, ?array $flash, array $clubs = []): void {
     ?><!DOCTYPE html>
 <html lang="en">
 <head>
@@ -403,13 +432,14 @@ function renderEventsPage(array $events, array $going, string $csrf, ?array $fla
         <label><input type="radio" name="discipline" value="summer" checked> Summer</label>
         <label><input type="radio" name="discipline" value="ice"> Ice</label>
       </fieldset>
-      <label for="new-event-club">Host club (ice events)</label>
+      <label for="new-event-club">Host club</label>
       <select id="new-event-club" name="host_club">
         <option value="">—</option>
-        <?php foreach (iceClubCodes() as $code): ?>
-        <option value="<?= h($code) ?>"><?= h($code . ' — ' . iceClubLabel($code)) ?></option>
+        <?php foreach ($clubs as $c): ?>
+        <option value="<?= h((string)$c['code']) ?>"><?= h($c['code'] . ' — ' . $c['name']) ?></option>
         <?php endforeach; ?>
       </select>
+      <p class="form-hint">Ice events need NASCC or WSCC. Add other clubs on the <a href="admin.php?action=clubs">Clubs</a> tab.</p>
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">Add Event</button>
       </div>
@@ -430,6 +460,18 @@ function renderEventsPage(array $events, array $going, string $csrf, ?array $fla
         <td><?= $n ?> <?= $n === 1 ? 'car' : 'cars' ?></td>
         <td class="<?= $e['active'] ? 'badge-ok' : 'badge-fail' ?>"><?= $e['active'] ? 'Active' : 'Inactive' ?></td>
         <td class="actions">
+          <?php $isIceEvent = ($e['discipline'] ?? 'summer') === 'ice'; ?>
+          <form method="post" action="admin.php?action=event-club" class="event-club-form">
+            <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+            <input type="hidden" name="id" value="<?= (int)$e['id'] ?>">
+            <select name="host_club" aria-label="Host club for <?= h($e['name']) ?>">
+              <?php if (!$isIceEvent): ?><option value="">No host club</option><?php endif; ?>
+              <?php foreach ($clubs as $c): if ($isIceEvent && !in_array((string)$c['code'], iceClubCodes(), true)) continue; ?>
+              <option value="<?= h((string)$c['code']) ?>"<?= (string)($e['host_club'] ?? '') === (string)$c['code'] ? ' selected' : '' ?>><?= h($c['code'] . ' — ' . $c['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <button type="submit" class="link-button">Save club</button>
+          </form>
           <?php if ($e['active']): ?>
           <form method="post" action="admin.php?action=event-deactivate" style="display:inline" data-confirm="Deactivate <?= h($e['name']) ?>? Competitors won't be able to tag it or pick it for new tech sheets.">
             <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
