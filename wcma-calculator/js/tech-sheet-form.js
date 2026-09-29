@@ -11,6 +11,8 @@
 
     // Ice form: whether the chosen class requires the head & neck restraint (labels new driver rows too).
     let headNeckRequired = false;
+    // Why it is required, for the label: the ice class (default) or, on the TA/Drift form, the cage.
+    let headNeckReason;
 
     function renderEquipmentInto(container, prefix, existingState) {
         existingState = existingState || {};
@@ -31,7 +33,7 @@
             const label = document.createElement('div');
             label.className = 'checklist-item-label';
             label.textContent = (key === 'head_neck_restraints' && headNeckRequired)
-                ? WcmaIceClass.equipmentLabel(def.label, true) : def.label;
+                ? WcmaIceClass.equipmentLabel(def.label, true, headNeckReason) : def.label;
             row.appendChild(label);
 
             if (def.has_rating) {
@@ -131,6 +133,33 @@
         if (iceClassSelect.value !== (window.ICE_RENDERED_CLASS || '')) onIceClassChange(window.TECH_SHEET_EXISTING_CHECKLIST);
         // For a server-rendered selected class on a fresh form, update the label once.
         if (iceClassSelect.value !== '') updateHeadNeckLabel(iceClassSelect.value);
+    }
+
+    // TA/Drift form: a roll bar or cage adds the cage checks and makes the head & neck restraint required.
+    const cagedBox = document.getElementById('ta_drift_caged');
+    if (cagedBox && window.TA_DRIFT_SECTIONS && window.WcmaIceClass) {
+        headNeckReason = 'in a caged car';
+        function syncHeadNeck() {
+            headNeckRequired = cagedBox.checked;
+            TECH_DRIVER_EQUIPMENT_ITEMS.head_neck_restraints.optional = !cagedBox.checked;
+            document.querySelectorAll('[data-equipment-key="head_neck_restraints"] .checklist-item-label').forEach(function (el) {
+                el.textContent = WcmaIceClass.equipmentLabel(TECH_DRIVER_EQUIPMENT_ITEMS.head_neck_restraints.label, cagedBox.checked, headNeckReason);
+            });
+            document.getElementById('ta-drift-helmet-note').textContent = (window.TA_DRIFT_HELMET_NOTES || {})[cagedBox.checked ? 'on' : 'off'] || '';
+        }
+        function onCagedChange(seed) {
+            const sections = window.TA_DRIFT_SECTIONS[cagedBox.checked ? 'on' : 'off'];
+            const container = document.getElementById('checklist-container');
+            // seed: answers from a restored draft (tech-sheet-draft.js), used on the first render only.
+            const carried = WcmaIceClass.carryChecklistState(Object.assign({}, seed || {}, checklistWidget.getState()), sections);
+            container.innerHTML = '';
+            checklistWidget = WcmaTechChecklist.render(container, sections, carried);
+            syncHeadNeck();
+        }
+        cagedBox.addEventListener('change', function () { onCagedChange(); });
+        // A browser can restore the box on reload without firing `change` (as with the ice class above).
+        if (cagedBox.checked !== !!window.TA_DRIFT_RENDERED_CAGED) onCagedChange(window.TECH_SHEET_EXISTING_CHECKLIST);
+        else syncHeadNeck();
     }
 
     const entrantPad = WcmaSignaturePad.attach(document.getElementById('entrant-sig-canvas'));
