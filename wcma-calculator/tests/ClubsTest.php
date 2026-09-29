@@ -57,6 +57,29 @@ final class ClubsTest extends TestCase
         $this->assertSame('', clubForEvent(['code' => 'X', 'name' => 'X', 'msr_url' => 'http://x', 'active' => 1], ['host_club' => 'X'])['url']);
     }
 
+    public function testAnEventsOwnMotorsportRegLinkBeatsTheClubPage(): void
+    {
+        $club = ['code' => 'ESCC', 'name' => 'Edmonton Sports Car Club', 'msr_url' => 'https://msr.example/escc', 'active' => 1];
+        $this->assertSame(['name' => 'Edmonton Sports Car Club', 'url' => 'https://msr.example/e/7'],
+            clubForEvent($club, ['discipline' => 'summer', 'host_club' => 'ESCC', 'msr_url' => 'https://msr.example/e/7']));
+        // No host club: still the event's link, with no club name.
+        $this->assertSame(['name' => '', 'url' => 'https://msr.example/e/7'],
+            clubForEvent(null, ['discipline' => 'summer', 'host_club' => null, 'msr_url' => 'https://msr.example/e/7']));
+        // An event link that isn't https is never shown; the club page still is.
+        $this->assertSame('https://msr.example/escc', clubForEvent($club, ['host_club' => 'ESCC', 'msr_url' => 'http://x'])['url']);
+        $this->assertSame('', eventRegisterUrl(['msr_url' => 'javascript:alert(1)']));
+        $this->assertSame('', eventRegisterUrl(['name' => 'no column yet']));
+        $this->assertSame('https://msr.example/e/7', eventRegisterUrl(['msr_url' => 'https://msr.example/e/7']));
+    }
+
+    public function testEventLinkValidation(): void
+    {
+        $this->assertNull(eventMsrUrlError(''));
+        $this->assertNull(eventMsrUrlError('https://www.motorsportreg.com/events/fall-sprint'));
+        $this->assertSame(EVENT_MSR_URL_ERROR, eventMsrUrlError('www.motorsportreg.com/events/x'));
+        $this->assertSame(EVENT_MSR_URL_ERROR, eventMsrUrlError('http://www.motorsportreg.com/events/x'));
+    }
+
     public function testRowPickerKeepsAnInactiveCurrentClubSelected(): void
     {
         $clubs = [

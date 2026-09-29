@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../view_helpers.php';
 require_once __DIR__ . '/../cars-lib.php';
 require_once __DIR__ . '/../events-lib.php';
+require_once __DIR__ . '/../clubs-lib.php';
 require_once __DIR__ . '/../home-page.php';
 require_once __DIR__ . '/../reminders-lib.php';
 
@@ -350,6 +351,16 @@ final class HomePageTest extends TestCase
         $this->assertSame(0, homeFocusIndex($events, 999));
         $html = renderHomeHtml($this->vmTwoEvents(['focusEventId' => 999]));
         $this->assertStringContainsString('2 things to do before Fall Sprint', $html);
+    }
+
+    public function testEventCardsLinkToTheirMotorsportRegEvent(): void
+    {
+        $vm = $this->vm();
+        $vm['readiness']['events'][0]['event']['msr_url'] = 'https://msr.example/e/fall?a=1&b=2';
+        $vm['readiness']['untagged'][0]['msr_url'] = 'http://not-https.example/';
+        $html = renderHomeHtml($vm);
+        $this->assertStringContainsString('<a class="hub-btn hub-btn--secondary hub-register-link" href="https://msr.example/e/fall?a=1&amp;b=2" target="_blank" rel="noopener">Register on MotorsportReg &#8599;</a>', $html);
+        $this->assertSame(1, substr_count($html, 'hub-register-link'));   // the http link is never shown
     }
 
     public function testLandingNextIsIceLooksAtTheSoonestUpcomingEvent(): void

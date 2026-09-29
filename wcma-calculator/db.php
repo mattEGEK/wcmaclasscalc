@@ -349,6 +349,8 @@ function db_init(PDO $pdo): void {
     // ── Ice racing (2026-09-27 spec). Added in place: no reset. ──
     db_add_column_if_missing($pdo, 'events', 'discipline', "TEXT NOT NULL DEFAULT 'summer'");
     db_add_column_if_missing($pdo, 'events', 'host_club', 'TEXT');
+    // The event's own MotorsportReg page (event MSR links, 2026-09-29); '' = none, use the club's page.
+    db_add_column_if_missing($pdo, 'events', 'msr_url', "TEXT NOT NULL DEFAULT ''");
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS clubs (
             code       TEXT PRIMARY KEY,
@@ -722,6 +724,11 @@ function db_update_event(PDO $pdo, int $id, string $name, string $event_date, ?s
         WHERE id = :id
     ")->execute([':name' => $name, ':event_date' => $event_date, ':location' => $location,
                  ':discipline' => $discipline, ':host_club' => $hostClub, ':id' => $id]);
+}
+
+/** The event's own MotorsportReg link ('' clears it). The caller validates it (eventMsrUrlError()). */
+function db_set_event_msr_url(PDO $pdo, int $id, string $url): void {
+    $pdo->prepare("UPDATE events SET msr_url = :u WHERE id = :id")->execute([':u' => $url, ':id' => $id]);
 }
 
 function db_set_event_active(PDO $pdo, int $id, bool $active): void {

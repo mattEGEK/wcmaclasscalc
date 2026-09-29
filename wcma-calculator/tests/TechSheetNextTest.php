@@ -49,6 +49,14 @@ final class TechSheetNextTest extends TestCase
         $this->assertStringContainsString('Register for NASCC Ice Race #1 with the host club.', $html);
     }
 
+    public function testRegisterStepLinksAnEventWithNoHostClub(): void
+    {
+        $html = renderTechSheetNextStepsHtml($this->sheet(['discipline' => 'summer', 'club' => null]), ['id' => 10, 'name' => 'Fall Sprint'],
+            ['state' => 'none'], '', ['name' => '', 'url' => 'https://msr.example/e/7']);
+        $this->assertStringContainsString('Register for Fall Sprint with the host club.', $html);
+        $this->assertStringContainsString('href="https://msr.example/e/7" target="_blank" rel="noopener">Register on MotorsportReg &#8599;</a>', $html);
+    }
+
     public function testTitleIncludesTheCarYearWhenKnown(): void
     {
         $this->assertSame('Ice tech sheet — #42 2008 Honda Civic — NASCC Ice Race #1', techSheetViewTitle($this->sheet(), $this->event(), ['year' => '2008']));
