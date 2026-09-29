@@ -98,6 +98,9 @@ function garageRenderCard(array $card): string {
     if (!empty($card['ice'])) {
         $out .= '<div><dt>Ice tech</dt><dd><span class="hub-status ' . h(homeStatusClass($card['ice']['state'])) . '">' . h($card['ice']['label']) . '</span></dd></div>';
     }
+    foreach ($card['taDrift'] ?? [] as $t) {
+        $out .= '<div><dt>' . h('TA/Drift ' . $t['club']) . '</dt><dd><span class="hub-status ' . h(homeStatusClass($t['state'])) . '">' . h($t['label']) . '</span></dd></div>';
+    }
     $next = $card['next'];
     if ($next === null) {
         $out .= '<div><dt>Next event</dt><dd>Not going to any events yet</dd></div>';
@@ -266,6 +269,15 @@ function renderGarageCarHtml(array $vm): string {
             $out .= '<a class="hub-btn hub-btn--secondary" href="' . h($vm['techAction']['url']) . '">' . h($vm['techAction']['label']) . '</a>';
         } elseif ($vm['techState'] !== 'accepted') {
             $out .= '<p class="form-hint">Pre-tech with photos after you submit a tech sheet for an event, or bring the car to tech at the track.</p>';
+        }
+        $out .= '</section>';
+    }
+
+    // TA/Drift tech, per host club (TA/Drift spec §4)
+    if (!empty($vm['taDrift'])) {
+        $out .= '<section class="hub-card"><h2>TA/Drift tech</h2>';
+        foreach ($vm['taDrift'] as $t) {
+            $out .= '<p>' . h('TA/Drift ' . $t['club']) . ': <span class="hub-status ' . h(homeStatusClass($t['state'])) . '">' . h($t['label']) . '</span></p>';
         }
         $out .= '</section>';
     }

@@ -6,6 +6,7 @@
 require_once __DIR__ . '/ice-sheet-lib.php';   // techSheetIsIce()
 require_once __DIR__ . '/tech-status.php';     // techCarStatus(), techCarStatusLabel()
 require_once __DIR__ . '/ta-drift-lib.php';
+require_once __DIR__ . '/ta-drift-sheet-lib.php';  // taDriftSheetCarStatus(), taDriftCarTechStatusLabel()
 
 /**
  * A car's stored season (mobile UX spec 2026-09-28 §A1). Null on cars added before it existed.
@@ -128,6 +129,29 @@ function garageCarRaces(array $car, array $declarations, array $carSheets, bool 
     return garageRaceSheets($carSheets) !== [];
 }
 
+/**
+ * A car's TA/Drift tech for $season, one row per host club, sorted by club (TA/Drift spec §4): the
+ * clubs it has TA/Drift sheets for that season plus $entryClubs (the host clubs of its upcoming
+ * TA/Drift entries, garageEntryTiers()). Status and label come from plan 2's taDriftSheetCarStatus()
+ * and taDriftCarTechStatusLabel(), with a key-only stand-in sheet for a club that has none yet;
+ * accepted race tech covers every club.
+ * @return array<int, array{club: string, state: string, label: string}>
+ */
+function garageTaDriftSummaries(int $carId, array $carSheets, array $entryClubs, int $season): array {
+    $clubs = array_fill_keys(array_map('strval', $entryClubs), true);
+    foreach ($carSheets as $s) {
+        if (techSheetIsTaDrift($s) && (int)$s['season'] === $season) $clubs[(string)$s['club']] = true;
+    }
+    ksort($clubs);
+    $out = [];
+    foreach (array_keys($clubs) as $club) {
+        $key = ['car_id' => $carId, 'season' => $season, 'discipline' => DISCIPLINE_SUMMER, 'sheet_type' => SHEET_TYPE_TA_DRIFT, 'club' => (string)$club];
+        $st = taDriftSheetCarStatus($key, $carSheets);
+        $out[] = ['club' => (string)$club, 'state' => $st['state'], 'label' => taDriftCarTechStatusLabel($st, $season, (string)$club)];
+    }
+    return $out;
+}
+
 /** The events a car can be added to: only the seasons it races (garageCarSeasons()). */
 function garageEventsForSeasons(array $events, array $seasons): array {
     return array_values(array_filter($events, fn(array $e): bool =>
@@ -233,6 +257,7 @@ function garageCard(array $car, array $declarations, array $carSheets, array $ta
         'usesSummer' => $seasons['summer'],
         'usesRace' => $seasons['summer'] && garageCarRaces($car, $declarations, $carSheets, $tiers['race']),
         'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason, $stored),
+        'taDrift' => garageTaDriftSummaries((int)$car['id'], $carSheets, $tiers['taDriftClubs'], $season),
         'techState' => $tech['state'],
         'techLabel' => techCarStatusLabel($tech, $season),
         'next' => $events['tagged'][0] ?? null,

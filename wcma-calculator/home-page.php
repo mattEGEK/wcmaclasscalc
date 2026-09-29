@@ -363,6 +363,9 @@ function renderHomeHtml(array $vm): string
             if (!empty($g['ice'])) {
                 $out .= homePillHtml($g['ice']['state'], 'Ice tech', $g['ice']['label']);
             }
+            foreach ($g['taDrift'] ?? [] as $t) {
+                $out .= homePillHtml($t['state'], 'TA/Drift ' . $t['club'], $t['label']);
+            }
             $out .= '</div></div>';
         }
         $out .= '<a class="hub-btn hub-btn--secondary" href="garage.php">Open garage &rarr;</a>';

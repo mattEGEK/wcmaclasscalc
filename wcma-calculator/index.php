@@ -101,7 +101,8 @@ foreach ($in['cars'] as $carId => $car) {
                  'techLabel' => techCarStatusLabel($status, $season), 'techState' => $status['state'],
                  'usesSummer' => garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, $taggedSummer, $taggedIce, $stored),
                  'usesRace' => garageCarRaces($car, $decl !== null ? [$decl] : [], $carSheets, garageEntryTiers($formatsByCar[$carId] ?? [], $in['events'], $today)['race']),
-                 'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason, $stored)];
+                 'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason, $stored),
+                 'taDrift' => garageTaDriftSummaries((int)$carId, $carSheets, garageEntryTiers($formatsByCar[$carId] ?? [], $in['events'], $today)['taDriftClubs'], $season)];
 }
 $drivers = [];
 foreach ($in['drivers'] as $did => $d) {

@@ -97,4 +97,51 @@ final class GarageTaDriftTest extends TestCase
         $this->assertStringNotContainsString('Not declared', $html);
         $this->assertStringNotContainsString('Car tech:', $html);
     }
+
+    private function sheet(int $id, array $o = []): array {
+        return array_merge(['id' => $id, 'car_id' => 3, 'event_id' => 20, 'season' => 2026, 'discipline' => 'summer', 'sheet_type' => 'ta_drift',
+                            'club' => 'WSCC', 'status' => 'submitted', 'accepted_via' => null, 'photo_status' => null], $o);
+    }
+
+    public function testTaDriftSummaryPerClub(): void
+    {
+        $this->assertSame([], garageTaDriftSummaries(3, [], [], 2026));
+        $this->assertSame([['club' => 'WSCC', 'state' => 'none', 'label' => 'Needs tech at the track']], garageTaDriftSummaries(3, [], ['WSCC'], 2026));
+
+        $sheets = [$this->sheet(9, ['status' => 'teched', 'accepted_via' => 'photos']), $this->sheet(10, ['club' => 'NASCC', 'photo_status' => 'submitted'])];
+        $this->assertSame([
+            ['club' => 'NASCC', 'state' => 'pending_review', 'label' => 'Photos pending review'],
+            ['club' => 'WSCC', 'state' => 'accepted', 'label' => 'Pre-teched TA/Drift WSCC 2026'],
+        ], garageTaDriftSummaries(3, $sheets, [], 2026));
+        $this->assertSame([], garageTaDriftSummaries(3, $sheets, [], 2027));   // another year
+    }
+
+    public function testRaceTechCoversEveryClub(): void
+    {
+        $race = $this->sheet(8, ['sheet_type' => 'standard', 'club' => null, 'status' => 'teched', 'accepted_via' => 'in_person']);
+        $this->assertSame([['club' => 'WSCC', 'state' => 'accepted', 'label' => 'Teched 2026 (race)']],
+            garageTaDriftSummaries(3, [$race], ['WSCC'], 2026));
+    }
+
+    public function testTaDriftSheetDoesNotCountAsRaceCarTech(): void
+    {
+        $card = garageCard(['id' => 3, 'car_number' => '86', 'make' => 'Subaru', 'model' => 'BRZ', 'disciplines' => 'summer', 'archived_at' => null],
+            [], [$this->sheet(9, ['status' => 'teched', 'accepted_via' => 'in_person'])], [20], [self::TA], 2026, '2026-06-01', 2027, [20 => 'ta']);
+        $this->assertSame('none', $card['techState']);
+        $this->assertSame([['club' => 'WSCC', 'state' => 'accepted', 'label' => 'Teched TA/Drift WSCC 2026']], $card['taDrift']);
+        $html = garageRenderCard($card);
+        $this->assertStringContainsString('<div><dt>TA/Drift WSCC</dt><dd><span class="hub-status hub-status--ok">Teched TA/Drift WSCC 2026</span></dd></div>', $html);
+    }
+
+    public function testCarPageListsTaDriftTech(): void
+    {
+        $vm = ['car' => ['id' => 3, 'car_number' => '86', 'make' => 'Subaru', 'model' => 'BRZ', 'archived_at' => null],
+               'class' => ['current' => null, 'earlierAccepted' => null], 'declarations' => [], 'season' => 2026,
+               'techState' => 'none', 'techLabel' => 'Needs tech at the track', 'techAction' => null,
+               'events' => ['tagged' => [], 'untagged' => [], 'earlierSheets' => []], 'seasons' => ['summer' => true, 'ice' => false],
+               'csrf' => 'tok', 'detailsForm' => null, 'usesSummer' => true, 'usesRace' => false, 'ice' => null,
+               'taDrift' => [['club' => 'WSCC', 'state' => 'none', 'label' => 'Needs tech at the track']]];
+        $this->assertStringContainsString('<section class="hub-card"><h2>TA/Drift tech</h2><p>TA/Drift WSCC: <span class="hub-status hub-status--warn">Needs tech at the track</span></p></section>',
+            renderGarageCarHtml($vm));
+    }
 }
