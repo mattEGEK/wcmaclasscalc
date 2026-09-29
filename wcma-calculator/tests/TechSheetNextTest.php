@@ -25,7 +25,8 @@ final class TechSheetNextTest extends TestCase
 
     public function testNextStepsOfferPreTechGearAndRegistration(): void
     {
-        $html = renderTechSheetNextStepsHtml($this->sheet(), $this->event(), ['state' => 'none'], '<ul class="gear-chips"></ul>');
+        $html = renderTechSheetNextStepsHtml($this->sheet(), $this->event(), ['state' => 'none'], '<ul class="gear-chips"></ul>',
+            ['name' => 'Northern Alberta Sports Car Club', 'url' => '']);
         $this->assertStringContainsString('<h2>What\'s next</h2>', $html);
         $this->assertStringContainsString('<a class="hub-btn" href="tech-sheets.php?action=pretech&amp;id=2">Pre-tech with photos</a>', $html);
         $this->assertStringContainsString('<ul class="gear-chips"></ul>', $html);
@@ -46,5 +47,22 @@ final class TechSheetNextTest extends TestCase
         $html = renderTechSheetNextStepsHtml($this->sheet(['discipline' => 'summer', 'club' => null]), $this->event(), ['state' => 'none'], '');
         $this->assertStringNotContainsString('Driver gear', $html);
         $this->assertStringContainsString('Register for NASCC Ice Race #1 with the host club.', $html);
+    }
+
+    public function testTitleIncludesTheCarYearWhenKnown(): void
+    {
+        $this->assertSame('Ice tech sheet — #42 2008 Honda Civic — NASCC Ice Race #1', techSheetViewTitle($this->sheet(), $this->event(), ['year' => '2008']));
+        $this->assertSame('Ice tech sheet — #42 Honda Civic — NASCC Ice Race #1', techSheetViewTitle($this->sheet(), $this->event(), ['year' => null]));
+    }
+
+    public function testRegisterStepNamesTheClubAndLinksToMotorsportReg(): void
+    {
+        $html = renderTechSheetNextStepsHtml($this->sheet(['discipline' => 'summer', 'club' => null]), ['id' => 10, 'name' => 'Fall Sprint'],
+            ['state' => 'none'], '', ['name' => 'Edmonton Sports Car Club', 'url' => 'https://msr.example/escc?a=1&b=2']);
+        $this->assertStringContainsString('Register for Fall Sprint with the Edmonton Sports Car Club.', $html);
+        $this->assertStringContainsString('<a class="hub-btn hub-btn--secondary" href="https://msr.example/escc?a=1&amp;b=2" target="_blank" rel="noopener">Register on MotorsportReg &#8599;</a>', $html);
+        $noLink = renderTechSheetNextStepsHtml($this->sheet(), $this->event(), ['state' => 'none'], '', ['name' => 'Northern Alberta Sports Car Club', 'url' => '']);
+        $this->assertStringContainsString('with the Northern Alberta Sports Car Club.', $noLink);
+        $this->assertStringNotContainsString('Register on MotorsportReg', $noLink);
     }
 }

@@ -2,13 +2,14 @@
 // wcma-calculator/tech-sheet-next.php
 //
 // The submitted tech sheet page's title and "What's next" list (mobile UX spec 2026-09-28 §A5).
-// Pure: no DB, no session, no echo. Callers must have loaded view_helpers.php (h()) and
-// ice-rules.php (iceClubLabel()).
+// Pure: no DB, no session, no echo. Callers must have loaded view_helpers.php (h()).
+// The register step's club comes from clubs-lib.php clubForEvent().
 
-function techSheetViewTitle(array $sheet, ?array $event): string {
+/** $car is the car record, for its year (the sheet doesn't store one); null leaves the year out. */
+function techSheetViewTitle(array $sheet, ?array $event, ?array $car = null): string {
     $ice = ($sheet['discipline'] ?? 'summer') === 'ice';
     $parts = [$ice ? 'Ice tech sheet' : 'Tech sheet',
-              '#' . $sheet['car_number'] . ' ' . trim($sheet['car_make'] . ' ' . $sheet['car_model'])];
+              '#' . $sheet['car_number'] . ' ' . trim(trim((string)($car['year'] ?? '')) . ' ' . $sheet['car_make'] . ' ' . $sheet['car_model'])];
     if ($event !== null && trim((string)($event['name'] ?? '')) !== '') $parts[] = (string)$event['name'];
     return implode(' — ', $parts);
 }
@@ -17,7 +18,7 @@ function techSheetViewTitle(array $sheet, ?array $event): string {
  * @param array  $carStatus     techCarStatusForSheet() output
  * @param string $gearChipsHtml renderGearChips() for the sheet's drivers, '' when there are none
  */
-function renderTechSheetNextStepsHtml(array $sheet, ?array $event, array $carStatus, string $gearChipsHtml): string {
+function renderTechSheetNextStepsHtml(array $sheet, ?array $event, array $carStatus, string $gearChipsHtml, ?array $club = null): string {
     $id = (int)$sheet['id'];
     $steps = [];
     $state = (string)($carStatus['state'] ?? 'none');
@@ -33,10 +34,13 @@ function renderTechSheetNextStepsHtml(array $sheet, ?array $event, array $carSta
     if ($gearChipsHtml !== '') {
         $steps[] = '<strong>Driver gear</strong><p>Add gear photos, or have it checked at the track.</p>' . $gearChipsHtml;
     }
-    $club = ($sheet['discipline'] ?? 'summer') === 'ice' ? iceClubLabel((string)($sheet['club'] ?? '')) : null;
     $eventName = $event !== null ? (string)$event['name'] : 'the event';
-    $steps[] = '<strong>Register with the club</strong><p>The hub doesn\'t register you. Register for ' . h($eventName)
-        . ' with ' . ($club !== null ? 'the ' . h($club) : 'the host club') . '.</p>';
+    $step = '<strong>Register with the club</strong><p>The hub doesn\'t register you. Register for ' . h($eventName)
+        . ' with ' . ($club !== null ? 'the ' . h($club['name']) : 'the host club') . '.</p>';
+    if ($club !== null && $club['url'] !== '') {
+        $step .= '<a class="hub-btn hub-btn--secondary" href="' . h($club['url']) . '" target="_blank" rel="noopener">Register on MotorsportReg &#8599;</a>';
+    }
+    $steps[] = $step;
 
     $out = '<section class="hub-card sheet-next no-print"><h2>What\'s next</h2><ol class="hub-todo">';
     foreach ($steps as $n => $step) {

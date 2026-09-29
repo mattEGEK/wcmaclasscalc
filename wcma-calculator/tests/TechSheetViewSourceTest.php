@@ -17,7 +17,7 @@ final class TechSheetViewSourceTest extends TestCase
     public function testViewUsesTheDescriptiveTitleAndWhatsNext(): void
     {
         $body = $this->viewBody();
-        $this->assertStringContainsString('techSheetViewTitle($sheet, $event)', $body);
+        $this->assertStringContainsString('techSheetViewTitle($sheet, $event, ', $body);
         $this->assertStringContainsString('renderTechSheetNextStepsHtml(', $body);
         $this->assertStringNotContainsString('Tech Sheet #', $body);
         $this->assertStringNotContainsString('btn-primary">Resend', $body);
@@ -51,5 +51,12 @@ final class TechSheetViewSourceTest extends TestCase
         $src = str_replace("\r\n", "\n", file_get_contents(__DIR__ . '/../tech-sheets.php'));
         $this->assertStringContainsString('<script src="js/tech-sheet-draft.js"></script>', $src);
         $this->assertStringContainsString('window.TECH_SHEET_DRAFT_KEY = <?= json_encode(techSheetDraftKey(', $src);
+    }
+
+    public function testViewLooksUpTheCarAndTheEventsClub(): void
+    {
+        $body = $this->viewBody();
+        $this->assertStringContainsString('techSheetViewTitle($sheet, $event, db_get_car($pdo, (int)$sheet[\'car_id\']))', $body);
+        $this->assertStringContainsString('clubForEvent(', $body);
     }
 }
