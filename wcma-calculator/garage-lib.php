@@ -194,8 +194,9 @@ function garageAfterTagUrl(int $carId, array $event, bool $wantsSheet): string {
  * - earlierSheets: this car's sheets for any event not in `tagged`, newest first.
  *
  * @param array $eventNames event id => name, for every event (db_get_all_events())
+ * $formatsByEvent: event id => the entry's stored formats; each tagged row carries formats and tier (entryTierAtEvent()).
  */
-function garageCarEvents(array $carSheets, array $taggedEventIds, array $activeEvents, array $eventNames, string $today): array {
+function garageCarEvents(array $carSheets, array $taggedEventIds, array $activeEvents, array $eventNames, string $today, array $formatsByEvent = []): array {
     $isTagged = array_flip(array_map('intval', $taggedEventIds));
     $upcoming = array_values(array_filter($activeEvents, fn(array $e): bool => (string)$e['event_date'] >= $today));
     usort($upcoming, fn(array $a, array $b): int => strcmp((string)$a['event_date'], (string)$b['event_date']) ?: ((int)$a['id'] <=> (int)$b['id']));
@@ -210,7 +211,9 @@ function garageCarEvents(array $carSheets, array $taggedEventIds, array $activeE
     $untagged = [];
     foreach ($upcoming as $e) {
         if (isset($isTagged[(int)$e['id']])) {
-            $tagged[] = ['event' => $e, 'sheet' => $sheetByEvent[(int)$e['id']] ?? null];
+            $stored = $formatsByEvent[(int)$e['id']] ?? null;
+            $tagged[] = ['event' => $e, 'sheet' => $sheetByEvent[(int)$e['id']] ?? null,
+                         'formats' => entryFormatsParse($stored), 'tier' => entryTierAtEvent($e, $stored)];
         } else {
             $untagged[] = $e;
         }
@@ -247,7 +250,7 @@ function garageCard(array $car, array $declarations, array $carSheets, array $ta
     }
     $formatsByEvent += array_fill_keys(array_map('intval', $taggedEventIds), 'race');
     $tiers = garageEntryTiers($formatsByEvent, $activeEvents, $today);
-    $events = garageCarEvents($carSheets, $taggedEventIds, $activeEvents, [], $today);
+    $events = garageCarEvents($carSheets, $taggedEventIds, $activeEvents, [], $today, $formatsByEvent);
     $stored = isset($car['disciplines']) ? (string)$car['disciplines'] : null;
     $seasons = garageCarSeasons($car, $declarations, $carSheets, $taggedSummer, $taggedIce);
     return [

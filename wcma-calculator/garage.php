@@ -113,7 +113,10 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         $eventNames[(int)$e['id']] = (string)$e['name'];
     }
     $today = date('Y-m-d');
-    $events = garageCarEvents($allSheets, $tagged, db_get_active_events($pdo), $eventNames, $today);
+    $events = garageCarEvents($allSheets, $tagged, db_get_active_events($pdo), $eventNames, $today, $formatsByEvent);
+    foreach ($events['tagged'] as $i => $row) {
+        $events['tagged'][$i]['suppsAckAt'] = db_get_entry($pdo, $uid, (int)$row['event']['id'], $carId)['supps_ack_at'] ?? null;
+    }
 
     $ownerGear = db_get_user_gear_records($pdo, $uid);
     $driversBySheet = db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $allSheets));
@@ -147,6 +150,7 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         'usesRace' => $seasons['summer'] && garageCarRaces($car, $declarations, $allSheets, garageEntryTiers($formatsByEvent, db_get_active_events($pdo), $today)['race']),
         'ice' => garageIceSummary($allSheets, $taggedIce, gearSeasonNow(DISCIPLINE_ICE), isset($car['disciplines']) ? (string)$car['disciplines'] : null),
         'taDrift' => garageTaDriftSummaries($carId, $allSheets, garageEntryTiers($formatsByEvent, db_get_active_events($pdo), $today)['taDriftClubs'], $season),
+        'tagDefaults' => eventsDefaultFormats($pdo, $car, ['id' => 0, 'discipline' => 'summer', 'host_club' => 'any']),
     ]);
     renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script>']);
 }
@@ -184,11 +188,16 @@ function handleGaragePost(PDO $pdo, int $uid, string $action): void {
             return;
         case 'tag':
             $eventId = (int)($_POST['event_id'] ?? 0);
-            $r = eventsTagCar($pdo, $uid, $eventId, $carId);
+            $r = eventsTagCar($pdo, $uid, $eventId, $carId, entryFormatsFromPost($_POST), !empty($_POST['supps_ack']));
             $extra = $r['ok'] ? remindersRecordTagChoice($pdo, $uid, $_POST) : '';
             setFlash($r['ok'] ? 'Added to your events. ' . EVENTS_NOT_REGISTERING . $extra : (string)$r['error'], $r['ok'] ? 'success' : 'error');
             $event = $r['ok'] ? db_get_event($pdo, $eventId) : null;
             header('Location: ' . ($event !== null ? garageAfterTagUrl($carId, $event, ($_POST['then'] ?? '') === 'sheet') : 'garage.php?car=' . $carId));
+            return;
+        case 'formats':
+            $r = eventsSetFormats($pdo, $uid, (int)($_POST['event_id'] ?? 0), $carId, entryFormatsFromPost($_POST) ?? [], !empty($_POST['supps_ack']));
+            setFlash($r['ok'] ? 'Saved what this car is running.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
+            header('Location: garage.php?car=' . $carId . '#events');
             return;
         case 'untag':
             $r = eventsUntagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), $carId);

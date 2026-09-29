@@ -6,8 +6,7 @@ final class HomeFormatsSourceTest extends TestCase
 {
     public function testHandlersPassTheFormatsThrough(): void
     {
-        // Task 7 widens this to garage.php
-        foreach (['index.php'] as $file) {
+        foreach (['index.php', 'garage.php'] as $file) {
             $src = (string)file_get_contents(__DIR__ . '/../' . $file);
             $this->assertStringContainsString("case 'formats':", $src, $file);
             $this->assertStringContainsString('eventsSetFormats(', $src, $file);

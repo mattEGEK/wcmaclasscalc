@@ -133,6 +133,62 @@ final class GarageTaDriftTest extends TestCase
         $this->assertStringContainsString('<div><dt>TA/Drift WSCC</dt><dd><span class="hub-status hub-status--ok">Teched TA/Drift WSCC 2026</span></dd></div>', $html);
     }
 
+    public function testEventRowsCarryFormatsAndTier(): void
+    {
+        $rows = garageCarEvents([], [20, 22], [self::TA, self::OPEN], [], '2026-06-01', [20 => 'ta,drift', 22 => 'ta']);
+        $this->assertSame(['ta', 'drift'], $rows['tagged'][0]['formats']);
+        $this->assertSame('ta_drift', $rows['tagged'][0]['tier']);
+        $this->assertSame('race', $rows['tagged'][1]['tier']);   // Open Day has no host club
+        $legacy = garageCarEvents([], [20], [self::TA], [], '2026-06-01');
+        $this->assertSame(['race'], $legacy['tagged'][0]['formats']);
+    }
+
+    private function carVm(array $tagged, array $o = []): array {
+        return array_merge(['car' => ['id' => 3, 'car_number' => '86', 'make' => 'Subaru', 'model' => 'BRZ', 'archived_at' => null, 'disciplines' => 'ta_drift'],
+               'class' => ['current' => null, 'earlierAccepted' => null], 'declarations' => [], 'season' => 2026,
+               'techState' => 'none', 'techLabel' => 'Needs tech at the track', 'techAction' => null,
+               'events' => ['tagged' => $tagged, 'untagged' => [self::OPEN], 'earlierSheets' => []], 'seasons' => ['summer' => true, 'ice' => false],
+               'csrf' => 'tok', 'detailsForm' => null, 'usesSummer' => true, 'usesRace' => false, 'ice' => null, 'taDrift' => [],
+               'tagDefaults' => ['ta']], $o);
+    }
+
+    public function testTaDriftEventRowLinksToTheTaDriftSheetWithoutADeclaration(): void
+    {
+        $html = renderGarageCarHtml($this->carVm([['event' => self::TA, 'sheet' => null, 'gearLinks' => [], 'formats' => ['ta'], 'tier' => 'ta_drift']]));
+        $this->assertStringContainsString('<span class="hub-status hub-status--todo">No TA/Drift tech sheet yet</span>', $html);
+        $this->assertStringContainsString('href="tech-sheets.php?action=new-ta-drift&amp;car_id=3&amp;event_id=20">Submit TA/Drift tech sheet</a>', $html);
+        $this->assertStringNotContainsString('Declare a class first', $html);
+        $this->assertStringContainsString('<details class="hub-entry-formats"><summary>Time Attack · Change</summary>', $html);
+        $this->assertStringContainsString('<form method="post" action="garage.php" class="hub-line hub-tag-form">', $html);
+    }
+
+    public function testSubmittedTaDriftSheetShowsOnItsRow(): void
+    {
+        $sheet = ['id' => 9, 'season' => 2026, 'sheet_type' => 'ta_drift', 'discipline' => 'summer', 'club' => 'WSCC'];
+        $html = renderGarageCarHtml($this->carVm([['event' => self::TA, 'sheet' => $sheet, 'gearLinks' => [], 'formats' => ['ta'], 'tier' => 'ta_drift']]));
+        $this->assertStringContainsString('<span class="hub-status hub-status--ok">TA/Drift tech sheet submitted</span> <a href="tech-sheets.php?action=view&amp;id=9">View</a>', $html);
+    }
+
+    public function testBringThisCarFormHasThePickerWithTheCarsDefaults(): void
+    {
+        $html = renderGarageCarHtml($this->carVm([]));
+        $this->assertStringContainsString('<input type="checkbox" name="formats[]" value="ta" checked> Time Attack</label>', $html);
+        $this->assertStringContainsString(h("the host club's supplementary regulations"), $html);
+    }
+
+    public function testIceOnlyCarsGetNoPicker(): void
+    {
+        $html = renderGarageCarHtml($this->carVm([], ['seasons' => ['summer' => false, 'ice' => true], 'usesSummer' => false]));
+        $this->assertStringNotContainsString('formats_shown', $html);
+    }
+
+    public function testCardNextTaDriftEventOffersTheTaDriftSheet(): void
+    {
+        $card = garageCard(['id' => 3, 'car_number' => '86', 'make' => 'Subaru', 'model' => 'BRZ', 'disciplines' => 'ta_drift', 'archived_at' => null],
+            [], [], [20], [self::TA], 2026, '2026-06-01', 2027, [20 => 'ta']);
+        $this->assertStringContainsString('href="tech-sheets.php?action=new-ta-drift&amp;car_id=3&amp;event_id=20">Submit TA/Drift tech sheet</a>', garageRenderCard($card));
+    }
+
     public function testCarPageListsTaDriftTech(): void
     {
         $vm = ['car' => ['id' => 3, 'car_number' => '86', 'make' => 'Subaru', 'model' => 'BRZ', 'archived_at' => null],
