@@ -48,9 +48,14 @@ function homeCsrfField(string $csrf): string {
     return '<input type="hidden" name="csrf_token" value="' . h($csrf) . '">';
 }
 
-/** One numbered todo item, with its primary action and optional "at the track" secondary form. */
-function homeRenderTodoItem(int $n, array $item, string $csrf): string {
-    $out = '<li class="hub-todo-item"><span class="hub-todo-n">' . h((string)$n) . '</span>';
+/**
+ * One numbered todo item, with its primary action and optional "at the track" secondary form. A
+ * suggested item (TA/Drift spec §4) gets the quieter optional style and a "+" instead of a number.
+ */
+function homeRenderTodoItem(int $n, array $item, string $csrf, bool $suggested = false): string {
+    $out = $suggested
+        ? '<li class="hub-todo-item hub-todo-item--optional"><span class="hub-todo-n" aria-hidden="true">+</span>'
+        : '<li class="hub-todo-item"><span class="hub-todo-n">' . h((string)$n) . '</span>';
     $out .= '<div class="hub-todo-txt"><strong>' . h($item['label']) . '</strong>';
     if ($item['detail'] !== '') {
         $out .= '<span>' . h($item['detail']) . '</span>';
@@ -127,7 +132,7 @@ function homeShortDate(string $eventDate): string {
  * Home with that event's list at the top.
  */
 function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, string $csrf, bool $offerReminders, bool $isFocus = false): string {
-    $out = '<section class="hub-card hub-event"><div class="hub-event-head"><h3>' . h((string)$event['name']) . '</h3>';
+    $out = '<section class="hub-card hub-event" id="event-' . (int)$event['id'] . '"><div class="hub-event-head"><h3>' . h((string)$event['name']) . '</h3>';
     $date = homeShortDate((string)$event['event_date']);
     if ($date !== '') $out .= '<span class="hub-event-date">' . h($date) . '</span>';
     if (($event['discipline'] ?? 'summer') === 'ice') {
@@ -223,6 +228,7 @@ function renderHomeHtml(array $vm): string
 
         $items = $first['items'];
         $todoItems = array_values(array_filter($items, fn(array $i): bool => $i['state'] === 'todo'));
+        $suggestedItems = array_values(array_filter($items, fn(array $i): bool => $i['state'] === 'suggested'));
         $infoItems = array_values(array_filter($items, fn(array $i): bool => $i['state'] === 'info'));
         $doneItems = array_values(array_filter($items, fn(array $i): bool => $i['state'] === 'done'));
 
@@ -234,6 +240,15 @@ function renderHomeHtml(array $vm): string
                 $n++;
             }
             $out .= '</ol>';
+        }
+
+        // Recommended, never counted (TA/Drift spec §4): e.g. going through the TA/Drift sheet again.
+        if ($suggestedItems) {
+            $out .= '<h2>Recommended</h2><ul class="hub-todo hub-todo--suggested">';
+            foreach ($suggestedItems as $item) {
+                $out .= homeRenderTodoItem(0, $item, $csrf, true);
+            }
+            $out .= '</ul>';
         }
 
         if ($infoItems || $doneItems) {

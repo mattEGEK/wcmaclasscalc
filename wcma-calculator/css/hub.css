@@ -141,6 +141,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
   flex: none;
 }
 .hub-todo-item--optional .hub-todo-n { background: var(--hub-paper); color: var(--hub-ink-2); border: 2px solid var(--hub-line); }
+.hub-todo--suggested { border-color: var(--hub-line); list-style: none; padding: 0; margin: 0 0 24px; }
 .hub-todo-txt strong { display: block; font-size: 20px; }
 .hub-todo-txt span { color: var(--hub-ink-2); font-size: 17px; }
 .hub-todo-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
