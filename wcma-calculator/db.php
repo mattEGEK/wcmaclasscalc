@@ -445,6 +445,13 @@ function db_init(PDO $pdo): void {
         )
     ");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_media_consents_driver ON media_consents (driver_id, id)");
+
+    // ── TA/Drift (2026-09-29 spec §2). Added in place: no reset. Existing entries read as race. ──
+    db_add_column_if_missing($pdo, 'event_plans', 'formats', "TEXT NOT NULL DEFAULT 'race'");
+    db_add_column_if_missing($pdo, 'event_plans', 'supps_ack_at', 'DATETIME');
+    db_add_column_if_missing($pdo, 'tech_sheets', 'caged', 'INTEGER NOT NULL DEFAULT 0');
+    db_add_column_if_missing($pdo, 'tech_sheets', 'revoke_note', 'TEXT');
+    db_add_column_if_missing($pdo, 'gear_records', 'revoke_note', 'TEXT');
 }
 
 function db_insert_submission(PDO $pdo, array $data): int {
@@ -769,9 +776,11 @@ function db_set_event_active(PDO $pdo, int $id, bool $active): void {
 
 // ── Event plans and at-track choices ─────────────────────────────────────────
 
-function db_tag_event(PDO $pdo, int $userId, int $eventId, int $carId): void {
-    $pdo->prepare("INSERT OR IGNORE INTO event_plans (user_id, event_id, car_id, created_at) VALUES (:u, :e, :c, :now)")
-        ->execute([':u' => $userId, ':e' => $eventId, ':c' => $carId, ':now' => date('Y-m-d H:i:s')]);
+/** Tags the car for the event. True if it was not tagged yet (a new entry starts as race). */
+function db_tag_event(PDO $pdo, int $userId, int $eventId, int $carId): bool {
+    $stmt = $pdo->prepare("INSERT OR IGNORE INTO event_plans (user_id, event_id, car_id, created_at) VALUES (:u, :e, :c, :now)");
+    $stmt->execute([':u' => $userId, ':e' => $eventId, ':c' => $carId, ':now' => date('Y-m-d H:i:s')]);
+    return $stmt->rowCount() === 1;
 }
 
 function db_untag_event(PDO $pdo, int $userId, int $eventId, int $carId): void {
@@ -780,7 +789,7 @@ function db_untag_event(PDO $pdo, int $userId, int $eventId, int $carId): void {
 }
 
 function db_get_user_event_plans(PDO $pdo, int $userId): array {
-    $stmt = $pdo->prepare("SELECT event_id, car_id FROM event_plans WHERE user_id = :u ORDER BY event_id ASC, car_id ASC");
+    $stmt = $pdo->prepare("SELECT event_id, car_id, formats, supps_ack_at FROM event_plans WHERE user_id = :u ORDER BY event_id ASC, car_id ASC");
     $stmt->execute([':u' => $userId]);
     return $stmt->fetchAll();
 }
@@ -1436,24 +1445,28 @@ function db_accept_tech_sheet_in_person(PDO $pdo, int $id, int $reviewerUserId, 
         UPDATE tech_sheets SET
             status = 'teched', accepted_via = 'in_person',
             reviewed_by_user_id = :reviewer, reviewed_at = :now,
-            tech_signature_path = :sig, tech_signed_at = :now, updated_at = :now
+            tech_signature_path = :sig, tech_signed_at = :now, revoke_note = NULL, updated_at = :now
         WHERE id = :id AND status = 'submitted'
     ");
     $stmt->execute([':reviewer' => $reviewerUserId, ':now' => $now, ':sig' => $signaturePath, ':id' => $id]);
     return $stmt->rowCount() === 1;
 }
 
-/** Returns an accepted sheet to 'submitted' and clears its review fields. False if it was not accepted. */
-function db_revoke_tech_sheet_acceptance(PDO $pdo, int $id): bool {
+/**
+ * Returns an accepted sheet to 'submitted' and clears its review fields. $note says why (for example
+ * the car changed substantially) and is shown to the owner until the sheet is accepted again.
+ * False if it was not accepted.
+ */
+function db_revoke_tech_sheet_acceptance(PDO $pdo, int $id, ?string $note = null): bool {
     $stmt = $pdo->prepare("
         UPDATE tech_sheets SET
             status = 'submitted', accepted_via = NULL,
             photo_status = CASE WHEN photo_status = 'accepted' THEN 'submitted' ELSE photo_status END,
             reviewed_by_user_id = NULL, reviewed_at = NULL,
-            tech_signature_path = NULL, tech_signed_at = NULL, updated_at = :now
+            tech_signature_path = NULL, tech_signed_at = NULL, revoke_note = :note, updated_at = :now
         WHERE id = :id AND status = 'teched'
     ");
-    $stmt->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+    $stmt->execute([':note' => $note, ':now' => date('Y-m-d H:i:s'), ':id' => $id]);
     return $stmt->rowCount() === 1;
 }
 
@@ -1521,7 +1534,7 @@ function db_accept_tech_sheet_by_photos(PDO $pdo, int $id, int $reviewerUserId):
     $now = date('Y-m-d H:i:s');
     $stmt = $pdo->prepare("
         UPDATE tech_sheets SET
-            status = 'teched', accepted_via = 'photos', photo_status = 'accepted',
+            status = 'teched', accepted_via = 'photos', photo_status = 'accepted', revoke_note = NULL,
             reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
         WHERE id = :id AND status = 'submitted' AND photo_status = 'submitted'
     ");
@@ -1646,7 +1659,7 @@ function db_accept_gear_by_photos(PDO $pdo, int $id, int $reviewerUserId): bool 
     $now = date('Y-m-d H:i:s');
     $stmt = $pdo->prepare("
         UPDATE gear_records SET
-            status = 'accepted', accepted_via = 'photos', photo_status = 'accepted',
+            status = 'accepted', accepted_via = 'photos', photo_status = 'accepted', revoke_note = NULL,
             reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
         WHERE id = :id AND status = 'open' AND photo_status = 'submitted'
     ");
@@ -1659,7 +1672,7 @@ function db_accept_gear_in_person(PDO $pdo, int $id, int $reviewerUserId): bool 
     $now = date('Y-m-d H:i:s');
     $stmt = $pdo->prepare("
         UPDATE gear_records SET
-            status = 'accepted', accepted_via = 'in_person',
+            status = 'accepted', accepted_via = 'in_person', revoke_note = NULL,
             reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
         WHERE id = :id AND status = 'open'
     ");
@@ -1667,22 +1680,25 @@ function db_accept_gear_in_person(PDO $pdo, int $id, int $reviewerUserId): bool 
     return $stmt->rowCount() === 1;
 }
 
-/** Undo an acceptance: back to open; a photo-accepted set returns to the review queue. False if not accepted. */
-function db_revoke_gear_acceptance(PDO $pdo, int $id): bool {
+/** Undo an acceptance: back to open; a photo-accepted set returns to the review queue. $note says why. False if not accepted. */
+function db_revoke_gear_acceptance(PDO $pdo, int $id, ?string $note = null): bool {
     $stmt = $pdo->prepare("
         UPDATE gear_records SET
             status = 'open', accepted_via = NULL,
             photo_status = CASE WHEN photo_status = 'accepted' THEN 'submitted' ELSE photo_status END,
-            reviewed_by_user_id = NULL, reviewed_at = NULL, updated_at = :now
+            reviewed_by_user_id = NULL, reviewed_at = NULL, revoke_note = :note, updated_at = :now
         WHERE id = :id AND status = 'accepted'
     ");
-    $stmt->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+    $stmt->execute([':note' => $note, ':now' => date('Y-m-d H:i:s'), ':id' => $id]);
     return $stmt->rowCount() === 1;
 }
 
-/** The ice gear level an inspector confirmed: 'street_safe', 'caged', or null to clear it. */
+/**
+ * The gear level an inspector confirmed: ice 'street_safe' or 'caged'; summer GEAR_LEVEL_TA_DRIFT;
+ * or null to clear it (on a summer record, null is race level).
+ */
 function db_set_gear_level(PDO $pdo, int $id, ?string $level): void {
-    if ($level !== null && !in_array($level, ['street_safe', 'caged'], true)) {
+    if ($level !== null && !in_array($level, ['street_safe', 'caged', GEAR_LEVEL_TA_DRIFT], true)) {
         throw new InvalidArgumentException('Unknown gear level: ' . $level);
     }
     $pdo->prepare("UPDATE gear_records SET level = :l, updated_at = :now WHERE id = :id")
