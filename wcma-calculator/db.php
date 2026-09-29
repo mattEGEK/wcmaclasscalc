@@ -1917,7 +1917,8 @@ function db_delete_season_link(PDO $pdo, int $id): void {
 function db_get_event_roster_cars(PDO $pdo, int $eventId): array {
     $stmt = $pdo->prepare("
         SELECT c.*, u.name AS owner_name, u.email AS owner_email,
-               EXISTS (SELECT 1 FROM event_plans p WHERE p.event_id = :e AND p.car_id = c.id) AS tagged
+               EXISTS (SELECT 1 FROM event_plans p WHERE p.event_id = :e AND p.car_id = c.id) AS tagged,
+               (SELECT p.formats FROM event_plans p WHERE p.event_id = :e AND p.car_id = c.id) AS formats
         FROM cars c JOIN users u ON u.id = c.owner_user_id
         WHERE c.id IN (SELECT car_id FROM event_plans WHERE event_id = :e
                        UNION SELECT car_id FROM tech_sheets WHERE event_id = :e)

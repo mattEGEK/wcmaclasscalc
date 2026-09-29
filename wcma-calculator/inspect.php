@@ -158,7 +158,7 @@ function inspectShowRoster(PDO $pdo): void {
             db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $eventSheets)),
             db_get_self_drivers_for_users($pdo, array_map(fn(array $c): int => (int)$c['owner_user_id'], $cars)),
             db_get_gear_records_for_season($pdo, $season, $key['discipline']),
-            $season, $key
+            $season, $key, $event['host_club'] ?? null
         );
     }
 

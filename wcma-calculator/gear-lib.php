@@ -143,6 +143,16 @@ function gearRosterFilter(array $records, string $filter): array {
     }));
 }
 
+/** The Gear tab's summer level filter (TA/Drift spec §5), next to plan 2's GEAR_SUMMER_LEVEL_LABELS. */
+const GEAR_ADMIN_LEVELS = ['all' => 'Any level', 'race' => 'Accepted at race level', 'ta_drift' => 'Accepted at TA/Drift level'];
+
+/** $level is a GEAR_ADMIN_LEVELS key; unknown means 'all'. Race is accepted with no level (TA/Drift spec §2). */
+function gearRosterLevelFilter(array $records, string $level): array {
+    if (!in_array($level, ['race', 'ta_drift'], true)) return $records;
+    return array_values(array_filter($records, fn(array $g): bool => ($g['status'] ?? '') === 'accepted'
+        && ($level === 'race' ? ($g['level'] ?? null) === null : ($g['level'] ?? null) === GEAR_LEVEL_TA_DRIFT)));
+}
+
 /** Creates a gear record for the owner. @return array{ok: bool, error: ?string, id: ?int} */
 function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $season, string $discipline = DISCIPLINE_SUMMER): array {
     $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'id' => null];

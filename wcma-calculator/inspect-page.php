@@ -59,13 +59,16 @@ function inspectRosterRowHtml(array $row, array $vm): string {
     $classCell = $classLink === '' ? garageClassHtml($row['class'])
         : preg_replace('/<\/p>$/', $classLink . '</p>', garageClassHtml($row['class']));
     if (($row['ice_class'] ?? '') !== '') $classCell = '<p>' . h($row['ice_class']) . '</p>';
+    if ($sheet === null && ($row['tier'] ?? 'race') === 'ta_drift') {
+        $classCell = '<p><span class="admin-chip admin-chip--info">TA/Drift</span> ' . h((string)$row['formats']) . '</p>';
+    }
     $sheetCell = $sheet === null
         ? '<span class="hub-status hub-status--todo">No sheet yet</span>'
         : '<span class="hub-status ' . ($sheet['status'] === 'teched' ? 'hub-status--ok">Accepted' : 'hub-status--info">Submitted') . '</span>'
             . ' <a href="inspect.php?action=tech-sheet&amp;id=' . (int)$sheet['id'] . '">' . ($sheet['status'] === 'teched' ? 'View' : 'Review') . '</a>'
             . (techSheetIsTaDrift($sheet) ? ' <span class="admin-chip admin-chip--info">TA/Drift</span>' : '');
-    $statusLabel = ($sheet !== null && techSheetIsTaDrift($sheet))
-        ? taDriftCarTechStatusLabel($row['status'], $vm['season'], (string)$sheet['club'])
+    $statusLabel = (($row['tier'] ?? 'race') === 'ta_drift')
+        ? taDriftCarTechStatusLabel($row['status'], $vm['season'], (string)$row['club'])
         : techCarStatusLabel($row['status'], $vm['season'], (string)($vm['discipline'] ?? 'summer'));
     $chips = renderGearChips($row['gear_links'], 'admin', [
         'sheet_season' => $vm['season'], 'csrf' => $vm['csrf'], 'sheet_id' => $sheet !== null ? (int)$sheet['id'] : 0,

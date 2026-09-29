@@ -26,10 +26,11 @@ function handleGearAdminList(PDO $pdo): void {
         'needs_gear' => count(gearRosterFilter($records, 'needs_gear')),
         'pending_review' => count(gearRosterFilter($records, 'pending_review')),
     ];
-    renderGearAdminListPage(gearRosterFilter($records, $filter), $season, $discipline, $filter, $counts, getFlash());
+    $level = $discipline === DISCIPLINE_SUMMER && is_string($_GET['level'] ?? null) && isset(GEAR_ADMIN_LEVELS[$_GET['level']]) ? $_GET['level'] : 'all';
+    renderGearAdminListPage(gearRosterLevelFilter(gearRosterFilter($records, $filter), $level), $season, $discipline, $filter, $counts, getFlash(), $level);
 }
 
-function renderGearAdminListPage(array $records, int $season, string $discipline, string $filter, array $counts, ?array $flash): void {
+function renderGearAdminListPage(array $records, int $season, string $discipline, string $filter, array $counts, ?array $flash, string $level = 'all'): void {
     renderPageStart('Gear', 'inspect', ['flash' => $flash, 'subnav' => inspectSubnavHtml('gear')]);
     ?>
 <h1 class="hub-page-title">Gear</h1>
@@ -49,6 +50,14 @@ function renderGearAdminListPage(array $records, int $season, string $discipline
       <option value="<?= h($value) ?>"<?= $value === $filter ? ' selected' : '' ?>><?= h($label) ?></option>
       <?php endforeach; ?>
     </select>
+    <?php if ($discipline === DISCIPLINE_SUMMER): ?>
+    <label for="gear-level-filter">Level</label>
+    <select id="gear-level-filter" name="level">
+      <?php foreach (GEAR_ADMIN_LEVELS as $value => $label): ?>
+      <option value="<?= h($value) ?>"<?= $value === $level ? ' selected' : '' ?>><?= h($label) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <?php endif; ?>
     <button type="submit" class="btn btn-primary">Apply</button>
     <p class="form-hint"><?= (int)$counts['all'] ?> drivers: <?= (int)$counts['accepted'] ?> accepted, <?= (int)$counts['pending_review'] ?> with photos awaiting review, <?= (int)$counts['needs_gear'] ?> still need a gear check at the track.</p>
   </form>
