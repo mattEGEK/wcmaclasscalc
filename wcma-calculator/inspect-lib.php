@@ -63,13 +63,20 @@ function inspectRosterRows(array $cars, array $eventSheets, array $seasonSheets,
         } else {
             $links = [];
         }
+        $status = techCarStatus($groups[techCarKey(['car_id' => $cid, 'season' => $season, 'discipline' => $key['discipline'], 'club' => $key['club']])] ?? []);
+        $isTaDrift = !$isIce && $sheet !== null && techSheetIsTaDrift($sheet);
+        if ($isTaDrift) {
+            // A TA/Drift sheet: race tech (any club) counts, otherwise its TA/Drift sheets at this club (TA/Drift spec §2).
+            $status = taDriftCarTechStatus($status, techCarStatus($groups[techCarKey($sheet)] ?? []));
+        }
         $rows[] = [
             'car' => $car,
             'sheet' => $sheet,
             'class' => garageClassLine($declarations[$cid] ?? []),
-            'status' => techCarStatus($groups[techCarKey(['car_id' => $cid, 'season' => $season, 'discipline' => $key['discipline'], 'club' => $key['club']])] ?? []),
+            'status' => $status,
             'gear_links' => $links,
-            'ice_class' => ($isIce && $sheet !== null) ? techSheetClassLine($sheet) : '',
+            // The class line from the sheet (ice class, or "TA/Drift (CLUB)"); '' when the class comes from a declaration.
+            'ice_class' => (($isIce || $isTaDrift) && $sheet !== null) ? techSheetClassLine($sheet) : '',
         ];
     }
     return $rows;
@@ -126,7 +133,8 @@ function inspectReviewQueue(array $declarations, array $sheets, array $gear): ar
             'kind' => 'car_photos', 'id' => (int)$s['id'],
             'title' => 'Car pre-tech photos: #' . $s['car_number'] . ' ' . trim($s['car_make'] . ' ' . $s['car_model']),
             'detail' => $s['entrant_name'] . ' · ' . ($s['event_name'] ?? '')
-                . (techSheetIsIce($s) ? ' · Ice · ' . techSheetClassLine($s) : ''),
+                . (techSheetIsIce($s) ? ' · Ice · ' . techSheetClassLine($s) : '')
+                . (techSheetIsTaDrift($s) ? ' · TA/Drift · ' . (string)($s['club'] ?? '') : ''),
             'since' => (string)$s['updated_at'],
             'url' => 'inspect.php?action=tech-sheet&id=' . (int)$s['id'] . '#pretech-review',
         ];
@@ -136,7 +144,8 @@ function inspectReviewQueue(array $declarations, array $sheets, array $gear): ar
             'kind' => 'gear_photos', 'id' => (int)$g['id'],
             'title' => 'Gear pre-tech photos: ' . $g['driver_name'],
             'detail' => 'Entered by ' . ($g['owner_name'] ?? '') . ' · '
-                . ((($g['discipline'] ?? 'summer') === 'ice') ? iceSeasonLabel((int)$g['season']) : (string)(int)$g['season']),
+                . ((($g['discipline'] ?? 'summer') === 'ice') ? iceSeasonLabel((int)$g['season']) : (string)(int)$g['season'])
+                . (gearIsRaceUpgrade($g) ? ' · Upgrade to race' : ((($g['photo_tier'] ?? null) === GEAR_LEVEL_TA_DRIFT) ? ' · TA/Drift' : '')),
             'since' => (string)$g['updated_at'],
             'url' => 'inspect.php?action=gear-record&id=' . (int)$g['id'] . '#gear-review',
         ];

@@ -15,7 +15,9 @@ function handleTechSheetView(PDO $pdo, int $id): void {
     }
     $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
-    $carStatus = techCarStatus(db_get_sheet_identity_sheets($pdo, $sheet));
+    $carStatus = techSheetIsTaDrift($sheet)
+        ? taDriftSheetCarStatus($sheet, db_get_user_tech_sheets($pdo, (int)$sheet['user_id']))
+        : techCarStatus(db_get_sheet_identity_sheets($pdo, $sheet));
     $reviewer = !empty($sheet['reviewed_by_user_id']) ? db_find_user_by_id($pdo, (int)$sheet['reviewed_by_user_id']) : null;
     $gearLinks = gearLinksForSheet($sheet, $drivers, db_get_user_gear_records($pdo, (int)$sheet['user_id']));
     renderTechSheetViewPage($sheet, $drivers, $event, $carStatus, $reviewer, generateCsrfToken(), getFlash(), pretechSnapshot($pdo, $id), $gearLinks);
@@ -69,7 +71,9 @@ function adminTechSheetSigResolver(int $techSheetId): callable {
 function renderTechSheetViewPage(array $sheet, array $drivers, array $event, array $carStatus, ?array $reviewer, string $csrf, ?array $flash, array $snapshot, array $gearLinks = []): void {
     $id = (int)$sheet['id'];
     $accepted = $sheet['status'] === 'teched';
-    $statusLabel = techCarStatusLabel($carStatus, (int)$sheet['season'], (string)($sheet['discipline'] ?? 'summer'));
+    $statusLabel = techSheetIsTaDrift($sheet)
+        ? taDriftCarTechStatusLabel($carStatus, (int)$sheet['season'], (string)$sheet['club'])
+        : techCarStatusLabel($carStatus, (int)$sheet['season'], (string)($sheet['discipline'] ?? 'summer'));
     $acceptedLine = '';
     if ($accepted) {
         $how = ($sheet['accepted_via'] ?? 'in_person') === 'photos' ? 'remotely' : 'in person';
@@ -84,6 +88,7 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
   <div class="detail-card">
     <h2>Tech review</h2>
     <p>Car #<?= h($sheet['car_number']) ?> — <?= h(trim($sheet['car_make'] . ' ' . $sheet['car_model'])) ?> (<?= h($sheet['entrant_name']) ?>)</p>
+    <?php if (techSheetIsTaDrift($sheet)): ?><p><span class="admin-chip admin-chip--info">TA/Drift</span> <?= h((string)$sheet['club']) ?> supplementary regulations<?= !empty($sheet['caged']) ? ' · roll bar or cage' : '' ?></p><?php endif; ?>
     <p>Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h($statusLabel) ?></strong></p>
     <?php if ($gearLinks): ?><p>Driver gear:</p><?= renderGearChips($gearLinks, 'admin', ['sheet_season' => (int)($sheet['season'] ?? 0), 'csrf' => $csrf, 'sheet_id' => $id, 'hidden' => ['back' => 'sheet']]) ?><?php endif; ?>
 
