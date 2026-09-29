@@ -152,6 +152,24 @@ function garageTaDriftSummaries(int $carId, array $carSheets, array $entryClubs,
     return $out;
 }
 
+/**
+ * Why tech was taken back (TA/Drift spec §3 "Tech revoked: {note}"): for each of the car's tech
+ * identities (race, TA/Drift per club, ice per club; techCarKey()) that isn't accepted now, the newest
+ * sheet's non-empty revoke_note. Accepting again clears it, so accepted identities show nothing.
+ * @return string[]
+ */
+function garageRevokeNotes(array $carSheets): array {
+    $notes = [];
+    foreach (techGroupSheetsByCar($carSheets) as $sheets) {
+        if (techCarStatus($sheets)['state'] === 'accepted') continue;
+        usort($sheets, fn(array $a, array $b): int => (int)$b['id'] <=> (int)$a['id']);
+        foreach ($sheets as $s) {
+            if (trim((string)($s['revoke_note'] ?? '')) !== '') { $notes[] = trim((string)$s['revoke_note']); break; }
+        }
+    }
+    return $notes;
+}
+
 /** The events a car can be added to: only the seasons it races (garageCarSeasons()). */
 function garageEventsForSeasons(array $events, array $seasons): array {
     return array_values(array_filter($events, fn(array $e): bool =>

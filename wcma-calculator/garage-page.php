@@ -8,6 +8,7 @@
 // ice-sheet-lib.php (techSheetClassLine()).
 require_once __DIR__ . '/ice-sheet-lib.php';
 require_once __DIR__ . '/ta-drift-lib.php';
+require_once __DIR__ . '/revoke-lib.php';
 
 function garageCsrfField(string $csrf): string {
     return '<input type="hidden" name="csrf_token" value="' . h($csrf) . '">';
@@ -235,6 +236,9 @@ function renderGarageCarHtml(array $vm): string {
             . garagePostForm($csrf, 'restore', $id, 'Restore this car', 'hub-btn') . '</div>';
     }
 
+    foreach ($vm['revokeNotes'] ?? [] as $note) {
+        $out .= revokeNoticeHtml($note, 'Tech');   // plan 2's notice, as on the sheet page
+    }
     $out .= garageNextStepHtml($vm);
 
     // Details

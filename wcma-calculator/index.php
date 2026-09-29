@@ -120,7 +120,9 @@ foreach ($in['drivers'] as $did => $d) {
         $ice = gearIceSummary($iceCur, $summerPrev, $iceSeason);
     }
     $drivers[] = ['name' => (string)$d['name'], 'isSelf' => $did === $in['selfDriverId'],
-                  'gearLabel' => gearStatusLabel($st, $season), 'gearState' => $st['state'],
+                  'gearLabel' => gearStatusLabel($st, $season)
+                      . ($st['state'] === 'accepted' && ($g['level'] ?? null) === GEAR_LEVEL_TA_DRIFT ? ' · ' . gearSummerLevelLabel(GEAR_LEVEL_TA_DRIFT) : ''),
+                  'gearState' => $st['state'],
                   'showSummer' => driverShowsSummerGear($hasIceActivity, $userUsesSummer, $g !== null),
                   'ice' => $ice];
 }

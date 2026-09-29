@@ -78,7 +78,9 @@ if ($iceActivity) {
         $did = (int)$d['id'];
         $iceGear = $gearByKey["$did:$iceSeason:" . DISCIPLINE_ICE] ?? null;
         $summerPrev = $gearByKey["$did:" . ($iceSeason - 1) . ':' . DISCIPLINE_SUMMER] ?? null;
-        $ice[$did] = gearIceSummary($iceGear, $summerPrev, $iceSeason) + ($iceSheetByDriver[$did] ?? ['sheetId' => null, 'driverNumber' => 1]);
+        $iceNote = $iceGear !== null && ($iceGear['status'] ?? '') !== 'accepted' ? trim((string)($iceGear['revoke_note'] ?? '')) : '';
+        $ice[$did] = gearIceSummary($iceGear, $summerPrev, $iceSeason) + ($iceSheetByDriver[$did] ?? ['sheetId' => null, 'driverNumber' => 1])
+            + ['revokeNote' => $iceNote !== '' ? $iceNote : null];
     }
 }
 
