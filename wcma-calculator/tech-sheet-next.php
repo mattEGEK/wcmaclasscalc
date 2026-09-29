@@ -8,7 +8,8 @@
 /** $car is the car record, for its year (the sheet doesn't store one); null leaves the year out. */
 function techSheetViewTitle(array $sheet, ?array $event, ?array $car = null): string {
     $ice = ($sheet['discipline'] ?? 'summer') === 'ice';
-    $parts = [$ice ? 'Ice tech sheet' : 'Tech sheet',
+    $kind = $ice ? 'Ice tech sheet' : (($sheet['sheet_type'] ?? '') === 'ta_drift' ? 'TA/Drift tech sheet' : 'Tech sheet');
+    $parts = [$kind,
               '#' . $sheet['car_number'] . ' ' . trim(trim((string)($car['year'] ?? '')) . ' ' . $sheet['car_make'] . ' ' . $sheet['car_model'])];
     if ($event !== null && trim((string)($event['name'] ?? '')) !== '') $parts[] = (string)$event['name'];
     return implode(' — ', $parts);
