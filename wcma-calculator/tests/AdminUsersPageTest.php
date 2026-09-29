@@ -19,9 +19,9 @@ final class AdminUsersPageTest extends TestCase
 
     public function testSaveRules(): void
     {
-        $admin = ['role' => 'admin'];
-        $user = ['role' => 'user'];
-        $this->assertSame('Cannot change the role of the last remaining admin.', adminUserSaveError($admin, 'Site Admin', 'inspector', 1));
+        $admin = ['role' => 'admin', 'active' => 1];
+        $user = ['role' => 'user', 'active' => 1];
+        $this->assertSame('Cannot change the role of the last remaining active admin.', adminUserSaveError($admin, 'Site Admin', 'inspector', 1));
         $this->assertNull(adminUserSaveError($admin, 'Site Admin', 'inspector', 2));
         $this->assertSame('Enter a name of 100 characters or fewer.', adminUserSaveError($user, '', 'user', 1));
         $this->assertSame('Enter a name of 100 characters or fewer.', adminUserSaveError($user, str_repeat('a', 101), 'user', 1));
@@ -30,6 +30,16 @@ final class AdminUsersPageTest extends TestCase
         $this->assertNull(adminUserSaveError($user, 'Ivy', 'user', 1));
         $this->assertNull(adminUserSaveError($user, 'Ivy Inspector', 'inspector', 1));
         $this->assertSame('Ivy Inspector', adminNormalizeName("  Ivy \t Inspector "));
+    }
+
+    public function testTheLastActiveAdminCannotBeDemotedEvenWhenDeactivatedAdminsRemain(): void
+    {
+        // Counts are active admins: a deactivated admin can't sign in, so it can't run the hub.
+        $this->assertSame('Cannot change the role of the last remaining active admin.',
+            adminUserSaveError(['role' => 'admin', 'active' => 1], 'Site Admin', 'user', 1));
+        $this->assertNull(adminUserSaveError(['role' => 'admin', 'active' => 1], 'Site Admin', 'user', 2));
+        // Demoting a deactivated admin leaves the active ones untouched.
+        $this->assertNull(adminUserSaveError(['role' => 'admin', 'active' => 0], 'Old Admin', 'user', 1));
     }
 
     public function testRowsAreReadOnlyWithOneEditButtonAndModalsSitAfterTheTable(): void

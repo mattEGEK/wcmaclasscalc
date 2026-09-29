@@ -12,7 +12,11 @@
         dialog.showModal();
         const field = dialog.querySelector('input:not([type="hidden"]), select, textarea');
         if (field) field.focus();
-        if (opener) dialog.addEventListener('close', function () { opener.focus(); }, { once: true });
+        dialog.addEventListener('close', function () {
+            // Cancel/Esc throws away unsaved edits, so reopening never shows them as if they were saved.
+            Array.prototype.forEach.call(dialog.querySelectorAll('form'), function (form) { form.reset(); });
+            if (opener) opener.focus();
+        }, { once: true });
     }
 
     function onClick(doc, event) {

@@ -10,11 +10,15 @@ function adminNormalizeName(string $name): string {
     return trim((string)preg_replace('/\s+/', ' ', $name));
 }
 
-/** Why a user-save can't go ahead, or null. $adminCount counts every admin account. Pure. */
-function adminUserSaveError(array $target, string $name, string $role, int $adminCount): ?string {
+/**
+ * Why a user-save can't go ahead, or null. $activeAdmins counts active admin accounts: a deactivated
+ * admin can't sign in, so demoting the last active one would leave nobody to run the hub. Pure.
+ */
+function adminUserSaveError(array $target, string $name, string $role, int $activeAdmins): ?string {
     if ($name === '' || mb_strlen($name, 'UTF-8') > 100) return 'Enter a name of 100 characters or fewer.';
     if (!isset(ROLE_LEVELS[$role])) return 'Choose a role.';
-    if ($target['role'] === 'admin' && $role !== 'admin' && $adminCount <= 1) return 'Cannot change the role of the last remaining admin.';
+    $targetIsActiveAdmin = $target['role'] === 'admin' && (int)($target['active'] ?? 1) === 1;
+    if ($targetIsActiveAdmin && $role !== 'admin' && $activeAdmins <= 1) return 'Cannot change the role of the last remaining active admin.';
     if ($role !== 'user' && !userHasFirstAndLastName($name)) {
         return 'Add a first and last name before giving this account the ' . $role . ' role. Review emails name the inspector.';
     }
@@ -42,7 +46,7 @@ function handleUserSave(PDO $pdo, int $id): void {
     }
     $name = adminNormalizeName((string)($_POST['name'] ?? ''));
     $role = (string)($_POST['role'] ?? '');
-    $error = adminUserSaveError($target, $name, $role, db_count_admins($pdo));
+    $error = adminUserSaveError($target, $name, $role, db_count_active_admins($pdo));
     if ($error !== null) {
         setFlash($error, 'error');
         adminRedirect('admin.php?action=users&edit=' . $id);
@@ -53,7 +57,7 @@ function handleUserSave(PDO $pdo, int $id): void {
     db_set_user_media($pdo, $id, ($_POST['is_media'] ?? '') === '1');
     $pdo->commit();
     setFlash('Saved ' . $name . '. Role and media changes apply the next time they sign in.', 'success');
-    adminRedirect('admin.php?action=users#user-' . $id);
+    adminRedirect('admin.php?action=users');
 }
 
 function handleSetActive(PDO $pdo, int $id, bool $active): void {
@@ -66,7 +70,7 @@ function handleSetActive(PDO $pdo, int $id, bool $active): void {
     }
     db_set_user_active($pdo, $id, $active);
     setFlash($active ? 'User reactivated.' : 'User deactivated.', 'success');
-    adminRedirect('admin.php?action=users#user-' . $id);
+    adminRedirect('admin.php?action=users');
 }
 
 /** Role, media and missing-name chips for one user. */

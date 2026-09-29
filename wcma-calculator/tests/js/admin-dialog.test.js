@@ -16,10 +16,11 @@ function fakeEl(attrs, dialog) {
         },
     };
 }
-function fakeDialog(fields) {
+function fakeDialog(fields, forms) {
     const listeners = {};
     return {
-        open: false, fields: fields || [],
+        open: false, fields: fields || [], forms: forms || [],
+        querySelectorAll() { return this.forms; },
         showModal() { this.open = true; },
         close() { this.open = false; (listeners.close || []).forEach(fn => fn()); listeners.close = []; },
         querySelector() { return this.fields[0] || null; },
@@ -74,4 +75,12 @@ test('a dialog sent back with an error opens as the page loads', () => {
     const dialog = fakeDialog([]);
     init(fakeDoc({}, dialog));
     assert.strictEqual(dialog.open, true);
+});
+
+test('closing without saving puts the form back as the page showed it', () => {
+    const form = { resets: 0, reset() { this.resets++; } };
+    const dialog = fakeDialog([], [form]);
+    openDialog(dialog, null);
+    dialog.close();
+    assert.strictEqual(form.resets, 1);
 });

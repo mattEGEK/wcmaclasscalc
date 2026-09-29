@@ -117,6 +117,11 @@ final class AdminSourceTest extends TestCase
             $this->assertLessThan(strpos($body, $write), $check, $write);
         }
         $this->assertStringContainsString("adminRedirect('admin.php?action=users&edit=' . \$id);", $body);
+        $this->assertStringContainsString('db_count_active_admins($pdo)', $body);
+        // The "Saved …" message is at the top of the page; jumping to the row would scroll it out of sight.
+        foreach (['handleUserSave', 'handleSetActive'] as $fn) {
+            $this->assertStringNotContainsString('#user-', $this->body('admin-users.php', $fn), $fn);
+        }
         foreach (["case 'set-role':", "case 'set-name':", "case 'set-media':"] as $gone) {
             $this->assertStringNotContainsString($gone, $this->src('admin.php'));
         }
