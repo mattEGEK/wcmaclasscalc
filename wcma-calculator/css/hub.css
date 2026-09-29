@@ -574,3 +574,14 @@ dialog.admin-dialog::backdrop { background: rgba(17, 19, 23, .55); }
   .admin-dialog-body { padding: 16px; }
   .admin-dialog-actions .btn { flex: 1; }
 }
+
+/* Home: an event card's "N things to do" is a link to that event's list (#todo at the top). It looks
+   like a button so it reads as tappable, and is 44px tall. */
+body.hub a.hub-todo-link { min-height: 44px; padding: 0 14px 0 12px; border: 2px solid var(--hub-red-ink); border-radius: 999px;
+  background: var(--hub-todo-bg); color: var(--hub-red-ink); font-weight: 700; text-decoration: none; align-self: center; }
+body.hub a.hub-todo-link::after { content: "\2192"; }
+body.hub a.hub-todo-link:hover { background: #fff; }
+body.hub #todo { scroll-margin-top: 16px; }
+body.hub #todo:focus { outline: none; }
+body.hub .hub-back-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--hub-red-ink); font-weight: 700; }
+body.hub .hub-todo { margin-bottom: 24px; }
