@@ -280,6 +280,29 @@ try {
   await page.waitForLoadState('networkidle');
   const leftover = await page.locator('.draft-notice').count();
   report('no draft left after submitting', leftover === 0 ? [] : ['the submitted sheet\'s draft was offered again']);
+  // TA/Drift readiness (2026-09-29 spec §3, §4). Uses plan 2's seeded "WSCC Time Attack" event. Plan 2
+  // audits the sheet itself, so here: adding a Summer TA/Drift only car for that event, Home's
+  // TA/Drift to-dos, the picker (Season Finale has no host club, so Time Attack and Drift are
+  // disabled), and the card's "Change" form.
+  await page.goto(BASE + '/index.php');
+  await go('section.hub-event:has-text("WSCC Time Attack") a:has-text("Add a car for this event")');
+  await page.check('input[name=disciplines][value=ta_drift]');
+  await audit(page, 'add a Summer TA/Drift only car');
+  await page.fill('#car-car_number', '86');
+  await page.fill('#car-make', 'Subaru');
+  await page.fill('#car-model', 'BRZ');
+  await page.fill('#car-colour', 'White');
+  await go('button:has-text("Add car")');
+  const landed = new URL(page.url());
+  report('a Summer TA/Drift only car goes to its event\'s TA/Drift sheet',
+    landed.searchParams.get('action') === 'new-ta-drift' && landed.searchParams.get('event_id')
+      ? [] : [`expected new-ta-drift with an event_id, got ${page.url()}`]);
+  await page.goto(BASE + '/index.php');
+  await audit(page, 'home with a TA/Drift entry');
+  const disabled = await page.locator('section.hub-event:has-text("Season Finale") input[name="formats[]"][value=ta]').isDisabled();
+  report('no host club: Time Attack is disabled', disabled ? [] : ['Time Attack was enabled for an event with no host club']);
+  await page.click('section.hub-event:has-text("WSCC Time Attack") .hub-entry-formats summary');
+  await audit(page, 'home (change what you are running)');
   // Admin tabs (admin desktop UX spec 2026-09-29): phone rules, the edit modal, Deactivate's confirm
   // inside the modal, and on desktop one-line user rows and a centred modal.
   const signInAdmin = async ctx => {
