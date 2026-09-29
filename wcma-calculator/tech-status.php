@@ -24,6 +24,15 @@ function techSeasonFromDate(?string $eventDate): int {
 const DISCIPLINE_SUMMER = 'summer';
 const DISCIPLINE_ICE = 'ice';
 
+/**
+ * TA/Drift (2026-09-29 spec): the tech an entry needs (race or TA/Drift), the sheet type that
+ * carries the TA/Drift tier, and the summer gear level for it (NULL is race level).
+ */
+const TECH_TIER_RACE = 'race';
+const TECH_TIER_TA_DRIFT = 'ta_drift';
+const SHEET_TYPE_TA_DRIFT = 'ta_drift';
+const GEAR_LEVEL_TA_DRIFT = 'ta_drift';
+
 /** How an ice season reads to people: stored season 2027 is the winter of 2026–27 (mobile UX spec 2026-09-28 §C5). */
 function iceSeasonLabel(int $season): string {
     return 'Winter ' . ($season - 1) . '–' . substr((string)$season, -2);
@@ -54,10 +63,13 @@ function seasonForEvent(?array $event): array {
     return ['discipline' => DISCIPLINE_SUMMER, 'season' => techSeasonFromDate($date), 'club' => null];
 }
 
-/** Groups sheets that belong to the same car in the same season (and, for ice, the same club). */
+/** Groups sheets that belong to the same car in the same season (and, for ice and TA/Drift, the same club). */
 function techCarKey(array $sheet): string {
     $car = (int)($sheet['car_id'] ?? 0);
     $season = (int)($sheet['season'] ?? 0);
+    if (($sheet['sheet_type'] ?? '') === SHEET_TYPE_TA_DRIFT) {
+        return $car . '|ta_drift|' . ($sheet['club'] ?? '') . '|' . $season;
+    }
     if (($sheet['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) {
         return $car . '|ice|' . ($sheet['club'] ?? '') . '|' . $season;
     }
@@ -183,8 +195,12 @@ function techDefaultEventId(array $events, string $today): int {
     return (int)(($upcoming ?? $latest)['id'] ?? 0);
 }
 
-/** Key for an "I'll do it at the track" choice. Summer keys keep their original "type:id@season" form. */
+/**
+ * Key for an "I'll do it at the track" choice. Summer keys keep their original "type:id@season" form.
+ * TA/Drift car tech (stored as a summer choice with the host club) passes TECH_TIER_TA_DRIFT.
+ */
 function atTrackKey(string $type, int $id, int $season, string $discipline = DISCIPLINE_SUMMER, string $club = ''): string {
+    if ($discipline === TECH_TIER_TA_DRIFT) return "$type:$id@tad:$club:$season";
     if ($discipline !== DISCIPLINE_ICE) return "$type:$id@$season";
     return $club === '' ? "$type:$id@ice:$season" : "$type:$id@ice:$club:$season";
 }
