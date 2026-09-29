@@ -1,0 +1,125 @@
+<?php
+// wcma-calculator/tests/DbMsrTest.php
+require_once __DIR__ . '/../msr-lib.php';
+
+use PHPUnit\Framework\TestCase;
+
+final class DbMsrTest extends TestCase
+{
+    private const NASCC = '2386B6E3-96BC-AE58-0812CF4B556BCBC2';
+    private const EV = 'AAAAAAAA-BBBB-CCCC-DDDDDDDDDDDDDDDD';
+
+    private function feed(array $events): callable {
+        $body = json_encode(['response' => ['events' => $events]]);
+        return fn(string $url): array => ['ok' => true, 'status' => 200, 'body' => $body, 'error' => ''];
+    }
+
+    private function ev(array $o = []): array {
+        return array_merge(['id' => self::EV, 'name' => 'Ice Race #1', 'start' => '2027-01-16', 'end' => '2027-01-17',
+            'type' => 'Ice Racing', 'venue' => ['name' => 'Lake Wabamun'], 'cancelled' => false,
+            'detailuri' => 'https://www.motorsportreg.com/events/ice-1?utm_source=apis'], $o);
+    }
+
+    private function nascc(PDO $pdo): array {
+        return db_get_club($pdo, 'NASCC');
+    }
+
+    public function testClubsGetTheirOrgIdsSeededOnceAndNeverAgain(): void
+    {
+        $pdo = make_temp_pdo();
+        $this->assertSame(self::NASCC, $this->nascc($pdo)['msr_org_id']);
+        $this->assertSame('4D45EE74-0A85-F011-ACBD5982F016139D', db_get_club($pdo, 'WSCC')['msr_org_id']);
+        db_set_club_msr_org_id($pdo, 'NASCC', '');   // an admin disconnects the club
+        db_init($pdo);
+        $this->assertSame('', $this->nascc($pdo)['msr_org_id']);
+    }
+
+    public function testFirstSyncStoresRaceEventsAsNewAndRecordsSuccess(): void
+    {
+        $pdo = make_temp_pdo();
+        $fixture = (string)file_get_contents(__DIR__ . '/fixtures/msr-nascc.json');
+        $r = msrSyncClub($pdo, $this->nascc($pdo), fn($u) => ['ok' => true, 'status' => 200, 'body' => $fixture, 'error' => ''], '2025-10-01', '2025-10-01 06:00:00');
+        $this->assertTrue($r['ok']);
+        $this->assertSame(4, $r['found']);
+        $rows = db_get_msr_events($pdo);
+        $this->assertCount(4, $rows);
+        $this->assertSame(['new'], array_values(array_unique(array_column($rows, 'status'))));
+        $this->assertSame(4, msrPendingCount($pdo));
+        $status = msrSyncStatus($pdo);
+        $this->assertSame('2025-10-01 06:00:00', $status[0]['ok_at']);
+        $this->assertSame('', $status[0]['error']);
+    }
+
+    public function testResyncUpdatesDetailsButKeepsTheAdminsDecisions(): void
+    {
+        $pdo = make_temp_pdo();
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev()]), '2026-10-01', '2026-10-01 06:00:00');
+        db_set_msr_status($pdo, self::EV, 'ignored');
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev(['name' => 'Ice Race #1 (new time)'])]), '2026-10-02', '2026-10-02 06:00:00');
+        $row = db_get_msr_event($pdo, self::EV);
+        $this->assertSame('ignored', $row['status']);
+        $this->assertSame('Ice Race #1 (new time)', $row['name']);
+        $this->assertSame('https://www.motorsportreg.com/events/ice-1', $row['detail_url']);
+        $this->assertSame(0, msrPendingCount($pdo));
+    }
+
+    public function testAnAddedEventThatChangesIsFlagged(): void
+    {
+        $pdo = make_temp_pdo();
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev()]), '2026-10-01', '2026-10-01 06:00:00');
+        $hub = db_create_event($pdo, 'Ice Race #1', '2027-01-16', 'Lake Wabamun', 'ice', 'NASCC');
+        db_mark_msr_added($pdo, self::EV, $hub, true);
+        $this->assertSame(0, msrPendingCount($pdo));
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev(['start' => '2027-01-23', 'end' => '2027-01-24', 'cancelled' => true])]), '2026-10-02', '2026-10-02 06:00:00');
+        $this->assertSame(['start_date', 'cancelled'], array_column(msrChanges(db_get_msr_event($pdo, self::EV)), 'field'));
+        $this->assertSame(1, msrPendingCount($pdo));
+        $this->assertSame(1, (int)db_get_event($pdo, $hub)['active']);   // never changed without an admin
+    }
+
+    public function testMissingEventsAreDroppedFlaggedOrTreatedAsFinished(): void
+    {
+        $pdo = make_temp_pdo();
+        $other = 'BBBBBBBB-BBBB-CCCC-DDDDDDDDDDDDDDDD';
+        $past = 'CCCCCCCC-BBBB-CCCC-DDDDDDDDDDDDDDDD';
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev(), $this->ev(['id' => $other]), $this->ev(['id' => $past, 'start' => '2026-10-03', 'end' => '2026-10-04'])]), '2026-10-01', '2026-10-01 06:00:00');
+        $hub = db_create_event($pdo, 'Ice Race #1', '2027-01-16', null, 'ice', 'NASCC');
+        db_mark_msr_added($pdo, self::EV, $hub, true);
+        db_mark_msr_added($pdo, $past, $hub, false);
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([]), '2026-10-10', '2026-10-10 06:00:00');
+        $this->assertNull(db_get_msr_event($pdo, $other));                     // new, gone from MSR → dropped
+        $this->assertNull(db_get_msr_event($pdo, $past));                      // finished → dropped quietly
+        $this->assertSame('gone', db_get_msr_event($pdo, self::EV)['status']); // added, gone → flagged
+        // Back in the feed: tracked again.
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev()]), '2026-10-11', '2026-10-11 06:00:00');
+        $this->assertSame('added', db_get_msr_event($pdo, self::EV)['status']);
+        $this->assertSame(0, msrPendingCount($pdo));
+    }
+
+    public function testAFailedOrGarbledFetchChangesNothing(): void
+    {
+        $pdo = make_temp_pdo();
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev()]), '2026-10-01', '2026-10-01 06:00:00');
+        $down = fn($u) => ['ok' => false, 'status' => 0, 'body' => '', 'error' => "Couldn't reach MotorsportReg (timeout)."];
+        $r = msrSyncClub($pdo, $this->nascc($pdo), $down, '2026-10-02', '2026-10-02 06:00:00');
+        $this->assertFalse($r['ok']);
+        $this->assertNotNull(db_get_msr_event($pdo, self::EV));
+        $garbled = fn($u) => ['ok' => true, 'status' => 200, 'body' => '<html>maintenance</html>', 'error' => ''];
+        $r2 = msrSyncClub($pdo, $this->nascc($pdo), $garbled, '2026-10-03', '2026-10-03 06:00:00');
+        $this->assertSame("MotorsportReg sent something the hub couldn't read.", $r2['error']);
+        $this->assertNotNull(db_get_msr_event($pdo, self::EV));
+        $status = msrSyncStatus($pdo)[0];
+        $this->assertSame('2026-10-01 06:00:00', $status['ok_at']);
+        $this->assertSame("MotorsportReg sent something the hub couldn't read.", $status['error']);
+    }
+
+    public function testSyncAllSkipsClubsWithoutAnOrgId(): void
+    {
+        $pdo = make_temp_pdo();
+        db_set_club_msr_org_id($pdo, 'WSCC', '');
+        $urls = [];
+        $fetch = function (string $url) use (&$urls): array { $urls[] = $url; return ['ok' => true, 'status' => 200, 'body' => '{"response":{"events":[]}}', 'error' => '']; };
+        $results = msrSyncAll($pdo, $fetch, '2026-10-01', '2026-10-01 06:00:00');
+        $this->assertSame(['NASCC'], array_column($results, 'code'));
+        $this->assertSame([msrFeedUrl(self::NASCC)], $urls);
+    }
+}

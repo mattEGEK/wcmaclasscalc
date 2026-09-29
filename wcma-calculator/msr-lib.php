@@ -145,3 +145,69 @@ function msrDateRange(string $start, string $end): string {
     $s = date('D, M j', strtotime($start));
     return $end === $start ? $s : $s . ' – ' . date('D, M j', strtotime($end));
 }
+
+/** Fetch one club's feed and bring msr_events up to date. A failed fetch changes nothing but the club's error. */
+function msrSyncClub(PDO $pdo, array $club, callable $fetch, string $today, string $now): array {
+    $code = (string)$club['code'];
+    $fail = function (string $error) use ($pdo, $code): array {
+        db_set_setting($pdo, 'msr_sync_error_' . $code, $error);
+        return ['ok' => false, 'error' => $error, 'found' => 0, 'skipped' => 0];
+    };
+    $res = $fetch(msrFeedUrl((string)$club['msr_org_id']));
+    if (!$res['ok']) return $fail((string)$res['error']);
+    $parsed = msrParseFeed((string)$res['body']);
+    if ($parsed === null) return $fail("MotorsportReg sent something the hub couldn't read.");
+
+    $pdo->beginTransaction();
+    $seen = [];
+    foreach ($parsed['events'] as $e) {
+        db_upsert_msr_event($pdo, $code, $e, $now);
+        $seen[$e['msr_id']] = true;
+    }
+    foreach (db_get_msr_events($pdo, $code) as $row) {
+        $id = (string)$row['msr_id'];
+        if (isset($seen[$id])) {
+            if ($row['status'] === 'gone') db_set_msr_status($pdo, $id, 'added');
+        } elseif ((string)$row['end_date'] < $today || in_array($row['status'], ['new', 'ignored'], true)) {
+            db_delete_msr_event($pdo, $id);   // finished, or never used
+        } elseif ($row['status'] === 'added') {
+            db_set_msr_status($pdo, $id, 'gone');
+        }
+    }
+    $pdo->commit();
+    db_set_setting($pdo, 'msr_sync_ok_' . $code, $now);
+    db_set_setting($pdo, 'msr_sync_error_' . $code, '');
+    return ['ok' => true, 'error' => '', 'found' => count($parsed['events']), 'skipped' => (int)$parsed['skipped']];
+}
+
+/** Sync every club that has an organization ID. */
+function msrSyncAll(PDO $pdo, callable $fetch, string $today, string $now): array {
+    $out = [];
+    foreach (db_get_clubs($pdo) as $club) {
+        if ((string)($club['msr_org_id'] ?? '') === '') continue;
+        $out[] = ['code' => (string)$club['code'], 'name' => (string)$club['name']] + msrSyncClub($pdo, $club, $fetch, $today, $now);
+    }
+    return $out;
+}
+
+/** "Last checked" per connected club. */
+function msrSyncStatus(PDO $pdo): array {
+    $out = [];
+    foreach (db_get_clubs($pdo) as $club) {
+        if ((string)($club['msr_org_id'] ?? '') === '') continue;
+        $code = (string)$club['code'];
+        $out[] = ['code' => $code, 'name' => (string)$club['name'],
+                  'ok_at' => (string)db_get_setting($pdo, 'msr_sync_ok_' . $code, ''),
+                  'error' => (string)db_get_setting($pdo, 'msr_sync_error_' . $code, '')];
+    }
+    return $out;
+}
+
+/** New events plus changed ones: the Events tab badge. DB only, never calls MSR. */
+function msrPendingCount(PDO $pdo): int {
+    $n = 0;
+    foreach ($pdo->query("SELECT * FROM msr_events WHERE status IN ('new', 'added', 'gone')")->fetchAll() as $row) {
+        if ($row['status'] === 'new' || msrChanges($row)) $n++;
+    }
+    return $n;
+}

@@ -364,6 +364,37 @@ function db_init(PDO $pdo): void {
     $seed = $pdo->prepare("INSERT OR IGNORE INTO clubs (code, name, msr_url, active, created_at) VALUES (:c, :n, '', 1, :t)");
     foreach (DB_ICE_CLUB_SEED as $code => $name) $seed->execute([':c' => $code, ':n' => $name, ':t' => date('Y-m-d H:i:s')]);
 
+    // ── MotorsportReg calendar import (2026-09-29 spec). Added in place: no reset. ──
+    db_add_column_if_missing($pdo, 'clubs', 'msr_org_id', "TEXT NOT NULL DEFAULT ''");
+    if (db_get_setting($pdo, 'msr_org_ids_seeded') === null) {
+        // Once only, so an admin who disconnects a club isn't reconnected on the next page load.
+        $seedOrg = $pdo->prepare("UPDATE clubs SET msr_org_id = :id WHERE code = :c AND msr_org_id = ''");
+        foreach (DB_MSR_ORG_SEED as $code => $orgId) $seedOrg->execute([':id' => $orgId, ':c' => $code]);
+        db_set_setting($pdo, 'msr_org_ids_seeded', '1');
+    }
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS msr_events (
+            msr_id         TEXT PRIMARY KEY,
+            club_code      TEXT NOT NULL,
+            name           TEXT NOT NULL,
+            start_date     DATE NOT NULL,
+            end_date       DATE NOT NULL,
+            type           TEXT NOT NULL,
+            venue          TEXT NOT NULL DEFAULT '',
+            detail_url     TEXT NOT NULL DEFAULT '',
+            cancelled      INTEGER NOT NULL DEFAULT 0,
+            status         TEXT NOT NULL DEFAULT 'new',
+            hub_event_id   INTEGER,
+            is_primary     INTEGER NOT NULL DEFAULT 0,
+            snap_name      TEXT,
+            snap_start     DATE,
+            snap_venue     TEXT,
+            snap_cancelled INTEGER,
+            first_seen_at  DATETIME NOT NULL,
+            last_seen_at   DATETIME NOT NULL
+        )
+    ");
+
     // ── Driver media profiles (2026-09-27 spec). Added in place: no reset. ──
     db_add_column_if_missing($pdo, 'users', 'is_media', 'INTEGER NOT NULL DEFAULT 0');
     db_add_column_if_missing($pdo, 'users', 'media_prompt_dismissed', 'INTEGER NOT NULL DEFAULT 0');
@@ -1676,6 +1707,9 @@ function db_get_drivers_for_sheets(PDO $pdo, array $sheetIds): array {
 /** The ice clubs seeded into `clubs` (their names match ice-rules.php ICE_CLUBS; ClubsTest checks). */
 const DB_ICE_CLUB_SEED = ['NASCC' => 'Northern Alberta Sports Car Club', 'WSCC' => 'Winnipeg Sports Car Club'];
 
+/** MotorsportReg organization IDs found on the clubs' MSR pages on 2026-09-29 (seeded once). */
+const DB_MSR_ORG_SEED = ['NASCC' => '2386B6E3-96BC-AE58-0812CF4B556BCBC2', 'WSCC' => '4D45EE74-0A85-F011-ACBD5982F016139D'];
+
 function db_get_clubs(PDO $pdo, bool $activeOnly = false): array {
     return $pdo->query("SELECT * FROM clubs" . ($activeOnly ? " WHERE active = 1" : "") . " ORDER BY name COLLATE NOCASE ASC")->fetchAll();
 }
@@ -1694,6 +1728,60 @@ function db_create_club(PDO $pdo, string $code, string $name, string $url): void
 function db_update_club(PDO $pdo, string $code, string $name, string $url, bool $active): void {
     $pdo->prepare("UPDATE clubs SET name = :n, msr_url = :u, active = :a WHERE code = :c")
         ->execute([':c' => $code, ':n' => $name, ':u' => $url, ':a' => $active ? 1 : 0]);
+}
+
+function db_set_club_msr_org_id(PDO $pdo, string $code, string $orgId): void {
+    $pdo->prepare("UPDATE clubs SET msr_org_id = :o WHERE code = :c")->execute([':o' => $orgId, ':c' => $code]);
+}
+
+// ── MotorsportReg calendar import ─────────────────────────────────────────────
+
+function db_get_msr_events(PDO $pdo, ?string $club = null): array {
+    if ($club === null) return $pdo->query("SELECT * FROM msr_events ORDER BY start_date, name")->fetchAll();
+    $stmt = $pdo->prepare("SELECT * FROM msr_events WHERE club_code = :c ORDER BY start_date, name");
+    $stmt->execute([':c' => $club]);
+    return $stmt->fetchAll();
+}
+
+function db_get_msr_event(PDO $pdo, string $id): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM msr_events WHERE msr_id = :id");
+    $stmt->execute([':id' => $id]);
+    return $stmt->fetch() ?: null;
+}
+
+/** Insert a feed event, or refresh its details; status, hub link and snapshot are kept. */
+function db_upsert_msr_event(PDO $pdo, string $club, array $e, string $now): void {
+    $pdo->prepare("
+        INSERT INTO msr_events (msr_id, club_code, name, start_date, end_date, type, venue, detail_url, cancelled, first_seen_at, last_seen_at)
+        VALUES (:id, :club, :name, :start, :end, :type, :venue, :url, :cancelled, :now, :now)
+        ON CONFLICT(msr_id) DO UPDATE SET club_code = excluded.club_code, name = excluded.name,
+            start_date = excluded.start_date, end_date = excluded.end_date, type = excluded.type,
+            venue = excluded.venue, detail_url = excluded.detail_url, cancelled = excluded.cancelled,
+            last_seen_at = excluded.last_seen_at
+    ")->execute([':id' => $e['msr_id'], ':club' => $club, ':name' => $e['name'], ':start' => $e['start_date'],
+                 ':end' => $e['end_date'], ':type' => $e['type'], ':venue' => $e['venue'], ':url' => $e['detail_url'],
+                 ':cancelled' => $e['cancelled'], ':now' => $now]);
+}
+
+function db_set_msr_status(PDO $pdo, string $id, string $status): void {
+    $pdo->prepare("UPDATE msr_events SET status = :s WHERE msr_id = :id")->execute([':s' => $status, ':id' => $id]);
+}
+
+function db_delete_msr_event(PDO $pdo, string $id): void {
+    $pdo->prepare("DELETE FROM msr_events WHERE msr_id = :id")->execute([':id' => $id]);
+}
+
+/** The row now belongs to hub event $eventId; its current details become the snapshot. */
+function db_mark_msr_added(PDO $pdo, string $id, int $eventId, bool $primary): void {
+    $pdo->prepare("UPDATE msr_events SET status = 'added', hub_event_id = :e, is_primary = :p,
+        snap_name = name, snap_start = start_date, snap_venue = venue, snap_cancelled = cancelled WHERE msr_id = :id")
+        ->execute([':e' => $eventId, ':p' => $primary ? 1 : 0, ':id' => $id]);
+}
+
+/** The admin has seen the current details: they become the snapshot. */
+function db_snapshot_msr_event(PDO $pdo, string $id): void {
+    $pdo->prepare("UPDATE msr_events SET snap_name = name, snap_start = start_date, snap_venue = venue, snap_cancelled = cancelled
+        WHERE msr_id = :id")->execute([':id' => $id]);
 }
 
 // ── Season links ──────────────────────────────────────────────────────────────
