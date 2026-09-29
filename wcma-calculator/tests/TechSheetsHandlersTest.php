@@ -53,8 +53,35 @@ final class TechSheetsHandlersTest extends TestCase
 
     public function testSubmittingASheetTagsTheEventAndNewCanPreselectIt(): void
     {
-        $this->assertStringContainsString('db_tag_event(', $this->body('handleSubmit'));
+        foreach (['handleSubmit', 'handleSubmitIce', 'handleSubmitTaDrift'] as $fn) {
+            $this->assertStringContainsString('eventsTagForSheet(', $this->body($fn), $fn);
+            $this->assertStringNotContainsString('db_tag_event(', $this->body($fn), $fn);
+        }
         $this->assertStringContainsString('$eventId', $this->body('handleNew'));
+    }
+
+    public function testTaDriftRoutesAndForks(): void
+    {
+        $src = file_get_contents(__DIR__ . '/../tech-sheets.php');
+        $this->assertStringContainsString("case 'new-ta-drift':", $src);
+        $this->assertStringContainsString("case 'submit-ta-drift':", $src);
+        $this->assertStringContainsString('techSheetIsTaDrift($sheet)', $this->body('handleEdit'));
+        $this->assertStringContainsString('handleUpdateTaDrift($pdo, $user, $sheet)', $this->body('handleUpdate'));
+        $this->assertStringContainsString('pretechSheetEditable(', $this->body('handleUpdate'));   // checked before the fork
+        $this->assertStringContainsString("action=new-ta-drift", $this->body('handleNew'));
+    }
+
+    public function testTaDriftSubmitChecksTheEventTheCarAndTheSheet(): void
+    {
+        $body = $this->body('handleSubmitTaDrift');
+        $this->assertStringContainsString('taDriftOpenEvents([$event])', $body);
+        $this->assertStringContainsString('db_get_user_car(', $body);
+        $this->assertStringContainsString('taDriftSheetValidate(', $body);
+        $this->assertStringContainsString("db_replace_tech_sheet_drivers(\$pdo, \$id, \$valid['drivers'])", $body);
+        $this->assertStringContainsString('TECH_TIER_TA_DRIFT', $body);
+        $update = $this->body('handleUpdateTaDrift');
+        $this->assertStringContainsString("'event_id' => (int)\$sheet['event_id']", $update);   // the event stays fixed
+        $this->assertStringContainsString("db_replace_tech_sheet_drivers(\$pdo, \$id, \$valid['drivers'])", $update);
     }
 
     public function testValidationFailureRedirectCarriesTheChosenEventId(): void

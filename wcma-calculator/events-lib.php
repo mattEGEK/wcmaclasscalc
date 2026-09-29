@@ -76,6 +76,29 @@ function eventsDefaultFormats(PDO $pdo, array $car, array $event): array {
     return ($car['disciplines'] ?? null) === 'ta_drift' ? ['ta'] : ['race'];
 }
 
+/**
+ * The entry a submitted tech sheet makes (TA/Drift spec §3). It tags the car if it isn't tagged yet.
+ * A new entry gets its default formats, unless they would need other tech than this sheet gives:
+ * then a TA/Drift sheet enters Time Attack and a race sheet enters Race. An existing entry keeps its
+ * formats. Submitting a TA/Drift sheet also counts as the supplementary-regulations tick for a
+ * TA/Drift entry.
+ */
+function eventsTagForSheet(PDO $pdo, int $userId, array $event, array $car, string $tier): void {
+    $eventId = (int)$event['id'];
+    $carId = (int)$car['id'];
+    $entry = db_get_entry($pdo, $userId, $eventId, $carId);
+    if ($entry === null) {
+        $formats = eventsDefaultFormats($pdo, $car, $event);
+        if (entryTechTier($formats) !== $tier) $formats = $tier === TECH_TIER_TA_DRIFT ? ['ta'] : ['race'];
+        eventsTagCar($pdo, $userId, $eventId, $carId, $formats, $tier === TECH_TIER_TA_DRIFT);
+        return;
+    }
+    $formats = entryFormatsParse((string)$entry['formats']);
+    if ($tier === TECH_TIER_TA_DRIFT && entryTechTier($formats) === TECH_TIER_TA_DRIFT) {
+        eventsStoreFormats($pdo, $userId, $eventId, $carId, $formats, true);
+    }
+}
+
 /** @return array{ok: bool, error: ?string} */
 function eventsUntagCar(PDO $pdo, int $userId, int $eventId, int $carId): array {
     if (db_get_user_car($pdo, $userId, $carId) === null) return ['ok' => false, 'error' => 'Choose one of your cars.'];
