@@ -10,8 +10,8 @@ final class AdminClubsPageTest extends TestCase
 {
     private function clubs(): array {
         return [
-            ['code' => 'NASCC', 'name' => 'Northern <Alberta>', 'msr_url' => 'https://msr.example/n', 'active' => 1],
-            ['code' => 'WSCC', 'name' => 'Winnipeg', 'msr_url' => '', 'active' => 0],
+            ['code' => 'NASCC', 'name' => 'Northern <Alberta>', 'msr_url' => 'https://msr.example/n', 'msr_org_id' => '2386B6E3-96BC-AE58-0812CF4B556BCBC2', 'active' => 1],
+            ['code' => 'WSCC', 'name' => 'Winnipeg', 'msr_url' => '', 'msr_org_id' => '', 'active' => 0],
         ];
     }
 
@@ -48,5 +48,18 @@ final class AdminClubsPageTest extends TestCase
         $html = renderClubsPageHtml($this->clubs(), 'tok', ['type' => 'error', 'message' => 'Enter the club name.'], 'NASCC');
         $this->assertMatchesRegularExpression('/id="club-dialog-nascc"[^>]*data-open-on-load>.*Enter the club name\./s', $html);
         $this->assertSame(1, substr_count($html, 'data-open-on-load'));
+    }
+
+    public function testClubsShowAndEditTheirMotorsportRegCalendarConnection(): void
+    {
+        $html = renderClubsPageHtml($this->clubs(), 'tok');
+        $this->assertStringContainsString('<th>Calendar</th>', $html);
+        $this->assertStringContainsString('<td data-label="Calendar"><span class="admin-chip admin-chip--ok">Connected</span></td>', $html);
+        $this->assertStringContainsString('<td data-label="Calendar">—</td>', $html);
+        $nascc = substr($html, strpos($html, 'id="club-dialog-nascc"'));
+        $nascc = substr($nascc, 0, strpos($nascc, '</dialog>'));
+        $this->assertStringContainsString('name="msr_org" value="2386B6E3-96BC-AE58-0812CF4B556BCBC2"', $nascc);
+        $this->assertStringContainsString('MotorsportReg calendar (club page address or organization ID)', $nascc);
+        $this->assertStringContainsString('name="msr_org"', substr($html, strpos($html, 'id="club-dialog-new"')));
     }
 }

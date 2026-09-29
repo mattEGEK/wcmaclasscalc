@@ -141,4 +141,23 @@ final class AdminSourceTest extends TestCase
             $this->assertStringNotContainsString('renderSiteHeader(', $src, $file);
         }
     }
+
+    public function testDailyCronRunsTheMotorsportRegCheckAfterTheReminders(): void
+    {
+        $cron = $this->src('reminders-cron.sh');
+        $this->assertLessThan(strpos($cron, 'msr-sync.php'), strpos($cron, 'reminders.php'));
+        $this->assertStringContainsString('"$PHP_BIN" msr-sync.php >> data/msr-sync.log 2>&1', $cron);
+        $this->assertStringNotContainsString('exec "$PHP_BIN" reminders.php', $cron);   // must not end the script
+        $sync = $this->src('msr-sync.php');
+        $this->assertStringContainsString("if (PHP_SAPI !== 'cli') { http_response_code(403); exit; }", $sync);
+        $this->assertStringContainsString("msrSyncAll(\$pdo, 'msrHttpGet', ", $sync);
+    }
+
+    public function testClubSaveOnlyFetchesMotorsportRegWhenTheFieldChanged(): void
+    {
+        $body = $this->body('admin-clubs.php', 'handleClubSave');
+        $this->assertStringContainsString("msrOrgIdFromInput(\$msrInput, 'msrHttpGet')", $body);
+        $this->assertLessThan(strpos($body, 'msrOrgIdFromInput('), strpos($body, '$msrInput === $currentOrgId'));
+        $this->assertStringContainsString("require_once __DIR__ . '/msr-lib.php';", $this->src('admin.php'));
+    }
 }

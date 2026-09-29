@@ -154,3 +154,7 @@ Testing without sending anything:
 writes the emails to the file as JSON lines. Each reminder is sent once per window, so run it against a
 copy of the database or reset it afterwards.
 
+The same cron job then runs `msr-sync.php`, which reads each connected club's public MotorsportReg
+calendar (Admin → Clubs → MotorsportReg calendar) and lists new or changed race events under
+Admin → Events → From MotorsportReg. It logs to `data/msr-sync.log`; `php msr-sync.php` runs it by hand.
+

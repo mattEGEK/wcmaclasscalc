@@ -12,6 +12,7 @@ require __DIR__ . '/feedback-lib.php';
 require __DIR__ . '/admin-feedback.php';
 require __DIR__ . '/season-links-lib.php';
 require_once __DIR__ . '/clubs-lib.php';
+require_once __DIR__ . '/msr-lib.php';
 require __DIR__ . '/admin-clubs.php';
 require __DIR__ . '/admin-season-links.php';
 require __DIR__ . '/admin-ui.php';
