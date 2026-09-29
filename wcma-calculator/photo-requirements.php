@@ -311,6 +311,75 @@ const ICE_PHOTO_REQUIREMENTS = [
     ],
 ];
 
+// ── TA/Drift (2026-09-29 spec §1). Keys are prefixed tad_; 'caged_only' shots need a roll bar or cage. ──
+const TA_DRIFT_PHOTO_REQUIREMENTS_VERSION = 1;
+
+const TA_DRIFT_PHOTO_REQUIREMENTS = [
+    // ── Car ──
+    'tad_front_34' => [
+        'scope' => 'car', 'tier' => 'required', 'typed' => [],
+        'label' => 'Front three-quarter view',
+        'guidance' => 'Whole front of the car with the car number visible.',
+    ],
+    'tad_rear_34' => [
+        'scope' => 'car', 'tier' => 'required', 'typed' => [],
+        'label' => 'Rear three-quarter view',
+        'guidance' => 'Whole rear of the car with the car number visible.',
+    ],
+    'tad_interior' => [
+        'scope' => 'car', 'tier' => 'required', 'typed' => [],
+        'label' => "Interior from the driver's door",
+        'guidance' => 'The seats, belts and floor, showing nothing is loose in the cabin.',
+    ],
+    'tad_battery' => [
+        'scope' => 'car', 'tier' => 'required', 'typed' => [],
+        'label' => 'Battery hold-down',
+        'guidance' => 'The battery tie-down and the covered positive terminal.',
+    ],
+    'tad_tow_front' => [
+        'scope' => 'car', 'tier' => 'required', 'typed' => [],
+        'label' => 'Front tow point',
+        'guidance' => 'The front tow hook, eye or strap. Factory ones are fine.',
+    ],
+    'tad_tow_rear' => [
+        'scope' => 'car', 'tier' => 'required', 'typed' => [],
+        'label' => 'Rear tow point',
+        'guidance' => 'The rear tow hook, eye or strap. Factory ones are fine.',
+    ],
+    'tad_cage' => [
+        'scope' => 'car', 'tier' => 'required', 'typed' => [], 'caged_only' => true,
+        'label' => 'Roll bar or cage and harness',
+        'guidance' => 'The roll bar or cage and the harness, from the open driver door.',
+    ],
+    // ── Gear ──
+    'tad_helmet_label' => [
+        'scope' => 'gear', 'tier' => 'required',
+        'typed' => [
+            ['name' => 'standard', 'label' => 'Standard', 'type' => 'select', 'options' => ICE_HELMET_STANDARDS],
+            ['name' => 'date', 'label' => 'Date (MM/YYYY)', 'type' => 'month_year'],
+        ],
+        'label' => 'Helmet certification label',
+        'guidance' => 'The inside label showing the certification standard and date.',
+    ],
+    'tad_fhr_label' => [
+        'scope' => 'gear', 'tier' => 'required', 'caged_only' => true,
+        'typed' => [
+            ['name' => 'standard', 'label' => 'Standard', 'type' => 'select', 'options' => PHOTO_FHR_STANDARDS],
+            ['name' => 'date', 'label' => 'Date (MM/YYYY)', 'type' => 'month_year'],
+        ],
+        'label' => 'Head and neck restraint label',
+        'guidance' => 'The label on the head and neck restraint showing the standard and date.',
+    ],
+];
+
+/** True if $subject takes the TA/Drift list for $scope: a ta_drift sheet (car), or a gear subject the caller marked photo_tier ta_drift. */
+function photoSubjectIsTaDrift(array $subject, string $scope): bool {
+    if (($subject['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) return false;
+    return $scope === 'car'
+        ? ($subject['sheet_type'] ?? '') === SHEET_TYPE_TA_DRIFT
+        : ($subject['photo_tier'] ?? '') === TECH_TIER_TA_DRIFT;
+}
+
 /** Requirements for one scope ('car' or 'gear'), or all of them, keyed by requirement key. */
 function photoRequirements(?string $scope = null): array {
     if ($scope === null) return PHOTO_REQUIREMENTS;
@@ -321,6 +390,7 @@ function photoRequirements(?string $scope = null): array {
 function photoRequirementByKey(string $key): ?array {
     if (isset(PHOTO_REQUIREMENTS[$key])) return PHOTO_REQUIREMENTS[$key] + ['key' => $key];
     if (isset(ICE_PHOTO_REQUIREMENTS[$key])) return ICE_PHOTO_REQUIREMENTS[$key] + ['key' => $key];
+    if (isset(TA_DRIFT_PHOTO_REQUIREMENTS[$key])) return TA_DRIFT_PHOTO_REQUIREMENTS[$key] + ['key' => $key];
     return null;
 }
 
@@ -329,10 +399,20 @@ function photoRequirementByKey(string $key): ?array {
  * (scope 'gear'). Summer subjects (and an empty array) get the summer list. An ice tech sheet gets
  * the car shots for its class group; an ice gear record gets the ice gear shots. Each def gets its
  * club's guidance and the list 'version' it is stored under.
+ * A ta_drift sheet, or a gear subject with photo_tier 'ta_drift', gets the TA/Drift list (cage shots only when 'caged').
  *
  * @return array<string, array> key => requirement
  */
 function photoRequirementsFor(array $subject, string $scope): array {
+    if (photoSubjectIsTaDrift($subject, $scope)) {
+        $out = [];
+        foreach (TA_DRIFT_PHOTO_REQUIREMENTS as $key => $def) {
+            if ($def['scope'] !== $scope) continue;
+            if (!empty($def['caged_only']) && empty($subject['caged'])) continue;
+            $out[$key] = $def + ['version' => TA_DRIFT_PHOTO_REQUIREMENTS_VERSION];
+        }
+        return $out;
+    }
     if (($subject['discipline'] ?? DISCIPLINE_SUMMER) !== DISCIPLINE_ICE) {
         return array_map(fn(array $r): array => $r + ['version' => PHOTO_REQUIREMENTS_VERSION], photoRequirements($scope));
     }
