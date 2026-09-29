@@ -147,9 +147,10 @@ function validateDriverEquipment(array $equipment, array $items = TECH_DRIVER_EQ
  * driver rows (ready for db_replace_tech_sheet_drivers()) on success, or
  * null if anything is invalid: more than 6 drivers, a blank/missing name, a
  * driver_number outside [2,7], a duplicate driver_number, or equipment that
- * fails validateDriverEquipment().
+ * fails validateDriverEquipment(). $items (summer by default) is the gear list each driver's
+ * equipment is checked against.
  */
-function validateAdditionalDrivers(array $driversInput): ?array {
+function validateAdditionalDrivers(array $driversInput, array $items = TECH_DRIVER_EQUIPMENT_ITEMS): ?array {
     if (count($driversInput) > 6) return null;
 
     $rows = [];
@@ -168,7 +169,7 @@ function validateAdditionalDrivers(array $driversInput): ?array {
         $seenNumbers[$number] = true;
 
         $equipment = is_array($d['equipment'] ?? null) ? $d['equipment'] : [];
-        if (!validateDriverEquipment($equipment)) return null;
+        if (!validateDriverEquipment($equipment, $items)) return null;
 
         $rows[] = [
             'driver_number' => $number,
