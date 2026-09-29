@@ -100,10 +100,10 @@ function emptyChecklist(array $sections = TECH_CHECKLIST_SECTIONS): array {
     return $out;
 }
 
-/** Every driver-equipment item key, mapped to its unanswered shape. */
-function emptyDriverEquipment(): array {
+/** Every driver-equipment item key (summer by default), mapped to its unanswered shape. */
+function emptyDriverEquipment(array $items = TECH_DRIVER_EQUIPMENT_ITEMS): array {
     $out = [];
-    foreach (TECH_DRIVER_EQUIPMENT_ITEMS as $key => $def) {
+    foreach ($items as $key => $def) {
         $out[$key] = ['competitor_confirmed' => false, 'value' => null];
     }
     return $out;
