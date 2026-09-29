@@ -794,6 +794,31 @@ function db_get_user_event_plans(PDO $pdo, int $userId): array {
     return $stmt->fetchAll();
 }
 
+/** One entry (event_plans row) of the user's, or null. */
+function db_get_entry(PDO $pdo, int $userId, int $eventId, int $carId): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM event_plans WHERE user_id = :u AND event_id = :e AND car_id = :c");
+    $stmt->execute([':u' => $userId, ':e' => $eventId, ':c' => $carId]);
+    return $stmt->fetch() ?: null;
+}
+
+/** An entry's formats (as entryFormatsStore() writes them) and when the regulations box was ticked (null = not ticked). */
+function db_set_entry_formats(PDO $pdo, int $userId, int $eventId, int $carId, string $formats, ?string $suppsAckAt): void {
+    $pdo->prepare("UPDATE event_plans SET formats = :f, supps_ack_at = :a WHERE user_id = :u AND event_id = :e AND car_id = :c")
+        ->execute([':f' => $formats, ':a' => $suppsAckAt, ':u' => $userId, ':e' => $eventId, ':c' => $carId]);
+}
+
+/** The formats of the car's most recently made summer entry, other than $exceptEventId. Null if none. */
+function db_get_car_last_summer_formats(PDO $pdo, int $carId, int $exceptEventId): ?string {
+    $stmt = $pdo->prepare("
+        SELECT p.formats FROM event_plans p JOIN events e ON e.id = p.event_id
+        WHERE p.car_id = :c AND p.event_id != :x AND e.discipline = 'summer'
+        ORDER BY p.created_at DESC, p.id DESC LIMIT 1
+    ");
+    $stmt->execute([':c' => $carId, ':x' => $exceptEventId]);
+    $f = $stmt->fetchColumn();
+    return $f === false ? null : (string)$f;
+}
+
 function db_set_at_track(PDO $pdo, string $subjectType, int $subjectId, int $season,
                          string $discipline = DISCIPLINE_SUMMER, string $club = ''): void {
     $pdo->prepare("
