@@ -106,8 +106,10 @@ function mediaSubnavHtml(string $current): string {
     return hubSubnavHtml('Media', MEDIA_TABS, $current);
 }
 
-function adminSubnavHtml(string $current): string {
-    return hubSubnavHtml('Admin', ADMIN_TABS, $current);
+function adminSubnavHtml(string $current, int $eventsBadge = 0): string {
+    $tabs = ADMIN_TABS;
+    if ($eventsBadge > 0) $tabs['events'][1] .= ' (' . $eventsBadge . ')';   // new or changed MotorsportReg events
+    return hubSubnavHtml('Admin', $tabs, $current);
 }
 
 /** The signed-in "no access" page (spec §9): a 403 inside the layout. The caller sets the status code. */

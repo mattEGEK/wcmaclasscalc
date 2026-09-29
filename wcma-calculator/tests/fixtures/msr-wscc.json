@@ -1,0 +1,233 @@
+{
+ "response": {
+  "recordset": {
+   "total": 39,
+   "remaining": 0,
+   "page": 1
+  },
+  "events": [
+   {
+    "detailuri": "https://www.MotorsportReg.com/events/wscc-annual-awards-celebration-banquet-hilton-airport-winnipeg-sports-car-club-993023?utm_source=apis&utm_medium=apim&utm_campaign=apic&utm_content=json",
+    "uri": "/calendars/48DC8129-F964-D5AE-99744E4C9930D2A3",
+    "name": "WSCC - Annual Awards and Celebration Banquet",
+    "organization": {
+     "uri": "/calendars/organization/4D45EE74-0A85-F011-ACBD5982F016139D",
+     "name": "Winnipeg Sports Car Club"
+    },
+    "cancelled": false,
+    "venue": {
+     "postalCode": "R3H 1B2",
+     "geo": {
+      "type": "Point",
+      "coordinates": [
+       -97.20891,
+       49.90073
+      ]
+     },
+     "city": "Winnipeg",
+     "uri": "/calendars/venue/754E9728-D172-D029-D58823FCF1529AC5",
+     "name": "Hilton Airport",
+     "region": "MB"
+    },
+    "image": {
+     "standard": "//dl.motorsportreg.com/97daf8c2-fe95-477f-a199-d92cb0bfc5d7/-/progressive/yes/-/scale_crop/1012x606/center/-/format/png/msr.png"
+    },
+    "description": "<p><strong>Event Scheule</strong></p>\n<p>Cocktails at 6PM</p>\n<p>Dinner service ",
+    "public": true,
+    "start": "2025-11-22",
+    "end": "2025-11-22",
+    "id": "48DC8129-F964-D5AE-99744E4C9930D2A3",
+    "registration": {
+     "start": "2025-10-11 05:00",
+     "end": "2025-11-21 05:59"
+    },
+    "type": "Festival/Social"
+   },
+   {
+    "detailuri": "https://www.MotorsportReg.com/events/2026-wscc-ice-event-1-lake-shirley-winnipeg-sports-car-club-626947?utm_source=apis&utm_medium=apim&utm_campaign=apic&utm_content=json",
+    "uri": "/calendars/54DCA9C3-E5AD-AF7A-DDB4126BCA26E947",
+    "name": "2026 WSCC Ice Event 1 - Lake Shirley",
+    "organization": {
+     "uri": "/calendars/organization/4D45EE74-0A85-F011-ACBD5982F016139D",
+     "name": "Winnipeg Sports Car Club"
+    },
+    "cancelled": false,
+    "venue": {
+     "postalCode": "R2J 4E6",
+     "geo": {
+      "type": "Point",
+      "coordinates": [
+       -96.9813,
+       49.87294
+      ]
+     },
+     "city": "Winnipeg",
+     "uri": "/calendars/venue/F16BE868-C193-106F-4FB445F32297C11F",
+     "name": "Lake Shirley",
+     "region": "MB"
+    },
+    "image": {
+     "standard": "//dl.motorsportreg.com/0ca7b732-7a74-43bb-8da4-c42753d3ce80/-/crop/2270x1276/141,0/-/preview/-/progressive/yes/-/scale_crop/1012x606/center/-/format/png/msr.png"
+    },
+    "description": "<h2 style=\"font-style:italic; text-align:center\"><img style=\"height:226px; width",
+    "public": true,
+    "start": "2026-01-03",
+    "end": "2026-01-04",
+    "id": "54DCA9C3-E5AD-AF7A-DDB4126BCA26E947",
+    "registration": {
+     "start": "2025-11-15 06:00",
+     "end": "2026-01-04 05:59"
+    },
+    "type": "Ice Racing"
+   },
+   {
+    "detailuri": "https://www.MotorsportReg.com/events/2026-wscc-ice-event-2-lake-shirley-canceled-winnipeg-sports-car-club-394259?utm_source=apis&utm_medium=apim&utm_campaign=apic&utm_content=json",
+    "uri": "/calendars/39C1575C-C246-007C-27CAA13D94AAB259",
+    "name": "2026 WSCC Ice Event 2 - Lake Shirley - CANCELED",
+    "organization": {
+     "uri": "/calendars/organization/4D45EE74-0A85-F011-ACBD5982F016139D",
+     "name": "Winnipeg Sports Car Club"
+    },
+    "cancelled": true,
+    "venue": {
+     "postalCode": "R2J 4E6",
+     "geo": {
+      "type": "Point",
+      "coordinates": [
+       -96.9813,
+       49.87294
+      ]
+     },
+     "city": "Winnipeg",
+     "uri": "/calendars/venue/F16BE868-C193-106F-4FB445F32297C11F",
+     "name": "Lake Shirley",
+     "region": "MB"
+    },
+    "image": {
+     "standard": "//dl.motorsportreg.com/0ca7b732-7a74-43bb-8da4-c42753d3ce80/-/crop/2270x1276/141,0/-/preview/-/progressive/yes/-/scale_crop/1012x606/center/-/format/png/msr.png"
+    },
+    "description": "<h2 style=\"font-style:italic; text-align:center\"><img style=\"height:217px; width",
+    "public": true,
+    "start": "2026-01-24",
+    "end": "2026-01-25",
+    "id": "39C1575C-C246-007C-27CAA13D94AAB259",
+    "registration": {
+     "start": "2025-11-24 06:00",
+     "end": "2026-01-26 05:59"
+    },
+    "type": "Ice Racing"
+   },
+   {
+    "detailuri": "https://www.MotorsportReg.com/events/2026-wscc-ice-event-rescheduled-lake-shirley-winnipeg-sports-car-club-757860?utm_source=apis&utm_medium=apim&utm_campaign=apic&utm_content=json",
+    "uri": "/calendars/812EF58D-DCD8-FA4B-C917CE5F786DA0AD",
+    "name": "2026 WSCC Ice Event 2 - RESCHEDULED",
+    "organization": {
+     "uri": "/calendars/organization/4D45EE74-0A85-F011-ACBD5982F016139D",
+     "name": "Winnipeg Sports Car Club"
+    },
+    "cancelled": false,
+    "venue": {
+     "postalCode": "R2J 4E6",
+     "geo": {
+      "type": "Point",
+      "coordinates": [
+       -96.9813,
+       49.87294
+      ]
+     },
+     "city": "Winnipeg",
+     "uri": "/calendars/venue/F16BE868-C193-106F-4FB445F32297C11F",
+     "name": "Lake Shirley",
+     "region": "MB"
+    },
+    "image": {
+     "standard": "//dl.motorsportreg.com/0ca7b732-7a74-43bb-8da4-c42753d3ce80/-/crop/2270x1276/141,0/-/preview/-/progressive/yes/-/scale_crop/1012x606/center/-/format/png/msr.png"
+    },
+    "description": "<h2 style=\"font-style:italic; text-align:center\"><img style=\"height:217px; width",
+    "public": true,
+    "start": "2026-02-21",
+    "end": "2026-02-22",
+    "id": "812EF58D-DCD8-FA4B-C917CE5F786DA0AD",
+    "registration": {
+     "start": "2026-01-29 06:00",
+     "end": "2026-02-23 05:59"
+    },
+    "type": "Ice Racing"
+   },
+   {
+    "detailuri": "https://www.MotorsportReg.com/events/winnipeg-autocross-2026-1-st-andrews-airport-sports-car-club-590714?utm_source=apis&utm_medium=apim&utm_campaign=apic&utm_content=json",
+    "uri": "/calendars/94984C48-0077-62E9-B260C640659071B4",
+    "name": "Winnipeg Autocross / 2026 / Autocross 1",
+    "organization": {
+     "uri": "/calendars/organization/4D45EE74-0A85-F011-ACBD5982F016139D",
+     "name": "Winnipeg Sports Car Club"
+    },
+    "cancelled": false,
+    "venue": {
+     "postalCode": "R1A 3P9",
+     "geo": {
+      "type": "Point",
+      "coordinates": [
+       -97.03028,
+       50.05695
+      ]
+     },
+     "city": "St Andrews",
+     "uri": "/calendars/venue/F401D03E-A7EB-CAAE-0C0FB32AF63ACDED",
+     "name": "St Andrews Airport",
+     "region": "MB"
+    },
+    "image": {
+     "standard": "//dl.motorsportreg.com/e2e1e8a7-43b6-4c55-b33e-07e9f65d5601/-/crop/1200x674/0,0/-/preview/-/progressive/yes/-/scale_crop/1012x606/center/-/format/png/msr.png"
+    },
+    "description": "<p><img alt=\"\" src=\"https://dl.motorsportreg.com/66bea708-9451-414b-9a68-3415394",
+    "public": true,
+    "start": "2026-05-03",
+    "end": "2026-05-03",
+    "id": "94984C48-0077-62E9-B260C640659071B4",
+    "registration": {
+     "start": "2026-04-11 05:00",
+     "end": "2026-05-03 15:00"
+    },
+    "type": "Autocross/Solo"
+   },
+   {
+    "detailuri": "https://www.MotorsportReg.com/events/wscc-2026-gmp-race-weekend-1-may-29-31-gimli-motorsports-park-winnipeg-029079?utm_source=apis&utm_medium=apim&utm_campaign=apic&utm_content=json",
+    "uri": "/calendars/20E25DD0-057A-4574-0FFCA29FE07CFDA9",
+    "name": "WSCC 2026 GMP Race Weekend #1 (May 29-31)",
+    "organization": {
+     "uri": "/calendars/organization/4D45EE74-0A85-F011-ACBD5982F016139D",
+     "name": "Winnipeg Sports Car Club"
+    },
+    "cancelled": false,
+    "venue": {
+     "postalCode": "R0C 1B0",
+     "geo": {
+      "type": "Point",
+      "coordinates": [
+       -96.98867,
+       50.63208
+      ]
+     },
+     "city": "Gimli",
+     "uri": "/calendars/venue/0C67EC4F-00ED-8BE7-903B7120A83A0810",
+     "name": "Gimli Motorsports Park",
+     "region": "MB"
+    },
+    "image": {
+     "standard": "//dl.motorsportreg.com/08b7f66a-801f-43af-a052-d9678d2a94b8/-/crop/1920x1079/0,0/-/preview/-/progressive/yes/-/scale_crop/1012x606/center/-/format/png/msr.png"
+    },
+    "description": "<h2 style=\"font-style:italic; text-align:center\"><img alt=\"\" src=\"https://dl.mot",
+    "public": true,
+    "start": "2026-05-29",
+    "end": "2026-05-31",
+    "id": "20E25DD0-057A-4574-0FFCA29FE07CFDA9",
+    "registration": {
+     "start": "2026-03-22 05:00",
+     "end": "2026-06-01 04:59"
+    },
+    "type": "Club Race"
+   }
+  ]
+ }
+}

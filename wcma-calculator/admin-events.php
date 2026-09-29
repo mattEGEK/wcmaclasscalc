@@ -17,27 +17,36 @@ function handleEventsList(PDO $pdo): void {
     $events = db_get_all_events($pdo);
     $edit = adminEditTarget($_GET);
     $place = adminFlashPlacement(getFlash(), $edit, array_merge(['new'], array_column($events, 'id')));
-    $body = renderEventsPageHtml($events, db_count_event_plans($pdo), db_get_clubs($pdo), generateCsrfToken(), $place['dialog'], $edit);
+    $body = renderEventsPageHtml($events, db_count_event_plans($pdo), db_get_clubs($pdo), generateCsrfToken(), $place['dialog'], $edit,
+        ['pending' => adminEventsBadge(), 'connected' => msrSyncStatus($pdo) !== []]);
     adminRenderPage('Events', 'events', $body, $place['top']);
 }
 
+/**
+ * The add-event fields from a form, validated: name and date required, discipline/club per
+ * iceEventFields(), optional https MotorsportReg link. $clubCodes are the clubs allowed as host.
+ */
+function adminEventFromPost(array $post, array $clubCodes): array {
+    $name = trim((string)($post['name'] ?? ''));
+    $date = trim((string)($post['event_date'] ?? ''));
+    $out = ['ok' => false, 'error' => '', 'name' => $name, 'date' => $date, 'location' => trim((string)($post['location'] ?? '')),
+            'discipline' => 'summer', 'club' => null, 'msr_url' => trim((string)($post['msr_url'] ?? ''))];
+    if ($name === '' || $date === '') return ['error' => 'Event name and date are required.'] + $out;
+    $fields = iceEventFields($post, $clubCodes);
+    if (!$fields['ok']) return ['error' => (string)$fields['error']] + $out;
+    $urlError = eventMsrUrlError($out['msr_url']);
+    if ($urlError !== null) return ['error' => $urlError] + $out;
+    return ['ok' => true, 'discipline' => $fields['discipline'], 'club' => $fields['club']] + $out;
+}
+
 function handleEventCreate(PDO $pdo): void {
-    $name = trim($_POST['name'] ?? '');
-    $date = trim($_POST['event_date'] ?? '');
-    $location = trim($_POST['location'] ?? '');
-    if ($name === '' || $date === '') {
-        setFlash('Event name and date are required.', 'error');
+    $f = adminEventFromPost($_POST, array_column(db_get_clubs($pdo, true), 'code'));
+    if (!$f['ok']) {
+        setFlash($f['error'], 'error');
         adminRedirect('admin.php?action=events&edit=new');
     }
-    $fields = iceEventFields($_POST, array_column(db_get_clubs($pdo, true), 'code'));
-    $msrUrl = trim((string)($_POST['msr_url'] ?? ''));
-    $error = $fields['ok'] ? eventMsrUrlError($msrUrl) : (string)$fields['error'];
-    if ($error !== null) {
-        setFlash($error, 'error');
-        adminRedirect('admin.php?action=events&edit=new');
-    }
-    $id = db_create_event($pdo, $name, $date, $location !== '' ? $location : null, $fields['discipline'], $fields['club']);
-    db_set_event_msr_url($pdo, $id, $msrUrl);
+    $id = db_create_event($pdo, $f['name'], $f['date'], $f['location'] !== '' ? $f['location'] : null, $f['discipline'], $f['club']);
+    db_set_event_msr_url($pdo, $id, $f['msr_url']);
     setFlash('Event created.', 'success');
     adminRedirect('admin.php?action=events');
 }
@@ -106,8 +115,17 @@ function adminEventFieldsHtml(string $p, array $e, array $clubs): string {
 }
 
 /** The Events page body: Add button, read-only table, then the add modal and one modal per event. Pure. */
-function renderEventsPageHtml(array $events, array $going, array $clubs, string $csrf, ?array $dialogFlash, ?string $edit): string {
-    $out = '<div class="admin-toolbar">' . adminAddButton('event-dialog-new', 'Add event') . '</div>'
+function renderEventsPageHtml(array $events, array $going, array $clubs, string $csrf, ?array $dialogFlash, ?string $edit,
+                              array $msr = ['pending' => 0, 'connected' => false]): string {
+    $out = '';
+    if ((int)$msr['pending'] > 0) {
+        $n = (int)$msr['pending'];
+        $out .= '<p class="admin-msr-strip"><strong>From MotorsportReg:</strong> ' . $n . ' ' . ($n === 1 ? 'event' : 'events')
+            . ' to review <a class="hub-btn hub-btn--secondary" href="admin.php?action=msr">Review</a></p>';
+    } elseif (!empty($msr['connected'])) {
+        $out .= '<p class="admin-msr-strip"><a class="admin-link" href="admin.php?action=msr">From MotorsportReg</a></p>';
+    }
+    $out .= '<div class="admin-toolbar">' . adminAddButton('event-dialog-new', 'Add event') . '</div>'
         . '<table class="data-table admin-table" id="events-table"><thead><tr><th>Date</th><th>Name</th><th>Location</th>'
         . '<th>Host club</th><th>Registration</th><th>Going</th><th>Status</th><th><span class="visually-hidden">Actions</span></th></tr></thead><tbody>';
     $dialogs = adminDialogHtml('event-dialog-new', 'Add an event',

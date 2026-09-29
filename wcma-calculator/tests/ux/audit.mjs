@@ -280,7 +280,7 @@ try {
   };
   const phoneAdmin = await browser.newContext({ viewport: { width: 375, height: 800 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
   const ap = await signInAdmin(phoneAdmin);
-  for (const tab of ['users', 'events', 'clubs', 'season-links', 'settings']) {
+  for (const tab of ['users', 'events', 'clubs', 'season-links', 'settings', 'msr']) {
     await ap.goto(BASE + '/admin.php?action=' + tab);
     await audit(ap, 'admin ' + tab);
   }

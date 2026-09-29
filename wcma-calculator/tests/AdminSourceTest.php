@@ -46,7 +46,7 @@ final class AdminSourceTest extends TestCase
             'admin-events.php' => ["adminRenderPage('Events', 'events'"],
             'admin-clubs.php' => ["adminRenderPage('Clubs', 'clubs'"],
             'admin-users.php' => ["adminRenderPage('Users & roles', 'users'"],
-            'admin-ui.php' => ["adminSubnavHtml(\$tab)"],
+            'admin-ui.php' => ["adminSubnavHtml(\$tab, "],
             'admin-feedback.php' => ["adminRenderPage('Feedback', 'feedback'"],
             'admin-season-links.php' => ["adminRenderPage('Season links', 'season-links'"],
             'admin-settings.php' => ["adminRenderPage('Settings', 'settings'"],
@@ -81,7 +81,7 @@ final class AdminSourceTest extends TestCase
         $src = $this->src('admin-events.php');
         $this->assertStringContainsString('name="discipline"', $src);
         $this->assertStringContainsString('name="host_club"', $src);
-        $this->assertStringContainsString('iceEventFields($_POST, ', $src);
+        $this->assertStringContainsString('iceEventFields($post, ', $src);
     }
 
     // Fix 3: a POST that omits "discipline" (e.g. a stale form, or a script only touching name/date)
@@ -140,5 +140,49 @@ final class AdminSourceTest extends TestCase
             $this->assertStringNotContainsString('<!DOCTYPE html>', $src, $file);
             $this->assertStringNotContainsString('renderSiteHeader(', $src, $file);
         }
+    }
+
+    public function testDailyCronRunsTheMotorsportRegCheckAfterTheReminders(): void
+    {
+        $cron = $this->src('reminders-cron.sh');
+        $this->assertLessThan(strpos($cron, 'msr-sync.php'), strpos($cron, 'reminders.php'));
+        $this->assertStringContainsString('"$PHP_BIN" msr-sync.php >> data/msr-sync.log 2>&1', $cron);
+        $this->assertStringNotContainsString('exec "$PHP_BIN" reminders.php', $cron);   // must not end the script
+        $sync = $this->src('msr-sync.php');
+        $this->assertStringContainsString("if (PHP_SAPI !== 'cli') { http_response_code(403); exit; }", $sync);
+        $this->assertStringContainsString("msrSyncAll(\$pdo, 'msrHttpGet', ", $sync);
+    }
+
+    public function testClubSaveOnlyFetchesMotorsportRegWhenTheFieldChanged(): void
+    {
+        $body = $this->body('admin-clubs.php', 'handleClubSave');
+        $this->assertStringContainsString("msrOrgIdFromInput(\$msrInput, 'msrHttpGet')", $body);
+        $this->assertLessThan(strpos($body, 'msrOrgIdFromInput('), strpos($body, '$msrInput === $currentOrgId'));
+        $this->assertStringContainsString("require_once __DIR__ . '/msr-lib.php';", $this->src('admin.php'));
+    }
+
+    public function testTheEventsBadgeIsSetOnceFromTheDatabase(): void
+    {
+        $admin = $this->src('admin.php');
+        $this->assertStringContainsString('adminEventsBadge(msrPendingCount($pdo));', $admin);
+        $this->assertLessThan(strpos($admin, 'switch ($action) {'), strpos($admin, 'adminEventsBadge(msrPendingCount($pdo));'));
+        $this->assertLessThan(strpos($admin, 'adminEventsBadge('), strpos($admin, "require_role('admin');"));
+        $this->assertStringContainsString('adminSubnavHtml($tab, adminEventsBadge())', $this->src('admin-ui.php'));
+    }
+
+    public function testMotorsportRegRoutesArePostOnlyAndReturnToTheReviewPage(): void
+    {
+        $admin = $this->src('admin.php');
+        foreach (['msr-add', 'msr-attach', 'msr-ignore', 'msr-restore', 'msr-apply', 'msr-keep', 'msr-check'] as $route) {
+            $this->assertMatchesRegularExpression("/case '$route':\\s*adminRequirePost\\('admin.php\\?action=msr'\\);/", $admin, $route);
+        }
+        $this->assertStringContainsString("case 'msr':", $admin);
+        $this->assertStringContainsString("require_once __DIR__ . '/admin-msr.php';", $admin);
+    }
+
+    public function testChangingAClubsCalendarForgetsItsPendingEvents(): void
+    {
+        $body = $this->body('admin-clubs.php', 'handleClubSave');
+        $this->assertMatchesRegularExpression('/if \(\$orgId !== \$currentOrgId\) msrForgetClub\(\$pdo, \$v\[\'code\'\]\);/', $body);
     }
 }

@@ -19,10 +19,10 @@ function adminChip(string $text, string $kind): string {
     return '<span class="admin-chip admin-chip--' . h($kind) . '">' . h($text) . '</span>';
 }
 
-/** Which modal to reopen: ?edit=<id|code|new> (1–20 letters, digits or dashes), else null. */
+/** Which modal to reopen: ?edit=<id|code|MSR id|new> (1–40 letters, digits or dashes), else null. */
 function adminEditTarget(array $get): ?string {
     $v = $get['edit'] ?? null;
-    return is_string($v) && preg_match('/^[A-Za-z0-9-]{1,20}$/', $v) ? $v : null;
+    return is_string($v) && preg_match('/^[A-Za-z0-9-]{1,40}$/', $v) ? $v : null;
 }
 
 /**
@@ -85,9 +85,16 @@ function adminField(string $id, string $label, string $inputHtml, bool $wide = f
         . h($label) . '</label>' . $inputHtml . '</div>';
 }
 
+/** The Events tab's MotorsportReg count, set once per request by admin.php. */
+function adminEventsBadge(?int $set = null): int {
+    static $n = 0;
+    if ($set !== null) $n = $set;
+    return $n;
+}
+
 /** Every admin tab's page: hub layout with the Admin tabs, the title, the body, the modal scripts. */
 function adminRenderPage(string $title, string $tab, string $bodyHtml, ?array $topFlash, string $extraScripts = ''): void {
-    renderPageStart($title, 'admin', ['subnav' => adminSubnavHtml($tab), 'flash' => $topFlash, 'bodyClass' => 'admin']);
+    renderPageStart($title, 'admin', ['subnav' => adminSubnavHtml($tab, adminEventsBadge()), 'flash' => $topFlash, 'bodyClass' => 'admin']);
     echo '<h1 class="hub-page-title">' . h($title) . '</h1>' . $bodyHtml;
     $scripts = '';
     foreach (['js/admin-dialog.js', 'js/confirm-modal.js', 'js/form-feedback.js'] as $src) {
