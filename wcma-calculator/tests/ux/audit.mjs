@@ -10,7 +10,9 @@ function auditInPage(R) {
   const visible = el => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
     return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0'; };
   const describe = el => `${el.tagName.toLowerCase()}${typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/).join('.') : ''} "${(el.innerText || el.value || el.getAttribute('aria-label') || el.name || '').trim().replace(/\s+/g, ' ').slice(0, 40)}"`;
-  const skipped = el => el.closest('.hub-skip, .no-audit, [aria-hidden="true"], script, style, noscript');
+  // Content of a closed <details> isn't shown (Chrome still gives it a box), so it isn't judged until opened.
+  const inClosedDetails = el => { const d = el.closest('details'); return !!d && !d.open && !el.closest('summary'); };
+  const skipped = el => el.closest('.hub-skip, .no-audit, [aria-hidden="true"], script, style, noscript') || inClosedDetails(el);
   // A link inside a sentence is exempt from the tap-height rule; header, footer, sub-nav and row links are not.
   const inProse = a => {
     if (a.closest('.hub-account, .hub-footer, .hub-subnav, .hub-line')) return false;
@@ -84,6 +86,7 @@ function styleFixturesInPage() {
   box.innerHTML = '<form><button type="submit" class="btn btn-secondary" id="fx-secondary">Send back</button>'
     + '<button type="submit" class="btn btn-primary" id="fx-primary">Accept</button></form>'
     + '<details id="fx-details"><summary>How is my class calculated?</summary><p>x</p></details>'
+    + '<button type="button" class="nudge-dismiss" id="fx-nudge">Not now</button>'
     + '<fieldset class="garage-season"><div class="garage-season-options"><label id="fx-season"><input type="radio" name="fx"><span>Ice</span></label></div></fieldset>';
   document.querySelector('main, .container, body').appendChild(box);
   const problems = [];
@@ -96,6 +99,8 @@ function styleFixturesInPage() {
   if (!marker) problems.push('<summary> has no disclosure triangle');
   const season = parseFloat(getComputedStyle(document.getElementById('fx-season')).minHeight);
   if (!(season >= 56)) problems.push(`Garage season card min-height is ${season}px, not its own 56px+`);
+  const nudge = document.getElementById('fx-nudge').getBoundingClientRect().height;
+  if (nudge < 44) problems.push(`save-nudge dismiss button is ${Math.round(nudge)}px tall`);
   box.remove();
   return problems;
 }
@@ -129,6 +134,8 @@ try {
   const page = await ctx.newPage();
   const go = async sel => Promise.all([page.waitForNavigation(), page.click(sel)]);
 
+  await page.goto(BASE + '/calculator.php'); await audit(page, 'calculator');
+  await page.click('.calc-explainer-details summary'); await audit(page, 'calculator (explainer open)');
   await page.goto(BASE + '/index.php'); await audit(page, 'landing');
   await page.goto(BASE + '/auth.php?action=login'); await audit(page, 'sign in');
   report('style fixtures (admin, inspector, calculator markup)', await page.evaluate(styleFixturesInPage));

@@ -475,3 +475,21 @@ body.hub .btn-role { min-height: 44px; padding: 0 14px; border-radius: 8px; bord
 body.hub .btn-role:hover { background: var(--hub-red-ink); border-color: var(--hub-red-ink); }
 body.hub .btn-role--secondary { background: #fff; color: var(--hub-ink); border-color: var(--hub-ink); }
 body.hub .btn-role--secondary:hover { background: var(--hub-paper); color: var(--hub-ink); border-color: var(--hub-ink); }
+
+/* ── Class Calculator (spec 2026-09-29 §2.3): phone rules and hub colours ── */
+/* Result boxes: solid ink like the hub hero, not the old purple gradient. */
+body.hub .calculation-results-box, body.hub .results-section { background: var(--hub-ink); color: #fff; }
+/* Small print up to 16px. */
+body.hub .summary-help, body.hub .field-help, body.hub .field-note, body.hub .class-name, body.hub .class-range,
+body.hub .submit-note, body.hub .higher-class-note, body.hub .inline-result, body.hub .modifier-value { font-size: 16px; }
+/* Legacy blue and light grey text to hub ink. */
+body.hub .calc-explainer-details summary { color: var(--hub-red-ink); }
+body.hub .required { color: var(--hub-red-ink); }
+body.hub .inline-result { color: var(--hub-ink); }
+body.hub .modifier-value { color: var(--hub-ink-2); }
+body.hub .hub-footer a, body.hub .hub-footer a:visited { color: var(--hub-ink-2); min-height: 44px; }
+body.hub .password-toggle, body.hub .password-toggle.is-showing { color: var(--hub-ink); }
+/* Guest save nudge: a real 44px button. */
+body.hub .nudge-dismiss { min-height: 44px; min-width: 44px; padding: 0 12px; font-size: 16px; color: var(--hub-red-ink); }
+body.hub .rulebook-disclaimer { color: var(--hub-ink-2); }
+body.hub .rulebook-disclaimer a { color: var(--hub-red-ink); }
