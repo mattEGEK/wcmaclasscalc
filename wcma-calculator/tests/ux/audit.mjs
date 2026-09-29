@@ -263,6 +263,18 @@ try {
   await audit(page, 'car page');
   await page.click('.garage-edit summary'); await audit(page, 'car page (edit details open)');
 
+  // TA/Drift tech sheet (TA/Drift spec §3): the form, then with the roll bar or cage checks open.
+  const carId = new URL(BASE + '/' + carUrl).searchParams.get('car');
+  await page.goto(BASE + '/tech-sheets.php?action=new-ta-drift&car_id=' + carId);
+  await audit(page, 'TA/Drift tech sheet');
+  report('the TA/Drift sheet opens with the safety line',
+    (await page.locator("text=Check each item on the car itself before you tick it.").count()) > 0 ? [] : ['the opening line is missing']);
+  await page.check('#ta_drift_caged');
+  await page.waitForTimeout(200);
+  await audit(page, 'TA/Drift tech sheet (caged)');
+  report('ticking roll bar or cage shows the cage checks',
+    (await page.locator('text=Roll bar or cage built to WCMA spec').count()) > 0 ? [] : ['the cage checks did not appear']);
+
   // Submitting cleared the draft: the same sheet starts fresh.
   await page.goto(sheetUrl);
   await page.waitForLoadState('networkidle');

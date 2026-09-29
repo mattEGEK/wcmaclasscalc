@@ -42,7 +42,9 @@ final class HubDbToolsTest extends TestCase
         $this->assertCount(2, $cars);
         $this->assertNotNull(db_get_car_current_declaration($pdo, (int)$cars[0]['id']));
         $this->assertCount(2, db_get_user_drivers($pdo, (int)$jordan['id']));
-        $this->assertCount(4, db_get_active_events($pdo));
+        $this->assertCount(5, db_get_active_events($pdo));
+        $ta = (int)$pdo->query("SELECT COUNT(*) FROM events WHERE name = 'WSCC Time Attack' AND discipline = 'summer' AND host_club = 'WSCC'")->fetchColumn();
+        $this->assertSame(1, $ta);
         $this->assertCount(3, db_get_season_links($pdo, true));
         $this->assertCount(1, db_get_user_tech_sheets($pdo, (int)$jordan['id']));
 
