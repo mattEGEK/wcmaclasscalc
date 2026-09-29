@@ -72,6 +72,12 @@ switch ($action) {
         handleGearPretechSubmit($pdo, $user, (int)($_POST['id'] ?? 0));
         break;
 
+    case 'upgrade-race':
+        $user = requireGearLogin();
+        requireGearPost();
+        handleGearUpgradeRace($pdo, $user, (int)($_POST['id'] ?? 0));
+        break;
+
     case 'start':
         $user = requireGearLogin();
         handleGearStart($pdo, $user, (int)($_GET['driver_id'] ?? 0));
@@ -115,6 +121,15 @@ function handleGearPretechSubmit(PDO $pdo, array $user, int $id): void {
         );
         setFlash('Photos submitted for review.' . ($sent ? ' We emailed you a confirmation.' : ' The confirmation email could not be sent.'), $sent ? 'success' : 'error');
     }
+    header('Location: gear.php?action=pretech&id=' . $id);
+    exit;
+}
+
+/** Owner starts race gear photos for gear accepted at TA/Drift. */
+function handleGearUpgradeRace(PDO $pdo, array $user, int $id): void {
+    loadOwnGearRecord($pdo, $user, $id);
+    $r = gearStartRaceUpgrade($pdo, $id);
+    setFlash($r['ok'] ? 'Add the race gear photos below. The gear stays teched for TA/Drift meanwhile.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
     header('Location: gear.php?action=pretech&id=' . $id);
     exit;
 }

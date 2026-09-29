@@ -33,6 +33,32 @@ function gearSummerLevelLabel(?string $level): string {
     return $level === GEAR_LEVEL_TA_DRIFT ? 'TA/Drift' : 'Race';
 }
 
+/** Gear accepted at TA/Drift whose owner is sending race gear photos (TA/Drift spec §2). It keeps covering TA/Drift meanwhile. */
+function gearIsRaceUpgrade(array $gear): bool {
+    return ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_SUMMER
+        && ($gear['status'] ?? '') === 'accepted' && ($gear['level'] ?? null) === GEAR_LEVEL_TA_DRIFT
+        && in_array($gear['photo_status'] ?? null, ['draft', 'needs_changes', 'submitted'], true);
+}
+
+/** Owner starts race gear photos for gear accepted at TA/Drift. @return array{ok: bool, error: ?string} */
+function gearStartRaceUpgrade(PDO $pdo, int $id): array {
+    $gear = db_get_gear_record($pdo, $id);
+    if ($gear === null) return ['ok' => false, 'error' => 'Gear record not found.'];
+    if (gearIsRaceUpgrade($gear)) return ['ok' => true, 'error' => null];
+    if (!db_start_gear_race_upgrade($pdo, $id)) {
+        return ['ok' => false, 'error' => 'Only gear accepted at TA/Drift can be upgraded to race gear.'];
+    }
+    return ['ok' => true, 'error' => null];
+}
+
+/** Inspector checked race gear in person on gear accepted at TA/Drift. @return array{ok: bool, error: ?string} */
+function gearUpgradeToRaceInPerson(PDO $pdo, int $id, int $reviewerUserId): array {
+    if (!db_upgrade_gear_to_race_in_person($pdo, $id, $reviewerUserId)) {
+        return ['ok' => false, 'error' => 'Only gear accepted at TA/Drift can be accepted again at Race.'];
+    }
+    return ['ok' => true, 'error' => null];
+}
+
 /**
  * The level a summer acceptance stores, or an error. A TA/Drift photo set was only checked against the
  * TA/Drift list, so it can only be accepted at TA/Drift.
@@ -43,6 +69,9 @@ function gearSummerAcceptLevel(array $gear, ?string $choice, bool $byPhotos): ar
     if ($level === false) return ['ok' => false, 'error' => 'Choose the gear level: Race or TA/Drift.', 'level' => null];
     if ($byPhotos && ($gear['photo_tier'] ?? null) === GEAR_LEVEL_TA_DRIFT && $level !== GEAR_LEVEL_TA_DRIFT) {
         return ['ok' => false, 'error' => 'These photos only cover TA/Drift gear: accept them at TA/Drift.', 'level' => null];
+    }
+    if ($byPhotos && gearIsRaceUpgrade($gear) && $level !== null) {
+        return ['ok' => false, 'error' => 'These are race gear photos: accept them at Race, or send them back.', 'level' => null];
     }
     return ['ok' => true, 'error' => null, 'level' => $level];
 }
@@ -89,7 +118,8 @@ function gearStatusBadgeClass(string $state): string {
 function gearAccessShape(array $gear): array {
     return [
         'user_id' => (int)$gear['owner_user_id'],
-        'status' => ($gear['status'] ?? 'open') === 'accepted' ? 'teched' : 'submitted',
+        // A race upgrade stays accepted (at TA/Drift) but its owner can still add photos.
+        'status' => ($gear['status'] ?? 'open') === 'accepted' && !gearIsRaceUpgrade($gear) ? 'teched' : 'submitted',
         'photo_status' => $gear['photo_status'] ?? null,
     ];
 }
@@ -162,7 +192,7 @@ function gearSubmit(PDO $pdo, int $id): array {
 
     $gear = db_get_gear_record($pdo, $id);
     if ($gear === null) return $fail('Gear record not found.');
-    if ($gear['status'] === 'accepted') return $fail('This driver\'s gear has already been teched for the season.');
+    if ($gear['status'] === 'accepted' && !gearIsRaceUpgrade($gear)) return $fail('This driver\'s gear has already been teched for the season.');
 
     $photoStatus = $gear['photo_status'] ?? null;
     if ($photoStatus === 'submitted') return $fail('These photos have already been submitted for review.');
@@ -230,7 +260,7 @@ function gearSendBack(PDO $pdo, int $id, array $notes): array {
 
     $gear = db_get_gear_record($pdo, $id);
     if ($gear === null) return $fail('Gear record not found.');
-    if ($gear['status'] === 'accepted' || ($gear['photo_status'] ?? null) !== 'submitted') {
+    if (($gear['status'] === 'accepted' && !gearIsRaceUpgrade($gear)) || ($gear['photo_status'] ?? null) !== 'submitted') {
         return $fail('These photos are not awaiting review.');
     }
 

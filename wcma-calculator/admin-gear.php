@@ -110,6 +110,19 @@ function handleGearAdminRevoke(PDO $pdo, int $id): void {
     exit;
 }
 
+/** Inspector checked race gear in person on gear accepted at TA/Drift. */
+function handleGearAdminUpgradeRace(PDO $pdo, int $id): void {
+    $r = gearUpgradeToRaceInPerson($pdo, $id, (int)current_user()['id']);
+    if ($r['ok']) {
+        $sent = gearNotify($pdo, 'accepted_in_person', db_get_gear_record($pdo, $id), gearAdminBaseUrl(), ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend');
+        setFlash('Gear accepted at Race (checked in person).' . ($sent ? ' The driver\'s account holder was emailed.' : ' The email could not be sent.'), $sent ? 'success' : 'error');
+    } else {
+        setFlash($r['error'], 'error');
+    }
+    header('Location: inspect.php?action=gear-record&id=' . $id);
+    exit;
+}
+
 function handleGearAdminPhotosAccept(PDO $pdo, int $id): void {
     $user = current_user();
     $level = is_string($_POST['level'] ?? null) && $_POST['level'] !== '' ? $_POST['level'] : null;
@@ -177,6 +190,14 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
     <?php if (!empty($gear['revoke_note'])): ?><p class="form-hint">Revoked earlier: <?= h((string)$gear['revoke_note']) ?></p><?php endif; ?>
     <?php if ($accepted): ?>
     <p><?= h($acceptedLine) ?></p>
+    <?php if (($gear['discipline'] ?? 'summer') === 'summer' && ($gear['level'] ?? null) === GEAR_LEVEL_TA_DRIFT): ?>
+    <form method="post" action="inspect.php?action=gear-record-upgrade-race">
+      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+      <input type="hidden" name="id" value="<?= $id ?>">
+      <p class="form-hint">This gear is accepted at TA/Drift. If you have checked full race gear in person, accept it at Race.</p>
+      <button type="submit" class="btn btn-primary">Accept at Race — race gear checked in person</button>
+    </form>
+    <?php endif; ?>
     <form method="post" action="inspect.php?action=gear-record-revoke" data-confirm="Revoke this acceptance? The gear record goes back to open<?= ($gear['accepted_via'] ?? '') === 'photos' ? ' and its photos return to the review queue' : '' ?>.">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
@@ -224,7 +245,7 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
     if ($photoStatus === null && !$photos) return;
 
     $id = (int)$gear['id'];
-    $awaiting = $photoStatus === 'submitted' && $gear['status'] === 'open';
+    $awaiting = $photoStatus === 'submitted' && ($gear['status'] === 'open' || gearIsRaceUpgrade($gear));
     $statusLabels = [
         'draft' => 'The driver\'s account holder has started adding photos (not submitted yet).',
         'submitted' => 'Submitted: awaiting review.',

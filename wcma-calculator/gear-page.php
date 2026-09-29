@@ -10,7 +10,8 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
     $id = (int)$gear['id'];
     $requirements = photoRequirementsFor($gear, 'gear');
     $photoStatus = $gear['photo_status'] ?? null;
-    $accepted = ($gear['status'] ?? 'open') === 'accepted';
+    $upgrading = gearIsRaceUpgrade($gear);
+    $accepted = ($gear['status'] ?? 'open') === 'accepted' && !$upgrading;
     $locked = $accepted || in_array($photoStatus, ['submitted', 'accepted'], true);
     $missing = count($snapshot['missing']);
     $requiredTotal = gearRequiredTotal($requirements, $snapshot['applicable']);
@@ -51,9 +52,17 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
 
   <div class="detail-card">
     <h2><?= h($driverLine) ?></h2>
-    <?php if ($accepted): ?>
+    <?php if ($accepted && ($gear['discipline'] ?? 'summer') === 'summer' && ($gear['level'] ?? null) === GEAR_LEVEL_TA_DRIFT): ?>
+      <p>This driver's gear is teched for TA/Drift in <?= (int)$gear['season'] ?>. To race as well, send photos of the full race gear.</p>
+      <form method="post" action="gear.php?action=upgrade-race">
+        <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+        <input type="hidden" name="id" value="<?= $id ?>">
+        <button type="submit" class="btn btn-secondary">Send race gear photos</button>
+      </form>
+    <?php elseif ($accepted): ?>
       <p>This driver's gear is already teched for <?= h(($gear['discipline'] ?? 'summer') === 'ice' ? iceSeasonLabel((int)$gear['season']) : (string)(int)$gear['season']) ?>. You do not need to submit photos.</p>
     <?php else: ?>
+      <?php if ($upgrading): ?><p><strong>Race gear photos.</strong> This driver's gear stays teched for TA/Drift while an inspector reviews them.</p><?php endif; ?>
       <p>Optional: submit photos of this driver's gear so an inspector can review them before the event. If they are accepted, the gear does not need to be checked at the track and you just collect your decals. The gear can still be checked in person instead.</p>
       <?php if ($photoStatus === 'submitted'): ?>
         <p class="badge-pending">These photos were submitted for review. You will get an email when an inspector has looked at them.</p>

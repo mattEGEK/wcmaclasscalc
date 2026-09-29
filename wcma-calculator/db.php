@@ -1699,26 +1699,29 @@ function db_mark_gear_photos_draft(PDO $pdo, int $id): void {
     ")->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
 }
 
-/** Atomic photo_status transition: true only if the record is still open and its status was one of $from. */
+/** A gear record whose photo set can move: an open record, or TA/Drift gear being upgraded to race (TA/Drift phase 2). */
+const DB_GEAR_PHOTOS_OPEN_SQL = "(status = 'open' OR (status = 'accepted' AND level = 'ta_drift'))";
+
+/** Atomic photo_status transition: true only if the record's photos can still move (open, or a race upgrade) and its status was one of $from. */
 function db_transition_gear_photo_status(PDO $pdo, int $id, array $from, string $to): bool {
     if (empty($from)) return false;
     $marks = implode(',', array_fill(0, count($from), '?'));
     $stmt = $pdo->prepare("
         UPDATE gear_records SET photo_status = ?, updated_at = ?
-        WHERE id = ? AND status = 'open' AND photo_status IN ($marks)
+        WHERE id = ? AND " . DB_GEAR_PHOTOS_OPEN_SQL . " AND photo_status IN ($marks)
     ");
     $stmt->execute(array_merge([$to, date('Y-m-d H:i:s'), $id], array_values($from)));
     return $stmt->rowCount() === 1;
 }
 
-/** Remote acceptance after reviewing photos. Atomic; only from a submitted photo set on an open record. */
+/** Remote acceptance after reviewing photos. Atomic; only from a submitted photo set on an open record or a race upgrade. */
 function db_accept_gear_by_photos(PDO $pdo, int $id, int $reviewerUserId): bool {
     $now = date('Y-m-d H:i:s');
     $stmt = $pdo->prepare("
         UPDATE gear_records SET
             status = 'accepted', accepted_via = 'photos', photo_status = 'accepted', revoke_note = NULL,
             reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
-        WHERE id = :id AND status = 'open' AND photo_status = 'submitted'
+        WHERE id = :id AND " . DB_GEAR_PHOTOS_OPEN_SQL . " AND photo_status = 'submitted'
     ");
     $stmt->execute([':reviewer' => $reviewerUserId, ':now' => $now, ':id' => $id]);
     return $stmt->rowCount() === 1;
@@ -1767,6 +1770,29 @@ function db_set_gear_photo_tier(PDO $pdo, int $id, ?string $tier, bool $caged): 
     if ($tier !== null && $tier !== GEAR_LEVEL_TA_DRIFT) throw new InvalidArgumentException('Unknown photo tier: ' . $tier);
     $pdo->prepare("UPDATE gear_records SET photo_tier = :t, caged = :c, updated_at = :now WHERE id = :id")
         ->execute([':t' => $tier, ':c' => $caged ? 1 : 0, ':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+}
+
+/** Starts race gear photos on gear accepted at TA/Drift: back to the race list, photos in draft; it stays accepted at TA/Drift. */
+function db_start_gear_race_upgrade(PDO $pdo, int $id): bool {
+    $stmt = $pdo->prepare("
+        UPDATE gear_records SET photo_tier = NULL, caged = 0, photo_status = 'draft', updated_at = :now
+        WHERE id = :id AND discipline = 'summer' AND status = 'accepted' AND level = 'ta_drift'
+          AND (photo_status IS NULL OR photo_status = 'accepted')
+    ");
+    $stmt->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+    return $stmt->rowCount() === 1;
+}
+
+/** An inspector checked the race gear in person: gear accepted at TA/Drift becomes race level. */
+function db_upgrade_gear_to_race_in_person(PDO $pdo, int $id, int $reviewerUserId): bool {
+    $now = date('Y-m-d H:i:s');
+    $stmt = $pdo->prepare("
+        UPDATE gear_records SET level = NULL, accepted_via = 'in_person', revoke_note = NULL,
+            reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
+        WHERE id = :id AND discipline = 'summer' AND status = 'accepted' AND level = 'ta_drift'
+    ");
+    $stmt->execute([':reviewer' => $reviewerUserId, ':now' => $now, ':id' => $id]);
+    return $stmt->rowCount() === 1;
 }
 
 /** Additional drivers for many sheets at once: sheet id => rows ordered by driver number. Sheets with none are absent. */
@@ -1955,7 +1981,7 @@ function db_get_gear_awaiting_photo_review(PDO $pdo): array {
         SELECT g.*, d.owner_user_id AS owner_user_id, d.name AS driver_name, d.name_norm AS driver_name_norm,
                d.licence_no AS licence_no, u.name AS owner_name
         FROM gear_records g JOIN drivers d ON d.id = g.driver_id LEFT JOIN users u ON u.id = d.owner_user_id
-        WHERE g.photo_status = 'submitted' AND g.status = 'open'
+        WHERE g.photo_status = 'submitted' AND (g.status = 'open' OR (g.status = 'accepted' AND g.level = 'ta_drift'))
         ORDER BY g.updated_at ASC, g.id ASC
     ")->fetchAll();
 }

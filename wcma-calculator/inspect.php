@@ -87,6 +87,9 @@ switch ($action) {
     case 'gear-record-revoke':
         handleGearAdminRevoke($pdo, $postId);
         break;
+    case 'gear-record-upgrade-race':
+        handleGearAdminUpgradeRace($pdo, $postId);
+        break;
     case 'gear-photos-accept':
         handleGearAdminPhotosAccept($pdo, $postId);
         break;
