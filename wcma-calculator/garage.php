@@ -152,6 +152,9 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         'taDrift' => garageTaDriftSummaries($carId, $allSheets, garageEntryTiers($formatsByEvent, db_get_active_events($pdo), $today)['taDriftClubs'], $season),
         'revokeNotes' => garageRevokeNotes($allSheets),
         'tagDefaults' => eventsDefaultFormats($pdo, $car, ['id' => 0, 'discipline' => 'summer', 'host_club' => 'any']),
+        'coDrivers' => db_get_car_drivers($pdo, $carId),
+        'coDriverOptions' => array_values(array_filter(db_get_user_drivers($pdo, $uid), fn(array $d): bool =>
+            (int)($d['user_id'] ?? 0) !== $uid && !in_array((int)$d['id'], array_map(fn(array $c): int => (int)$c['id'], db_get_car_drivers($pdo, $carId)), true))),
     ]);
     renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script>']);
 }
@@ -204,6 +207,16 @@ function handleGaragePost(PDO $pdo, int $uid, string $action): void {
             $r = eventsUntagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), $carId);
             setFlash($r['ok'] ? 'Removed from your events.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
             header('Location: garage.php?car=' . $carId);
+            return;
+        case 'add-co-driver':
+            $r = eventsAddCoDriver($pdo, $uid, $carId, $_POST);
+            setFlash($r['ok'] ? 'Co-driver added.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
+            header('Location: garage.php?car=' . $carId . '#co-drivers');
+            return;
+        case 'remove-co-driver':
+            $r = eventsRemoveCoDriver($pdo, $uid, $carId, (int)($_POST['driver_id'] ?? 0));
+            setFlash($r['ok'] ? 'Removed from this car.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
+            header('Location: garage.php?car=' . $carId . '#co-drivers');
             return;
         case 'resend-declaration':
             garageResendDeclaration($pdo, $uid, (int)($_POST['id'] ?? 0));
