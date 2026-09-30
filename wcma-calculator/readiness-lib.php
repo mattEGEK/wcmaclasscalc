@@ -143,7 +143,7 @@ function readinessIceGear(int $did, string $name, int $season, ?array $iceGear, 
  * Ice to-dos for one car at one ice event: the ice tech sheet, ice car tech for the event's club
  * and season, and ice gear for each driver. $once de-duplicates season-wide items across events.
  */
-function readinessIceCarItems(array $in, array $event, array $key, int $carId, array $sheetsByCar, array $atTrack, callable $once, array $liveEventIds): array {
+function readinessIceCarItems(array $in, array $event, array $key, int $carId, array $sheetsByCar, array $atTrack, callable $once, array $liveEventIds, ?array $entry = null): array {
     $eid = (int)$event['id'];
     $season = $key['season'];
     $club = (string)$key['club'];
@@ -176,9 +176,7 @@ function readinessIceCarItems(array $in, array $event, array $key, int $carId, a
            ['discipline' => DISCIPLINE_ICE, 'club' => $club]);
     }
 
-    $driverIds = array_values(array_unique(array_filter(array_merge(
-        $eventSheet !== null ? [(int)($eventSheet['driver_id'] ?? 0)] : [], [(int)$in['selfDriverId']], array_map('intval', array_keys($in['drivers']))
-    ))));
+    $driverIds = readinessEntryDriverIds($entry ?? ['driverIds' => [(int)$in['selfDriverId']]], $eventSheet, $in['sheetDrivers']);
     foreach ($driverIds as $did) {
         if (!isset($in['drivers'][$did]) || !$once("ice_gear:$did")) continue;
         $iceGear = $in['iceGear']["$did:$season"] ?? null;
@@ -277,9 +275,12 @@ function readinessTaDriftCarItems(array $in, array $event, int $season, int $car
             if (($s['status'] ?? '') === 'teched' && ($source === null || (int)$s['id'] > (int)$source['id'])) $source = $s;
         }
     }
-    $driverIds = $source !== null
-        ? array_merge([(int)($source['driver_id'] ?? 0)], array_map('intval', $in['sheetDrivers'][(int)$source['id']] ?? []))
-        : [(int)$in['selfDriverId']];
+    // Who's driving (co-drivers spec §5); entries from before that had no drivers keep the old source.
+    $driverIds = !empty($entry['driversKnown'])
+        ? readinessEntryDriverIds($entry, $eventSheet !== null && techSheetIsTaDrift($eventSheet) ? $eventSheet : null, $in['sheetDrivers'])
+        : ($source !== null
+            ? array_merge([(int)($source['driver_id'] ?? 0)], array_map('intval', $in['sheetDrivers'][(int)$source['id']] ?? []))
+            : [(int)$in['selfDriverId']]);
     foreach (array_values(array_unique(array_filter($driverIds))) as $did) {
         if (!isset($in['drivers'][$did]) || !$once("tad_gear:$did")) continue;
         $name = (string)$in['drivers'][$did]['name'];
@@ -311,13 +312,25 @@ function readinessTaDriftCarItems(array $in, array $event, int $season, int $car
 
 /**
  * One car's entry at one event: its formats, the tech tier they need there (entryTierAtEvent()),
- * and when the supplementary-regulations box was ticked. $plan is its event_plans row, or null.
- * @return array{formats: string[], tier: string, supps_ack_at: ?string}
+ * when the supplementary-regulations box was ticked, and who's driving (co-drivers spec §5):
+ * the stored drivers, else the account's own driver. $plan is its event_plans row, or null.
+ * @return array{formats: string[], tier: string, supps_ack_at: ?string, driverIds: int[], driversKnown: bool}
  */
-function readinessEntry(array $event, ?array $plan): array {
+function readinessEntry(array $event, ?array $plan, int $selfDriverId = 0): array {
     $stored = isset($plan['formats']) ? (string)$plan['formats'] : null;
+    $known = isset($plan['drivers']) && is_array($plan['drivers']) && $plan['drivers'] !== [];
     return ['formats' => entryFormatsParse($stored), 'tier' => entryTierAtEvent($event, $stored),
-            'supps_ack_at' => $plan['supps_ack_at'] ?? null];
+            'supps_ack_at' => $plan['supps_ack_at'] ?? null,
+            'driverIds' => $known ? array_values(array_map('intval', $plan['drivers'])) : ($selfDriverId > 0 ? [$selfDriverId] : []),
+            'driversKnown' => $known];
+}
+
+/** Who needs gear for one entry: who's driving it, plus anyone its event sheet names. @return int[] */
+function readinessEntryDriverIds(array $entry, ?array $eventSheet, array $sheetDrivers): array {
+    $sheetIds = $eventSheet !== null
+        ? array_merge([(int)($eventSheet['driver_id'] ?? 0)], array_map('intval', $sheetDrivers[(int)$eventSheet['id']] ?? []))
+        : [];
+    return array_values(array_unique(array_filter(array_merge(array_map('intval', $entry['driverIds'] ?? []), $sheetIds))));
 }
 
 function buildReadiness(array $in): array {
@@ -366,10 +379,10 @@ function buildReadiness(array $in): array {
             if (!isset($carsByEvent[$eid][$carId])) continue;
             $car = $in['cars'][$carId];
             $n = '#' . $car['car_number'];
-            $entries[$carId] = readinessEntry($event, $plansByEvent[$eid][$carId] ?? null);
+            $entries[$carId] = readinessEntry($event, $plansByEvent[$eid][$carId] ?? null, (int)$in['selfDriverId']);
 
             if ($key['discipline'] === DISCIPLINE_ICE) {
-                $items = array_merge($items, readinessIceCarItems($in, $event, $key, $carId, $sheetsByCar, $atTrack, $once, $liveEventIds));
+                $items = array_merge($items, readinessIceCarItems($in, $event, $key, $carId, $sheetsByCar, $atTrack, $once, $liveEventIds, $entries[$carId]));
                 continue;
             }
             if ($entries[$carId]['tier'] === TECH_TIER_TA_DRIFT) {
@@ -407,14 +420,8 @@ function buildReadiness(array $in): array {
                    $status['sheet_id'] !== null ? 'tech-sheets.php?action=pretech&id=' . $status['sheet_id'] : null);
             }
 
-            // Every driver on the profile needs this season's gear checked (spec §3), not only
-            // those named on a tech sheet. The sheet's drivers and the self driver come first.
-            $sheetDriverIds = $eventSheet !== null
-                ? array_merge([(int)($eventSheet['driver_id'] ?? 0)], array_map('intval', $in['sheetDrivers'][(int)$eventSheet['id']] ?? []))
-                : [];
-            $driverIds = array_values(array_unique(array_filter(array_merge(
-                $sheetDriverIds, [(int)$in['selfDriverId']], array_map('intval', array_keys($in['drivers']))
-            ))));
+            // Gear for who's driving this entry, plus anyone its sheet names (co-drivers spec §5).
+            $driverIds = readinessEntryDriverIds($entries[$carId], $eventSheet, $in['sheetDrivers']);
             foreach ($driverIds as $did) {
                 if (!isset($in['drivers'][$did]) || !$once("gear:$did")) continue;
                 $name = (string)$in['drivers'][$did]['name'];
@@ -502,12 +509,15 @@ function loadReadinessInputs(PDO $pdo, int $userId, string $today): array {
         $atTrack = array_merge($atTrack, db_get_at_track_keys($pdo, array_keys($cars), array_keys($drivers), $season, DISCIPLINE_ICE));
     }
 
+    $entryDrivers = db_get_entry_drivers_for_user($pdo, $userId);
+
     return [
         'today' => $today,
         'cars' => $cars,
         'events' => $events,
         'plans' => array_map(fn(array $p): array => ['event_id' => (int)$p['event_id'], 'car_id' => (int)$p['car_id'],
-            'formats' => (string)($p['formats'] ?? 'race'), 'supps_ack_at' => $p['supps_ack_at'] ?? null], db_get_user_event_plans($pdo, $userId)),
+            'formats' => (string)($p['formats'] ?? 'race'), 'supps_ack_at' => $p['supps_ack_at'] ?? null,
+            'drivers' => $entryDrivers[(int)$p['id']] ?? []], db_get_user_event_plans($pdo, $userId)),
         'declarations' => db_get_user_current_declarations($pdo, $userId),
         'sheets' => $sheets,
         'sheetDrivers' => $sheetDrivers,
