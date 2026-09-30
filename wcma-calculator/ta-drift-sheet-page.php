@@ -13,10 +13,10 @@ const TA_DRIFT_SHEET_INTRO = "Check each item on the car itself before you tick 
  * Everything the TA/Drift form needs. $sheet is null for a new sheet, the tech_sheets row for an edit;
  * $sheetDrivers are that sheet's tech_sheet_drivers rows. $taEvents are taDriftOpenEvents().
  */
-function taDriftSheetFormVm(array $car, array $event, array $taEvents, array $ownerDrivers, ?array $sheet, array $sheetDrivers, string $csrf): array {
+function taDriftSheetFormVm(array $car, array $event, array $taEvents, array $ownerDrivers, ?array $sheet, array $sheetDrivers, string $csrf, ?int $preferDriver1 = null): array {
     $club = (string)$event['host_club'];
     $caged = $sheet !== null && !empty($sheet['caged']);
-    $d1 = techSheetDriver1FormState($ownerDrivers, $sheet);
+    $d1 = techSheetDriver1FormState($ownerDrivers, $sheet, $preferDriver1);
     $existingDrivers = array_map(function (array $d) use ($d1): array {
         $choice = techSheetDriverChoiceFor($d1['ownedById'], (string)$d['driver_name']);
         return [

@@ -38,7 +38,10 @@ final class GearLinksSourceTest extends TestCase
 
     public function testSheetFormPicksDriversFromTheUsersProfiles(): void
     {
-        foreach (['handleNew', 'handleEdit', 'handleSubmit', 'handleUpdate'] as $fn) {
+        foreach (['handleNew', 'handleEdit'] as $fn) {
+            $this->assertStringContainsString('eventsSheetDriverRows($', $this->body('tech-sheets.php', $fn), $fn);
+        }
+        foreach (['handleSubmit', 'handleUpdate'] as $fn) {
             $this->assertStringContainsString("db_get_user_drivers(\$pdo, (int)\$user['id'])", $this->body('tech-sheets.php', $fn), $fn);
         }
         foreach (['handleSubmit', 'handleUpdate'] as $fn) {
