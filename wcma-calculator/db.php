@@ -460,55 +460,64 @@ function db_init(PDO $pdo): void {
     // ── Co-drivers per car and entry (2026-09-30 spec §1). New tables; seeded once, when first created. ──
     $hasCarDrivers = (bool)$pdo->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'car_drivers'")->fetchColumn();
     $hasEntryDrivers = (bool)$pdo->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'entry_drivers'")->fetchColumn();
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS car_drivers (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            car_id     INTEGER NOT NULL,
-            driver_id  INTEGER NOT NULL,
-            created_at DATETIME NOT NULL,
-            UNIQUE (car_id, driver_id)
-        )
-    ");
-    $pdo->exec("
-        CREATE TABLE IF NOT EXISTS entry_drivers (
-            id         INTEGER PRIMARY KEY AUTOINCREMENT,
-            entry_id   INTEGER NOT NULL,
-            driver_id  INTEGER NOT NULL,
-            created_at DATETIME NOT NULL,
-            UNIQUE (entry_id, driver_id)
-        )
-    ");
-    $now = date('Y-m-d H:i:s');
-    if (!$hasCarDrivers) {
-        // Every non-owner driver named on any of the car's sheets (driver 1 or an added driver).
-        $pdo->prepare("
-            INSERT OR IGNORE INTO car_drivers (car_id, driver_id, created_at)
-            SELECT DISTINCT s.car_id, d.id, :now FROM (
-                SELECT car_id, driver_id FROM tech_sheets WHERE car_id IS NOT NULL AND driver_id IS NOT NULL
-                UNION
-                SELECT ts.car_id, tsd.driver_id FROM tech_sheet_drivers tsd JOIN tech_sheets ts ON ts.id = tsd.tech_sheet_id
-                WHERE ts.car_id IS NOT NULL AND tsd.driver_id IS NOT NULL
-            ) s
-            JOIN cars c ON c.id = s.car_id
-            JOIN drivers d ON d.id = s.driver_id
-            WHERE d.owner_user_id = c.owner_user_id AND (d.user_id IS NULL OR d.user_id != d.owner_user_id)
-        ")->execute([':now' => $now]);
-    }
-    if (!$hasEntryDrivers) {
-        // Each entry: the owner's own driver, plus everyone on that event's sheet for the car.
-        $pdo->prepare("
-            INSERT OR IGNORE INTO entry_drivers (entry_id, driver_id, created_at)
-            SELECT p.id, d.id, :now FROM event_plans p JOIN drivers d ON d.user_id = p.user_id AND d.owner_user_id = p.user_id
-        ")->execute([':now' => $now]);
-        $pdo->prepare("
-            INSERT OR IGNORE INTO entry_drivers (entry_id, driver_id, created_at)
-            SELECT p.id, s.driver_id, :now FROM event_plans p JOIN (
-                SELECT car_id, event_id, driver_id FROM tech_sheets WHERE driver_id IS NOT NULL
-                UNION
-                SELECT ts.car_id, ts.event_id, tsd.driver_id FROM tech_sheet_drivers tsd JOIN tech_sheets ts ON ts.id = tsd.tech_sheet_id
-                WHERE tsd.driver_id IS NOT NULL
-            ) s ON s.car_id = p.car_id AND s.event_id = p.event_id
-        ")->execute([':now' => $now]);
+    $own = !$pdo->inTransaction();
+    if ($own) $pdo->beginTransaction();
+    try {
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS car_drivers (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                car_id     INTEGER NOT NULL,
+                driver_id  INTEGER NOT NULL,
+                created_at DATETIME NOT NULL,
+                UNIQUE (car_id, driver_id)
+            )
+        ");
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS entry_drivers (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                entry_id   INTEGER NOT NULL,
+                driver_id  INTEGER NOT NULL,
+                created_at DATETIME NOT NULL,
+                UNIQUE (entry_id, driver_id)
+            )
+        ");
+        $now = date('Y-m-d H:i:s');
+        if (!$hasCarDrivers) {
+            // Every non-owner driver named on any of the car's sheets (driver 1 or an added driver).
+            $pdo->prepare("
+                INSERT OR IGNORE INTO car_drivers (car_id, driver_id, created_at)
+                SELECT DISTINCT s.car_id, d.id, :now FROM (
+                    SELECT car_id, driver_id FROM tech_sheets WHERE car_id IS NOT NULL AND driver_id IS NOT NULL
+                    UNION
+                    SELECT ts.car_id, tsd.driver_id FROM tech_sheet_drivers tsd JOIN tech_sheets ts ON ts.id = tsd.tech_sheet_id
+                    WHERE ts.car_id IS NOT NULL AND tsd.driver_id IS NOT NULL
+                ) s
+                JOIN cars c ON c.id = s.car_id
+                JOIN drivers d ON d.id = s.driver_id
+                WHERE d.owner_user_id = c.owner_user_id AND (d.user_id IS NULL OR d.user_id != d.owner_user_id)
+            ")->execute([':now' => $now]);
+        }
+        if (!$hasEntryDrivers) {
+            // Each entry: the owner's own driver, plus everyone on that event's sheet for the car.
+            $pdo->prepare("
+                INSERT OR IGNORE INTO entry_drivers (entry_id, driver_id, created_at)
+                SELECT p.id, d.id, :now FROM event_plans p JOIN drivers d ON d.user_id = p.user_id AND d.owner_user_id = p.user_id
+            ")->execute([':now' => $now]);
+            $pdo->prepare("
+                INSERT OR IGNORE INTO entry_drivers (entry_id, driver_id, created_at)
+                SELECT p.id, s.driver_id, :now FROM event_plans p JOIN (
+                    SELECT car_id, event_id, driver_id FROM tech_sheets WHERE driver_id IS NOT NULL
+                    UNION
+                    SELECT ts.car_id, ts.event_id, tsd.driver_id FROM tech_sheet_drivers tsd JOIN tech_sheets ts ON ts.id = tsd.tech_sheet_id
+                    WHERE tsd.driver_id IS NOT NULL
+                ) s ON s.car_id = p.car_id AND s.event_id = p.event_id
+                JOIN drivers d ON d.id = s.driver_id AND d.owner_user_id = p.user_id
+            ")->execute([':now' => $now]);
+        }
+        if ($own) $pdo->commit();
+    } catch (Throwable $e) {
+        if ($own && $pdo->inTransaction()) $pdo->rollBack();
+        throw $e;
     }
 }
 

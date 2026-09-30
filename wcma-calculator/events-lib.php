@@ -192,8 +192,8 @@ function eventsValidateDriverIds(PDO $pdo, int $userId, int $carId, $picked): ar
 /** Car page "Add a co-driver": one of the user's drivers by id, or a new name ('new'). @return array{ok: bool, error: ?string} */
 function eventsAddCoDriver(PDO $pdo, int $userId, int $carId, array $post): array {
     $choice = (string)($post['driver_id'] ?? '');
-    if ($choice === 'new') {
-        $name = trim((string)preg_replace('/\s+/', ' ', (string)($post['new_name'] ?? '')));
+    $name = trim((string)preg_replace('/\s+/', ' ', (string)($post['new_name'] ?? '')));
+    if ($choice === 'new' || $name !== '') {
         if ($name === '' || mb_strlen($name, 'UTF-8') > 100) return ['ok' => false, 'error' => 'Enter the co-driver\'s name.'];
         $driverId = db_find_or_create_driver($pdo, $userId, $name);
     } else {

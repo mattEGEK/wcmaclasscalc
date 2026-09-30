@@ -110,4 +110,25 @@ final class DbCodriversTest extends TestCase
         db_init($pdo);
         $this->assertSame([$pat], array_map(fn(array $d): int => (int)$d['id'], db_get_car_drivers($pdo, $car)));
     }
+
+    public function testEntryDriverBackfillIgnoresASheetDriverFromAnotherAccount(): void
+    {
+        [$pdo, $u, $car, $self] = $this->world();
+        $other = db_create_user($pdo, ['email' => 'o' . uniqid() . '@example.com', 'name' => 'Other', 'password_hash' => 'x', 'google_id' => null]);
+        $foreign = db_create_driver($pdo, $other, 'Foreign Driver');
+
+        $event = db_create_event($pdo, 'Fall Sprint', '2099-10-11', null);
+        $sub = db_insert_submission($pdo, test_declaration_data($pdo, $u, '42'));
+        $sheet = test_make_sheet($pdo, $u, $sub, $event, '42', 'Pat Driver');
+        // Simulate a stale/mismatched sheet: driver 1 points at another account's driver row.
+        $pdo->prepare('UPDATE tech_sheets SET driver_id = :d WHERE id = :s')->execute([':d' => $foreign, ':s' => $sheet]);
+        db_tag_event($pdo, $u, $event, $car);
+
+        $pdo->exec('DROP TABLE car_drivers');
+        $pdo->exec('DROP TABLE entry_drivers');
+        db_init($pdo);
+
+        $entryId = (int)db_get_entry($pdo, $u, $event, $car)['id'];
+        $this->assertSame([$self], db_get_entry_driver_ids($pdo, $entryId)); // the foreign driver is not pulled in
+    }
 }

@@ -243,7 +243,8 @@ function garageCoDriversHtml(array $vm): string {
     if (!$archived) {
         $out .= '<form method="post" action="garage.php" class="hub-line hub-tag-form">' . garageCsrfField($csrf)
             . '<input type="hidden" name="action" value="add-co-driver"><input type="hidden" name="car_id" value="' . $id . '">'
-            . '<label for="co-driver-choice">Add a co-driver</label><select id="co-driver-choice" name="driver_id">';
+            . '<label for="co-driver-choice">Add a co-driver</label><select id="co-driver-choice" name="driver_id">'
+            . '<option value="">Choose…</option>';
         foreach ($coDriverOptions as $d) {
             $out .= '<option value="' . (int)$d['id'] . '">' . h((string)$d['name']) . '</option>';
         }

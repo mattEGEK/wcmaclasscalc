@@ -86,6 +86,22 @@ final class EventsCodriversTest extends TestCase
         $this->assertNotContains($pat, array_map(fn(array $d): int => (int)$d['id'], db_get_car_drivers($pdo, $car)));
     }
 
+    /** A typed name must win even when the select was never touched (still on the blank "Choose…" option). */
+    public function testTypingANewNameAddsThemEvenWithTheSelectUntouched(): void
+    {
+        [$pdo, $u, $car, $self, $sam, $event] = $this->world();
+        db_create_driver($pdo, $u, 'Pat Driver'); // an existing driver that must NOT be silently added
+        $this->assertTrue(eventsAddCoDriver($pdo, $u, $car, ['driver_id' => '', 'new_name' => 'Alex Kim'])['ok']);
+        $names = array_map(fn(array $d): string => (string)$d['name'], db_get_car_drivers($pdo, $car));
+        $this->assertContains('Alex Kim', $names);
+        $this->assertNotContains('Pat Driver', $names);
+
+        // Blank select and blank name: an error, not a silent add of anyone.
+        $r = eventsAddCoDriver($pdo, $u, $car, ['driver_id' => '', 'new_name' => '']);
+        $this->assertFalse($r['ok']);
+        $this->assertSame(['Alex Kim', 'Sam Lee'], array_map(fn(array $d): string => (string)$d['name'], db_get_car_drivers($pdo, $car)));
+    }
+
     public function testPrefillFollowsTheTickedDrivers(): void
     {
         [$pdo, $u, $car, $self, $sam, $event] = $this->world();
