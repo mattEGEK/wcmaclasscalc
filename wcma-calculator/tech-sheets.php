@@ -201,7 +201,18 @@ function handleNew(PDO $pdo, array $user, int $carId, int $eventId = 0): void {
         exit;
     }
 
-    renderTechSheetForm($declaration, $events, generateCsrfToken(), null, [], db_get_user_drivers($pdo, (int)$user['id']), $car, $eventId);
+    $pickers = eventsSheetDriverRows($pdo, (int)$user['id'], $carId);
+    $byId = [];
+    foreach ($pickers as $d) $byId[(int)$d['id']] = $d;
+    $prefill = eventsSheetPrefill($pdo, (int)$user['id'], $carId, $eventId);
+    $type = ($_GET['type'] ?? '') === 'endurance' ? 'endurance' : 'standard';
+    renderTechSheetForm($declaration, $events, generateCsrfToken(), null, [], $pickers, $car, $eventId, [
+        'driver1' => $prefill['driver1'],
+        'rows' => techSheetPrefillRows($byId, $prefill['others']),
+        'sheetType' => $type,
+        'notice' => $type === 'standard' && $prefill['count'] > 1
+            ? 'tech-sheets.php?action=new&car_id=' . $carId . '&event_id=' . $eventId . '&type=endurance' : null,
+    ]);
 }
 
 function handleView(PDO $pdo, array $user, int $id): void {
@@ -328,7 +339,7 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
         $event = db_get_event($pdo, (int)$sheet['event_id']) ?? ['id' => (int)$sheet['event_id'], 'name' => '', 'event_date' => date('Y-m-d')];
         $event['host_club'] = (string)$sheet['club'];
         renderPageStart('Edit TA/Drift Tech Sheet', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="tech-sheets.php?action=view&amp;id=' . $id . '">&larr; Back to the sheet</a>']);
-        echo renderTaDriftTechSheetFormHtml(taDriftSheetFormVm($car, $event, [], db_get_user_drivers($pdo, (int)$user['id']), $sheet,
+        echo renderTaDriftTechSheetFormHtml(taDriftSheetFormVm($car, $event, [], eventsSheetDriverRows($pdo, (int)$user['id'], (int)$car['id']), $sheet,
             db_get_tech_sheet_drivers($pdo, $id), generateCsrfToken()));
         renderPageEnd();
         return;
@@ -338,7 +349,7 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
         $event = db_get_event($pdo, (int)$sheet['event_id']) ?? ['id' => (int)$sheet['event_id'], 'name' => '', 'event_date' => date('Y-m-d'), 'host_club' => (string)$sheet['club']];
         $event['host_club'] = (string)$sheet['club'];
         renderPageStart('Edit Ice Tech Sheet', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="tech-sheets.php?action=view&amp;id=' . $id . '">&larr; Back to the sheet</a>']);
-        echo renderIceTechSheetFormHtml(iceSheetFormVm($car, $event, [], db_get_user_drivers($pdo, (int)$user['id']), $sheet, generateCsrfToken()));
+        echo renderIceTechSheetFormHtml(iceSheetFormVm($car, $event, [], eventsSheetDriverRows($pdo, (int)$user['id'], (int)$car['id']), $sheet, generateCsrfToken()));
         renderPageEnd();
         return;
     }
@@ -346,11 +357,12 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
     $events = db_get_active_events($pdo, DISCIPLINE_SUMMER);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
     $csrf = generateCsrfToken();
-    renderTechSheetEditForm($sheet, $drivers, $events, $csrf, db_get_user_drivers($pdo, (int)$user['id']), $car);
+    renderTechSheetEditForm($sheet, $drivers, $events, $csrf, eventsSheetDriverRows($pdo, (int)$user['id'], (int)$car['id']), $car);
 }
 
-function renderTechSheetForm(array $submission, array $events, string $csrf, ?array $existingSheet, array $existingDrivers, array $ownerDrivers, array $car, int $preselectEventId = 0): void {
+function renderTechSheetForm(array $submission, array $events, string $csrf, ?array $existingSheet, array $existingDrivers, array $ownerDrivers, array $car, int $preselectEventId = 0, array $prefill = []): void {
     $isEdit = $existingSheet !== null;
+    if (!$isEdit && isset($prefill['rows'])) $existingDrivers = $prefill['rows'];
     $formAction = $isEdit ? 'tech-sheets.php?action=update' : 'tech-sheets.php?action=submit';
     $pageTitle = $isEdit ? 'Edit Tech Sheet' : 'Submit Tech Sheet';
     $entrantName = $isEdit ? $existingSheet['entrant_name'] : $submission['name'];
@@ -359,14 +371,14 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     $carNeedsColour = trim((string)($car['colour'] ?? '')) === '';
     $carWeight = $isEdit ? (int)$existingSheet['car_weight'] : (int)$submission['competition_weight'];
     $selectedEventId = $isEdit ? (int)$existingSheet['event_id'] : ($preselectEventId ?: null);
-    $selectedSheetType = $isEdit ? $existingSheet['sheet_type'] : 'standard';
+    $selectedSheetType = $isEdit ? $existingSheet['sheet_type'] : ($prefill['sheetType'] ?? 'standard');
     $existingChecklist = $isEdit ? (json_decode($existingSheet['checklist_json'] ?? '{}', true) ?: []) : [];
     $existingEquipment = $isEdit ? (json_decode($existingSheet['driver1_equipment_json'] ?? '{}', true) ?: []) : [];
     $existingLogBook = $isEdit ? $existingSheet['log_book_turned_in'] : null;
     $hasEntrantSignature = $isEdit && !empty($existingSheet['entrant_signature_path']);
     $hasDriverSignature = $isEdit && !empty($existingSheet['driver_signature_path']);
     $flash = getFlash();
-    $d1 = techSheetDriver1FormState($ownerDrivers, $isEdit ? $existingSheet : null);
+    $d1 = techSheetDriver1FormState($ownerDrivers, $isEdit ? $existingSheet : null, $prefill['driver1'] ?? null);
     $ownedById = $d1['ownedById'];
     $selfId = $d1['selfId'];
     $driver1Choice = $d1['choice'];
@@ -398,6 +410,10 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 <div class="container">
   <?php renderSiteHeader($pageTitle, '<a href="garage.php?car=' . (int)$car['id'] . '">← Back to the car</a>', 'garage'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>" role="alert"><?= h($flash['message']) ?></div><?php endif; ?>
+  <?php if (!empty($prefill['notice'])): ?>
+  <div class="form-messages show info">More than one driver is ticked for this event. Use the endurance sheet so everyone is on it.
+    <a href="<?= h($prefill['notice']) ?>">Use the endurance sheet</a></div>
+  <?php endif; ?>
 
   <form id="tech-sheet-form" method="post" action="<?= h($formAction) ?>">
     <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
@@ -724,6 +740,7 @@ function handleSubmit(PDO $pdo, array $user): void {
     if ($parsed['sheet_type'] === 'endurance' && !empty($driverRows)) {
         db_replace_tech_sheet_drivers($pdo, $id, $driverRows);
     }
+    eventsSyncSheetDrivers($pdo, (int)$user['id'], $id);
 
     $sheet = db_get_tech_sheet($pdo, $id);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
@@ -826,6 +843,7 @@ function handleUpdate(PDO $pdo, array $user): void {
     } else {
         db_replace_tech_sheet_drivers($pdo, $id, []);
     }
+    eventsSyncSheetDrivers($pdo, (int)$user['id'], $id);
 
     // I6: re-emailing on edit — the club's copy would otherwise go stale after
     // a change unless the competitor separately clicked "Resend Email".
@@ -860,8 +878,9 @@ function handleNewIce(PDO $pdo, array $user, int $carId, int $eventId): void {
     foreach ($iceEvents as $e) {
         if ((int)$e['id'] === $eventId) $event = $e;
     }
+    $prefill = eventsSheetPrefill($pdo, (int)$user['id'], $carId, (int)$event['id']);
     renderPageStart('Ice tech sheet', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="garage.php?car=' . $carId . '">&larr; Back to the car</a>']);
-    echo renderIceTechSheetFormHtml(iceSheetFormVm($car, $event, $iceEvents, db_get_user_drivers($pdo, (int)$user['id']), null, generateCsrfToken()));
+    echo renderIceTechSheetFormHtml(iceSheetFormVm($car, $event, $iceEvents, eventsSheetDriverRows($pdo, (int)$user['id'], $carId), null, generateCsrfToken(), $prefill['driver1']));
     renderPageEnd();
 }
 
@@ -932,6 +951,7 @@ function handleSubmitIce(PDO $pdo, array $user): void {
 
     if ($read['snap']['colour_for_car'] !== null) db_update_car($pdo, $carId, ['colour' => $read['snap']['colour_for_car']]);
     eventsTagForSheet($pdo, (int)$user['id'], $event, $car, TECH_TIER_RACE);
+    eventsSyncSheetDrivers($pdo, (int)$user['id'], $id);
     iceSheetSaveSignatures($pdo, $id);
 
     $sheet = db_get_tech_sheet($pdo, $id);
@@ -975,6 +995,7 @@ function handleUpdateIce(PDO $pdo, array $user, array $sheet): void {
         exit;
     }
     if ($read['snap']['colour_for_car'] !== null) db_update_car($pdo, (int)$car['id'], ['colour' => $read['snap']['colour_for_car']]);
+    eventsSyncSheetDrivers($pdo, (int)$user['id'], $id);
     iceSheetSaveSignatures($pdo, $id);
 
     $updated = db_get_tech_sheet($pdo, $id);
@@ -1005,8 +1026,12 @@ function handleNewTaDrift(PDO $pdo, array $user, int $carId, int $eventId): void
     foreach ($events as $e) {
         if ((int)$e['id'] === $eventId) $event = $e;
     }
+    $pickers = eventsSheetDriverRows($pdo, (int)$user['id'], $carId);
+    $byId = [];
+    foreach ($pickers as $d) $byId[(int)$d['id']] = $d;
+    $prefill = eventsSheetPrefill($pdo, (int)$user['id'], $carId, (int)$event['id']);
     renderPageStart('TA/Drift tech sheet', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="garage.php?car=' . $carId . '">&larr; Back to the car</a>']);
-    echo renderTaDriftTechSheetFormHtml(taDriftSheetFormVm($car, $event, $events, db_get_user_drivers($pdo, (int)$user['id']), null, [], generateCsrfToken()));
+    echo renderTaDriftTechSheetFormHtml(taDriftSheetFormVm($car, $event, $events, $pickers, null, techSheetPrefillRows($byId, $prefill['others']), generateCsrfToken(), $prefill['driver1']));
     renderPageEnd();
 }
 
@@ -1069,6 +1094,7 @@ function handleSubmitTaDrift(PDO $pdo, array $user): void {
 
     if ($read['snap']['colour_for_car'] !== null) db_update_car($pdo, $carId, ['colour' => $read['snap']['colour_for_car']]);
     eventsTagForSheet($pdo, (int)$user['id'], $event, $car, TECH_TIER_TA_DRIFT);
+    eventsSyncSheetDrivers($pdo, (int)$user['id'], $id);
     iceSheetSaveSignatures($pdo, $id);   // saves the posted entrant/driver signatures (shared with the ice form)
 
     $sheet = db_get_tech_sheet($pdo, $id);
@@ -1111,6 +1137,7 @@ function handleUpdateTaDrift(PDO $pdo, array $user, array $sheet): void {
         exit;
     }
     db_replace_tech_sheet_drivers($pdo, $id, $valid['drivers']);
+    eventsSyncSheetDrivers($pdo, (int)$user['id'], $id);
     if ($read['snap']['colour_for_car'] !== null) db_update_car($pdo, (int)$car['id'], ['colour' => $read['snap']['colour_for_car']]);
     iceSheetSaveSignatures($pdo, $id);
 

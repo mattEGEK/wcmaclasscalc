@@ -209,15 +209,51 @@ function garageNextStepHtml(array $vm): string {
     return $out . '</div></section>';
 }
 
-/** A tagged summer event's formats with a "Change" form (TA/Drift spec §3 Entry); '' for ice. */
-function garageRenderEntryFormatsHtml(array $event, int $carId, array $formats, string $csrf, ?string $suppsAckAt = null): string {
-    if (($event['discipline'] ?? 'summer') === 'ice') return '';
-    return '<details class="hub-entry-formats"><summary>' . h(entryFormatsLabel($formats)) . ' · Change</summary>'
+/** A tagged event's formats (summer only) and, when $drivers is given, who's driving; '' when neither applies. */
+function garageRenderEntryFormatsHtml(array $event, int $carId, array $formats, string $csrf, ?string $suppsAckAt = null, array $drivers = [], array $tickedIds = []): string {
+    $isIce = ($event['discipline'] ?? 'summer') === 'ice';
+    if ($isIce && $drivers === []) return '';
+    $summary = [];
+    if (!$isIce) $summary[] = entryFormatsLabel($formats);
+    if ($drivers !== []) $summary[] = homeDrivingLabel($drivers, $tickedIds);
+    return '<details class="hub-entry-formats"><summary>' . h(implode(' · ', $summary)) . ' · Change</summary>'
         . '<form method="post" action="garage.php" class="hub-line hub-tag-form">' . garageCsrfField($csrf)
         . '<input type="hidden" name="action" value="formats"><input type="hidden" name="car_id" value="' . $carId . '">'
         . '<input type="hidden" name="event_id" value="' . (int)$event['id'] . '">'
-        . homeFormatsFieldsHtml($event, $formats, $suppsAckAt !== null)
+        . ($isIce ? '' : homeFormatsFieldsHtml($event, $formats, $suppsAckAt !== null))
+        . ($drivers !== [] ? homeDriversFieldsHtml($drivers, $tickedIds) : '')
         . '<button type="submit" class="hub-btn hub-btn--secondary">Save</button></form></details>';
+}
+
+/** The car page's Co-drivers section (co-drivers spec §2). Archived cars show the list only. */
+function garageCoDriversHtml(array $vm): string {
+    $id = (int)$vm['car']['id'];
+    $csrf = (string)$vm['csrf'];
+    $archived = $vm['car']['archived_at'] !== null;
+    $coDrivers = $vm['coDrivers'] ?? [];
+    $coDriverOptions = $vm['coDriverOptions'] ?? [];
+    $out = '<section class="hub-card" id="co-drivers"><h2>Co-drivers</h2>'
+        . '<p class="form-hint">People who share this car. Tick who\'s driving at each event.</p>';
+    if (!$coDrivers) $out .= '<p>No co-drivers yet.</p>';
+    foreach ($coDrivers as $d) {
+        $out .= '<div class="hub-line"><span>' . h((string)$d['name']) . '</span>'
+            . ($archived ? '' : garagePostForm($csrf, 'remove-co-driver', $id, 'Remove', 'hub-btn hub-btn--link', '', ['driver_id' => (int)$d['id']]))
+            . '</div>';
+    }
+    if (!$archived) {
+        $out .= '<form method="post" action="garage.php" class="hub-line hub-tag-form">' . garageCsrfField($csrf)
+            . '<input type="hidden" name="action" value="add-co-driver"><input type="hidden" name="car_id" value="' . $id . '">'
+            . '<label for="co-driver-choice">Add a co-driver</label><select id="co-driver-choice" name="driver_id">'
+            . '<option value="">Choose…</option>';
+        foreach ($coDriverOptions as $d) {
+            $out .= '<option value="' . (int)$d['id'] . '">' . h((string)$d['name']) . '</option>';
+        }
+        $out .= '<option value="new">New name…</option></select>'
+            . '<label for="co-driver-new" class="visually-hidden">New co-driver\'s name</label>'
+            . '<input type="text" id="co-driver-new" name="new_name" maxlength="100" placeholder="New co-driver\'s name">'
+            . '<button type="submit" class="hub-btn hub-btn--secondary">Add</button></form>';
+    }
+    return $out . '</section>';
 }
 
 function renderGarageCarHtml(array $vm): string {
@@ -249,6 +285,8 @@ function renderGarageCarHtml(array $vm): string {
         . '<input type="hidden" name="action" value="update-car"><input type="hidden" name="car_id" value="' . $id . '">'
         . garageSeasonFieldHtml(($form['values'] ?? $car)['disciplines'] ?? null, false)
         . garageDetailsFields($form['values'] ?? $car) . '<button type="submit" class="hub-btn">Save details</button></form></details></section>';
+
+    $out .= garageCoDriversHtml($vm);
 
     $usesSummer = $vm['usesSummer'] ?? true;
     $usesRace = $vm['usesRace'] ?? $usesSummer;   // a TA/Drift-only car has no class or race tech (TA/Drift spec §2)
@@ -346,7 +384,8 @@ function renderGarageCarHtml(array $vm): string {
             }
         }
         if (!$archived) {
-            $out .= garageRenderEntryFormatsHtml($e, $id, $row['formats'] ?? ['race'], $csrf, $row['suppsAckAt'] ?? null)
+            $out .= garageRenderEntryFormatsHtml($e, $id, $row['formats'] ?? ['race'], $csrf, $row['suppsAckAt'] ?? null,
+                    $vm['carDriverChoices'] ?? [], $row['driverIds'] ?? [])
                 . garagePostForm($csrf, 'untag', $id, 'Not going anymore', 'hub-btn hub-btn--link', '', ['event_id' => $eid]);
         }
         $out .= '</div>';

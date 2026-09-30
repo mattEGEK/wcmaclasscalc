@@ -242,7 +242,7 @@ function techSheetDriverChoiceFor(array $ownedById, string $name): string {
  * the selected choice (you for a new sheet; the sheet's driver, or 'new' with their name, for an
  * edit), and the list the driver-choice JS needs.
  */
-function techSheetDriver1FormState(array $ownerDrivers, ?array $sheet): array {
+function techSheetDriver1FormState(array $ownerDrivers, ?array $sheet, ?int $preferId = null): array {
     $ownedById = [];
     $selfId = null;
     foreach ($ownerDrivers as $d) {
@@ -251,7 +251,7 @@ function techSheetDriver1FormState(array $ownerDrivers, ?array $sheet): array {
     }
     $choice = $sheet !== null
         ? techSheetDriverChoiceFor($ownedById, (string)$sheet['driver_name'])
-        : ($selfId !== null ? (string)$selfId : 'new');
+        : ($preferId !== null && isset($ownedById[$preferId]) ? (string)$preferId : ($selfId !== null ? (string)$selfId : 'new'));
     return [
         'ownedById' => $ownedById,
         'selfId' => $selfId,
@@ -259,4 +259,14 @@ function techSheetDriver1FormState(array $ownerDrivers, ?array $sheet): array {
         'newName' => ($sheet !== null && $choice === 'new') ? (string)$sheet['driver_name'] : '',
         'driversForJs' => array_map(fn(array $d): array => ['id' => (int)$d['id'], 'name' => (string)$d['name'], 'self' => (int)$d['id'] === $selfId], $ownerDrivers),
     ];
+}
+
+/** Added-driver rows for a new sheet from who's ticked on the entry (co-drivers spec §4). */
+function techSheetPrefillRows(array $ownedById, array $otherIds): array {
+    $rows = [];
+    foreach ($otherIds as $id) {
+        if (!isset($ownedById[(int)$id])) continue;
+        $rows[] = ['driver_number' => count($rows) + 2, 'driver_name' => (string)$ownedById[(int)$id]['name'], 'equipment_json' => '{}'];
+    }
+    return $rows;
 }

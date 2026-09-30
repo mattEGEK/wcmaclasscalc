@@ -44,7 +44,8 @@ final class ReadinessTaDriftTest extends TestCase
     public function testEntriesCarryFormatsAndTier(): void
     {
         $r = buildReadiness($this->world());
-        $this->assertSame(['formats' => ['ta'], 'tier' => TECH_TIER_TA_DRIFT, 'supps_ack_at' => null], $r['events'][0]['entries'][3]);
+        $this->assertSame(['formats' => ['ta'], 'tier' => TECH_TIER_TA_DRIFT, 'supps_ack_at' => null,
+            'driverIds' => [5], 'driversKnown' => false], $r['events'][0]['entries'][3]);
     }
 
     public function testLegacyPlanWithoutFormatsIsRace(): void
@@ -217,7 +218,7 @@ final class ReadinessTaDriftTest extends TestCase
         $r = buildReadiness($this->world([
             'cars' => [3 => ['id' => 3, 'car_number' => '86', 'make' => 'Subaru', 'model' => 'BRZ', 'disciplines' => 'summer']],
             'plans' => [['event_id' => 20, 'car_id' => 3, 'formats' => 'ta', 'supps_ack_at' => null],
-                        ['event_id' => 21, 'car_id' => 3, 'formats' => 'race,ta', 'supps_ack_at' => null]],
+                        ['event_id' => 21, 'car_id' => 3, 'formats' => 'race,ta', 'supps_ack_at' => null, 'drivers' => [5, 6]]],
         ]));
         $race = $this->items($r, 1);
         $this->assertSame('Submit a tech sheet for #86', $race['tech_sheet:3']['label']);

@@ -261,6 +261,13 @@ try {
   await audit(page, 'pre-tech photos');
   await page.goto(BASE + '/' + carUrl);
   await audit(page, 'car page');
+  report('the car page has a Co-drivers section',
+    await page.locator('h2:has-text("Co-drivers")').count() === 1 ? [] : ['no Co-drivers section on the car page']);
+  await page.selectOption('#co-driver-choice', 'new');
+  await page.fill('#co-driver-new', 'Alex Kim');
+  await page.click('#co-drivers button:has-text("Add")');
+  await audit(page, 'car page (co-driver added)');
+  report('an added co-driver is listed', (await page.locator('#co-drivers').innerText()).includes('Alex Kim') ? [] : ['Alex Kim is not listed']);
   await page.click('.garage-edit summary'); await audit(page, 'car page (edit details open)');
 
   // TA/Drift tech sheet (TA/Drift spec §3): the form, then with the roll bar or cage checks open.
@@ -303,6 +310,9 @@ try {
   report('no host club: Time Attack is disabled', disabled ? [] : ['Time Attack was enabled for an event with no host club']);
   await page.click('section.hub-event:has-text("WSCC Time Attack") .hub-entry-formats summary');
   await audit(page, 'home (change what you are running)');
+  report("the Change form asks who's driving",
+    await page.locator('section.hub-event:has-text("WSCC Time Attack") legend:has-text("Who\'s driving?")').count() === 1
+      ? [] : ["no Who's driving? on the event's Change form"]);
   // Admin tabs (admin desktop UX spec 2026-09-29): phone rules, the edit modal, Deactivate's confirm
   // inside the modal, and on desktop one-line user rows and a centred modal.
   const signInAdmin = async ctx => {

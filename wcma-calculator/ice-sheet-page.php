@@ -7,7 +7,7 @@
 require_once __DIR__ . '/ice-sheet-lib.php';
 
 /** Everything the ice form needs. $sheet is null for a new sheet, the tech_sheets row for an edit. */
-function iceSheetFormVm(array $car, array $event, array $iceEvents, array $ownerDrivers, ?array $sheet, string $csrf): array {
+function iceSheetFormVm(array $car, array $event, array $iceEvents, array $ownerDrivers, ?array $sheet, string $csrf, ?int $preferDriver1 = null): array {
     $club = (string)$event['host_club'];
     $sectionsByClass = $fhrByClass = $classNotes = $helmetNotes = [];
     foreach (ICE_CLUBS[$club]['classes'] ?? [] as $code => $def) {
@@ -25,7 +25,7 @@ function iceSheetFormVm(array $car, array $event, array $iceEvents, array $owner
         'sectionsByClass' => $sectionsByClass, 'fhrByClass' => $fhrByClass,
         'classNotes' => $classNotes, 'helmetNotes' => $helmetNotes,
         'equipmentItems' => iceEquipmentItems(iceClass($club, $selected)),
-        'driver1' => techSheetDriver1FormState($ownerDrivers, $sheet), 'ownerDrivers' => $ownerDrivers,
+        'driver1' => techSheetDriver1FormState($ownerDrivers, $sheet, $preferDriver1), 'ownerDrivers' => $ownerDrivers,
         'sheet' => $sheet, 'csrf' => $csrf,
         'draftKey' => $sheet === null ? techSheetDraftKey((int)($car['owner_user_id'] ?? 0), (int)$car['id'], (int)$event['id']) : null,
         'action' => $sheet !== null ? 'tech-sheets.php?action=update' : 'tech-sheets.php?action=submit-ice',

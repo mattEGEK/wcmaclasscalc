@@ -56,6 +56,10 @@ final class HubDbToolsTest extends TestCase
         $this->assertSame(1, (int)$media['is_media']);
         $this->assertSame(1, count(db_get_media_review_queue($pdo)));
         $this->assertCount(2, db_get_consented_driver_ids($pdo));
+
+        $jordan = (int)db_find_user_by_email($pdo, 'jordan@example.com')['id'];
+        $s2000 = (int)array_values(array_filter(db_get_user_cars($pdo, $jordan), fn(array $c): bool => $c['model'] === 'S2000'))[0]['id'];
+        $this->assertSame(['Sam Patel'], array_map(fn(array $d): string => (string)$d['name'], db_get_car_drivers($pdo, $s2000)));
     }
 
     /**

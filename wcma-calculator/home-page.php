@@ -104,15 +104,45 @@ function homeFormatsFieldsHtml(?array $event, array $checked, bool $suppsTicked 
         . h("For Time Attack and Drift: I have read $who supplementary regulations and my car complies") . '</label></fieldset>';
 }
 
-/** A going car's formats on its event card, with a "Change" form (summer events only). */
-function homeRenderEntryFormatsHtml(array $event, array $car, array $entry, string $csrf): string {
-    if (($event['discipline'] ?? 'summer') === 'ice') return '';
-    return '<details class="hub-entry-formats"><summary>' . h(entryFormatsLabel($entry['formats'])) . ' · Change</summary>'
+/** "Who's driving?" for one entry (co-drivers spec §3): the owner ("You"), then the car's co-drivers. */
+function homeDriversFieldsHtml(array $drivers, array $tickedIds): string {
+    $ticked = array_map('intval', $tickedIds);
+    $out = '<fieldset class="hub-formats hub-drivers"><legend>Who\'s driving?</legend><input type="hidden" name="drivers_shown" value="1"><div class="hub-formats-options">';
+    foreach ($drivers as $d) {
+        $out .= '<label><input type="checkbox" name="drivers[]" value="' . (int)$d['id'] . '"' . (in_array((int)$d['id'], $ticked, true) ? ' checked' : '') . '> '
+            . h($d['isSelf'] ? 'You' : (string)$d['name']) . '</label>';
+    }
+    return $out . '</div></fieldset>';
+}
+
+/** "Driving: You · Sam Lee" (plain text; escape when printing). */
+function homeDrivingLabel(array $drivers, array $tickedIds): string {
+    $ticked = array_map('intval', $tickedIds);
+    $names = [];
+    foreach ($drivers as $d) {
+        if (in_array((int)$d['id'], $ticked, true)) $names[] = $d['isSelf'] ? 'You' : (string)$d['name'];
+    }
+    return 'Driving: ' . implode(' · ', $names);
+}
+
+/**
+ * A going car's entry on its event card, with a "Change" form: what it runs (summer) and, when
+ * $drivers is given, who's driving (every discipline).
+ */
+function homeRenderEntryFormatsHtml(array $event, array $car, array $entry, string $csrf, array $drivers = []): string {
+    $isIce = ($event['discipline'] ?? 'summer') === 'ice';
+    if ($isIce && $drivers === []) return '';
+    $ticked = $entry['driverIds'] ?? [];
+    $summary = [];
+    if (!$isIce) $summary[] = entryFormatsLabel($entry['formats']);
+    if ($drivers !== []) $summary[] = homeDrivingLabel($drivers, $ticked);
+    return '<details class="hub-entry-formats"><summary>' . h(implode(' · ', $summary)) . ' · Change</summary>'
         . '<form method="post" action="index.php" class="hub-line hub-tag-form">' . homeCsrfField($csrf)
         . '<input type="hidden" name="action" value="formats">'
         . '<input type="hidden" name="event_id" value="' . (int)$event['id'] . '">'
         . '<input type="hidden" name="car_id" value="' . (int)$car['id'] . '">'
-        . homeFormatsFieldsHtml($event, $entry['formats'], ($entry['supps_ack_at'] ?? null) !== null)
+        . ($isIce ? '' : homeFormatsFieldsHtml($event, $entry['formats'], ($entry['supps_ack_at'] ?? null) !== null))
+        . ($drivers !== [] ? homeDriversFieldsHtml($drivers, $ticked) : '')
         . '<button type="submit" class="hub-btn hub-btn--secondary">Save</button></form></details>';
 }
 
@@ -172,7 +202,7 @@ function homeShortDate(string $eventDate): string {
  * links to that event's list: up to the top when it is already there ($isFocus), else reloading
  * Home with that event's list at the top.
  */
-function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, string $csrf, bool $offerReminders, bool $isFocus = false, array $tagDefaults = []): string {
+function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, string $csrf, bool $offerReminders, bool $isFocus = false, array $tagDefaults = [], array $carDrivers = []): string {
     $out = '<section class="hub-card hub-event" id="event-' . (int)$event['id'] . '"><div class="hub-event-head"><h3>' . h((string)$event['name']) . '</h3>';
     $date = homeShortDate((string)$event['event_date']);
     if ($date !== '') $out .= '<span class="hub-event-date">' . h($date) . '</span>';
@@ -198,7 +228,7 @@ function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, st
     foreach (array_keys($goingCarIds) as $carId) {
         if (!isset($cars[$carId])) continue;
         $out .= homeRenderUntagForm($event, $cars[$carId], $csrf)
-            . homeRenderEntryFormatsHtml($event, $cars[$carId], $readinessEvent['entries'][$carId] ?? ['formats' => ['race'], 'supps_ack_at' => null], $csrf);
+            . homeRenderEntryFormatsHtml($event, $cars[$carId], $readinessEvent['entries'][$carId] ?? ['formats' => ['race'], 'supps_ack_at' => null, 'driverIds' => []], $csrf, $carDrivers[$carId] ?? []);
     }
     $notGoing = homeCarsForEvent(array_diff_key($cars, $goingCarIds), $event);
     if ($notGoing) {
@@ -335,7 +365,7 @@ function renderHomeHtml(array $vm): string
         usort($cardsByDate, fn(array $a, array $b): int => strcmp((string)$a[0]['event_date'], (string)$b[0]['event_date']));
         foreach ($cardsByDate as [$event, $readinessEvent]) {
             $out .= homeEventCardHtml($event, $readinessEvent, $cars, $csrf, $offerReminders,
-                $readinessEvent !== null && (int)$event['id'] === $focusId, $vm['tagDefaults'][(int)$event['id']] ?? []);
+                $readinessEvent !== null && (int)$event['id'] === $focusId, $vm['tagDefaults'][(int)$event['id']] ?? [], $vm['carDrivers'] ?? []);
         }
     }
 
