@@ -456,6 +456,60 @@ function db_init(PDO $pdo): void {
     // whether its driver's car is caged (adds the head and neck restraint photo).
     db_add_column_if_missing($pdo, 'gear_records', 'photo_tier', 'TEXT');
     db_add_column_if_missing($pdo, 'gear_records', 'caged', 'INTEGER NOT NULL DEFAULT 0');
+
+    // ── Co-drivers per car and entry (2026-09-30 spec §1). New tables; seeded once, when first created. ──
+    $hasCarDrivers = (bool)$pdo->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'car_drivers'")->fetchColumn();
+    $hasEntryDrivers = (bool)$pdo->query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'entry_drivers'")->fetchColumn();
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS car_drivers (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            car_id     INTEGER NOT NULL,
+            driver_id  INTEGER NOT NULL,
+            created_at DATETIME NOT NULL,
+            UNIQUE (car_id, driver_id)
+        )
+    ");
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS entry_drivers (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_id   INTEGER NOT NULL,
+            driver_id  INTEGER NOT NULL,
+            created_at DATETIME NOT NULL,
+            UNIQUE (entry_id, driver_id)
+        )
+    ");
+    $now = date('Y-m-d H:i:s');
+    if (!$hasCarDrivers) {
+        // Every non-owner driver named on any of the car's sheets (driver 1 or an added driver).
+        $pdo->prepare("
+            INSERT OR IGNORE INTO car_drivers (car_id, driver_id, created_at)
+            SELECT DISTINCT s.car_id, d.id, :now FROM (
+                SELECT car_id, driver_id FROM tech_sheets WHERE car_id IS NOT NULL AND driver_id IS NOT NULL
+                UNION
+                SELECT ts.car_id, tsd.driver_id FROM tech_sheet_drivers tsd JOIN tech_sheets ts ON ts.id = tsd.tech_sheet_id
+                WHERE ts.car_id IS NOT NULL AND tsd.driver_id IS NOT NULL
+            ) s
+            JOIN cars c ON c.id = s.car_id
+            JOIN drivers d ON d.id = s.driver_id
+            WHERE d.owner_user_id = c.owner_user_id AND (d.user_id IS NULL OR d.user_id != d.owner_user_id)
+        ")->execute([':now' => $now]);
+    }
+    if (!$hasEntryDrivers) {
+        // Each entry: the owner's own driver, plus everyone on that event's sheet for the car.
+        $pdo->prepare("
+            INSERT OR IGNORE INTO entry_drivers (entry_id, driver_id, created_at)
+            SELECT p.id, d.id, :now FROM event_plans p JOIN drivers d ON d.user_id = p.user_id AND d.owner_user_id = p.user_id
+        ")->execute([':now' => $now]);
+        $pdo->prepare("
+            INSERT OR IGNORE INTO entry_drivers (entry_id, driver_id, created_at)
+            SELECT p.id, s.driver_id, :now FROM event_plans p JOIN (
+                SELECT car_id, event_id, driver_id FROM tech_sheets WHERE driver_id IS NOT NULL
+                UNION
+                SELECT ts.car_id, ts.event_id, tsd.driver_id FROM tech_sheet_drivers tsd JOIN tech_sheets ts ON ts.id = tsd.tech_sheet_id
+                WHERE tsd.driver_id IS NOT NULL
+            ) s ON s.car_id = p.car_id AND s.event_id = p.event_id
+        ")->execute([':now' => $now]);
+    }
 }
 
 function db_insert_submission(PDO $pdo, array $data): int {
@@ -780,20 +834,28 @@ function db_set_event_active(PDO $pdo, int $id, bool $active): void {
 
 // ── Event plans and at-track choices ─────────────────────────────────────────
 
-/** Tags the car for the event. True if it was not tagged yet (a new entry starts as race). */
+/** Tags the car for the event. True if it was not tagged yet: a new entry starts as race, with the owner driving (co-drivers spec §3). */
 function db_tag_event(PDO $pdo, int $userId, int $eventId, int $carId): bool {
     $stmt = $pdo->prepare("INSERT OR IGNORE INTO event_plans (user_id, event_id, car_id, created_at) VALUES (:u, :e, :c, :now)");
     $stmt->execute([':u' => $userId, ':e' => $eventId, ':c' => $carId, ':now' => date('Y-m-d H:i:s')]);
-    return $stmt->rowCount() === 1;
+    $added = $stmt->rowCount() === 1;
+    if ($added) {
+        $self = db_get_self_driver($pdo, $userId);
+        $entry = db_get_entry($pdo, $userId, $eventId, $carId);
+        if ($self !== null && $entry !== null) db_add_entry_driver($pdo, (int)$entry['id'], (int)$self['id']);
+    }
+    return $added;
 }
 
 function db_untag_event(PDO $pdo, int $userId, int $eventId, int $carId): void {
+    $pdo->prepare("DELETE FROM entry_drivers WHERE entry_id IN (SELECT id FROM event_plans WHERE user_id = :u AND event_id = :e AND car_id = :c)")
+        ->execute([':u' => $userId, ':e' => $eventId, ':c' => $carId]);
     $pdo->prepare("DELETE FROM event_plans WHERE user_id = :u AND event_id = :e AND car_id = :c")
         ->execute([':u' => $userId, ':e' => $eventId, ':c' => $carId]);
 }
 
 function db_get_user_event_plans(PDO $pdo, int $userId): array {
-    $stmt = $pdo->prepare("SELECT event_id, car_id, formats, supps_ack_at FROM event_plans WHERE user_id = :u ORDER BY event_id ASC, car_id ASC");
+    $stmt = $pdo->prepare("SELECT id, event_id, car_id, formats, supps_ack_at FROM event_plans WHERE user_id = :u ORDER BY event_id ASC, car_id ASC");
     $stmt->execute([':u' => $userId]);
     return $stmt->fetchAll();
 }
@@ -821,6 +883,76 @@ function db_get_car_last_summer_formats(PDO $pdo, int $carId, int $exceptEventId
     $stmt->execute([':c' => $carId, ':x' => $exceptEventId]);
     $f = $stmt->fetchColumn();
     return $f === false ? null : (string)$f;
+}
+
+// ── Co-drivers per car and entry (2026-09-30 spec §1) ────────────────────────
+
+/** The car's co-driver list (drivers rows, by name). The owner is never on it. */
+function db_get_car_drivers(PDO $pdo, int $carId): array {
+    $stmt = $pdo->prepare("SELECT d.* FROM car_drivers cd JOIN drivers d ON d.id = cd.driver_id WHERE cd.car_id = :c ORDER BY d.name_norm ASC, d.id ASC");
+    $stmt->execute([':c' => $carId]);
+    return $stmt->fetchAll();
+}
+
+/** Adds one of the user's co-drivers to one of their cars. False for the owner's own driver, or anything not theirs. */
+function db_add_car_driver(PDO $pdo, int $userId, int $carId, int $driverId): bool {
+    $driver = db_get_driver($pdo, $driverId);
+    if (db_get_user_car($pdo, $userId, $carId) === null || $driver === null || (int)$driver['owner_user_id'] !== $userId
+        || (int)($driver['user_id'] ?? 0) === $userId) {
+        return false;
+    }
+    $pdo->prepare("INSERT OR IGNORE INTO car_drivers (car_id, driver_id, created_at) VALUES (:c, :d, :now)")
+        ->execute([':c' => $carId, ':d' => $driverId, ':now' => date('Y-m-d H:i:s')]);
+    return true;
+}
+
+/**
+ * Takes a co-driver off a car (the driver is kept). They are unticked from the car's entries for
+ * events on or after $today; an entry left with nobody gets the owner back. Past entries keep them.
+ */
+function db_remove_car_driver(PDO $pdo, int $userId, int $carId, int $driverId, string $today): bool {
+    if (db_get_user_car($pdo, $userId, $carId) === null) return false;
+    $pdo->prepare("DELETE FROM car_drivers WHERE car_id = :c AND driver_id = :d")->execute([':c' => $carId, ':d' => $driverId]);
+    $upcoming = "SELECT p.id FROM event_plans p JOIN events e ON e.id = p.event_id WHERE p.car_id = :c AND p.user_id = :u AND e.event_date >= :t";
+    $pdo->prepare("DELETE FROM entry_drivers WHERE driver_id = :d AND entry_id IN ($upcoming)")
+        ->execute([':d' => $driverId, ':c' => $carId, ':u' => $userId, ':t' => $today]);
+    $self = db_get_self_driver($pdo, $userId);
+    if ($self !== null) {
+        $pdo->prepare("
+            INSERT OR IGNORE INTO entry_drivers (entry_id, driver_id, created_at)
+            SELECT p.id, :s, :now FROM event_plans p JOIN events e ON e.id = p.event_id
+            WHERE p.car_id = :c AND p.user_id = :u AND e.event_date >= :t
+              AND NOT EXISTS (SELECT 1 FROM entry_drivers x WHERE x.entry_id = p.id)
+        ")->execute([':s' => (int)$self['id'], ':now' => date('Y-m-d H:i:s'), ':c' => $carId, ':u' => $userId, ':t' => $today]);
+    }
+    return true;
+}
+
+/** @return int[] who's driving an entry, in the order they were added */
+function db_get_entry_driver_ids(PDO $pdo, int $entryId): array {
+    $stmt = $pdo->prepare("SELECT driver_id FROM entry_drivers WHERE entry_id = :e ORDER BY id ASC");
+    $stmt->execute([':e' => $entryId]);
+    return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+/** Replaces who's driving an entry. Callers validate the list (eventsValidateDriverIds()). */
+function db_set_entry_drivers(PDO $pdo, int $entryId, array $driverIds): void {
+    $pdo->prepare("DELETE FROM entry_drivers WHERE entry_id = :e")->execute([':e' => $entryId]);
+    foreach ($driverIds as $d) db_add_entry_driver($pdo, $entryId, (int)$d);
+}
+
+function db_add_entry_driver(PDO $pdo, int $entryId, int $driverId): void {
+    $pdo->prepare("INSERT OR IGNORE INTO entry_drivers (entry_id, driver_id, created_at) VALUES (:e, :d, :now)")
+        ->execute([':e' => $entryId, ':d' => $driverId, ':now' => date('Y-m-d H:i:s')]);
+}
+
+/** @return array<int, int[]> entry id => driver ids, for all of the user's entries */
+function db_get_entry_drivers_for_user(PDO $pdo, int $userId): array {
+    $stmt = $pdo->prepare("SELECT x.entry_id, x.driver_id FROM entry_drivers x JOIN event_plans p ON p.id = x.entry_id WHERE p.user_id = :u ORDER BY x.id ASC");
+    $stmt->execute([':u' => $userId]);
+    $out = [];
+    foreach ($stmt->fetchAll() as $r) $out[(int)$r['entry_id']][] = (int)$r['driver_id'];
+    return $out;
 }
 
 function db_set_at_track(PDO $pdo, string $subjectType, int $subjectId, int $season,
