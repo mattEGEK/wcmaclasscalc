@@ -1699,8 +1699,12 @@ function db_mark_gear_photos_draft(PDO $pdo, int $id): void {
     ")->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
 }
 
-/** A gear record whose photo set can move: an open record, or TA/Drift gear being upgraded to race (TA/Drift phase 2). */
-const DB_GEAR_PHOTOS_OPEN_SQL = "(status = 'open' OR (status = 'accepted' AND level = 'ta_drift'))";
+/**
+ * A gear record whose photo set can move: an open record, or TA/Drift gear being upgraded to race
+ * (TA/Drift phase 2). A race upgrade's photos are on the race list (photo_tier IS NULL); pending
+ * TA/Drift photos on a record accepted at TA/Drift are not an upgrade and must not match here.
+ */
+const DB_GEAR_PHOTOS_OPEN_SQL = "(status = 'open' OR (status = 'accepted' AND level = 'ta_drift' AND photo_tier IS NULL))";
 
 /** Atomic photo_status transition: true only if the record's photos can still move (open, or a race upgrade) and its status was one of $from. */
 function db_transition_gear_photo_status(PDO $pdo, int $id, array $from, string $to): bool {
@@ -1727,12 +1731,17 @@ function db_accept_gear_by_photos(PDO $pdo, int $id, int $reviewerUserId): bool 
     return $stmt->rowCount() === 1;
 }
 
-/** In-person acceptance at the track: atomic, from any open record. */
+/**
+ * In-person acceptance at the track: atomic, from any open record. Closes any pending photo set
+ * (draft/needs_changes/submitted becomes accepted) so no stale pending photos are left behind, for
+ * example when a driver's TA/Drift photos were mid-review and an inspector accepts the gear in person.
+ */
 function db_accept_gear_in_person(PDO $pdo, int $id, int $reviewerUserId): bool {
     $now = date('Y-m-d H:i:s');
     $stmt = $pdo->prepare("
         UPDATE gear_records SET
             status = 'accepted', accepted_via = 'in_person', revoke_note = NULL,
+            photo_status = CASE WHEN photo_status IN ('draft', 'needs_changes', 'submitted') THEN 'accepted' ELSE photo_status END,
             reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
         WHERE id = :id AND status = 'open'
     ");
@@ -1982,7 +1991,7 @@ function db_get_gear_awaiting_photo_review(PDO $pdo): array {
         SELECT g.*, d.owner_user_id AS owner_user_id, d.name AS driver_name, d.name_norm AS driver_name_norm,
                d.licence_no AS licence_no, u.name AS owner_name
         FROM gear_records g JOIN drivers d ON d.id = g.driver_id LEFT JOIN users u ON u.id = d.owner_user_id
-        WHERE g.photo_status = 'submitted' AND (g.status = 'open' OR (g.status = 'accepted' AND g.level = 'ta_drift'))
+        WHERE g.photo_status = 'submitted' AND (g.status = 'open' OR (g.status = 'accepted' AND g.level = 'ta_drift' AND g.photo_tier IS NULL))
         ORDER BY g.updated_at ASC, g.id ASC
     ")->fetchAll();
 }

@@ -33,10 +33,15 @@ function gearSummerLevelLabel(?string $level): string {
     return $level === GEAR_LEVEL_TA_DRIFT ? 'TA/Drift' : 'Race';
 }
 
-/** Gear accepted at TA/Drift whose owner is sending race gear photos (TA/Drift spec §2). It keeps covering TA/Drift meanwhile. */
+/**
+ * Gear accepted at TA/Drift whose owner is sending race gear photos (TA/Drift spec §2). It keeps
+ * covering TA/Drift meanwhile. A race upgrade's photos are only ever on the race list
+ * (photo_tier IS NULL); pending TA/Drift photos on a record accepted at TA/Drift are not an upgrade.
+ */
 function gearIsRaceUpgrade(array $gear): bool {
     return ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_SUMMER
         && ($gear['status'] ?? '') === 'accepted' && ($gear['level'] ?? null) === GEAR_LEVEL_TA_DRIFT
+        && ($gear['photo_tier'] ?? null) === null
         && in_array($gear['photo_status'] ?? null, ['draft', 'needs_changes', 'submitted'], true);
 }
 

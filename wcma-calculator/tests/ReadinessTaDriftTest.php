@@ -71,11 +71,27 @@ final class ReadinessTaDriftTest extends TestCase
         $gear = $this->items($r)['gear:5'];
         $this->assertSame('todo', $gear['state']);
         $this->assertSame("Jordan Lee's gear is checked for TA/Drift; racing needs race-level gear", $gear['label']);
-        $this->assertSame('Bring race-level gear to tech at the track.', $gear['detail']);
+        $this->assertSame('Send race gear photos, or bring race-level gear to tech at the track.', $gear['detail']);
+        $this->assertSame(['label' => 'Send race gear photos', 'url' => 'gear.php?action=pretech&id=40'], $gear['action']);
+        $this->assertSame(['subject_type' => 'driver', 'subject_id' => 5, 'season' => 2026], $gear['at_track']);
 
         $race = ['level' => null] + $tadGear;
         $r = buildReadiness($this->world(['plans' => [['event_id' => 20, 'car_id' => 3, 'formats' => 'race', 'supps_ack_at' => null]], 'gear' => ['5:2026' => $race]]));
         $this->assertSame('done', $this->items($r)['gear:5']['state']);
+    }
+
+    /** Final-review Important finding 2: honour an existing "I'll do it at the track" choice. */
+    public function testRaceEntryWithTaDriftGearHonoursAnExistingAtTrackChoice(): void
+    {
+        $tadGear = ['id' => 40, 'season' => 2026, 'discipline' => 'summer', 'level' => 'ta_drift', 'status' => 'accepted', 'accepted_via' => 'in_person', 'photo_status' => null];
+        $r = buildReadiness($this->world([
+            'plans' => [['event_id' => 20, 'car_id' => 3, 'formats' => 'race', 'supps_ack_at' => null]],
+            'gear' => ['5:2026' => $tadGear],
+            'atTrack' => ['driver:5@2026'],
+        ]));
+        $gear = $this->items($r)['gear:5'];
+        $this->assertSame('done', $gear['state']);
+        $this->assertSame('Gear for Jordan Lee: checked at the track', $gear['label']);
     }
 
     private function sheet(int $id, int $eventId, array $o = []): array {

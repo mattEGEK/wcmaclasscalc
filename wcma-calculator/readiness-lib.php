@@ -422,8 +422,14 @@ function buildReadiness(array $in): array {
                 $gear = $in['gear']["$did:$season"] ?? null;
                 if ($gear !== null && gearStatus($gear)['state'] === 'accepted' && !gearCoversTier($gear, TECH_TIER_RACE)) {
                     // Accepted at TA/Drift level only (TA/Drift spec §2): racing needs race-level gear.
-                    $items[] = readinessItem('gear', 'driver', $did, 'todo', "$name's gear is checked for TA/Drift; racing needs race-level gear",
-                        'Bring race-level gear to tech at the track.');
+                    // Honour an existing at-track choice like the other gear items, and give an action:
+                    // gear.php?action=pretech opens the "Send race gear photos" upgrade form for this record.
+                    $items[] = isset($atTrack["driver:$did@$season"])
+                        ? readinessItem('gear', 'driver', $did, 'done', "Gear for $name: checked at the track")
+                        : readinessItem('gear', 'driver', $did, 'todo', "$name's gear is checked for TA/Drift; racing needs race-level gear",
+                            'Send race gear photos, or bring race-level gear to tech at the track.',
+                            ['label' => 'Send race gear photos', 'url' => 'gear.php?action=pretech&id=' . (int)$gear['id']],
+                            ['subject_type' => 'driver', 'subject_id' => $did, 'season' => $season]);
                     continue;
                 }
                 $status = $gear !== null ? gearStatus($gear) : ['state' => 'none', 'via' => null];
