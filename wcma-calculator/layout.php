@@ -15,7 +15,7 @@ function hubNavItems(?array $user): array {
     if ($user === null) {
         return [
             ['key' => 'home', 'label' => 'Home', 'href' => 'index.php'],
-            ['key' => 'calculator', 'label' => 'Class Calculator', 'href' => 'calculator.php'],
+            ['key' => 'calculator', 'label' => 'Calculator', 'href' => 'calculator.php'],
             ['key' => 'signin', 'label' => 'Sign in', 'href' => 'auth.php?action=login'],
         ];
     }
@@ -23,7 +23,7 @@ function hubNavItems(?array $user): array {
         ['key' => 'home', 'label' => 'Home', 'href' => 'index.php'],
         ['key' => 'garage', 'label' => 'Garage', 'href' => 'garage.php'],
         ['key' => 'drivers', 'label' => 'Drivers', 'href' => 'drivers.php'],
-        ['key' => 'calculator', 'label' => 'Class Calculator', 'href' => 'calculator.php'],
+        ['key' => 'calculator', 'label' => 'Calculator', 'href' => 'calculator.php'],
     ];
     if (user_has_role($user, 'inspector')) {
         $items[] = ['key' => 'inspect', 'label' => 'Inspector', 'href' => 'inspect.php', 'staff' => true];
@@ -35,6 +35,11 @@ function hubNavItems(?array $user): array {
         $items[] = ['key' => 'admin', 'label' => 'Admin', 'href' => 'admin.php', 'staff' => true];
     }
     return $items;
+}
+
+/** Staff see up to three extra nav items, so their header folds into the Menu button sooner (UX review §H1). */
+function hubHeaderIsStaff(?array $user): bool {
+    return $user !== null && (user_has_role($user, 'inspector') || mediaCanAccess($user));
 }
 
 function hubNavHtml(?array $user, string $section): string {
@@ -52,7 +57,7 @@ function hubNavHtml(?array $user, string $section): string {
 
 function hubAccountHtml(?array $user): string {
     if ($user === null) return '';
-    return '<div class="hub-account"><span class="hub-account-name">' . h((string)$user['name']) . '</span>'
+    return '<div class="hub-account"><span class="hub-account-name" title="' . h((string)$user['name']) . '">' . h((string)$user['name']) . '</span>'
         . ' · <a href="profile.php">Profile</a> · <a href="auth.php?action=logout">Sign out</a></div>';
 }
 
@@ -146,7 +151,7 @@ function renderPageStart(string $title, string $section, array $opts = []): void
 </head>
 <body class="hub <?= h((string)($opts['bodyClass'] ?? '')) ?>">
 <a class="hub-skip" href="#main">Skip to content</a>
-<header class="hub-header"><div class="hub-wrap hub-header-row">
+<header class="hub-header<?= hubHeaderIsStaff($user) ? ' hub-header--staff' : '' ?>"><div class="hub-wrap hub-header-row">
   <a href="index.php" class="hub-logo"><img src="assets/wcma-logo.png" alt="WCMA — home"></a>
   <?= hubNavHtml($user, $section) ?>
   <?= hubAccountHtml($user) ?>

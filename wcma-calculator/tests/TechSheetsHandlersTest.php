@@ -100,7 +100,7 @@ final class TechSheetsHandlersTest extends TestCase
     {
         $body = $this->body('renderTechSheetForm');
         $this->assertStringContainsString('getFlash(', $body);
-        $this->assertStringContainsString("h(\$flash['message'])", $body);
+        $this->assertStringContainsString("'flash' => \$flash", $body);   // renderPageStart() prints it
     }
 
     // Ice events are filtered out of the summer-facing pickers (fix wave, Fix 1): db_insert_tech_sheet

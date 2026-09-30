@@ -54,7 +54,7 @@ final class GearLibTest extends TestCase
         $this->assertSame('Gear teched 2026', gearStatusLabel(['state' => 'accepted', 'via' => 'in_person'], 2026));
         $this->assertSame('Gear pre-teched 2026', gearStatusLabel(['state' => 'accepted', 'via' => 'photos'], 2026));
         $this->assertSame('Needs gear check at the track', gearStatusLabel(['state' => 'none', 'via' => null], 2026));
-        $this->assertSame('Photos pending review', gearStatusLabel(['state' => 'pending_review', 'via' => null], 2026));
+        $this->assertSame('Photos with an inspector', gearStatusLabel(['state' => 'pending_review', 'via' => null], 2026));
         $this->assertSame('Photos need changes', gearStatusLabel(['state' => 'needs_changes', 'via' => null], 2026));
         $this->assertSame('Photos in progress', gearStatusLabel(['state' => 'photos_draft', 'via' => null], 2026));
         $this->assertSame('badge-ok', gearStatusBadgeClass('accepted'));

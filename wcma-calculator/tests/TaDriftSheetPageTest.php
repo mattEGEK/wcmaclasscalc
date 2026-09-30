@@ -56,7 +56,7 @@ final class TaDriftSheetPageTest extends TestCase
         $this->assertStringContainsString('window.TA_DRIFT_SECTIONS', $html);
         $this->assertStringContainsString('window.TA_DRIFT_RENDERED_CAGED = false;', $html);
         $this->assertStringContainsString('window.TECH_SHEET_DRAFT_KEY = "wcma-tsdraft:1:3:20";', $html);
-        $this->assertStringContainsString('Submit TA/Drift Tech Sheet', $html);
+        $this->assertStringContainsString('Submit TA/Drift tech sheet', $html);
         $this->assertLessThan(strpos($html, 'js/tech-sheet-form.js'), strpos($html, 'js/ice-class-picker.js'));
     }
 
@@ -86,7 +86,7 @@ final class TaDriftSheetPageTest extends TestCase
         $this->assertStringContainsString('window.TA_DRIFT_RENDERED_CAGED = true;', $html);
         $this->assertStringContainsString('window.TECH_SHEET_HAS_ENTRANT_SIGNATURE = true;', $html);
         $this->assertStringContainsString('"driver_choice":"6"', $html);
-        $this->assertStringContainsString('Save Changes', $html);
+        $this->assertStringContainsString('Save changes', $html);
     }
 
     public function testNamesAreEscaped(): void

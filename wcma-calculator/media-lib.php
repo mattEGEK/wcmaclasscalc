@@ -147,7 +147,7 @@ function mediaProfileStatus(?array $profile, ?array $consent): array {
     switch ($profile['public_status'] ?? 'none') {
         case 'accepted':  return $s('accepted', 'Public page live', 'hub-status--ok');
         case 'sent_back': return $s('sent_back', 'Public page sent back', 'hub-status--todo');
-        default:          return $s('pending_review', 'Public page: waiting for review', 'hub-status--info');
+        default:          return $s('pending_review', 'Public page: with media staff', 'hub-status--info');
     }
 }
 

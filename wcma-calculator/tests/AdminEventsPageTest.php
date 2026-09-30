@@ -102,7 +102,7 @@ final class AdminEventsPageTest extends TestCase
         $waiting = renderEventsPageHtml($this->events(), [], $this->clubs(), 'tok', null, null, ['pending' => 4, 'connected' => true]);
         $this->assertStringContainsString('<p class="admin-msr-strip"><strong>From MotorsportReg:</strong> 4 events to review <a class="hub-btn hub-btn--secondary" href="admin.php?action=msr">Review</a></p>', $waiting);
         $quiet = renderEventsPageHtml($this->events(), [], $this->clubs(), 'tok', null, null, ['pending' => 0, 'connected' => true]);
-        $this->assertStringContainsString('<a class="admin-link" href="admin.php?action=msr">From MotorsportReg</a>', $quiet);
+        $this->assertStringContainsString('Nothing new from the clubs\' MotorsportReg calendars. <a class="admin-link" href="admin.php?action=msr">Open From MotorsportReg</a>', $quiet);
         $none = renderEventsPageHtml($this->events(), [], $this->clubs(), 'tok', null, null);
         $this->assertStringNotContainsString('action=msr', $none);
     }

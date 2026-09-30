@@ -4,7 +4,8 @@
 // Markup for the Media section (Announcer, Media kit, Public review) and the public driver page.
 // Pure: no DB, no session, no echo. Callers must have loaded view_helpers.php (h()) and media-lib.php.
 
-function renderMediaEntryHtml(array $e, bool $forKit): string {
+/** $showCar false: the entry sits under a heading that already names the car (Announcer). */
+function renderMediaEntryHtml(array $e, bool $forKit, bool $showCar = true): string {
     $id = (int)$e['driver_id'];
     $out = '<article class="hub-card media-entry">';
     if ($e['has_photo']) {
@@ -12,7 +13,7 @@ function renderMediaEntryHtml(array $e, bool $forKit): string {
     }
     $out .= '<div class="media-entry-body"><h3>' . ($e['number'] !== '' ? '<span class="media-number">#' . h($e['number']) . '</span> ' : '') . h($e['name']) . '</h3>';
     if ((string)$e['pronunciation'] !== '') $out .= '<p class="media-say">Say it: ' . h((string)$e['pronunciation']) . '</p>';
-    if ($e['car'] !== '' || $e['class'] !== '') $out .= '<p class="media-car">' . h(trim($e['car'] . ($e['class'] !== '' ? ' · ' . $e['class'] : ''))) . '</p>';
+    if ($showCar && ($e['car'] !== '' || $e['class'] !== '')) $out .= '<p class="media-car">' . h(trim($e['car'] . ($e['class'] !== '' ? ' · ' . $e['class'] : ''))) . '</p>';
     $facts = mediaFactsLine($e);
     if ($facts !== '') $out .= '<p class="media-facts">' . h($facts) . '</p>';
     if (trim($e['blurb']) !== '') $out .= '<p class="media-blurb">' . nl2br(h($e['blurb'])) . '</p>';
@@ -33,15 +34,15 @@ function renderMediaEntryHtml(array $e, bool $forKit): string {
 }
 
 function mediaEventPickerHtml(array $events, int $eventId, string $action, bool $allowAll): string {
-    $out = '<form method="get" action="media.php" class="hub-line media-picker">'
+    $out = '<form method="get" action="media.php" class="hub-card inspect-filters media-picker">'
         . ($action !== '' ? '<input type="hidden" name="action" value="' . h($action) . '">' : '')
-        . '<label for="media-event">Event</label><select id="media-event" name="event">';
+        . '<div class="inspect-filter inspect-filter--grow"><label for="media-event">Event</label><select id="media-event" name="event">';
     if ($allowAll) $out .= '<option value="0"' . ($eventId === 0 ? ' selected' : '') . '>All drivers who shared a profile</option>';
     foreach ($events as $ev) {
         $out .= '<option value="' . (int)$ev['id'] . '"' . ((int)$ev['id'] === $eventId ? ' selected' : '') . '>'
-            . h($ev['name'] . ' — ' . $ev['event_date']) . '</option>';
+            . h($ev['name'] . ' — ' . hubEventDate((string)$ev['event_date'])) . '</option>';
     }
-    return $out . '</select><button type="submit" class="hub-btn hub-btn--secondary">Show</button></form>';
+    return $out . '</select></div><button type="submit" class="hub-btn hub-btn--secondary">Show</button></form>';
 }
 
 function renderAnnouncerHtml(array $vm): string {
@@ -54,15 +55,15 @@ function renderAnnouncerHtml(array $vm): string {
         $out .= '<section class="media-car-block"><h2><span class="media-number">#' . h($car['number']) . '</span> '
             . h($car['car']) . ($car['class'] !== '' ? ' <span class="media-class">' . h($car['class']) . '</span>' : '') . '</h2>';
         foreach ($car['drivers'] as $d) {
-            $out .= $d['entry'] !== null ? renderMediaEntryHtml($d['entry'], false)
+            $out .= $d['entry'] !== null ? renderMediaEntryHtml($d['entry'], false, false)
                 : '<p class="media-bare">' . h($d['name']) . ' <span class="form-hint">No media profile</span></p>';
         }
         $out .= '</section>';
     }
     $out .= '<form method="get" action="media.php" class="hub-card no-print"><input type="hidden" name="event" value="' . (int)$vm['eventId'] . '">'
         . '<label for="media-q">Add a driver who is not on the list</label>'
-        . '<input type="search" id="media-q" name="q" value="' . h((string)$vm['q']) . '" maxlength="100">'
-        . '<button type="submit" class="hub-btn hub-btn--secondary">Find</button></form>';
+        . '<div class="hub-inline"><input type="search" id="media-q" name="q" value="' . h((string)$vm['q']) . '" maxlength="100" placeholder="Driver name">'
+        . '<button type="submit" class="hub-btn hub-btn--secondary">Find</button></div></form>';
     if ((string)$vm['q'] !== '') {
         $out .= '<h2>Added for this view</h2>';
         if (!$vm['extra']) $out .= '<p>No shared profiles match "' . h((string)$vm['q']) . '".</p>';
@@ -94,21 +95,25 @@ function renderMediaReviewHtml(array $vm): string {
     foreach ($vm['queue'] as $row) {
         $id = (int)$row['driver_id'];
         $seen = '<input type="hidden" name="seen" value="' . h((string)($row['updated_at'] ?? '')) . '">';
-        $out .= '<section class="media-review-item"><h2>' . h((string)$row['driver_name']) . '</h2>'
+        $out .= '<section class="hub-card media-review-item"><h2>' . h((string)$row['driver_name']) . '</h2>'
             . renderMediaEntryHtml($row['entry'], false)
-            . mediaPostFormHtml('media-accept', $id, $csrf, $seen . '<button type="submit" class="hub-btn">Accept for the public page</button>')
+            . mediaPostFormHtml('media-accept', $id, $csrf, $seen . '<button type="submit" class="hub-btn">Accept for the public page</button>', 'media-review-accept')
+            . '<details class="inspect-sendback"><summary>Something needs to change? Send it back with a note</summary>'
             . mediaPostFormHtml('media-send-back', $id, $csrf, $seen . '<label for="sb-' . $id . '">Note for the driver</label>'
-                . '<input type="text" id="sb-' . $id . '" name="note" required maxlength="500">'
-                . '<button type="submit" class="hub-btn hub-btn--secondary">Send back</button>')
+                . '<div class="hub-inline"><input type="text" id="sb-' . $id . '" name="note" required maxlength="500">'
+                . '<button type="submit" class="hub-btn hub-btn--secondary">Send back</button></div>', 'media-review-form')
+            . '</details>'
+            . '<details class="inspect-sendback"><summary>Hide this profile everywhere</summary>'
+            . '<p class="form-hint">Hiding takes it off the Announcer sheet, the media kit and the public page until media staff unhide it.</p>'
             . mediaPostFormHtml('media-hide', $id, $csrf, '<label for="hd-' . $id . '">Reason for hiding</label>'
-                . '<input type="text" id="hd-' . $id . '" name="note" required maxlength="500">'
-                . '<button type="submit" class="hub-btn hub-btn--link">Hide everywhere</button>')
-            . '</section>';
+                . '<div class="hub-inline"><input type="text" id="hd-' . $id . '" name="note" required maxlength="500">'
+                . '<button type="submit" class="hub-btn hub-btn--secondary">Hide everywhere</button></div>', 'media-review-form')
+            . '</details></section>';
     }
-    $out .= '<h2>Hide or unhide any profile</h2><form method="get" action="media.php" class="hub-line">'
+    $out .= '<h2>Hide or unhide any profile</h2><form method="get" action="media.php" class="hub-card">'
         . '<input type="hidden" name="action" value="review"><label for="rv-q">Driver name</label>'
-        . '<input type="search" id="rv-q" name="q" maxlength="100" value="' . h((string)$vm['q']) . '">'
-        . '<button type="submit" class="hub-btn hub-btn--secondary">Find</button></form>';
+        . '<div class="hub-inline"><input type="search" id="rv-q" name="q" maxlength="100" value="' . h((string)$vm['q']) . '">'
+        . '<button type="submit" class="hub-btn hub-btn--secondary">Find</button></div></form>';
     if ((string)$vm['q'] !== '' && !$vm['found']) $out .= '<p>No profiles match "' . h((string)$vm['q']) . '".</p>';
     foreach ($vm['found'] as $p) {
         $id = (int)$p['driver_id'];
@@ -118,8 +123,8 @@ function renderMediaReviewHtml(array $vm): string {
                 . mediaPostFormHtml('media-unhide', $id, $csrf, '<button type="submit" class="hub-btn hub-btn--secondary">Unhide</button>');
         } else {
             $out .= mediaPostFormHtml('media-hide', $id, $csrf, '<label for="hf-' . $id . '">Reason for hiding</label>'
-                . '<input type="text" id="hf-' . $id . '" name="note" required maxlength="500">'
-                . '<button type="submit" class="hub-btn hub-btn--link">Hide everywhere</button>');
+                . '<div class="hub-inline"><input type="text" id="hf-' . $id . '" name="note" required maxlength="500">'
+                . '<button type="submit" class="hub-btn hub-btn--secondary">Hide everywhere</button></div>', 'media-review-form');
         }
         $out .= '</div>';
     }
@@ -152,14 +157,14 @@ function renderPublicDriverHtml(array $e): string {
 /** The public driver list: an event picker (All drivers, then events) and a grid of cards linking to driver.php. */
 function renderPublicDirectoryHtml(array $vm): string {
     $eventId = (int)$vm['eventId'];
-    $out = '<h1>Drivers</h1><form method="get" action="drivers-public.php" class="hub-line media-picker">'
-        . '<label for="dir-event">Show</label><select id="dir-event" name="event">'
+    $out = '<h1>Drivers</h1><form method="get" action="drivers-public.php" class="hub-card inspect-filters media-picker">'
+        . '<div class="inspect-filter inspect-filter--grow"><label for="dir-event">Show</label><select id="dir-event" name="event">'
         . '<option value="0"' . ($eventId === 0 ? ' selected' : '') . '>All drivers</option>';
     foreach ($vm['events'] as $ev) {
         $out .= '<option value="' . (int)$ev['id'] . '"' . ((int)$ev['id'] === $eventId ? ' selected' : '') . '>'
-            . h($ev['name'] . ' — ' . $ev['event_date']) . '</option>';
+            . h($ev['name'] . ' — ' . hubEventDate((string)$ev['event_date'])) . '</option>';
     }
-    $out .= '</select><button type="submit" class="hub-btn hub-btn--secondary">Show</button></form>';
+    $out .= '</select></div><button type="submit" class="hub-btn hub-btn--secondary">Show</button></form>';
     if ($eventId !== 0) {
         $out .= '<p class="hub-intro">Drivers planning to attend. Plans can change, and this isn\'t the official entry list.</p>';
     }

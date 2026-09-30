@@ -20,10 +20,10 @@ final class DriversLibTest extends TestCase
 
     public function testGearActionAlwaysOpensThisSeasonsPhotos(): void
     {
-        $this->assertSame(['label' => 'Add photos', 'url' => 'gear.php?action=start&driver_id=5'], driversGearAction(5, ['state' => 'none', 'via' => null]));
-        $this->assertSame('Continue photos', driversGearAction(5, ['state' => 'photos_draft', 'via' => null])['label']);
-        $this->assertSame('Retake photos', driversGearAction(5, ['state' => 'needs_changes', 'via' => null])['label']);
-        $this->assertSame('View photos', driversGearAction(5, ['state' => 'pending_review', 'via' => null])['label']);
+        $this->assertSame(['label' => 'Add gear photos', 'url' => 'gear.php?action=start&driver_id=5'], driversGearAction(5, ['state' => 'none', 'via' => null]));
+        $this->assertSame('Continue gear photos', driversGearAction(5, ['state' => 'photos_draft', 'via' => null])['label']);
+        $this->assertSame('Retake gear photos', driversGearAction(5, ['state' => 'needs_changes', 'via' => null])['label']);
+        $this->assertSame('View gear photos', driversGearAction(5, ['state' => 'pending_review', 'via' => null])['label']);
         $this->assertSame('View gear', driversGearAction(5, ['state' => 'accepted', 'via' => 'in_person'])['label']);
     }
 

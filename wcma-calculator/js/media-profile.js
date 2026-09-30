@@ -37,6 +37,26 @@
     minor.addEventListener('change', syncMinor);
     syncMinor();
 
+    // Sponsors: the filled rows and one empty one; "Add another sponsor" shows the next (UX review §M11).
+    // Without JS every row stays visible.
+    const sponsorRows = Array.prototype.slice.call(document.querySelectorAll('#mp-sponsors .media-sponsor-row'));
+    const addSponsor = document.getElementById('mp-add-sponsor');
+    if (addSponsor && sponsorRows.length > 0) {
+        const filled = function (row) {
+            return Array.prototype.some.call(row.querySelectorAll('input'), function (i) { return i.value.trim() !== ''; });
+        };
+        let lastFilled = -1;
+        sponsorRows.forEach(function (row, i) { if (filled(row)) lastFilled = i; });
+        sponsorRows.forEach(function (row, i) { row.hidden = i > lastFilled + 1; });
+        const syncAdd = function () { addSponsor.hidden = !sponsorRows.some(function (row) { return row.hidden; }); };
+        addSponsor.addEventListener('click', function () {
+            const next = sponsorRows.find(function (row) { return row.hidden; });
+            if (next) { next.hidden = false; next.querySelector('input').focus(); }
+            syncAdd();
+        });
+        syncAdd();
+    }
+
     document.querySelectorAll('form[data-confirm]').forEach(function (f) {
         f.addEventListener('submit', function (ev) {
             if (!window.confirm(f.getAttribute('data-confirm'))) ev.preventDefault();

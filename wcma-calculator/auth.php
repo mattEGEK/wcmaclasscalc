@@ -97,7 +97,7 @@ function handleRegister(PDO $pdo, string $redirect): void {
         exit;
     }
 
-    $error = '';
+    $errors = [];
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = trim($_POST['name'] ?? '');
@@ -105,17 +105,21 @@ function handleRegister(PDO $pdo, string $redirect): void {
         $password = $_POST['password'] ?? '';
         $confirm = $_POST['password_confirm'] ?? '';
 
-        if ($name === '' || $email === '' || $password === '') {
-            $error = 'All fields are required.';
+        // Every problem is reported on one submit (UX review 2026-09-30 §L1).
+        if ($name === '') $errors[] = 'Enter your name.';
+        if ($email === '') {
+            $errors[] = 'Enter your email address.';
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            $error = 'Enter a valid email address.';
-        } elseif (strlen($password) < 8) {
-            $error = 'Password must be at least 8 characters.';
-        } elseif ($password !== $confirm) {
-            $error = 'Passwords do not match.';
+            $errors[] = 'Enter a valid email address.';
         } elseif (db_find_user_by_email($pdo, $email) !== null) {
-            $error = 'An account with that email already exists.';
-        } else {
+            $errors[] = 'An account with that email already exists. Sign in instead, or use Forgot password.';
+        }
+        if (strlen($password) < 8) {
+            $errors[] = 'Password must be at least 8 characters.';
+        } elseif ($password !== $confirm) {
+            $errors[] = 'The two passwords do not match.';
+        }
+        if (!$errors) {
             $userId = db_create_user($pdo, [
                 'email' => $email,
                 'name' => $name,
@@ -130,18 +134,25 @@ function handleRegister(PDO $pdo, string $redirect): void {
     }
 
     $body = '';
-    if ($error) $body .= '<div class="form-messages show error">' . h($error) . '</div>';
-    $body .= '<form method="post" action="auth.php?action=register">';
+    if (count($errors) === 1) {
+        $body .= '<div class="form-messages show error" role="alert">' . h($errors[0]) . '</div>';
+    } elseif ($errors) {
+        $body .= '<div class="form-messages show error" role="alert"><ul>';
+        foreach ($errors as $e) $body .= '<li>' . h($e) . '</li>';
+        $body .= '</ul></div>';
+    }
+    $body .= '<form method="post" action="auth.php?action=register" novalidate>';
     $body .= '<input type="hidden" name="redirect" value="' . h($redirect) . '">';
-    $body .= '<label for="name">Name</label><input type="text" id="name" name="name" required value="' . h($_POST['name'] ?? '') . '">';
-    $body .= '<label for="email">Email</label><input type="email" id="email" name="email" required value="' . h($_POST['email'] ?? $_GET['email'] ?? '') . '">';
-    $body .= '<label for="password">Password</label>' . passwordFieldHtml('password', 'password', 'new-password');
-    $body .= '<label for="password_confirm">Confirm Password</label>' . passwordFieldHtml('password_confirm', 'password_confirm', 'new-password');
-    $body .= '<button type="submit" class="btn btn-primary btn-block">Create Account</button>';
+    $body .= '<label for="name">Name</label><input type="text" id="name" name="name" required autocomplete="name" value="' . h($_POST['name'] ?? '') . '">';
+    $body .= '<label for="email">Email</label><input type="email" id="email" name="email" required autocomplete="email" value="' . h($_POST['email'] ?? $_GET['email'] ?? '') . '">';
+    $body .= '<label for="password">Password</label><p class="form-hint">At least 8 characters.</p>' . passwordFieldHtml('password', 'password', 'new-password');
+    $body .= '<label for="password_confirm">Type the password again</label>' . passwordFieldHtml('password_confirm', 'password_confirm', 'new-password');
+    $body .= '<button type="submit" class="btn btn-primary btn-block">Create account</button>';
     $body .= '</form>';
+    $body .= '<a href="auth.php?action=google-login&redirect=' . urlencode($redirect) . '" class="btn btn-google btn-block">' . googleIconSvg() . 'Sign up with Google</a>';
     $body .= '<div class="auth-links">Already have an account? <a href="auth.php?action=login&redirect=' . urlencode($redirect) . '">Sign in</a></div>';
 
-    renderAuthPage('Create Account', $body);
+    renderAuthPage('Create account', $body);
 }
 
 function handleLogin(PDO $pdo, string $ip, string $redirect): void {
@@ -193,12 +204,12 @@ function handleLogin(PDO $pdo, string $ip, string $redirect): void {
     $body .= '<label for="email">Email</label><input type="email" id="email" name="email" required autofocus value="' . h($_POST['email'] ?? '') . '">';
     $body .= '<label for="password">Password</label>' . passwordFieldHtml('password', 'password', 'current-password');
     $body .= '<label class="checkbox-label"><input type="checkbox" name="remember" value="1"> Remember me for 30 days</label>';
-    $body .= '<button type="submit" class="btn btn-primary btn-block">Sign In</button>';
+    $body .= '<button type="submit" class="btn btn-primary btn-block">Sign in</button>';
     $body .= '</form>';
     $body .= '<a href="auth.php?action=google-login&redirect=' . urlencode($redirect) . '" class="btn btn-google btn-block">' . googleIconSvg() . 'Sign in with Google</a>';
     $body .= '<div class="auth-links"><a href="auth.php?action=forgot-password">Forgot password?</a> &middot; <a href="auth.php?action=register&redirect=' . urlencode($redirect) . '">Create an account</a></div>';
 
-    renderAuthPage('Sign In', $body);
+    renderAuthPage('Sign in', $body);
 }
 
 function googleIconSvg(): string {
@@ -373,11 +384,11 @@ function handleForgotPassword(PDO $pdo): void {
     }
     $body .= '<form method="post" action="auth.php?action=forgot-password">';
     $body .= '<label for="email">Email</label><input type="email" id="email" name="email" required>';
-    $body .= '<button type="submit" class="btn btn-primary btn-block">Send Reset Link</button>';
+    $body .= '<button type="submit" class="btn btn-primary btn-block">Send reset link</button>';
     $body .= '</form>';
     $body .= '<div class="auth-links"><a href="auth.php?action=login">Back to sign in</a></div>';
 
-    renderAuthPage('Forgot Password', $body);
+    renderAuthPage('Forgot password', $body);
 }
 
 function handleResetPassword(PDO $pdo): void {
@@ -386,7 +397,7 @@ function handleResetPassword(PDO $pdo): void {
     $reset = $token !== '' ? db_get_password_reset($pdo, $tokenHash) : null;
 
     if (!$reset || strtotime($reset['expires_at']) < time()) {
-        renderAuthPage('Reset Password', '<div class="form-messages show error">This reset link is invalid or has expired.</div><div class="auth-links"><a href="auth.php?action=forgot-password">Request a new link</a></div>');
+        renderAuthPage('Reset password', '<div class="form-messages show error">This reset link is invalid or has expired.</div><div class="auth-links"><a href="auth.php?action=forgot-password">Request a new link</a></div>');
         return;
     }
 
@@ -407,7 +418,8 @@ function handleResetPassword(PDO $pdo): void {
 
             $user = db_find_user_by_id($pdo, $reset['user_id']);
             login_user($user);
-            header('Location: calculator.php');
+            setFlash('Your password is changed and you are signed in.', 'success');
+            header('Location: index.php');
             exit;
         }
     }
@@ -416,10 +428,10 @@ function handleResetPassword(PDO $pdo): void {
     if ($error) $body .= '<div class="form-messages show error">' . h($error) . '</div>';
     $body .= '<form method="post" action="auth.php?action=reset-password">';
     $body .= '<input type="hidden" name="token" value="' . h($token) . '">';
-    $body .= '<label for="password">New Password</label>' . passwordFieldHtml('password', 'password', 'new-password');
-    $body .= '<label for="password_confirm">Confirm Password</label>' . passwordFieldHtml('password_confirm', 'password_confirm', 'new-password');
-    $body .= '<button type="submit" class="btn btn-primary btn-block">Reset Password</button>';
+    $body .= '<label for="password">New password</label><p class="form-hint">At least 8 characters.</p>' . passwordFieldHtml('password', 'password', 'new-password');
+    $body .= '<label for="password_confirm">Type the password again</label>' . passwordFieldHtml('password_confirm', 'password_confirm', 'new-password');
+    $body .= '<button type="submit" class="btn btn-primary btn-block">Save new password</button>';
     $body .= '</form>';
 
-    renderAuthPage('Reset Password', $body);
+    renderAuthPage('Reset password', $body);
 }

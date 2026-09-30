@@ -359,8 +359,16 @@ export async function handleFormSubmit(form, onSubmitCallback = null, stashData 
     // Validate form
     if (!validateForm(form)) {
         console.error('Form validation failed');
-        const errorMsg = 'Please correct the errors in the form before submitting.';
+        const bad = Array.from(form.querySelectorAll('input.error, select.error, textarea.error')).filter(el => el.offsetParent !== null);
+        const errorMsg = bad.length === 1
+            ? 'One thing to fix before you can submit. It is marked in red above.'
+            : (bad.length > 1 ? bad.length + ' things to fix before you can submit. Each one is marked in red above.'
+                              : 'Please correct the errors in the form before submitting.');
         showFormMessage(errorMsg, 'error');
+        if (bad[0]) {
+            bad[0].scrollIntoView({ block: 'center' });
+            bad[0].focus({ preventScroll: true });
+        }
         return Promise.reject(new Error('Form validation failed'));
     }
 

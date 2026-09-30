@@ -96,7 +96,7 @@ final class MsrLibTest extends TestCase
         $this->assertSame([['field' => 'gone', 'old' => '', 'new' => '']], msrChanges(['status' => 'gone'] + $row));
         $same = ['name' => 'Ice 2', 'start_date' => '2026-01-24', 'cancelled' => 0] + $row;
         $this->assertSame([], msrChanges($same));
-        $this->assertSame('Date: Jan 24 → Feb 21', msrChangeText(['field' => 'start_date', 'old' => '2026-01-24', 'new' => '2026-02-21']));
+        $this->assertSame('Date: Sat, Jan 24, 2026 → Sat, Feb 21, 2026', msrChangeText(['field' => 'start_date', 'old' => '2026-01-24', 'new' => '2026-02-21']));
         $this->assertSame('Cancelled on MotorsportReg', msrChangeText(['field' => 'cancelled', 'old' => '0', 'new' => '1']));
         $this->assertSame('No longer cancelled on MotorsportReg', msrChangeText(['field' => 'cancelled', 'old' => '1', 'new' => '0']));
         $this->assertSame('No longer on MotorsportReg', msrChangeText(['field' => 'gone', 'old' => '', 'new' => '']));
@@ -118,7 +118,7 @@ final class MsrLibTest extends TestCase
 
     public function testDateRange(): void
     {
-        $this->assertSame('Sat, Feb 21 – Sun, Feb 22', msrDateRange('2026-02-21', '2026-02-22'));
-        $this->assertSame('Sun, Jan 18', msrDateRange('2026-01-18', '2026-01-18'));
+        $this->assertSame('Sat, Feb 21 – Sun, Feb 22, 2026', msrDateRange('2026-02-21', '2026-02-22'));
+        $this->assertSame('Sun, Jan 18, 2026', msrDateRange('2026-01-18', '2026-01-18'));
     }
 }

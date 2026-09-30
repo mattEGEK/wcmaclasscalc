@@ -27,7 +27,7 @@ final class DriversSourceTest extends TestCase
         $this->assertStringNotContainsString('handleGearList', $gear);
         $this->assertStringNotContainsString('renderGearListPage', $this->src('gear-page.php'));
         $this->assertStringNotContainsString('function gearRenew', $this->src('gear-lib.php'));
-        $this->assertStringContainsString('<a href="drivers.php">← Back to Drivers</a>', $this->src('gear-page.php'));
+        $this->assertStringContainsString('<a href="drivers.php">&larr; Back to Drivers</a>', $this->src('gear-page.php'));
     }
 
     public function testDriversLoadsIceGearAndPassesItOn(): void
@@ -43,7 +43,7 @@ final class DriversSourceTest extends TestCase
     {
         $this->assertStringContainsString("'href' => 'drivers.php'", $this->src('layout.php'));
         $this->assertStringContainsString('href="drivers.php">Manage drivers', $this->src('home-page.php'));
-        $this->assertStringContainsString('<a href="drivers.php">Go to drivers</a>', $this->src('profile.php'));
+        $this->assertStringContainsString('href="drivers.php">Go to Drivers</a>', $this->src('profile.php'));
     }
 
     public function testIceActivityCountsIceTagsLikeHome(): void

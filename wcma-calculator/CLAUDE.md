@@ -30,6 +30,10 @@ Four vanilla JS ES6 modules loaded from `car-classing.html`:
 
 - **`js/ui-controller.js`** — All DOM manipulation and event wiring. Imports from all three other modules. Handles: real-time recalculation on input, populating modifier dropdowns filtered by calculated class, chassis→body-mods restriction logic, brake/suspension checkboxes (IT1/IT2 only), print window generation, and localStorage save/load for configurations.
 
+- **`js/calc-dock.js`** — Plain script (not a module). Reads what `ui-controller.js` renders: on a phone it pins the calculated class to the bottom of the screen while the form is scrolled, and it shows the "enter weight and HP first" note while the modifier choices are locked.
+
+The form is `novalidate`: `validateForm()` in `form-handler.js` reports every problem inline at once, then focuses the first one.
+
 ## Calculation Formula
 
 1. **Base Ratio** = `competitionWeight / declaredHp` (rounded to 2 decimals)

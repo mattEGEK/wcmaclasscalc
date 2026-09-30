@@ -8,7 +8,7 @@
 const GEAR_ADMIN_FILTERS = [
     'all' => 'All drivers',
     'needs_gear' => 'Needs gear check at the track',
-    'pending_review' => 'Photos awaiting review',
+    'pending_review' => 'Photos to review',
     'accepted' => 'Accepted',
 ];
 
@@ -34,46 +34,47 @@ function renderGearAdminListPage(array $records, int $season, string $discipline
     renderPageStart('Gear', 'inspect', ['flash' => $flash, 'subnav' => inspectSubnavHtml('gear')]);
     ?>
 <h1 class="hub-page-title">Gear</h1>
+<p class="hub-intro">Drivers whose account holder has opened gear pre-tech, sent photos, or been checked this season. For anyone else, accept their gear from the Event roster.</p>
 
   <form method="get" action="inspect.php" class="hub-card inspect-filters">
     <input type="hidden" name="action" value="gear">
-    <label for="gear-discipline">Racing</label>
+    <div class="inspect-filter"><label for="gear-discipline">Racing</label>
     <select id="gear-discipline" name="discipline">
       <option value="summer"<?= $discipline === 'summer' ? ' selected' : '' ?>>Summer</option>
       <option value="ice"<?= $discipline === 'ice' ? ' selected' : '' ?>>Ice</option>
-    </select>
-    <label for="gear-season">Season</label>
-    <input type="number" id="gear-season" name="season" value="<?= (int)$season ?>" min="2000" max="2100">
-    <label for="gear-filter">Show</label>
+    </select></div>
+    <div class="inspect-filter inspect-filter--narrow"><label for="gear-season">Season</label>
+    <input type="number" id="gear-season" name="season" value="<?= (int)$season ?>" min="2000" max="2100"></div>
+    <div class="inspect-filter inspect-filter--grow"><label for="gear-filter">Show</label>
     <select id="gear-filter" name="filter">
       <?php foreach (GEAR_ADMIN_FILTERS as $value => $label): ?>
       <option value="<?= h($value) ?>"<?= $value === $filter ? ' selected' : '' ?>><?= h($label) ?></option>
       <?php endforeach; ?>
-    </select>
+    </select></div>
     <?php if ($discipline === DISCIPLINE_SUMMER): ?>
-    <label for="gear-level-filter">Level</label>
+    <div class="inspect-filter"><label for="gear-level-filter">Level</label>
     <select id="gear-level-filter" name="level">
       <?php foreach (GEAR_ADMIN_LEVELS as $value => $label): ?>
       <option value="<?= h($value) ?>"<?= $value === $level ? ' selected' : '' ?>><?= h($label) ?></option>
       <?php endforeach; ?>
-    </select>
+    </select></div>
     <?php endif; ?>
     <button type="submit" class="btn btn-primary">Apply</button>
-    <p class="form-hint"><?= (int)$counts['all'] ?> drivers: <?= (int)$counts['accepted'] ?> accepted, <?= (int)$counts['pending_review'] ?> with photos awaiting review, <?= (int)$counts['needs_gear'] ?> still need a gear check at the track.</p>
+    <p class="form-hint"><?= (int)$counts['all'] ?> <?= (int)$counts['all'] === 1 ? 'driver' : 'drivers' ?>: <?= (int)$counts['accepted'] ?> accepted, <?= (int)$counts['pending_review'] ?> with photos to review, <?= (int)$counts['needs_gear'] ?> still to check at the track.</p>
   </form>
 
-  <table class="data-table" id="gear-admin-table">
+  <table class="data-table inspect-stack" id="gear-admin-table">
     <thead><tr><th>Driver</th><th>Licence</th><th>Entered by</th><th>Gear status</th><th>Actions</th></tr></thead>
     <tbody>
     <?php if (empty($records)): ?>
       <tr><td colspan="5" class="empty-row">No gear records match.</td></tr>
     <?php else: foreach ($records as $g): $st = gearStatus($g); $statusLabel = gearStatusLabel($st, (int)$g['season'], (string)($g['discipline'] ?? 'summer')); if ($discipline === DISCIPLINE_ICE && $st['state'] === 'accepted' && !empty($g['level'])) { $statusLabel .= ' · ' . (ICE_GEAR_LEVEL_LABELS[$g['level']] ?? $g['level']); } elseif ($st['state'] === 'accepted' && ($g['level'] ?? null) === GEAR_LEVEL_TA_DRIFT) { $statusLabel .= ' · TA/Drift'; } ?>
       <tr>
-        <td><?= h($g['driver_name']) ?></td>
-        <td><?= h((string)($g['licence_no'] ?? '')) ?></td>
-        <td><?= h((string)($g['owner_name'] ?? '')) ?></td>
-        <td class="<?= h(gearStatusBadgeClass($st['state'])) ?>"><?= h($statusLabel) ?></td>
-        <td class="actions"><a href="inspect.php?action=gear-record&amp;id=<?= (int)$g['id'] ?>"><?= $st['state'] === 'accepted' ? 'View' : 'Review' ?></a></td>
+        <td data-label="Driver"><?= h($g['driver_name']) ?></td>
+        <td data-label="Licence"><?= h((string)($g['licence_no'] ?? '')) ?></td>
+        <td data-label="Entered by"><?= h((string)($g['owner_name'] ?? '')) ?></td>
+        <td data-label="Gear status"><span class="hub-status <?= h(homeStatusClass($st['state'])) ?>"><?= h($statusLabel) ?></span></td>
+        <td><a href="inspect.php?action=gear-record&amp;id=<?= (int)$g['id'] ?>"><?= $st['state'] === 'accepted' ? 'View' : 'Review' ?></a></td>
       </tr>
     <?php endforeach; endif; ?>
     </tbody>
@@ -178,15 +179,17 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
     if ($accepted) {
         $how = ($gear['accepted_via'] ?? 'in_person') === 'photos' ? 'remotely' : 'in person';
         $who = $reviewer ? ' by ' . $reviewer['name'] : '';
-        $when = !empty($gear['reviewed_at']) ? ' on ' . date('M j, Y g:i A', strtotime($gear['reviewed_at'])) : '';
+        $when = !empty($gear['reviewed_at']) ? ' on ' . hubDateTime((string)$gear['reviewed_at']) : '';
         $acceptedLine = 'Accepted ' . $how . $who . $when . '.';
     }
     $isIce = ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
     $backHref = $isIce ? 'inspect.php?action=gear&amp;discipline=ice&amp;season=' . (int)$gear['season'] : 'inspect.php?action=gear&amp;season=' . (int)$gear['season'];
-    renderPageStart('Gear #' . $id, 'inspect', ['flash' => $flash, 'subnav' => inspectSubnavHtml('gear')]);
+    $title = $gear['driver_name'] . ' — ' . ($isIce ? iceSeasonLabel((int)$gear['season']) . ' ice gear' : (int)$gear['season'] . ' gear');
+    $photosAwaiting = !$accepted && ($gear['photo_status'] ?? null) === 'submitted';
+    renderPageStart($title, 'inspect', ['flash' => $flash, 'subnav' => inspectSubnavHtml('gear')]);
     ?>
-<p><a href="<?= $backHref ?>">&larr; Back to the <?= $isIce ? 'ice ' : '' ?>gear list</a></p>
-<h1 class="hub-page-title">Gear #<?= $id ?></h1>
+<p class="hub-back"><a class="hub-back-link" href="<?= $backHref ?>">&larr; Back to the <?= $isIce ? 'ice ' : '' ?>gear list</a></p>
+<h1 class="hub-page-title"><?= h($title) ?></h1>
 
   <div class="detail-card">
     <h2>Gear review</h2>
@@ -215,7 +218,9 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
       <button type="submit" class="btn btn-secondary">Revoke acceptance</button>
     </form>
     <?php else: ?>
-    <p class="form-hint">Accepting in person records that the gear you are looking at matches what the driver declared. To review photos instead, use the photo review below.</p>
+    <?php if ($photosAwaiting): ?><p class="hub-note">This driver's gear photos are waiting for your review below.</p>
+    <details class="inspect-inperson"><summary>Is the gear in front of you? Check it in person instead</summary><?php endif; ?>
+    <p class="form-hint">Accepting in person records that the gear you are looking at matches what the driver declared.<?= $photosAwaiting ? '' : ' If the driver sends photos, they appear below for review.' ?></p>
     <form method="post" action="inspect.php?action=gear-record-accept">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
@@ -237,8 +242,9 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
       </select>
       <p class="form-hint">Race: full WCMA race gear (suit, gloves, shoes, head and neck restraint). TA/Drift: a helmet and natural-fibre clothing, and a head and neck restraint in a caged car.</p>
       <?php endif; ?>
-      <button type="submit" class="btn btn-primary" id="gear-inperson-btn">Accept — gear teched in person</button>
+      <button type="submit" class="btn <?= $photosAwaiting ? 'btn-secondary' : 'btn-primary' ?>" id="gear-inperson-btn">Accept — gear teched in person</button>
     </form>
+    <?php if ($photosAwaiting): ?></details><?php endif; ?>
     <?php endif; ?>
   </div>
 
@@ -257,7 +263,7 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
     $awaiting = $photoStatus === 'submitted' && ($gear['status'] === 'open' || gearIsRaceUpgrade($gear));
     $statusLabels = [
         'draft' => 'The driver\'s account holder has started adding photos (not submitted yet).',
-        'submitted' => 'Submitted: awaiting review.',
+        'submitted' => 'Submitted. Waiting for your review.',
         'needs_changes' => 'Sent back: waiting for photos to be retaken.',
         'accepted' => 'Photos reviewed and accepted.',
     ];
@@ -272,15 +278,16 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
     <form method="post" action="inspect.php?action=gear-photos-send-back" id="gear-review-form">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
+      <div class="review-grid">
       <?php foreach ($photos as $key => $row):
           $req = photoRequirementByKey($key);
           $public = inspectionPublicPhoto($row);
       ?>
       <div class="pretech-card" data-key="<?= h($key) ?>">
         <h3><?= h($req['label'] ?? $key) ?>
-          <span class="pretech-status <?= $row['review_status'] === 'retake' ? 'badge-fail' : ($row['review_status'] === 'accepted' ? 'badge-ok' : 'badge-pending') ?>">
-            <?= h($row['review_status'] === 'retake' ? 'Retake requested' : ($row['review_status'] === 'accepted' ? 'Accepted' : 'Pending')) ?></span></h3>
-        <a href="<?= h($public['url']) ?>" target="_blank" rel="noopener"><img class="pretech-thumb" src="<?= h($public['url']) ?>" alt="<?= h($req['label'] ?? $key) ?>"></a>
+          <span class="pretech-status <?= $row['review_status'] === 'retake' ? 'badge-fail' : ($row['review_status'] === 'accepted' ? 'badge-ok' : 'badge-optional') ?>">
+            <?= h($row['review_status'] === 'retake' ? 'Retake requested' : ($row['review_status'] === 'accepted' ? 'Accepted' : 'To review')) ?></span></h3>
+        <a href="<?= h($public['url']) ?>" target="_blank" rel="noopener" title="Open the full-size photo"><img class="pretech-thumb" src="<?= h($public['url']) ?>" alt="<?= h($req['label'] ?? $key) ?>"></a>
         <?php foreach ($public['typed'] as $name => $value): ?>
           <p class="form-hint"><?= h(ucfirst((string)$name)) ?>: <strong><?= h((string)$value) ?></strong></p>
         <?php endforeach; ?>
@@ -288,19 +295,17 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
           <p class="badge-fail">Note sent: <?= h((string)$row['reviewer_note']) ?></p>
         <?php endif; ?>
         <?php if ($awaiting): ?>
-          <label><input type="checkbox" name="retake[<?= h($key) ?>]" value="1"> Needs a retake</label>
-          <input type="text" name="note[<?= h($key) ?>]" maxlength="500" placeholder="What is wrong with this photo?">
+          <label class="review-retake"><input type="checkbox" name="retake[<?= h($key) ?>]" value="1"> Needs a retake</label>
+          <input type="text" class="review-note" name="note[<?= h($key) ?>]" maxlength="500" placeholder="What is wrong with this photo?" aria-label="What is wrong with the <?= h($req['label'] ?? $key) ?> photo?">
         <?php endif; ?>
       </div>
       <?php endforeach; ?>
-
-      <?php if ($awaiting): ?>
-      <button type="submit" class="btn btn-secondary" id="gear-sendback-btn">Send back for retakes</button>
-      <?php endif; ?>
+      </div>
     </form>
 
     <?php if ($awaiting): ?>
-    <form method="post" action="inspect.php?action=gear-photos-accept" style="margin-top:.75rem">
+    <div class="review-bar">
+    <form method="post" action="inspect.php?action=gear-photos-accept">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
       <?php if (($gear['discipline'] ?? 'summer') === 'ice'): $suggested = gearSuggestedLevel($snapshot); ?>
@@ -325,6 +330,8 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
       <?php endif; ?>
       <button type="submit" class="btn btn-primary" id="gear-accept-btn">Accept photos (pre-teched)</button>
     </form>
+    <button type="submit" form="gear-review-form" class="btn btn-secondary" id="gear-sendback-btn">Send back for retakes</button>
+    </div>
     <?php endif; ?>
   </div>
 <?php

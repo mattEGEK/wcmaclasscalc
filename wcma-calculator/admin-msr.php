@@ -147,7 +147,7 @@ function renderMsrPageHtml(array $rows, array $hubEvents, array $clubs, array $s
                 foreach ($hubEvents as $e) {
                     if ((int)$e['active'] !== 1) continue;
                     $options .= '<option value="' . (int)$e['id'] . '"' . ((int)$e['id'] === $suggest ? ' selected' : '') . '>'
-                        . h(date('M j, Y', strtotime((string)$e['event_date'])) . ' — ' . $e['name']) . '</option>';
+                        . h($e['name'] . ' — ' . hubEventDate((string)$e['event_date'])) . '</option>';
                 }
                 $dialogs .= adminDialogHtml('msr-attach-' . $key, 'Add to an existing event',
                     '<form method="post" action="admin.php?action=msr-attach" class="admin-form">' . adminCsrfField($csrf)
@@ -175,7 +175,7 @@ function renderMsrPageHtml(array $rows, array $hubEvents, array $clubs, array $s
 
     $out .= '<section class="detail-card"><h2>Last checked</h2><ul class="admin-msr-status">';
     foreach ($status as $s) {
-        $when = $s['ok_at'] !== '' ? date('M j, g:i a', strtotime($s['ok_at'])) : 'never';
+        $when = $s['ok_at'] !== '' ? hubDateTime((string)$s['ok_at']) : 'never';
         $out .= '<li><strong>' . h($s['name']) . ':</strong> '
             . h($s['error'] !== '' ? 'Failed: ' . $s['error'] . ' (last success ' . $when . ')' : $when) . '</li>';
     }

@@ -30,7 +30,7 @@ final class DriversPageTest extends TestCase
         $this->assertStringContainsString('Jordan Lee (you)', $html);
         $this->assertStringContainsString('Sam &lt;Patel&gt;', $html);
         $this->assertSame(2, substr_count($html, 'Needs gear tech 2026'));
-        $this->assertStringContainsString('href="gear.php?action=start&amp;driver_id=2">Add photos</a>', $html);
+        $this->assertStringContainsString('href="gear.php?action=start&amp;driver_id=2">Add gear photos</a>', $html);
         $this->assertStringContainsString('id="licence-1" name="licence_no" maxlength="40" value="2026-0412"', $html);
         $this->assertStringContainsString('name="action" value="licence"', $html);
         $this->assertStringContainsString('name="driver_id" value="2"', $html);

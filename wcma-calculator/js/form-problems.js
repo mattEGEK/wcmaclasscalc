@@ -31,6 +31,8 @@
     }
 
     function show(target, message) {
+        const next = target.nextElementSibling;
+        if (next && next.classList.contains('field-message') && next.hasAttribute('data-problem')) { next.textContent = message; return; }
         const msg = root.document.createElement('p');
         msg.className = 'field-message';
         msg.setAttribute('data-problem', '');   // added here, so clearAll may remove it (fixed messages stay)
@@ -49,8 +51,8 @@
         form.querySelectorAll('.field-message[data-problem]').forEach(function (m) { m.remove(); });
     }
 
-    function wire(form) {
-        let first = true;
+    function wire(form, opts) {
+        let first = !(opts && opts.noFocus);
         form.addEventListener('invalid', function (e) {
             const el = e.target;
             e.preventDefault();
@@ -73,5 +75,10 @@
         form.addEventListener('change', clearFor);
     }
 
-    root.WcmaFormProblems = { messageFor: messageFor, show: function (target, message) { show(target, message); focusOn(target); }, clearAll: clearAll, wire: wire };
+    root.WcmaFormProblems = {
+        messageFor: messageFor, clearAll: clearAll, wire: wire,
+        show: function (target, message) { show(target, message); focusOn(target); },
+        mark: show,        // the message only: a form that reports every problem at once focuses the first itself
+        focus: focusOn,
+    };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -14,8 +14,8 @@ function driversGearLabel(array $status, int $season): string {
 
 /** Every state opens this season's gear photos; gear.php?action=start creates the record on first use. */
 function driversGearAction(int $driverId, array $status): array {
-    $labels = ['accepted' => 'View gear', 'pending_review' => 'View photos', 'needs_changes' => 'Retake photos', 'photos_draft' => 'Continue photos'];
-    return ['label' => $labels[$status['state']] ?? 'Add photos', 'url' => 'gear.php?action=start&driver_id=' . $driverId];
+    $labels = ['accepted' => 'View gear', 'pending_review' => 'View gear photos', 'needs_changes' => 'Retake gear photos', 'photos_draft' => 'Continue gear photos'];
+    return ['label' => $labels[$status['state']] ?? 'Add gear photos', 'url' => 'gear.php?action=start&driver_id=' . $driverId];
 }
 
 /**

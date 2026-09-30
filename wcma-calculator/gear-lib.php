@@ -104,7 +104,7 @@ function gearStatusLabel(array $status, int $season, string $discipline = DISCIP
     switch ($status['state']) {
         case 'accepted':       return ($status['via'] === 'photos' ? 'Gear pre-teched ' : 'Gear teched ') . ($discipline === DISCIPLINE_ICE ? iceSeasonLabel((int)$season) : (string)$season);
         case 'needs_changes':  return 'Photos need changes';
-        case 'pending_review': return 'Photos pending review';
+        case 'pending_review': return 'Photos with an inspector';
         case 'photos_draft':   return 'Photos in progress';
         default:               return 'Needs gear check at the track';
     }

@@ -139,6 +139,6 @@ final class TaDriftSheetLibTest extends TestCase
     {
         $this->assertSame('Teched 2026 (race)', taDriftCarTechStatusLabel(['state' => 'accepted', 'via' => 'in_person', 'tier' => 'race'], 2026, 'WSCC'));
         $this->assertSame('Pre-teched TA/Drift WSCC 2026', taDriftCarTechStatusLabel(['state' => 'accepted', 'via' => 'photos', 'tier' => 'ta_drift'], 2026, 'WSCC'));
-        $this->assertSame('Photos pending review', taDriftCarTechStatusLabel(['state' => 'pending_review', 'via' => null, 'tier' => 'ta_drift'], 2026, 'WSCC'));
+        $this->assertSame('Photos with an inspector', taDriftCarTechStatusLabel(['state' => 'pending_review', 'via' => null, 'tier' => 'ta_drift'], 2026, 'WSCC'));
     }
 }

@@ -29,11 +29,20 @@ function homeFocusIndex(array $events, ?int $eventId): int {
     return 0;
 }
 
-/** The <h1> for Home, per spec §3, for the event at $focus (see homeFocusIndex()). */
-function homeHeadline(array $readiness, int $focus = 0): string
+/**
+ * The <h1> for Home, per spec §3, for the event at $focus (see homeFocusIndex()). With no event
+ * tagged it names what matters most (UX review 2026-09-30 §H3, §M1): work an inspector sent back
+ * ($extra['attention'] items), then a first car ($extra['hasCars'] false), then picking events.
+ */
+function homeHeadline(array $readiness, int $focus = 0, array $extra = []): string
 {
     $events = $readiness['events'];
     if (!$events) {
+        $attention = (int)($extra['attention'] ?? 0);
+        if ($attention > 0) {
+            return $attention === 1 ? '1 thing needs your attention' : $attention . ' things need your attention';
+        }
+        if (($extra['hasCars'] ?? true) === false) return 'Start by adding your car';
         return 'Which events are you going to?';
     }
     $first = $events[$focus] ?? $events[0];
@@ -43,6 +52,108 @@ function homeHeadline(array $readiness, int $focus = 0): string
         return "You're all set for $name \u{2713}";
     }
     return $todoCount . ' ' . homePlural($todoCount, 'thing', 'things') . " to do before $name";
+}
+
+/**
+ * Work an inspector or media staff sent back, whatever events are tagged (UX review 2026-09-30 §H3):
+ * a class declaration that needs changes, and car or gear photos to retake. Built from the At a
+ * glance data ($vm['garage'], $vm['drivers']). Anything already a to-do in $shownItems (the event
+ * list at the top of Home) is left out, so nothing is listed twice.
+ * @return array<int, array{label: string, detail: string, action: ?array, at_track: null}>
+ */
+function homeAttentionItems(array $vm, array $shownItems = []): array {
+    $shown = [];
+    foreach ($shownItems as $i) {
+        if (($i['state'] ?? '') === 'todo') $shown[$i['kind'] . ':' . $i['subject_id']] = true;
+    }
+    $item = fn(string $label, string $detail, string $button, string $url): array =>
+        ['label' => $label, 'detail' => $detail, 'action' => ['label' => $button, 'url' => $url], 'at_track' => null];
+    $out = [];
+    foreach ($vm['garage'] ?? [] as $g) {
+        $car = $g['car'];
+        $id = (int)$car['id'];
+        $n = '#' . $car['car_number'];
+        $decl = $g['declaration'] ?? null;
+        if (($g['usesRace'] ?? $g['usesSummer'] ?? true) && $decl !== null && ($decl['review_status'] ?? '') === 'needs_changes' && !isset($shown["declaration:$id"])) {
+            $note = trim((string)($decl['reviewer_note'] ?? ''));
+            $out[] = $item("Your class declaration for $n needs changes", $note !== '' ? 'Inspector\'s note: ' . $note : 'An inspector asked for changes.',
+                'Re-declare class', 'calculator.php?car=' . $id);
+        }
+        if (isset($shown["car_tech:$id"])) continue;
+        if (($g['techState'] ?? '') === 'needs_changes') {
+            $out[] = $item("Retake car photos for $n", 'An inspector asked for some photos to be retaken.', 'Retake photos', (string)($g['techRetakeUrl'] ?? 'garage.php?car=' . $id));
+        } elseif (($g['ice']['state'] ?? '') === 'needs_changes') {
+            $out[] = $item("Retake ice car photos for $n", 'An inspector asked for some photos to be retaken.', 'Open the car', 'garage.php?car=' . $id);
+        } else {
+            foreach ($g['taDrift'] ?? [] as $t) {
+                if (($t['state'] ?? '') !== 'needs_changes') continue;
+                $out[] = $item("Retake TA/Drift car photos for $n", 'An inspector asked for some photos to be retaken.', 'Open the car', 'garage.php?car=' . $id);
+                break;
+            }
+        }
+    }
+    foreach ($vm['drivers'] ?? [] as $d) {
+        $did = (int)($d['id'] ?? 0);
+        if (isset($shown["gear:$did"])) continue;
+        $name = (string)$d['name'];
+        if (($d['gearState'] ?? '') === 'needs_changes' && ($d['showSummer'] ?? true)) {
+            $out[] = $item("Retake gear photos for $name", 'An inspector asked for some photos to be retaken.', 'Retake photos', (string)($d['gearRetakeUrl'] ?? 'drivers.php'));
+        } elseif (($d['ice']['state'] ?? '') === 'needs_changes') {
+            $gearId = $d['ice']['gearId'] ?? null;
+            $out[] = $item("Retake ice gear photos for $name", 'An inspector asked for some photos to be retaken.', 'Retake photos',
+                $gearId !== null ? 'gear.php?action=pretech&id=' . (int)$gearId : 'drivers.php');
+        }
+    }
+    return $out;
+}
+
+/** The "Needs your attention" list: the to-do look, with "!" in place of a number. '' when empty. */
+function homeAttentionHtml(array $items, string $csrf, bool $withHeading): string {
+    if (!$items) return '';
+    $out = ($withHeading ? '<h2 id="attention">Needs your attention</h2>' : '') . '<ul class="hub-todo hub-todo--attention">';
+    foreach ($items as $item) {
+        $out .= '<li class="hub-todo-item"><span class="hub-todo-n" aria-hidden="true">!</span>'
+            . '<div class="hub-todo-txt"><strong>' . h($item['label']) . '</strong>'
+            . ($item['detail'] !== '' ? '<span>' . h($item['detail']) . '</span>' : '') . '</div>'
+            . '<div class="hub-todo-actions"><a class="hub-btn" href="' . h($item['action']['url']) . '">' . h($item['action']['label']) . '</a></div></li>';
+    }
+    return $out . '</ul>';
+}
+
+/**
+ * The first-run steps, shown while no event is tagged and a step before events is still open
+ * (UX review 2026-09-30 §M1): add a car, declare its class (summer race cars only), say which
+ * events. A finished step is ticked, the first open one carries the button. '' once there is a car
+ * and no race car is waiting for its class.
+ */
+function homeGettingStartedHtml(array $vm): string {
+    $hasCars = !empty($vm['cars']);
+    $undeclared = null;
+    foreach ($vm['garage'] ?? [] as $g) {
+        if (($g['usesRace'] ?? $g['usesSummer'] ?? true) && ($g['declaration'] ?? null) === null) { $undeclared = $g['car']; break; }
+    }
+    if ($hasCars && $undeclared === null) return '';
+    $steps = [
+        ['Add your car', 'Its number, make, model and colour. It takes a minute.', $hasCars,
+            ['Add a car', 'garage.php?action=add']],
+        ['Declare its class', 'Summer race cars need a class from the calculator. Ice and TA/Drift cars skip this step.', $hasCars && $undeclared === null,
+            $undeclared !== null ? ['Declare class', 'calculator.php?car=' . (int)$undeclared['id']] : null],
+        ['Say which events you\'re going to', 'Pick them from the list below. Home then shows what is left to do before each one.', false, null],
+    ];
+    $out = '<ol class="hub-todo hub-steps">';
+    $current = true;   // the first open step gets the button
+    foreach ($steps as $i => [$label, $detail, $done, $action]) {
+        $isCurrent = !$done && $current;
+        if ($isCurrent) $current = false;
+        $out .= '<li class="hub-todo-item' . ($done ? ' hub-todo-item--done' : ($isCurrent ? '' : ' hub-todo-item--optional')) . '">'
+            . '<span class="hub-todo-n"' . ($done ? ' aria-label="Done"' : '') . '>' . ($done ? '&#10003;' : (string)($i + 1)) . '</span>'
+            . '<div class="hub-todo-txt"><strong>' . h($label) . '</strong><span>' . h($detail) . '</span></div>';
+        if ($isCurrent && $action !== null) {
+            $out .= '<div class="hub-todo-actions"><a class="hub-btn" href="' . h($action[1]) . '">' . h($action[0]) . '</a></div>';
+        }
+        $out .= '</li>';
+    }
+    return $out . '</ol>';
 }
 
 /** Hidden csrf field shared by every POST form on this page. */
@@ -84,21 +195,21 @@ function homeRenderTodoItem(int $n, array $item, string $csrf, bool $suggested =
 /**
  * The Race / Time Attack / Drift checkboxes and the supplementary-regulations tick (TA/Drift spec §3
  * Entry). $event null: the event isn't chosen yet (Garage's event select), so every box is enabled
- * and the wording names no club; the server still checks the host club. Without a host club, Time
- * Attack and Drift are disabled with ENTRY_NO_HOST_CLUB.
+ * and the wording names no club; the server still checks the host club. An event with no host club
+ * runs Race only: the choice is fixed and no disabled boxes are shown (UX review 2026-09-30 §M12).
  */
 function homeFormatsFieldsHtml(?array $event, array $checked, bool $suppsTicked = false): string {
     $club = $event === null ? null : trim((string)($event['host_club'] ?? ''));
+    if ($club === '') {
+        return '<input type="hidden" name="formats_shown" value="1"><input type="hidden" name="formats[]" value="race">'
+            . '<p class="hub-formats-fixed"><strong>Running:</strong> Race</p>';
+    }
     $out = '<fieldset class="hub-formats"><legend>Running</legend><input type="hidden" name="formats_shown" value="1"><div class="hub-formats-options">';
     foreach (ENTRY_FORMATS as $value => $label) {
-        $disabled = $value !== 'race' && $club === '';
         $out .= '<label><input type="checkbox" name="formats[]" value="' . h($value) . '"'
-            . (in_array($value, $checked, true) && !$disabled ? ' checked' : '') . ($disabled ? ' disabled' : '') . '> ' . h($label) . '</label>';
+            . (in_array($value, $checked, true) ? ' checked' : '') . '> ' . h($label) . '</label>';
     }
     $out .= '</div>';
-    if ($club === '') {
-        return $out . '<p class="form-hint">' . h(ENTRY_NO_HOST_CLUB) . '</p></fieldset>';
-    }
     $who = $club === null ? "the host club's" : "the $club";
     return $out . '<label class="hub-formats-supps"><input type="checkbox" name="supps_ack" value="1"' . ($suppsTicked ? ' checked' : '') . '> '
         . h("For Time Attack and Drift: I have read $who supplementary regulations and my car complies") . '</label></fieldset>';
@@ -136,7 +247,7 @@ function homeRenderEntryFormatsHtml(array $event, array $car, array $entry, stri
     $summary = [];
     if (!$isIce) $summary[] = entryFormatsLabel($entry['formats']);
     if ($drivers !== []) $summary[] = homeDrivingLabel($drivers, $ticked);
-    return '<details class="hub-entry-formats"><summary>' . h(implode(' · ', $summary)) . ' · Change</summary>'
+    return '<details class="hub-entry-formats"><summary>' . h(implode(' · ', $summary)) . ' · <span class="hub-entry-change">Change</span></summary>'
         . '<form method="post" action="index.php" class="hub-line hub-tag-form">' . homeCsrfField($csrf)
         . '<input type="hidden" name="action" value="formats">'
         . '<input type="hidden" name="event_id" value="' . (int)$event['id'] . '">'
@@ -146,28 +257,41 @@ function homeRenderEntryFormatsHtml(array $event, array $car, array $entry, stri
         . '<button type="submit" class="hub-btn hub-btn--secondary">Save</button></form></details>';
 }
 
-/** The tag ("I'm going") form for one event: pick the car (or name it) and, for summer, what it runs ($defaults: the first car's eventsDefaultFormats()). */
-function homeRenderTagForm(array $event, array $cars, string $csrf, bool $offerReminders = false, array $defaults = ['race']): string {
+/**
+ * The tag ("I'm going") form for one event: pick the car (or name it) and, for summer, what it runs
+ * ($defaults: the first car's eventsDefaultFormats()). The choices stay folded behind the button
+ * until it is tapped, so an event is one row on Home (UX review 2026-09-30 §H4). With nothing to
+ * choose (one car, an ice event, no reminder question) the button tags the car straight away.
+ * $another: a car is already going, so this adds a second one and says so.
+ */
+function homeRenderTagForm(array $event, array $cars, string $csrf, bool $offerReminders = false, array $defaults = ['race'], bool $another = false): string {
     $eid = (int)$event['id'];
-    $out = '<form method="post" action="index.php" class="hub-line hub-tag-form">' . homeCsrfField($csrf)
+    $isIce = ($event['discipline'] ?? 'summer') === 'ice';
+    $hidden = homeCsrfField($csrf)
         . '<input type="hidden" name="action" value="tag">'
         . '<input type="hidden" name="event_id" value="' . h((string)$eid) . '">';
-    if (count($cars) === 1) {
-        $car = array_values($cars)[0];
-        $out .= '<span>' . h(carDisplayName($car)) . '</span>'
-            . '<input type="hidden" name="car_id" value="' . h((string)$car['id']) . '">';
+    $one = count($cars) === 1 ? array_values($cars)[0] : null;
+    if ($one !== null && $isIce && !$offerReminders) {
+        return '<form method="post" action="index.php" class="hub-line hub-tag-form">' . $hidden
+            . '<span>' . h(carDisplayName($one)) . '</span><input type="hidden" name="car_id" value="' . h((string)$one['id']) . '">'
+            . '<button type="submit" class="hub-btn' . ($another ? ' hub-btn--secondary' : '') . '">' . ($another ? 'Add this car' : 'I\'m going') . '</button></form>';
+    }
+    $out = '<details class="hub-event-add"><summary class="hub-btn' . ($another ? ' hub-btn--secondary' : '') . '">' . ($another ? 'Add another car' : 'I\'m going') . '</summary>'
+        . '<form method="post" action="index.php" class="hub-tag-form hub-tag-form--stack">' . $hidden;
+    if ($one !== null) {
+        $out .= '<p class="hub-tag-car"><strong>Car:</strong> ' . h(carDisplayName($one)) . '</p>'
+            . '<input type="hidden" name="car_id" value="' . h((string)$one['id']) . '">';
     } else {
-        $out .= '<label class="visually-hidden" for="tag-car-' . $eid . '">Car for ' . h((string)$event['name']) . '</label>'
+        $out .= '<label for="tag-car-' . $eid . '">Which car?<span class="visually-hidden"> For ' . h((string)$event['name']) . '</span></label>'
             . '<select id="tag-car-' . $eid . '" name="car_id">';
         foreach ($cars as $car) {
             $out .= '<option value="' . h((string)$car['id']) . '">' . h(carDisplayName($car)) . '</option>';
         }
         $out .= '</select>';
     }
-    if (($event['discipline'] ?? 'summer') !== 'ice') $out .= homeFormatsFieldsHtml($event, $defaults);
+    if (!$isIce) $out .= homeFormatsFieldsHtml($event, $defaults);
     if ($offerReminders) $out .= reminderOptInFieldsHtml();
-    $out .= '<button type="submit" class="hub-btn">I\'m going</button></form>';
-    return $out;
+    return $out . '<button type="submit" class="hub-btn">' . ($another ? 'Add this car' : 'Confirm I\'m going') . '</button></form></details>';
 }
 
 /**
@@ -189,7 +313,7 @@ function landingNextIsIce(array $activeEvents, string $today): bool {
 /** Short event date for card headers ("Sat, Oct 11"); '' if the date can't be read. */
 function homeShortDate(string $eventDate): string {
     try {
-        return (new DateTime(substr($eventDate, 0, 10)))->format('D, M j');
+        return (new DateTime(substr($eventDate, 0, 10)))->format('D, M j, Y');
     } catch (Exception $e) {
         return '';
     }
@@ -232,7 +356,7 @@ function homeEventCardHtml(array $event, ?array $readinessEvent, array $cars, st
     }
     $notGoing = homeCarsForEvent(array_diff_key($cars, $goingCarIds), $event);
     if ($notGoing) {
-        $out .= homeRenderTagForm($event, $notGoing, $csrf, $offerReminders, $tagDefaults[array_key_first($notGoing)] ?? ['race']);
+        $out .= homeRenderTagForm($event, $notGoing, $csrf, $offerReminders, $tagDefaults[array_key_first($notGoing)] ?? ['race'], (bool)$goingCarIds);
     } elseif (!$goingCarIds) {
         $out .= '<p><a class="hub-btn hub-btn--secondary" href="garage.php?action=add&amp;event_id=' . (int)$event['id'] . '">Add a car for this event</a></p>';
     }
@@ -259,9 +383,14 @@ function homeMediaPromptHtml(string $csrf, array $prompt = ['kind' => 'invite'])
         . '<button type="submit" class="hub-btn hub-btn--link">No thanks</button></form></div>';
 }
 
-/** The untag ("Not going anymore") form for one car already tagged to an event. */
+/** What the untag confirm box says: what is cleared and what is kept. Shared with the car page. */
+function homeUntagConfirmText(array $event, array $car): string {
+    return 'Take ' . carDisplayName($car) . ' off ' . $event['name'] . '? What it is running and who is driving are cleared. A tech sheet you already sent is kept.';
+}
+
+/** The untag ("Not going anymore") form for one car already tagged to an event. It asks first (js/confirm-modal.js). */
 function homeRenderUntagForm(array $event, array $car, string $csrf): string {
-    return '<form method="post" action="index.php" class="hub-line">' . homeCsrfField($csrf)
+    return '<form method="post" action="index.php" class="hub-line" data-confirm="' . h(homeUntagConfirmText($event, $car)) . '">' . homeCsrfField($csrf)
         . '<input type="hidden" name="action" value="untag">'
         . '<input type="hidden" name="event_id" value="' . h((string)$event['id']) . '">'
         . '<input type="hidden" name="car_id" value="' . h((string)$car['id']) . '">'
@@ -279,11 +408,16 @@ function renderHomeHtml(array $vm): string
     $offerReminders = !empty($vm['offerReminders']);
 
     $focus = homeFocusIndex($events, isset($vm['focusEventId']) ? (int)$vm['focusEventId'] : null);
-    // id="todo" is where every event card's "N things to do" link lands.
-    $out = '<h1 id="todo" tabindex="-1">' . h(homeHeadline($readiness, $focus)) . '</h1>';
-
     $first = $events[$focus] ?? null;
     $focusId = $first !== null ? (int)$first['event']['id'] : null;
+    // Sent-back work shows whatever is tagged; what the event list above already asks for isn't repeated.
+    $attention = homeAttentionItems($vm, $first !== null ? $first['items'] : []);
+    // id="todo" is where every event card's "N things to do" link lands.
+    $out = '<h1 id="todo" tabindex="-1">' . h(homeHeadline($readiness, $focus, ['attention' => count($attention), 'hasCars' => !empty($cars)])) . '</h1>';
+    if ($first === null) {
+        $out .= homeAttentionHtml($attention, $csrf, false);
+        if (!$attention) $out .= homeGettingStartedHtml($vm);
+    }
 
     if ($first !== null) {
         $eventDate = (string)$first['event']['event_date'];
@@ -291,7 +425,7 @@ function renderHomeHtml(array $vm): string
             $date = new DateTime(substr($eventDate, 0, 10));
             $today = new DateTime(date('Y-m-d'));
             $days = (int)$today->diff($date)->format('%a');
-            $out .= '<p class="hub-intro">' . h($date->format('l, F j')) . ' &middot; in ' . h((string)$days) . ' days</p>';
+            $out .= '<p class="hub-intro">' . h($date->format('D, M j, Y')) . ' &middot; in ' . h((string)$days) . ' days</p>';
         } catch (Exception $e) {
             // Unparseable date: skip the date line.
         }
@@ -347,14 +481,18 @@ function renderHomeHtml(array $vm): string
         }
     }
 
+    if ($first !== null) $out .= homeAttentionHtml($attention, $csrf, true);
+
     // A media profile that was sent back or hidden is something to act on, so it sits with the to-dos.
     $mediaPrompt = !empty($vm['mediaPrompt']) ? (is_array($vm['mediaPrompt']) ? $vm['mediaPrompt'] : ['kind' => 'invite']) : null;
     if ($mediaPrompt !== null && $mediaPrompt['kind'] === 'attention') {
         $out .= homeMediaPromptHtml($csrf, $mediaPrompt);
     }
 
-    // Upcoming events: one card per event, soonest first.
-    $out .= '<h2>Upcoming events</h2>';
+    // Upcoming events: one card per event, soonest first. When the page title already asks "Which
+    // events are you going to?" the section needs no heading of its own.
+    $titleAsksEvents = $first === null && !$attention && homeGettingStartedHtml($vm) === '';
+    $out .= $titleAsksEvents ? '<div id="events"></div>' : '<h2 id="events">Upcoming events</h2>';
     if (!$events && !$untagged) {
         $out .= '<p>No upcoming events yet.</p>';
     } else {
@@ -373,7 +511,7 @@ function renderHomeHtml(array $vm): string
     $out .= '<h2>At a glance</h2><div class="hub-grid-2">';
     $out .= '<div class="hub-card"><h3>Garage</h3>';
     if (!$vm['cars']) {
-        $out .= '<p>Start by adding your car.</p><a class="hub-btn" href="garage.php?action=add">Add a car</a>';
+        $out .= '<p>No cars yet.</p><a class="hub-btn hub-btn--secondary" href="garage.php?action=add">Add a car</a>';
     } else {
         foreach ($vm['garage'] as $g) {
             $car = $g['car'];
@@ -431,24 +569,36 @@ function renderHomeHtml(array $vm): string
     return $out;
 }
 
-/** The signed-out landing page. $iceNext (landingNextIsIce()) leads with ice tech instead of the summer calculator. */
+/**
+ * The signed-out landing page: what the hub is for, the account buttons, then the three steps a
+ * member takes (UX review 2026-09-30 §M1). $iceNext (landingNextIsIce()) leads with ice tech.
+ */
 function renderLandingHtml(array $seasonLinks, bool $iceNext = false): string
 {
     $signIn = 'auth.php?action=login&amp;redirect=index.php';
     $register = 'auth.php?action=register&amp;redirect=index.php';
-    $out = '<section class="hub-hero"><h1>WCMA Hub</h1>';
-    if ($iceNext) {
-        $out .= '<p class="hub-hero-tagline">Submit your ice tech sheet and track car and gear tech for the season.</p>'
-            . '<div class="hub-hero-actions"><a class="hub-btn" href="' . $register . '">Create account</a>'
-            . '<a class="hub-btn hub-btn--secondary" href="' . $signIn . '">Sign in</a></div>'
-            . '<p><a href="calculator.php">Summer class calculator</a> · <a href="drivers-public.php">Meet the drivers</a></p></section>';
-    } else {
-        $out .= '<p class="hub-hero-tagline">Declare your class, submit tech sheets and track car and gear tech for the season.</p>'
-            . '<div class="hub-hero-actions"><a class="hub-btn" href="calculator.php">Class Calculator</a>'
-            . '<a class="hub-btn hub-btn--secondary" href="' . $signIn . '">Sign in</a>'
-            . '<a class="hub-btn hub-btn--secondary" href="' . $register . '">Create account</a>'
-            . '</div><p><a href="drivers-public.php">Meet the drivers</a></p></section>';
+    $out = '<section class="hub-hero"><h1>WCMA Hub</h1>'
+        . '<p class="hub-hero-tagline">' . ($iceNext
+            ? 'Get your car and gear ready for the ice. Send your ice tech sheet, and see what is left to do before each event.'
+            : 'Get your car and gear ready for race day. Declare your class, send your tech sheet, and see what is left to do before each event.') . '</p>'
+        . '<div class="hub-hero-actions"><a class="hub-btn" href="' . $register . '">Create account</a>'
+        . '<a class="hub-btn hub-btn--secondary" href="' . $signIn . '">Sign in</a></div>'
+        . '<p class="hub-hero-links">' . ($iceNext ? '<a href="calculator.php">Summer class calculator</a>' : '<a href="calculator.php">Try the class calculator</a>')
+        . '<a href="drivers-public.php">Meet the drivers</a></p></section>';
+
+    $steps = $iceNext
+        ? [['Add your car', 'Its number, make, model and colour.'],
+           ['Say which ice events you\'re going to', 'This doesn\'t register you. You still register with the host club.'],
+           ['Send an ice tech sheet', 'Then pre-tech with photos, or bring the car to tech at the track.']]
+        : [['Add your car', 'Its number, make, model and colour.'],
+           ['Declare its class', 'The calculator works it out from weight, power and modifications.'],
+           ['Send a tech sheet for each event', 'Then pre-tech with photos, or bring the car to tech at the track.']];
+    $out .= '<div class="hub-card"><h2>How it works</h2><ol class="hub-todo hub-steps hub-steps--plain">';
+    foreach ($steps as $i => [$label, $detail]) {
+        $out .= '<li class="hub-todo-item hub-todo-item--optional"><span class="hub-todo-n">' . ($i + 1) . '</span>'
+            . '<div class="hub-todo-txt"><strong>' . h($label) . '</strong><span>' . h($detail) . '</span></div></li>';
     }
+    $out .= '</ol></div>';
 
     if ($seasonLinks) {
         $out .= '<div class="hub-card"><h3>This season on MotorsportReg</h3>';

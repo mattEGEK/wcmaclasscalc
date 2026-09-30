@@ -131,7 +131,7 @@ function msrChangeText(array $c): string {
     switch ($c['field']) {
         case 'gone':       return 'No longer on MotorsportReg';
         case 'cancelled':  return $c['new'] === '1' ? 'Cancelled on MotorsportReg' : 'No longer cancelled on MotorsportReg';
-        case 'start_date': return 'Date: ' . date('M j', strtotime($c['old'])) . ' → ' . date('M j', strtotime($c['new']));
+        case 'start_date': return 'Date: ' . date('D, M j, Y', strtotime($c['old'])) . ' → ' . date('D, M j, Y', strtotime($c['new']));
         case 'venue':      return 'Venue: ' . ($c['old'] !== '' ? $c['old'] : '—') . ' → ' . ($c['new'] !== '' ? $c['new'] : '—');
         default:           return 'Name: ' . $c['old'] . ' → ' . $c['new'];
     }
@@ -151,8 +151,8 @@ function msrSuggestEvent(array $row, array $hubEvents): ?int {
 }
 
 function msrDateRange(string $start, string $end): string {
-    $s = date('D, M j', strtotime($start));
-    return $end === $start ? $s : $s . ' – ' . date('D, M j', strtotime($end));
+    $s = date('D, M j, Y', strtotime($start));
+    return $end === $start ? $s : date('D, M j', strtotime($start)) . ' – ' . date('D, M j, Y', strtotime($end));
 }
 
 /** Fetch one club's feed and bring msr_events up to date. A failed fetch changes nothing but the club's error. */

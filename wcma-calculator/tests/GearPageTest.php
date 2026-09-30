@@ -87,7 +87,7 @@ final class GearPageTest extends TestCase
     public function testLockedRecordIsReadOnly(): void
     {
         $html = $this->renderPretech($this->gear(['photo_status' => 'submitted']), $this->snapshot());
-        $this->assertStringContainsString('submitted for review', $html);
+        $this->assertStringContainsString('These photos are with an inspector.', $html);
         $this->assertStringNotContainsString('data-photo-input', $html);
         $this->assertStringNotContainsString('id="pretech-submit-btn"', $html);
         $this->assertStringContainsString('"locked":true', $html);

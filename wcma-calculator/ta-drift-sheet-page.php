@@ -64,7 +64,7 @@ function renderTaDriftTechSheetFormHtml(array $vm): string {
 
     // Event
     $out .= '<div class="detail-card"><h2>Event</h2><p><strong>' . h((string)$event['name']) . '</strong> — '
-        . h(date('M j, Y', strtotime((string)$event['event_date']))) . ' · ' . h($vm['club']) . '</p>'
+        . h(hubEventDate((string)$event['event_date'])) . ' · ' . h($vm['club']) . '</p>'
         . '<p class="form-hint">This sheet is for Time Attack and Drift. It is checked against the ' . h($vm['club'])
         . ' supplementary regulations.</p>';
     if ($vm['otherEvents']) {
@@ -89,7 +89,7 @@ function renderTaDriftTechSheetFormHtml(array $vm): string {
         . '<p class="form-hint">A roll bar or cage adds its own checks, a 5- or 6-point harness, and a head and neck restraint for every driver.</p></div>';
 
     // Entrant & driver
-    $out .= '<div class="detail-card"><h2>Entrant &amp; Driver</h2><div class="tech-sheet-header-grid">'
+    $out .= '<div class="detail-card"><h2>Entrant and driver</h2><div class="tech-sheet-header-grid">'
         . '<div><label for="entrant_name">Entrant (required)</label><input type="text" id="entrant_name" name="entrant_name" required data-message="Enter the entrant\'s name." value="'
         . h($isEdit ? (string)$sheet['entrant_name'] : (string)($d1['ownedById'][$d1['selfId'] ?? 0]['name'] ?? '')) . '"></div>'
         . '<div><label for="driver1_choice">Driver 1 (required)</label><select id="driver1_choice" name="driver1_choice" required>';
@@ -102,16 +102,16 @@ function renderTaDriftTechSheetFormHtml(array $vm): string {
         . '</div></div>';
 
     // Checklist, driver 1 gear, other drivers
-    $out .= '<div class="detail-card"><h2>Vehicle Checklist</h2><div id="checklist-container"></div></div>'
-        . '<div class="detail-card"><h2>Driver Safety Equipment — Driver 1</h2><p class="form-hint" id="ta-drift-helmet-note">' . h($vm['helmetNotes'][$key]) . '</p>'
+    $out .= '<div class="detail-card"><h2>Vehicle checklist</h2><div id="checklist-container"></div></div>'
+        . '<div class="detail-card"><h2>Driver safety equipment: Driver 1</h2><p class="form-hint" id="ta-drift-helmet-note">' . h($vm['helmetNotes'][$key]) . '</p>'
         . '<div id="equipment-container"></div></div>'
-        . '<div class="detail-card" id="endurance-drivers-card"><h2>Other Drivers (optional)</h2>'
+        . '<div class="detail-card" id="endurance-drivers-card"><h2>Other drivers (optional)</h2>'
         . '<p class="form-hint">Add everyone else driving this car in Time Attack or Drift at this event.</p>'
         . '<div id="additional-drivers-container"></div>'
-        . '<button type="button" class="btn btn-secondary" id="add-driver-btn">+ Add Driver</button></div>';
+        . '<button type="button" class="btn btn-secondary" id="add-driver-btn">+ Add driver</button></div>';
 
     // Signatures
-    $out .= '<div class="detail-card"><h2>Declaration &amp; Signatures</h2>'
+    $out .= '<div class="detail-card"><h2>Declaration and signatures</h2>'
         . '<p><em>I hereby stipulate that the above vehicle meets the regulations for the event.</em></p>'
         . ($isEdit ? '<p class="form-hint">Leave the pads blank to keep the signatures already on file.</p>' : '')
         . '<p id="sig-error" class="field-message" hidden></p>'
@@ -122,7 +122,7 @@ function renderTaDriftTechSheetFormHtml(array $vm): string {
 
     $out .= '<div id="tech-sheet-error" class="form-messages error" role="alert" hidden></div>'
         . '<div class="form-actions"><button type="submit" class="btn btn-primary" id="tech-sheet-submit-btn">'
-        . ($isEdit ? 'Save Changes' : 'Submit TA/Drift Tech Sheet') . '</button></div></form>';
+        . ($isEdit ? 'Save changes' : 'Submit TA/Drift tech sheet') . '</button></div></form>';
 
     $existingChecklist = $isEdit ? (json_decode((string)($sheet['checklist_json'] ?? '{}'), true) ?: []) : [];
     $existingEquipment = $isEdit ? (json_decode((string)($sheet['driver1_equipment_json'] ?? '{}'), true) ?: []) : [];

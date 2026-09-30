@@ -8,8 +8,19 @@ require_once __DIR__ . '/tech-status.php';   // iceSeasonLabel()
 
 require_once __DIR__ . '/photo-requirements.php';
 
-function pretechPhotoStatusText(?array $photo, string $tier): string {
-    if ($photo === null || $photo['file_path'] === '') return $tier === 'required' ? 'Photo needed' : 'No photo yet';
+/**
+ * The status word on a photo card. A photo is needed when it is required, or conditional and ticked
+ * as applying; anything else without a photo is grey, not amber (UX review 2026-09-30 §M6).
+ */
+function pretechPhotoNeeded(string $tier, bool $applies): bool {
+    return $tier === 'required' || ($tier === 'conditional' && $applies);
+}
+
+function pretechPhotoStatusText(?array $photo, string $tier, bool $applies = false): string {
+    if ($photo === null || $photo['file_path'] === '') {
+        if (pretechPhotoNeeded($tier, $applies)) return 'Photo needed';
+        return $tier === 'conditional' ? 'Only if it applies' : 'Optional';
+    }
     if ($photo['review_status'] === 'retake') return 'Retake requested';
     if ($photo['review_status'] === 'accepted') return 'Accepted';
     return 'Added';
@@ -38,8 +49,8 @@ function pretechRenderCard(string $key, array $req, ?array $photoRow, bool $appl
     $appliesLabel = (string)($req['applies_label'] ?? $appliesLabel);
 
     $out = '<div class="pretech-card" data-key="' . h($key) . '" data-tier="' . h($req['tier']) . '">';
-    $out .= '<h3>' . h($req['label']) . ' <span class="pretech-status ' . ($isRetake ? 'badge-fail' : ($hasPhoto ? 'badge-ok' : 'badge-pending')) . '" data-status>'
-        . h(pretechPhotoStatusText($photoRow, $req['tier'])) . '</span></h3>';
+    $out .= '<h3>' . h($req['label']) . ' <span class="pretech-status ' . ($isRetake ? 'badge-fail' : ($hasPhoto ? 'badge-ok' : (pretechPhotoNeeded($req['tier'], $applies) ? 'badge-pending' : 'badge-optional'))) . '" data-status>'
+        . h(pretechPhotoStatusText($photoRow, $req['tier'], $applies)) . '</span></h3>';
     $out .= '<p class="form-hint">' . h($req['guidance']) . '</p>';
     if ($req['tier'] === 'recommended') {
         $out .= '<p class="form-hint">Recommended, not required.</p>';
@@ -89,22 +100,9 @@ function renderPretechPage(array $sheet, array $event, array $mode, array $snaps
         'requirements' => $clientRequirements, 'photos' => (object)$clientPhotos, 'applicable' => $snapshot['applicable'],
     ];
     $carLine = 'Car #' . $sheet['car_number'] . ' — ' . trim($sheet['car_make'] . ' ' . $sheet['car_model']) . ' — ' . ($event['name'] ?? '');
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Get pre-teched — WCMA Calculator</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
-<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
-</head>
-<body class="hub">
-<div class="container">
-  <?php renderSiteHeader('Get pre-teched', '<a href="tech-sheets.php?action=view&amp;id=' . $id . '">← Back to tech sheet</a>', 'garage'); ?>
-  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+    renderPageStart('Get pre-teched', 'garage', ['flash' => $flash, 'subnav' => '<a href="tech-sheets.php?action=view&amp;id=' . $id . '">&larr; Back to the tech sheet</a>']);
+    ?>
+  <h1 class="hub-page-title">Get pre-teched</h1>
 
   <div class="detail-card">
     <h2><?= h($carLine) ?></h2>
@@ -116,26 +114,28 @@ function renderPretechPage(array $sheet, array $event, array $mode, array $snaps
     <?php else: ?>
       <p>Optional: submit photos of your car so an inspector can review them before the event. If they are accepted, you skip inspection at the track and just collect your decals. You can still be teched in person instead.</p>
       <?php if ($photoStatus === 'submitted'): ?>
-        <p class="badge-pending">Your photos were submitted for review. You will get an email when an inspector has looked at them.</p>
+        <p class="hub-note hub-note--info">Your photos are with an inspector. You will get an email when they have been looked at.</p>
       <?php elseif ($photoStatus === 'needs_changes'): ?>
-        <p class="badge-fail">An inspector asked for some photos to be retaken. Retake the flagged photos below, then submit again.</p>
+        <p class="hub-note hub-note--todo">An inspector asked for some photos to be retaken. Retake the flagged photos below, then submit again.</p>
       <?php elseif ($photoStatus === 'accepted'): ?>
-        <p class="badge-ok">Your photos were reviewed and accepted.</p>
+        <p class="hub-note hub-note--ok">Your photos were reviewed and accepted.</p>
       <?php endif; ?>
     <?php endif; ?>
   </div>
 
 <?php if ($formMode && $noRequirements): ?>
-  <p class="badge-fail">This tech sheet's class isn't on the club's current list. Edit the sheet and pick a class before adding photos.</p>
+  <p class="hub-note hub-note--todo">This tech sheet's class isn't on the club's current list. Edit the sheet and pick a class before adding photos.</p>
 <?php elseif ($formMode): ?>
   <div class="checklist-progress-wrap">
     <div class="checklist-progress-label" id="pretech-progress"><?= (int)$done ?> of <?= (int)$requiredTotal ?> required photos</div>
     <div class="checklist-progress-bar"><div class="checklist-progress-fill" id="pretech-fill" style="width:<?= $requiredTotal > 0 ? (int)round($done / $requiredTotal * 100) : 0 ?>%"></div></div>
   </div>
 
+  <div class="review-grid">
   <?php foreach ($requirements as $key => $req): ?>
     <?= pretechRenderCard($key, $req, $snapshot['photos'][$key] ?? null, in_array($key, $snapshot['applicable'], true), $locked) ?>
   <?php endforeach; ?>
+  </div>
 
   <?php if (!$locked): ?>
   <form method="post" action="tech-sheets.php?action=pretech-submit" id="pretech-submit-form" class="detail-card">
@@ -152,9 +152,6 @@ function renderPretechPage(array $sheet, array $event, array $mode, array $snaps
   <script src="js/pretech-progress.js"></script>
   <script src="js/pretech-form.js"></script>
 <?php endif; ?>
-</div>
-<script src="js/form-feedback.js"></script>
-<?php renderSiteFooter(); ?>
-</body>
-</html><?php
+<?php
+    renderPageEnd(['scripts' => '<script src="js/form-feedback.js"></script>']);
 }

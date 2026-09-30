@@ -114,16 +114,38 @@ function adminEventFieldsHtml(string $p, array $e, array $clubs): string {
         . '<p class="form-hint admin-form-wide">Competitors get a Register button for this event. Leave it blank to send them to the host club\'s MotorsportReg page.</p>';
 }
 
+/**
+ * Coming events soonest first, then past events newest first (UX review 2026-09-30 §M12): the next
+ * event is the one an admin is most likely here for. Pure.
+ */
+function adminEventsInListOrder(array $events, string $today): array {
+    $coming = array_values(array_filter($events, fn(array $e): bool => substr((string)$e['event_date'], 0, 10) >= $today));
+    $past = array_values(array_filter($events, fn(array $e): bool => substr((string)$e['event_date'], 0, 10) < $today));
+    usort($coming, fn(array $a, array $b): int => strcmp((string)$a['event_date'], (string)$b['event_date']) ?: ((int)$a['id'] <=> (int)$b['id']));
+    usort($past, fn(array $a, array $b): int => strcmp((string)$b['event_date'], (string)$a['event_date']) ?: ((int)$b['id'] <=> (int)$a['id']));
+    return array_merge($coming, $past);
+}
+
 /** The Events page body: Add button, read-only table, then the add modal and one modal per event. Pure. */
 function renderEventsPageHtml(array $events, array $going, array $clubs, string $csrf, ?array $dialogFlash, ?string $edit,
-                              array $msr = ['pending' => 0, 'connected' => false]): string {
+                              array $msr = ['pending' => 0, 'connected' => false], ?string $today = null): string {
+    $today = $today ?? date('Y-m-d');
+    $events = adminEventsInListOrder($events, $today);
+    // Members can only enter Race at an event with no host club, so say which events still need one.
+    $noClub = count(array_filter($events, fn(array $e): bool => (int)$e['active'] === 1 && trim((string)($e['host_club'] ?? '')) === ''
+        && substr((string)$e['event_date'], 0, 10) >= $today));
     $out = '';
+    if ($noClub > 0) {
+        $out .= '<p class="hub-note">' . $noClub . ' coming ' . ($noClub === 1 ? 'event has' : 'events have') . ' no host club. '
+            . 'Members can only enter Race there, and get no Register link, until you set one with Edit.</p>';
+    }
     if ((int)$msr['pending'] > 0) {
         $n = (int)$msr['pending'];
         $out .= '<p class="admin-msr-strip"><strong>From MotorsportReg:</strong> ' . $n . ' ' . ($n === 1 ? 'event' : 'events')
             . ' to review <a class="hub-btn hub-btn--secondary" href="admin.php?action=msr">Review</a></p>';
     } elseif (!empty($msr['connected'])) {
-        $out .= '<p class="admin-msr-strip"><a class="admin-link" href="admin.php?action=msr">From MotorsportReg</a></p>';
+        $out .= '<p class="admin-msr-strip">Nothing new from the clubs\' MotorsportReg calendars. '
+            . '<a class="admin-link" href="admin.php?action=msr">Open From MotorsportReg</a></p>';
     }
     $out .= '<div class="admin-toolbar">' . adminAddButton('event-dialog-new', 'Add event') . '</div>'
         . '<table class="data-table admin-table" id="events-table"><thead><tr><th>Date</th><th>Name</th><th>Location</th>'
@@ -143,10 +165,11 @@ function renderEventsPageHtml(array $events, array $going, array $clubs, string 
         $location = (string)($e['location'] ?? '');
         $msr = eventRegisterUrl($e);
         $out .= '<tr id="event-' . $id . '">'
-            . '<td data-label="Date">' . h(date('M j, Y', strtotime((string)$e['event_date']))) . '</td>'
+            . '<td data-label="Date">' . h(hubEventDate((string)$e['event_date'])) . '</td>'
             . '<td data-label="Name">' . h((string)$e['name']) . ($isIce ? ' ' . adminChip('Ice', 'pending') : '') . '</td>'
             . '<td data-label="Location">' . h($location !== '' ? $location : '—') . '</td>'
-            . '<td data-label="Host club">' . h($club !== '' ? $club : '—') . '</td>'
+            . '<td data-label="Host club">' . ($club !== '' ? h($club)
+                : ((int)$e['active'] === 1 && substr((string)$e['event_date'], 0, 10) >= $today ? adminChip('No host club', 'pending') : '—')) . '</td>'
             . '<td data-label="Registration">' . ($msr !== ''
                 ? '<a class="admin-link" href="' . h($msr) . '" target="_blank" rel="noopener">Open ↗</a>' : '—') . '</td>'
             . '<td data-label="Going">' . $n . ' ' . ($n === 1 ? 'car' : 'cars') . '</td>'

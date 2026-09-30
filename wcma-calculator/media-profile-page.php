@@ -37,7 +37,7 @@ function renderMediaProfileHtml(array $vm): string {
     $status = $vm['status'];
     $hidden = fn(string $n, string $v): string => '<input type="hidden" name="' . $n . '" value="' . h($v) . '">';
 
-    $out = '<p><a href="drivers.php">&larr; Drivers</a></p>'
+    $out = '<p class="hub-back"><a class="hub-back-link" href="drivers.php">&larr; Back to Drivers</a></p>'
         . '<h1>Media profile: ' . h($name) . '</h1>'
         . '<p class="hub-intro">Clubs use this for announcing at events and for promotion. You choose whether it also goes on a public web page.</p>'
         . '<p>Status: <span class="hub-status ' . h($status['class']) . '">' . h($status['label']) . '</span>';
@@ -73,7 +73,7 @@ function renderMediaProfileHtml(array $vm): string {
         . mediaTextField($vm, 'hometown', 'Hometown (optional)', '', 60)
         . mediaTextField($vm, 'racing_since', 'Racing since (optional)', 'A year, like 2015.', 4)
         . mediaTextField($vm, 'social_handle', 'Social media handle (optional)', 'Shown on the public page and in the media kit.', 60)
-        . '<h2>Sponsors (optional)</h2><p class="form-hint">Up to 6. The website is optional.</p><div class="media-sponsors">';
+        . '<h2>Sponsors (optional)</h2><p class="form-hint">Up to ' . MEDIA_MAX_SPONSORS . '. The website is optional.</p><div class="media-sponsors" id="mp-sponsors">';
     $sponsors = $vm['sponsors'];
     for ($i = 0; $i < MEDIA_MAX_SPONSORS; $i++) {
         $nameVal = $vm['input'] !== null ? (string)(($vm['input']['sponsor_name'] ?? [])[$i] ?? '') : (string)($sponsors[$i]['name'] ?? '');
@@ -86,7 +86,7 @@ function renderMediaProfileHtml(array $vm): string {
     }
     $check = fn(string $n, string $text, bool $on, string $extra = ''): string => '<label class="media-check"><input type="checkbox" name="' . $n . '" value="1"'
         . ($on ? ' checked' : '') . $extra . '> ' . h($text) . '</label>';
-    $out .= '</div><h2>Consent</h2>'
+    $out .= '</div><p><button type="button" class="hub-btn hub-btn--secondary" id="mp-add-sponsor" hidden>Add another sponsor</button></p><h2>Consent</h2>'
         . $check('consent_media', MEDIA_CONSENT_MEDIA_TEXT, mediaFormChecked($vm, 'consent_media'))
         . $check('consent_public', MEDIA_CONSENT_PUBLIC_TEXT, mediaFormChecked($vm, 'consent_public'))
         . '<p class="form-hint" id="mp-public-note">Reviewed by WCMA media staff before it appears.</p>'

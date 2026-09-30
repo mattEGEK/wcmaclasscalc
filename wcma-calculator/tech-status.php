@@ -106,15 +106,17 @@ function techCarStatusLabel(array $status, int $season, string $discipline = DIS
     switch ($status['state']) {
         case 'accepted':       return ($status['via'] === 'photos' ? 'Pre-teched ' : 'Teched ') . $when;
         case 'needs_changes':  return 'Photos need changes';
-        case 'pending_review': return 'Photos pending review';
+        case 'pending_review': return 'Photos with an inspector';
         case 'photos_draft':   return 'Photos in progress';
         default:               return 'Needs tech at the track';
     }
 }
 
+/** Chip colour for a status: green accepted, red needs changes, grey waiting on an inspector, amber still to do. */
 function techCarStatusBadgeClass(string $state): string {
     if ($state === 'accepted') return 'badge-ok';
     if ($state === 'needs_changes') return 'badge-fail';
+    if ($state === 'pending_review') return 'badge-info';
     return 'badge-pending';
 }
 

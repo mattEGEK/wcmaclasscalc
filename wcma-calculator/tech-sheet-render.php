@@ -140,7 +140,7 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
         $when = !empty($sheet['reviewed_at']) ? ' on ' . date('F j, Y', strtotime($sheet['reviewed_at'])) : '';
         $statusText = 'Reviewed ' . $how . $when;
     } else {
-        $statusText = 'Submitted — awaiting review';
+        $statusText = 'Submitted — not yet teched';
     }
     $out .= '<p style="font-weight:bold;color:' . ($reviewed ? '#27ae60' : '#f39c12') . '">Status: ' . h($statusText) . '</p>';
     $out .= '</div>';

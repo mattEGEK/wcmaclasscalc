@@ -163,7 +163,7 @@ final class MediaLibTest extends TestCase
         $this->assertSame('Not set up', mediaProfileStatus(null, null)['label']);
         $this->assertSame('Not set up', mediaProfileStatus($this->profile(), null)['label']);
         $this->assertSame('Shared with clubs', mediaProfileStatus($this->profile(), $this->consentRow(1))['label']);
-        $this->assertSame('Public page: waiting for review', mediaProfileStatus($this->profile(['public_status' => 'pending_review']), $this->consentRow(1, 1))['label']);
+        $this->assertSame('Public page: with media staff', mediaProfileStatus($this->profile(['public_status' => 'pending_review']), $this->consentRow(1, 1))['label']);
         $this->assertSame('Public page live', mediaProfileStatus($this->profile(['public_status' => 'accepted']), $this->consentRow(1, 1))['label']);
         $this->assertSame('Public page sent back', mediaProfileStatus($this->profile(['public_status' => 'sent_back']), $this->consentRow(1, 1))['label']);
         $hidden = mediaProfileStatus($this->profile(['hidden_at' => 'x', 'public_status' => 'accepted']), $this->consentRow(1, 1));

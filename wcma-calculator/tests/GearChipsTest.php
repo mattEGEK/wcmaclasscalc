@@ -47,7 +47,7 @@ final class GearChipsTest extends TestCase
             $this->link('Sam Coach', null),
         ], 'admin');
 
-        $this->assertStringContainsString('href="inspect.php?action=gear-record&amp;id=4">Photos pending review</a>', $html);
+        $this->assertStringContainsString('href="inspect.php?action=gear-record&amp;id=4">Photos with an inspector</a>', $html);
         $this->assertStringContainsString('Sam Coach: <span class="badge-pending">No gear record</span>', $html);
         $this->assertStringNotContainsString('Go to Drivers', $html);
         $this->assertStringNotContainsString('gear.php', $html);
@@ -82,7 +82,7 @@ final class GearChipsTest extends TestCase
             $this->gear(5),
         ];
         $html = renderGearChips(array_map(fn(array $g): array => $this->link('D' . $g['id'], $g), $states), 'owner');
-        foreach (['Gear pre-teched 2026', 'Photos need changes', 'Photos pending review', 'Photos in progress', 'Needs gear check at the track'] as $label) {
+        foreach (['Gear pre-teched 2026', 'Photos need changes', 'Photos with an inspector', 'Photos in progress', 'Needs gear check at the track'] as $label) {
             $this->assertStringContainsString($label, $html);
         }
         $this->assertDoesNotMatchRegularExpression('/\b(approved|approval|passed|safe)\b/i', strip_tags($html));

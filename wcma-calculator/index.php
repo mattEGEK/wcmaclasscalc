@@ -100,6 +100,7 @@ foreach ($in['cars'] as $carId => $car) {
     $usesSummerCar = garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, $taggedSummer, $taggedIce, $stored);
     $garage[] = ['car' => $car, 'declaration' => $decl,
                  'techLabel' => techCarStatusLabel($status, $season), 'techState' => $status['state'],
+                 'techRetakeUrl' => $status['state'] === 'needs_changes' && !empty($status['sheet_id']) ? 'tech-sheets.php?action=pretech&id=' . (int)$status['sheet_id'] : null,
                  'usesSummer' => $usesSummerCar,
                  // Guarded the same way as garage.php: an ice-only car never needs a class declared.
                  'usesRace' => $usesSummerCar && garageCarRaces($car, $decl !== null ? [$decl] : [], $carSheets, garageEntryTiers($formatsByCar[$carId] ?? [], $in['events'], $today)['race']),
@@ -121,7 +122,8 @@ foreach ($in['drivers'] as $did => $d) {
         $iceCur = array_key_exists($iceKey, $in['iceGear']) ? $in['iceGear'][$iceKey] : db_get_gear_record_for_driver($pdo, $did, $iceSeason, DISCIPLINE_ICE);
         $ice = gearIceSummary($iceCur, $summerPrev, $iceSeason);
     }
-    $drivers[] = ['name' => (string)$d['name'], 'isSelf' => $did === $in['selfDriverId'],
+    $drivers[] = ['id' => (int)$did, 'name' => (string)$d['name'], 'isSelf' => $did === $in['selfDriverId'],
+                  'gearRetakeUrl' => $g !== null && $st['state'] === 'needs_changes' ? 'gear.php?action=pretech&id=' . (int)$g['id'] : null,
                   'gearLabel' => gearStatusLabel($st, $season)
                       . ($st['state'] === 'accepted' && ($g['level'] ?? null) === GEAR_LEVEL_TA_DRIFT ? ' · ' . gearSummerLevelLabel(GEAR_LEVEL_TA_DRIFT) : ''),
                   'gearState' => $st['state'],
@@ -154,4 +156,4 @@ echo renderHomeHtml([
     'carDrivers' => $carDrivers,
     'focusEventId' => is_string($_GET['event'] ?? null) && ctype_digit($_GET['event']) ? (int)$_GET['event'] : null,
 ]);
-renderPageEnd();
+renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script>']);

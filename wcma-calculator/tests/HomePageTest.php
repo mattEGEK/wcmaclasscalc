@@ -61,7 +61,7 @@ final class HomePageTest extends TestCase
         $this->assertStringContainsString('Already done for Fall Sprint', $html);
         $this->assertStringNotContainsString('<details class="hub-done" open', $html);   // starts closed
         // One card per event, soonest first, with the event's to-do badge in its header.
-        $this->assertStringContainsString('<h3>Fall Sprint</h3><span class="hub-event-date">Sun, Oct 11</span><a class="hub-status hub-status--todo hub-todo-link" href="#todo">2 things to do</a>', $html);
+        $this->assertStringContainsString('<h3>Fall Sprint</h3><span class="hub-event-date">Sun, Oct 11, 2099</span><a class="hub-status hub-status--todo hub-todo-link" href="#todo">2 things to do</a>', $html);
         $this->assertLessThan(strpos($html, '<h3>Season Finale</h3>'), strpos($html, '<h3>Fall Sprint</h3>'));
         $this->assertSame(1, substr_count($html, EVENTS_NOT_REGISTERING));
         $this->assertStringNotContainsString('Next after that', $html);
@@ -122,7 +122,8 @@ final class HomePageTest extends TestCase
     public function testEmptyStates(): void
     {
         $noCars = renderHomeHtml($this->vm(['cars' => [], 'readiness' => ['events' => [], 'untagged' => []]]));
-        $this->assertStringContainsString('Start by adding your car.', $noCars);
+        $this->assertStringContainsString('<h1 id="todo" tabindex="-1">Start by adding your car</h1>', $noCars);
+        $this->assertStringContainsString('<strong>Add your car</strong>', $noCars);   // the first-run steps (UX review §M1)
         $this->assertStringContainsString('href="garage.php?action=add"', $noCars);
         $this->assertStringNotContainsString('<div class="hub-card"><h3>Garage</h3><div class="hub-card">', $noCars);
         $noEvents = renderHomeHtml($this->vm(['readiness' => ['events' => [], 'untagged' => []]]));
@@ -196,7 +197,7 @@ final class HomePageTest extends TestCase
         // ...while car 4 is not tagged, so it's offered a tag form for event 10, car 4 only.
         $this->assertStringContainsString(
             'name="action" value="tag"><input type="hidden" name="event_id" value="10">'
-            . '<span>#7 2010 Mazda MX-5</span><input type="hidden" name="car_id" value="4">',
+            . '<p class="hub-tag-car"><strong>Car:</strong> #7 2010 Mazda MX-5</p><input type="hidden" name="car_id" value="4">',
             $html
         );
         // Both are inside Fall Sprint's card, before the next event's card starts.
@@ -205,9 +206,11 @@ final class HomePageTest extends TestCase
         $this->assertGreaterThan($fall, strpos($html, 'Not going anymore'));
         // The picker (TA/Drift) now sits between the car and the button, so allow it in between.
         $this->assertLessThan($finale, strpos($html, 'name="car_id" value="4">'));
-        $this->assertLessThan($finale, strpos($html, '<button type="submit" class="hub-btn">I\'m going'));
+        // A car is already going, so the folded form adds a second one and says so (UX review 2026-09-30 §H4).
+        $this->assertLessThan($finale, strpos($html, '<summary class="hub-btn hub-btn--secondary">Add another car</summary>'));
+        $this->assertLessThan($finale, strpos($html, '<button type="submit" class="hub-btn">Add this car</button>'));
         // An event you're not going to offers both cars in a labelled picker.
-        $this->assertStringContainsString('<label class="visually-hidden" for="tag-car-11">Car for Season Finale</label><select id="tag-car-11" name="car_id">', $html);
+        $this->assertStringContainsString('<label for="tag-car-11">Which car?<span class="visually-hidden"> For Season Finale</span></label><select id="tag-car-11" name="car_id">', $html);
     }
 
     public function testAlreadyDoneSectionOmittedWhenNoDoneItems(): void
@@ -241,7 +244,11 @@ final class HomePageTest extends TestCase
     {
         $html = renderLandingHtml([]);
         $this->assertStringContainsString('<h1>WCMA Hub</h1>', $html);
-        $this->assertStringContainsString('<p class="hub-hero-tagline">Declare your class', $html);
+        $this->assertStringContainsString('<p class="hub-hero-tagline">Get your car and gear ready for race day.', $html);
+        // The account is the main action; the calculator is a link (UX review 2026-09-30 §M1).
+        $this->assertStringContainsString('<a class="hub-btn" href="auth.php?action=register&amp;redirect=index.php">Create account</a>', $html);
+        $this->assertStringContainsString('<h2>How it works</h2>', $html);
+        $this->assertStringContainsString('href="calculator.php">Try the class calculator</a>', $html);
     }
 
     public function testTagFormsOfferRemindersOnlyWhenAsked(): void
@@ -304,7 +311,8 @@ final class HomePageTest extends TestCase
     public function testLandingLeadsWithIceWhenTheNextEventIsIce(): void
     {
         $html = renderLandingHtml([], true);
-        $this->assertStringContainsString('<p class="hub-hero-tagline">Submit your ice tech sheet and track car and gear tech for the season.</p>', $html);
+        $this->assertStringContainsString('<p class="hub-hero-tagline">Get your car and gear ready for the ice.', $html);
+        $this->assertStringContainsString('<strong>Send an ice tech sheet</strong>', $html);
         $this->assertStringContainsString('<a class="hub-btn" href="auth.php?action=register&amp;redirect=index.php">Create account</a>', $html);
         $this->assertStringNotContainsString('<a class="hub-btn" href="calculator.php">', $html);
         $this->assertStringContainsString('href="calculator.php">Summer class calculator</a>', $html);

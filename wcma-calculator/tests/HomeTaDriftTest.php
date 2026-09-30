@@ -89,14 +89,17 @@ final class HomeTaDriftTest extends TestCase
         $this->assertStringContainsString('<input type="checkbox" name="supps_ack" value="1"> For Time Attack and Drift: I have read the WSCC supplementary regulations and my car complies</label>', $html);
     }
 
-    public function testNoHostClubDisablesTimeAttackAndDrift(): void
+    // UX review 2026-09-30 §M12: no host club means Race only, with no disabled boxes and no "ask an admin".
+    public function testNoHostClubOffersRaceOnly(): void
     {
         $event = ['id' => 22, 'name' => 'Open Day', 'event_date' => '2099-09-01', 'discipline' => 'summer', 'host_club' => null];
         $html = homeFormatsFieldsHtml($event, ['race']);
-        $this->assertStringContainsString('value="race" checked>', $html);
-        $this->assertStringContainsString('value="ta" disabled>', $html);
-        $this->assertStringContainsString('value="drift" disabled>', $html);
-        $this->assertStringContainsString(h(ENTRY_NO_HOST_CLUB), $html);
+        $this->assertStringContainsString('<input type="hidden" name="formats[]" value="race">', $html);
+        $this->assertStringContainsString('<strong>Running:</strong> Race', $html);
+        $this->assertStringNotContainsString('value="ta"', $html);
+        $this->assertStringNotContainsString('value="drift"', $html);
+        $this->assertStringNotContainsString('disabled', $html);
+        $this->assertStringNotContainsString(h(ENTRY_NO_HOST_CLUB), $html);
         $this->assertStringNotContainsString('supps_ack', $html);
     }
 
@@ -117,7 +120,7 @@ final class HomeTaDriftTest extends TestCase
     public function testGoingCarShowsItsFormatsAndAChangeForm(): void
     {
         $html = renderHomeHtml($this->vm([$this->item('tech_sheet', 'todo', 'Submit a TA/Drift tech sheet for #86')]));
-        $this->assertStringContainsString('<details class="hub-entry-formats"><summary>Time Attack · Change</summary>', $html);
+        $this->assertStringContainsString('<details class="hub-entry-formats"><summary>Time Attack · <span class="hub-entry-change">Change</span></summary>', $html);
         $this->assertStringContainsString('<input type="hidden" name="action" value="formats">', $html);
         $this->assertStringContainsString('<input type="checkbox" name="formats[]" value="ta" checked> Time Attack</label>', $html);
     }

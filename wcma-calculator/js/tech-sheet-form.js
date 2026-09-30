@@ -5,14 +5,26 @@
     );
 
     // Problems are shown in words next to their field, and the page takes you there (spec §C3).
+    // Every problem is reported on one submit (UX review 2026-09-30 §H2): the browser's own
+    // stop-at-the-first check is off, and the submit handler below runs every check itself.
     const form = document.getElementById('tech-sheet-form');
-    WcmaFormProblems.wire(form);
+    form.noValidate = true;
+    WcmaFormProblems.wire(form, { noFocus: true });
     function firstOf(selector, fallback) { return document.querySelector(selector) || fallback; }
+    // What to type in a rating box, by item (UX review §M14): a helmet standard is not a suit standard.
+    const RATING_EXAMPLES = { helmet: 'SA2020', suit: 'SFI 3.2A/5' };
 
     // Ice form: whether the chosen class requires the head & neck restraint (labels new driver rows too).
     let headNeckRequired = false;
     // Why it is required, for the label: the ice class (default) or, on the TA/Drift form, the cage.
     let headNeckReason;
+
+    // A fixed row is no longer a problem: drop its highlight and any message under it.
+    function clearRowProblem(row) {
+        row.classList.remove('field-error');
+        const next = row.nextElementSibling;
+        if (next && next.hasAttribute && next.hasAttribute('data-problem')) next.remove();
+    }
 
     function renderEquipmentInto(container, prefix, existingState) {
         existingState = existingState || {};
@@ -37,15 +49,17 @@
             row.appendChild(label);
 
             if (def.has_rating) {
+                label.textContent = def.label + ' rating';
                 const input = document.createElement('input');
                 input.type = 'text';
-                input.placeholder = 'Rating (e.g. SA2020)';
+                input.placeholder = RATING_EXAMPLES[key] ? 'e.g. ' + RATING_EXAMPLES[key] : 'Rating on the label';
+                input.setAttribute('aria-label', def.label + ' rating, from its label');
                 input.style.marginRight = '0.5rem';
                 if (state[key].value) input.value = state[key].value;
                 input.addEventListener('input', function () {
                     state[key].value = input.value;
                     state[key].competitor_confirmed = input.value.trim() !== '';
-                    if (input.value.trim() !== '') { input.classList.remove('error'); row.classList.remove('field-error'); }
+                    if (input.value.trim() !== '') { input.classList.remove('error'); clearRowProblem(row); }
                 });
                 ratingInputRefs[key] = input;
                 row.appendChild(input);
@@ -53,12 +67,14 @@
                 const confirmBtn = document.createElement('button');
                 confirmBtn.type = 'button';
                 confirmBtn.className = 'checklist-chip';
-                confirmBtn.textContent = 'Confirm';
+                confirmBtn.textContent = 'I have this';
+                confirmBtn.setAttribute('aria-pressed', state[key].competitor_confirmed ? 'true' : 'false');
                 if (state[key].competitor_confirmed) confirmBtn.classList.add('checklist-chip-selected-ok');
                 confirmBtn.addEventListener('click', function () {
                     state[key].competitor_confirmed = !state[key].competitor_confirmed;
                     confirmBtn.classList.toggle('checklist-chip-selected-ok', state[key].competitor_confirmed);
-                    if (state[key].competitor_confirmed) row.classList.remove('field-error');
+                    confirmBtn.setAttribute('aria-pressed', state[key].competitor_confirmed ? 'true' : 'false');
+                    if (state[key].competitor_confirmed) clearRowProblem(row);
                 });
                 row.appendChild(confirmBtn);
             }
@@ -83,7 +99,15 @@
             });
         }
 
-        return { state: state, highlightIncomplete: highlightIncomplete, clearHighlights: clearHighlights };
+        function missingCount() {
+            return Object.keys(TECH_DRIVER_EQUIPMENT_ITEMS).filter(function (key) {
+                const def = TECH_DRIVER_EQUIPMENT_ITEMS[key];
+                const item = state[key];
+                return (!def.optional && !item.competitor_confirmed) || (def.has_rating && (item.value == null || String(item.value).trim() === ''));
+            }).length;
+        }
+
+        return { state: state, highlightIncomplete: highlightIncomplete, clearHighlights: clearHighlights, missingCount: missingCount };
     }
 
     // Mirrors tech-sheet-data.php's validateDriverEquipment(): every
@@ -198,14 +222,14 @@
             if (!sigMissing[pad[0]]) return;
             sigMissing[pad[0]] = false;
             pad[2].classList.remove('field-error');
-            const errorEl = document.getElementById('tech-sheet-error');
             if (sigMissing.entrant || sigMissing.driver) {
                 sigError.textContent = 'Please sign in the ' + (sigMissing.entrant ? 'Entrant' : 'Driver') + '\'s signature box.';
-                errorEl.textContent = sigError.textContent;
+                currentProblems.forEach(function (p) { if (p.key === 'sig') p.text = sigError.textContent; });
             } else {
                 sigError.hidden = true;
-                errorEl.hidden = true;
+                currentProblems = currentProblems.filter(function (p) { return p.key !== 'sig'; });
             }
+            renderSummary();
         });
     });
 
@@ -213,6 +237,40 @@
     const enduranceCard = document.getElementById('endurance-drivers-card');
     const additionalDriversContainer = document.getElementById('additional-drivers-container');
     const additionalDrivers = []; // [{number, picker, state}]
+
+    // The list of everything still to finish, above the Submit button. Each line takes you to its problem.
+    let currentProblems = [];
+    function renderSummary() {
+        const errorEl = document.getElementById('tech-sheet-error');
+        errorEl.textContent = '';
+        document.querySelectorAll('.field-message-count').forEach(function (n) { n.remove(); });
+        if (currentProblems.length === 0) { errorEl.hidden = true; return; }
+        const n = currentProblems.length;
+        const lead = document.createElement('p');
+        lead.className = 'problem-summary-lead';
+        lead.textContent = n === 1 ? 'One thing to finish before you can submit:' : n + ' things to finish before you can submit:';
+        errorEl.appendChild(lead);
+        const list = document.createElement('ul');
+        list.className = 'problem-summary';
+        currentProblems.forEach(function (p) {
+            const li = document.createElement('li');
+            const go = document.createElement('button');
+            go.type = 'button';
+            go.className = 'link-button';
+            go.textContent = p.text;
+            go.addEventListener('click', function () {
+                // A checklist item in a section that has been folded shut: open it so there is somewhere to go.
+                const section = p.el.closest ? p.el.closest('.checklist-section') : null;
+                if (section) section.classList.add('checklist-section-open');
+                WcmaFormProblems.focus(p.el);
+            });
+            li.appendChild(go);
+            list.appendChild(li);
+        });
+        errorEl.appendChild(list);
+        errorEl.hidden = false;
+        errorEl.classList.add('show');
+    }
 
     // Toggling endurance -> standard hides #endurance-drivers-card, but the
     // co-driver name inputs stay in the DOM with `required` set, which fails
@@ -321,97 +379,124 @@
     }
 
     document.getElementById('tech-sheet-form').addEventListener('submit', function (e) {
-        const errorEl = document.getElementById('tech-sheet-error');
-        errorEl.hidden = true;
         clearAllHighlights();
         WcmaFormProblems.clearAll(form);
+        const problems = [];   // {el, text, key}: every problem, found in one pass
 
+        // 1. Plain required fields and radio groups. checkValidity() fires `invalid`, which wire() turns
+        //    into the words next to the field.
+        const seenAnchors = [];
+        Array.prototype.forEach.call(form.elements, function (el) {
+            if (!el.willValidate || el.checkValidity()) return;
+            const anchor = (el.type === 'radio' && el.closest('[data-radio-group]')) || el;
+            if (seenAnchors.indexOf(anchor) !== -1) return;
+            seenAnchors.push(anchor);
+            const msg = anchor.nextElementSibling;
+            problems.push({ el: el, text: msg && msg.classList.contains('field-message') ? msg.textContent : 'Fill in a required field.' });
+        });
+
+        // 2. The vehicle checklist.
         if (!checklistWidget.isComplete()) {
-            e.preventDefault();
             checklistWidget.highlightIncomplete();
-            errorEl.textContent = 'Please mark every checklist item OK or N/A before submitting — the missing items are highlighted.';
-            errorEl.hidden = false;
-            errorEl.classList.add('show');
-            WcmaFormProblems.show(firstOf('#checklist-container .checklist-item-row.field-error', document.getElementById('checklist-container')),
-                'Mark this item OK or N/A.');
-            return;
+            const firstRow = document.querySelector('#checklist-container .checklist-item-row.field-error');
+            const missing = checklistWidget.missingCount();
+            if (firstRow) {
+                WcmaFormProblems.mark(firstRow, 'Mark this item OK or N/A.');
+                problems.push({ el: firstRow, text: missing === 1 ? 'Vehicle checklist: 1 item to mark OK or N/A.' : 'Vehicle checklist: ' + missing + ' items to mark OK or N/A.' });
+            }
         }
+
+        // 3. Driver 1.
         if (!WcmaDriverChoice.driverChoiceComplete(driver1Choice.value, driver1NewName.value)) {
-            e.preventDefault();
             const driverField = driver1Choice.value === WcmaDriverChoice.NEW ? driver1NewName : driver1Choice;
             driverField.classList.add('error');
-            errorEl.textContent = 'Choose Driver 1, or pick "+ Add a co-driver" and type their name.';
-            errorEl.hidden = false;
-            errorEl.classList.add('show');
-            WcmaFormProblems.show(driverField, errorEl.textContent);
-            return;
-        }
-        if (!isEquipmentComplete(driver1State)) {
-            e.preventDefault();
-            driver1Equipment.highlightIncomplete();
-            errorEl.textContent = 'Please confirm all of Driver 1\'s safety equipment (including helmet and suit ratings) before submitting — the missing items are highlighted.';
-            errorEl.hidden = false;
-            errorEl.classList.add('show');
-            WcmaFormProblems.show(firstOf('#equipment-container .field-error', document.getElementById('equipment-container')),
-                'Confirm this item, or enter its rating.');
-            return;
-        }
-        if (sheetTypeSelect && sheetTypeSelect.value === 'endurance') {
-            const incompleteDriver = additionalDrivers.find(function (d) {
-                return !WcmaDriverChoice.driverChoiceComplete(d.picker.select.value, d.picker.nameInput.value) || !isEquipmentComplete(d.state);
-            });
-            if (incompleteDriver) {
-                e.preventDefault();
-                if (!WcmaDriverChoice.driverChoiceComplete(incompleteDriver.picker.select.value, incompleteDriver.picker.nameInput.value)) {
-                    (incompleteDriver.picker.select.value === WcmaDriverChoice.NEW ? incompleteDriver.picker.nameInput : incompleteDriver.picker.select).classList.add('error');
-                }
-                incompleteDriver.highlightIncomplete();
-                errorEl.textContent = 'Please choose a driver and confirm all safety equipment for every added driver (Driver ' + incompleteDriver.number + ') before submitting — the missing fields are highlighted.';
-                errorEl.hidden = false;
-                errorEl.classList.add('show');
-                WcmaFormProblems.show(incompleteDriver.wrap.querySelector('.error, .field-error') || incompleteDriver.wrap, errorEl.textContent);
-                return;
+            if (!problems.some(function (p) { return p.el === driverField; })) {
+                WcmaFormProblems.mark(driverField, 'Choose Driver 1, or pick "+ Add a co-driver" and type their name.');
+                problems.push({ el: driverField, text: 'Choose Driver 1, or pick "+ Add a co-driver" and type their name.' });
             }
+        }
+
+        // 4. Driver 1's safety equipment.
+        if (!isEquipmentComplete(driver1State)) {
+            driver1Equipment.highlightIncomplete();
+            const firstItem = firstOf('#equipment-container .checklist-item-row.field-error', document.getElementById('equipment-container'));
+            const missing = driver1Equipment.missingCount();
+            WcmaFormProblems.mark(firstItem, 'Tick "I have this", or enter the rating.');
+            problems.push({ el: firstItem, text: 'Driver safety equipment: ' + missing + (missing === 1 ? ' item' : ' items') + ' to confirm.' });
+        }
+
+        // 5. Added drivers on an endurance sheet.
+        if (sheetTypeSelect && sheetTypeSelect.value === 'endurance') {
+            additionalDrivers.forEach(function (d) {
+                const choiceOk = WcmaDriverChoice.driverChoiceComplete(d.picker.select.value, d.picker.nameInput.value);
+                if (choiceOk && isEquipmentComplete(d.state)) return;
+                if (!choiceOk) (d.picker.select.value === WcmaDriverChoice.NEW ? d.picker.nameInput : d.picker.select).classList.add('error');
+                d.highlightIncomplete();
+                const target = d.wrap.querySelector('.error, .field-error') || d.wrap;
+                const text = 'Driver ' + d.number + ': choose the driver and confirm all their safety equipment.';
+                if (!problems.some(function (p) { return p.el === target; })) {
+                    WcmaFormProblems.mark(target, text);
+                    problems.push({ el: target, text: text });
+                }
+            });
             const rows = [{ choice: driver1Choice.value, newName: driver1NewName.value, select: driver1Choice, nameInput: driver1NewName }]
                 .concat(additionalDrivers.map(function (d) {
                     return { choice: d.picker.select.value, newName: d.picker.nameInput.value, select: d.picker.select, nameInput: d.picker.nameInput };
                 }));
             const dupIndex = WcmaDriverChoice.duplicateDriverChoice(rows, window.TECH_SHEET_DRIVERS || []);
             if (dupIndex !== -1) {
-                e.preventDefault();
                 const dup = rows[dupIndex];
-                (dup.choice === WcmaDriverChoice.NEW ? dup.nameInput : dup.select).classList.add('error');
+                const dupField = dup.choice === WcmaDriverChoice.NEW ? dup.nameInput : dup.select;
+                dupField.classList.add('error');
                 let name = dup.newName.trim();
                 if (dup.choice !== WcmaDriverChoice.NEW) {
                     const match = (window.TECH_SHEET_DRIVERS || []).find(function (d) { return String(d.id) === String(dup.choice); });
                     name = match ? match.name : 'This driver';
                 }
-                errorEl.textContent = name + ' is on this sheet twice.';
-                errorEl.hidden = false;
-                errorEl.classList.add('show');
-                WcmaFormProblems.show(dup.choice === WcmaDriverChoice.NEW ? dup.nameInput : dup.select, errorEl.textContent);
-                return;
+                if (name !== '' && !problems.some(function (p) { return p.el === dupField; })) {
+                    WcmaFormProblems.mark(dupField, name + ' is on this sheet twice.');
+                    problems.push({ el: dupField, text: name + ' is on this sheet twice.' });
+                }
             }
         }
+
+        // 6. Signatures.
         const one = oneSigner();
         const entrantSignatureMissing = entrantPad.isEmpty() && !window.TECH_SHEET_HAS_ENTRANT_SIGNATURE;
         const driverSignatureMissing = !one && driverPad.isEmpty() && !window.TECH_SHEET_HAS_DRIVER_SIGNATURE;
+        sigMissing.entrant = entrantSignatureMissing;
+        sigMissing.driver = driverSignatureMissing;
         if (entrantSignatureMissing || driverSignatureMissing) {
-            e.preventDefault();
             if (entrantSignatureMissing) entrantSigWrap.classList.add('field-error');
             if (driverSignatureMissing) driverSigWrap.classList.add('field-error');
             const box = one ? 'the signature box' : (entrantSignatureMissing && driverSignatureMissing ? 'both signature boxes'
                 : (entrantSignatureMissing ? 'the Entrant\'s signature box' : 'the Driver\'s signature box'));
             sigError.textContent = 'Please sign in ' + box + '.';
-            sigMissing.entrant = entrantSignatureMissing;
-            sigMissing.driver = driverSignatureMissing;
             sigError.hidden = false;
-            errorEl.textContent = sigError.textContent;
-            errorEl.hidden = false;
-            errorEl.classList.add('show');
-            sigError.scrollIntoView({ block: 'center' });
+            problems.push({ el: entrantSignatureMissing ? entrantSigWrap : driverSigWrap, text: sigError.textContent, key: 'sig' });
+        }
+
+        if (problems.length > 0) {
+            e.preventDefault();
+            // Page order, so the list reads top to bottom and the first problem is the highest on the page.
+            problems.sort(function (a, b) { return a.el === b.el ? 0 : (a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1); });
+            currentProblems = problems;
+            renderSummary();
+            const first = problems[0];
+            if (problems.length > 1) {
+                const count = document.createElement('p');
+                count.className = 'field-message-count';
+                count.textContent = problems.length + ' things to finish. Each one is marked, and they are all listed above the Submit button.';
+                const anchor = first.key === 'sig' ? sigError : ((first.el.type === 'radio' && first.el.closest('[data-radio-group]')) || first.el);
+                const after = anchor.nextElementSibling && anchor.nextElementSibling.classList.contains('field-message') ? anchor.nextElementSibling : anchor;
+                after.insertAdjacentElement('afterend', count);
+            }
+            if (first.key === 'sig') sigError.scrollIntoView({ block: 'center' });
+            else WcmaFormProblems.focus(first.el);
             return;
         }
+        currentProblems = [];
+        renderSummary();
 
         document.getElementById('checklist_json').value = JSON.stringify(checklistWidget.getState());
         document.getElementById('driver1_equipment_json').value = JSON.stringify(driver1State);
