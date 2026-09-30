@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
         case 'formats':
             $r = eventsSetFormats($pdo, $uid, (int)($_POST['event_id'] ?? 0), (int)($_POST['car_id'] ?? 0),
-                entryFormatsFromPost($_POST) ?? [], !empty($_POST['supps_ack']));
+                entryFormatsFromPost($_POST) ?? [], !empty($_POST['supps_ack']), entryDriversFromPost($_POST));
             setFlash($r['ok'] ? 'Saved what this car is running.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
             break;
         case 'untag':
@@ -129,6 +129,10 @@ foreach ($in['drivers'] as $did => $d) {
                   'ice' => $ice];
 }
 
+// Who can drive each car: you, then its co-drivers (co-drivers spec §3).
+$carDrivers = [];
+foreach (array_keys($in['cars']) as $cid) $carDrivers[(int)$cid] = eventsCarDriverChoices($pdo, $uid, (int)$cid);
+
 $userRow = db_find_user_by_id($pdo, $uid);
 $selfDriver = db_get_self_driver($pdo, $uid);
 // Only offer the prompt when the driver has never made a media consent choice at all: once they
@@ -147,6 +151,7 @@ echo renderHomeHtml([
     'csrf' => generateCsrfToken(), 'offerReminders' => remindersShouldOffer($userRow),
     'mediaPrompt' => $mediaPrompt,
     'tagDefaults' => $tagDefaults,
+    'carDrivers' => $carDrivers,
     'focusEventId' => is_string($_GET['event'] ?? null) && ctype_digit($_GET['event']) ? (int)$_GET['event'] : null,
 ]);
 renderPageEnd();

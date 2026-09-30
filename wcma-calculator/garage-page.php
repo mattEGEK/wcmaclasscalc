@@ -209,14 +209,19 @@ function garageNextStepHtml(array $vm): string {
     return $out . '</div></section>';
 }
 
-/** A tagged summer event's formats with a "Change" form (TA/Drift spec §3 Entry); '' for ice. */
-function garageRenderEntryFormatsHtml(array $event, int $carId, array $formats, string $csrf, ?string $suppsAckAt = null): string {
-    if (($event['discipline'] ?? 'summer') === 'ice') return '';
-    return '<details class="hub-entry-formats"><summary>' . h(entryFormatsLabel($formats)) . ' · Change</summary>'
+/** A tagged event's formats (summer only) and, when $drivers is given, who's driving; '' when neither applies. */
+function garageRenderEntryFormatsHtml(array $event, int $carId, array $formats, string $csrf, ?string $suppsAckAt = null, array $drivers = [], array $tickedIds = []): string {
+    $isIce = ($event['discipline'] ?? 'summer') === 'ice';
+    if ($isIce && $drivers === []) return '';
+    $summary = [];
+    if (!$isIce) $summary[] = entryFormatsLabel($formats);
+    if ($drivers !== []) $summary[] = homeDrivingLabel($drivers, $tickedIds);
+    return '<details class="hub-entry-formats"><summary>' . h(implode(' · ', $summary)) . ' · Change</summary>'
         . '<form method="post" action="garage.php" class="hub-line hub-tag-form">' . garageCsrfField($csrf)
         . '<input type="hidden" name="action" value="formats"><input type="hidden" name="car_id" value="' . $carId . '">'
         . '<input type="hidden" name="event_id" value="' . (int)$event['id'] . '">'
-        . homeFormatsFieldsHtml($event, $formats, $suppsAckAt !== null)
+        . ($isIce ? '' : homeFormatsFieldsHtml($event, $formats, $suppsAckAt !== null))
+        . ($drivers !== [] ? homeDriversFieldsHtml($drivers, $tickedIds) : '')
         . '<button type="submit" class="hub-btn hub-btn--secondary">Save</button></form></details>';
 }
 
@@ -378,7 +383,8 @@ function renderGarageCarHtml(array $vm): string {
             }
         }
         if (!$archived) {
-            $out .= garageRenderEntryFormatsHtml($e, $id, $row['formats'] ?? ['race'], $csrf, $row['suppsAckAt'] ?? null)
+            $out .= garageRenderEntryFormatsHtml($e, $id, $row['formats'] ?? ['race'], $csrf, $row['suppsAckAt'] ?? null,
+                    $vm['carDriverChoices'] ?? [], $row['driverIds'] ?? [])
                 . garagePostForm($csrf, 'untag', $id, 'Not going anymore', 'hub-btn hub-btn--link', '', ['event_id' => $eid]);
         }
         $out .= '</div>';

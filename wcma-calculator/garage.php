@@ -115,7 +115,9 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
     $today = date('Y-m-d');
     $events = garageCarEvents($allSheets, $tagged, db_get_active_events($pdo), $eventNames, $today, $formatsByEvent);
     foreach ($events['tagged'] as $i => $row) {
-        $events['tagged'][$i]['suppsAckAt'] = db_get_entry($pdo, $uid, (int)$row['event']['id'], $carId)['supps_ack_at'] ?? null;
+        $entryRow = db_get_entry($pdo, $uid, (int)$row['event']['id'], $carId);
+        $events['tagged'][$i]['suppsAckAt'] = $entryRow['supps_ack_at'] ?? null;
+        $events['tagged'][$i]['driverIds'] = $entryRow !== null ? db_get_entry_driver_ids($pdo, (int)$entryRow['id']) : [];
     }
 
     $ownerGear = db_get_user_gear_records($pdo, $uid);
@@ -153,6 +155,7 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         'revokeNotes' => garageRevokeNotes($allSheets),
         'tagDefaults' => eventsDefaultFormats($pdo, $car, ['id' => 0, 'discipline' => 'summer', 'host_club' => 'any']),
         'coDrivers' => db_get_car_drivers($pdo, $carId),
+        'carDriverChoices' => eventsCarDriverChoices($pdo, $uid, $carId),
         'coDriverOptions' => array_values(array_filter(db_get_user_drivers($pdo, $uid), fn(array $d): bool =>
             (int)($d['user_id'] ?? 0) !== $uid && !in_array((int)$d['id'], array_map(fn(array $c): int => (int)$c['id'], db_get_car_drivers($pdo, $carId)), true))),
     ]);
@@ -199,7 +202,7 @@ function handleGaragePost(PDO $pdo, int $uid, string $action): void {
             header('Location: ' . ($event !== null ? garageAfterTagUrl($carId, $event, ($_POST['then'] ?? '') === 'sheet') : 'garage.php?car=' . $carId));
             return;
         case 'formats':
-            $r = eventsSetFormats($pdo, $uid, (int)($_POST['event_id'] ?? 0), $carId, entryFormatsFromPost($_POST) ?? [], !empty($_POST['supps_ack']));
+            $r = eventsSetFormats($pdo, $uid, (int)($_POST['event_id'] ?? 0), $carId, entryFormatsFromPost($_POST) ?? [], !empty($_POST['supps_ack']), entryDriversFromPost($_POST));
             setFlash($r['ok'] ? 'Saved what this car is running.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
             header('Location: garage.php?car=' . $carId . '#events');
             return;
