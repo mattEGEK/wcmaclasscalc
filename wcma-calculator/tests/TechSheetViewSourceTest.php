@@ -25,7 +25,7 @@ final class TechSheetViewSourceTest extends TestCase
 
     public function testRenderedSheetIsWrappedForScreenSizing(): void
     {
-        $this->assertStringContainsString('<div class="sheet-doc"><?= renderTechSheetHtml(', $this->viewBody());
+        $this->assertStringContainsString('<div class="sheet-doc hub-card"><?= renderTechSheetHtml(', $this->viewBody());
     }
 
     public function testSummerFormLoadsFormProblemsAndMarksRequiredFields(): void

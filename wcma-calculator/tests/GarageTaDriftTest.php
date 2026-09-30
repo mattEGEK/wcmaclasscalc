@@ -110,7 +110,7 @@ final class GarageTaDriftTest extends TestCase
 
         $sheets = [$this->sheet(9, ['status' => 'teched', 'accepted_via' => 'photos']), $this->sheet(10, ['club' => 'NASCC', 'photo_status' => 'submitted'])];
         $this->assertSame([
-            ['club' => 'NASCC', 'state' => 'pending_review', 'label' => 'Photos pending review'],
+            ['club' => 'NASCC', 'state' => 'pending_review', 'label' => 'Photos with an inspector'],
             ['club' => 'WSCC', 'state' => 'accepted', 'label' => 'Pre-teched TA/Drift WSCC 2026'],
         ], garageTaDriftSummaries(3, $sheets, [], 2026));
         $this->assertSame([], garageTaDriftSummaries(3, $sheets, [], 2027));   // another year
@@ -158,7 +158,7 @@ final class GarageTaDriftTest extends TestCase
         $this->assertStringContainsString('<span class="hub-status hub-status--todo">No TA/Drift tech sheet yet</span>', $html);
         $this->assertStringContainsString('href="tech-sheets.php?action=new-ta-drift&amp;car_id=3&amp;event_id=20">Submit TA/Drift tech sheet</a>', $html);
         $this->assertStringNotContainsString('Declare a class first', $html);
-        $this->assertStringContainsString('<details class="hub-entry-formats"><summary>Time Attack · Change</summary>', $html);
+        $this->assertStringContainsString('<details class="hub-entry-formats"><summary>Time Attack · <span class="hub-entry-change">Change</span></summary>', $html);
         $this->assertStringContainsString('<form method="post" action="garage.php" class="hub-line hub-tag-form">', $html);
     }
 

@@ -72,7 +72,7 @@ function renderFeedbackListPage(array $rows, ?array $flash): void {
       <tr><td colspan="7" class="empty">No feedback yet.</td></tr>
     <?php else: foreach ($rows as $f): ?>
       <tr>
-        <td><?= h(date('M j, Y H:i', strtotime($f['created_at']))) ?></td>
+        <td><?= h(hubDateTime((string)$f['created_at'])) ?></td>
         <td><?= h(feedbackTypeLabel($f['type'])) ?></td>
         <td><?= h(mb_strimwidth((string)preg_replace('/\s+/u', ' ', $f['message']), 0, 80, '…')) ?></td>
         <td><?= h(feedbackReporterText($f)) ?></td>
@@ -92,7 +92,7 @@ function renderFeedbackViewPage(array $f, string $csrf, ?array $flash, bool $git
   <p><a href="admin.php?action=feedback">← Back to list</a></p>
 
   <div class="detail-card">
-    <h2><?= h(feedbackTypeLabel($f['type'])) ?> — <?= h(date('M j, Y H:i', strtotime($f['created_at']))) ?></h2>
+    <h2><?= h(feedbackTypeLabel($f['type'])) ?> — <?= h(hubDateTime((string)$f['created_at'])) ?></h2>
     <p><?= nl2br(h($f['message'])) ?></p>
     <table class="detail-table">
       <tr><td>From</td><td><?= h(feedbackReporterText($f)) ?></td></tr>

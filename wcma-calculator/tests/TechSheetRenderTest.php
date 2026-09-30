@@ -112,7 +112,7 @@ final class TechSheetRenderTest extends TestCase
     {
         require_once __DIR__ . '/../tech-sheet-render.php';
         $html = renderTechSheetHtml($this->sampleSheet(), [], ['name' => 'Spring Sprint', 'event_date' => '2026-05-10']);
-        $this->assertStringContainsString('Submitted — awaiting review', $html);
+        $this->assertStringContainsString('Submitted — not yet teched', $html);
         $this->assertStringNotContainsString('not a certification', $html);
     }
 

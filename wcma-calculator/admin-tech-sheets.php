@@ -68,6 +68,13 @@ function adminTechSheetSigResolver(int $techSheetId): callable {
     };
 }
 
+/** "#17 Mazda Miata — Fall Sprint": what an inspector calls the sheet at the track. */
+function techSheetReviewTitle(array $sheet, array $event): string {
+    $car = '#' . $sheet['car_number'] . ' ' . trim($sheet['car_make'] . ' ' . $sheet['car_model']);
+    $name = trim((string)($event['name'] ?? ''));
+    return $name !== '' ? $car . ' — ' . $name : $car;
+}
+
 function renderTechSheetViewPage(array $sheet, array $drivers, array $event, array $carStatus, ?array $reviewer, string $csrf, ?array $flash, array $snapshot, array $gearLinks = []): void {
     $id = (int)$sheet['id'];
     $accepted = $sheet['status'] === 'teched';
@@ -78,16 +85,21 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
     if ($accepted) {
         $how = ($sheet['accepted_via'] ?? 'in_person') === 'photos' ? 'remotely' : 'in person';
         $who = $reviewer ? ' by ' . $reviewer['name'] : '';
-        $when = !empty($sheet['reviewed_at']) ? ' on ' . date('M j, Y g:i A', strtotime($sheet['reviewed_at'])) : '';
+        $when = !empty($sheet['reviewed_at']) ? ' on ' . hubDateTime((string)$sheet['reviewed_at']) : '';
         $acceptedLine = 'Accepted ' . $how . $who . $when . '.';
     }
-    renderPageStart('Tech Sheet #' . $id, 'inspect', ['flash' => $flash, 'subnav' => inspectSubnavHtml('roster')]);
+    // The page is named for the car and event, not the database id (UX review 2026-09-30 §M4).
+    $title = techSheetReviewTitle($sheet, $event);
+    // Photos waiting for review: the photo decision is what this visit is for, so teching in
+    // person folds away until it is asked for (§H5).
+    $photosAwaiting = !$accepted && ($sheet['photo_status'] ?? null) === 'submitted';
+    renderPageStart($title, 'inspect', ['flash' => $flash, 'subnav' => inspectSubnavHtml('roster')]);
     ?>
-<p><a href="inspect.php?event=<?= (int)$sheet['event_id'] ?>">&larr; Back to the roster</a></p>
-<h1 class="hub-page-title">Tech Sheet #<?= $id ?></h1>
+<p class="hub-back"><a class="hub-back-link" href="inspect.php?event=<?= (int)$sheet['event_id'] ?>">&larr; Back to the roster</a></p>
+<h1 class="hub-page-title"><?= h($title) ?></h1>
   <div class="detail-card">
     <h2>Tech review</h2>
-    <p>Car #<?= h($sheet['car_number']) ?> — <?= h(trim($sheet['car_make'] . ' ' . $sheet['car_model'])) ?> (<?= h($sheet['entrant_name']) ?>)</p>
+    <p>Car #<?= h($sheet['car_number']) ?> — <?= h(trim($sheet['car_make'] . ' ' . $sheet['car_model'])) ?> (<?= h($sheet['entrant_name']) ?>) · sheet <?= $id ?></p>
     <?php if (techSheetIsTaDrift($sheet)): ?><p><span class="admin-chip admin-chip--info">TA/Drift</span> <?= h((string)$sheet['club']) ?> supplementary regulations<?= !empty($sheet['caged']) ? ' · roll bar or cage' : '' ?></p><?php endif; ?>
     <p>Car status: <strong class="<?= h(techCarStatusBadgeClass($carStatus['state'])) ?>"><?= h($statusLabel) ?></strong></p>
     <?php if ($gearLinks): ?><p>Driver gear:</p><?= renderGearChips($gearLinks, 'admin', ['sheet_season' => (int)($sheet['season'] ?? 0), 'csrf' => $csrf, 'sheet_id' => $id, 'hidden' => ['back' => 'sheet']]) ?><?php endif; ?>
@@ -103,6 +115,8 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
       <button type="submit" class="btn btn-secondary">Revoke acceptance</button>
     </form>
     <?php else: ?>
+    <?php if ($photosAwaiting): ?><p class="hub-note">This car's pre-tech photos are waiting for your review below.</p>
+    <details class="inspect-inperson" id="tech-inperson"><summary>Is the car in front of you? Tech it in person instead</summary><?php endif; ?>
     <p class="form-hint">Accepting records that what the competitor submitted matches the car in front of you.</p>
     <form method="post" action="inspect.php?action=tech-sheet-accept" id="tech-accept-form">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
@@ -112,14 +126,15 @@ function renderTechSheetViewPage(array $sheet, array $drivers, array $event, arr
       <label>Tech representative signature</label>
       <div class="sig-pad-wrap"><canvas id="tech-sig-canvas"></canvas></div>
       <div class="sig-pad-actions"><button type="button" class="link-button" data-clear-sig="tech">Clear</button></div>
-      <button type="submit" class="btn btn-primary" style="margin-top:.75rem">Accept — teched in person</button>
+      <button type="submit" class="btn <?= $photosAwaiting ? 'btn-secondary' : 'btn-primary' ?>" style="margin-top:.75rem">Accept — teched in person</button>
     </form>
+    <?php if ($photosAwaiting): ?></details><?php endif; ?>
     <?php endif; ?>
   </div>
 
   <?php renderPretechReviewCard($sheet, $snapshot, $csrf); ?>
 
-  <?= renderTechSheetHtml($sheet, $drivers, $event, adminTechSheetSigResolver($id), 'assets/wcma-logo.png') ?>
+  <div class="sheet-doc hub-card"><?= renderTechSheetHtml($sheet, $drivers, $event, adminTechSheetSigResolver($id), 'assets/wcma-logo.png') ?></div>
 <?php
     renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script><script src="js/form-feedback.js"></script>'
         . '<script src="js/signature-pad.js"></script><script src="js/admin-tech-review.js"></script>']);
@@ -179,7 +194,7 @@ function renderPretechReviewCard(array $sheet, array $snapshot, string $csrf): v
     $awaiting = $photoStatus === 'submitted' && $sheet['status'] === 'submitted';
     $statusLabels = [
         'draft' => 'The competitor has started adding photos (not submitted yet).',
-        'submitted' => 'Submitted: awaiting review.',
+        'submitted' => 'Submitted. Waiting for your review.',
         'needs_changes' => 'Sent back: waiting for the competitor to retake photos.',
         'accepted' => 'Photos reviewed and accepted.',
     ];
@@ -194,15 +209,16 @@ function renderPretechReviewCard(array $sheet, array $snapshot, string $csrf): v
     <form method="post" action="inspect.php?action=tech-sheet-photos-send-back" id="pretech-review-form">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
+      <div class="review-grid">
       <?php foreach ($photos as $key => $row):
           $req = photoRequirementByKey($key);
           $public = inspectionPublicPhoto($row);
       ?>
       <div class="pretech-card" data-key="<?= h($key) ?>">
         <h3><?= h($req['label'] ?? $key) ?>
-          <span class="pretech-status <?= $row['review_status'] === 'retake' ? 'badge-fail' : ($row['review_status'] === 'accepted' ? 'badge-ok' : 'badge-pending') ?>">
-            <?= h($row['review_status'] === 'retake' ? 'Retake requested' : ($row['review_status'] === 'accepted' ? 'Accepted' : 'Pending')) ?></span></h3>
-        <a href="<?= h($public['url']) ?>" target="_blank" rel="noopener"><img class="pretech-thumb" src="<?= h($public['url']) ?>" alt="<?= h($req['label'] ?? $key) ?>"></a>
+          <span class="pretech-status <?= $row['review_status'] === 'retake' ? 'badge-fail' : ($row['review_status'] === 'accepted' ? 'badge-ok' : 'badge-optional') ?>">
+            <?= h($row['review_status'] === 'retake' ? 'Retake requested' : ($row['review_status'] === 'accepted' ? 'Accepted' : 'To review')) ?></span></h3>
+        <a href="<?= h($public['url']) ?>" target="_blank" rel="noopener" title="Open the full-size photo"><img class="pretech-thumb" src="<?= h($public['url']) ?>" alt="<?= h($req['label'] ?? $key) ?>"></a>
         <?php foreach ($public['typed'] as $name => $value): ?>
           <p class="form-hint"><?= h(ucfirst((string)$name)) ?>: <strong><?= h((string)$value) ?></strong></p>
         <?php endforeach; ?>
@@ -210,23 +226,23 @@ function renderPretechReviewCard(array $sheet, array $snapshot, string $csrf): v
           <p class="badge-fail">Note sent: <?= h((string)$row['reviewer_note']) ?></p>
         <?php endif; ?>
         <?php if ($awaiting): ?>
-          <label><input type="checkbox" name="retake[<?= h($key) ?>]" value="1"> Needs a retake</label>
-          <input type="text" name="note[<?= h($key) ?>]" maxlength="500" placeholder="What is wrong with this photo?">
+          <label class="review-retake"><input type="checkbox" name="retake[<?= h($key) ?>]" value="1"> Needs a retake</label>
+          <input type="text" class="review-note" name="note[<?= h($key) ?>]" maxlength="500" placeholder="What is wrong with this photo?" aria-label="What is wrong with the <?= h($req['label'] ?? $key) ?> photo?">
         <?php endif; ?>
       </div>
       <?php endforeach; ?>
-
-      <?php if ($awaiting): ?>
-      <button type="submit" class="btn btn-secondary" id="pretech-sendback-btn">Send back for retakes</button>
-      <?php endif; ?>
+      </div>
     </form>
 
     <?php if ($awaiting): ?>
-    <form method="post" action="inspect.php?action=tech-sheet-photos-accept" style="margin-top:.75rem">
-      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
-      <input type="hidden" name="id" value="<?= $id ?>">
-      <button type="submit" class="btn btn-primary" id="pretech-accept-btn">Accept photos (pre-teched)</button>
-    </form>
+    <div class="review-bar">
+      <form method="post" action="inspect.php?action=tech-sheet-photos-accept">
+        <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+        <input type="hidden" name="id" value="<?= $id ?>">
+        <button type="submit" class="btn btn-primary" id="pretech-accept-btn">Accept photos (pre-teched)</button>
+      </form>
+      <button type="submit" form="pretech-review-form" class="btn btn-secondary" id="pretech-sendback-btn">Send back for retakes</button>
+    </div>
     <?php endif; ?>
   </div>
 <?php

@@ -30,7 +30,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
   min-height: var(--hub-tap);
   display: inline-flex;
   align-items: center;
-  padding: 0 14px;
+  padding: 0 12px;
   font-weight: 600;
   color: var(--hub-ink);
   text-decoration: none;
@@ -41,9 +41,36 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .hub-nav-staff a, .hub-nav-staff .hub-nav-current { color: var(--hub-ink-2); }
 .hub-nav-staff + .hub-nav-staff { border-left: 0; margin-left: 0; padding-left: 0; }
 
-/* Account and menu */
-.hub-account { margin-left: auto; font-size: 16px; }
+/* Account and menu. The name is cut short rather than pushing Profile and Sign out onto a second line. */
+.hub-account { margin-left: auto; font-size: 16px; display: flex; align-items: center; gap: 2px; white-space: nowrap; flex: none; }
+.hub-account-name { display: inline-block; max-width: 16ch; overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 .hub-menu-btn { display: none; }
+.hub-nav { min-width: 0; }
+.hub-nav a, .hub-nav-current { white-space: nowrap; }
+
+/* The Menu button replaces the nav row before it can wrap: below 900px for members, and below
+   1180px for staff, whose nav has up to three more items (UX review 2026-09-30 §H1). */
+@media screen and (max-width: 900px) {
+  .hub-menu-btn { display: inline-flex; align-items: center; justify-content: center; min-height: var(--hub-tap);
+    border: 2px solid var(--hub-ink); border-radius: 8px; background: #fff; font-weight: 700; margin-left: auto; }
+  #hub-nav-list { display: none; flex-basis: 100%; }
+  #hub-nav-list.is-open { display: flex; flex-direction: column; width: 100%; }
+  .hub-nav:has(.is-open) { flex-basis: 100%; }
+  .hub-header-row { flex-wrap: wrap; }
+  .hub-account { flex-basis: 100%; margin-left: 0; }
+  .hub-nav-staff { border-left: 0; margin-left: 0; padding-left: 0; }
+}
+@media screen and (min-width: 901px) and (max-width: 1179px) {
+  .hub-header--staff .hub-menu-btn { display: inline-flex; align-items: center; justify-content: center; min-height: var(--hub-tap);
+    border: 2px solid var(--hub-ink); border-radius: 8px; background: #fff; font-weight: 700; order: 2; }
+  .hub-header--staff #hub-nav-list { display: none; }
+  .hub-header--staff #hub-nav-list.is-open { display: flex; flex-direction: column; width: 100%; }
+  .hub-header--staff .hub-account { order: 1; }
+  .hub-header--staff .hub-nav { order: 3; }
+  .hub-header--staff .hub-nav:has(.is-open) { flex-basis: 100%; }
+  .hub-header--staff .hub-header-row { flex-wrap: wrap; }
+  .hub-header--staff .hub-nav-staff { border-left: 0; margin-left: 0; padding-left: 0; }
+}
 
 /* Stripe */
 .hub-stripe { height: 6px; background: repeating-linear-gradient(90deg, var(--hub-red) 0 60px, var(--hub-ink) 60px 64px); }
@@ -251,28 +278,6 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 
   .inspect-facts { grid-template-columns: 1fr; }
 
-  .hub-menu-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: var(--hub-tap);
-    border: 2px solid var(--hub-ink);
-    border-radius: 8px;
-    background: #fff;
-    font-weight: 700;
-    margin-left: auto;
-  }
-  #hub-nav-list {
-    display: none;
-    flex-basis: 100%;
-  }
-  #hub-nav-list.is-open {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-  }
-  .hub-header-row { flex-wrap: wrap; }
-  .hub-account { flex-basis: 100%; margin-left: 0; }
   .hub-todo-item { flex-wrap: wrap; }
   .hub-todo-actions { width: 100%; }
   .hub-todo-actions .hub-btn { flex: 1; }
@@ -544,7 +549,7 @@ body.hub .admin-table td > input[type="text"], body.hub .admin-table td > input[
 .admin-table .admin-col-label { width: 28%; }
 .admin-table .admin-col-url { width: 34%; }
 /* url and date fields look like the other fields (calculator.css's base field rule predates them). */
-body.hub input[type="url"], body.hub input[type="date"] { border: 1px solid var(--border-color); border-radius: var(--border-radius); background: #fff; box-sizing: border-box; }
+body.hub input[type="url"], body.hub input[type="date"], body.hub input[type="search"], body.hub input[type="tel"] { border: 1px solid var(--border-color); border-radius: var(--border-radius); background: #fff; box-sizing: border-box; width: 100%; }
 
 /* Settings: one card, three groups. */
 .admin-settings { max-width: 720px; }
@@ -601,3 +606,220 @@ body.hub .hub-todo { margin-bottom: 24px; }
 .admin-msr-status { padding-left: 18px; }
 .admin-msr-ignored { margin: 16px 0; }
 .admin-msr-ignored li { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+
+/* ── UX review 2026-09-30 ─────────────────────────────────────────────────────────────────── */
+
+/* H6. One palette and one link colour. The legacy calculator.css variables resolve to hub colours,
+   so its navy headings and table headers become ink and its light-blue links become red ink. */
+body.hub {
+  --primary-color: var(--hub-ink); --secondary-color: var(--hub-red-ink); --error-color: var(--hub-red);
+  --text-color: var(--hub-ink); --bg-color: var(--hub-paper);
+}
+:where(body.hub) a { color: var(--hub-red-ink); }
+body.hub .hub-account a, body.hub .hub-line > a:not(.hub-btn), body.hub .hub-glance-pills > a { color: var(--hub-red-ink); }
+body.hub .data-table th, body.hub .data-table th a { background: var(--hub-ink); color: #fff; }
+body.hub .data-table td a, body.hub .checklist-mark-all { color: var(--hub-red-ink); }
+
+/* H6. Cards from the older pages (tech sheet, pre-tech, gear, inspector) look like hub cards, with
+   the same headings as every other card. */
+body.hub .detail-card { background: var(--hub-card); border-radius: var(--hub-radius); box-shadow: 0 1px 2px rgba(0,0,0,.06); padding: 18px 20px; margin-bottom: 18px; }
+body.hub .detail-card h2, body.hub .detail-card h3 { font-size: 22px; color: var(--hub-ink); border-bottom: 0; padding-bottom: 0; margin: 0 0 12px; }
+body.hub .pretech-card { border: 0; border-radius: var(--hub-radius); box-shadow: 0 1px 2px rgba(0,0,0,.06); padding: 18px 20px; margin-bottom: 14px; }
+body.hub .pretech-card h3 { font-size: 19px; margin: 0 0 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+body.hub .pretech-status { margin-left: 0; }
+body.hub .pretech-toggle { display: flex; }
+body.hub .form-actions { border-top: 0; padding-top: 0; justify-content: flex-start; }
+body.hub .checklist-progress-wrap { margin-bottom: 14px; }
+
+/* L8. Heading rhythm: a title never touches what follows it. */
+:where(body.hub .hub-main) h1 { font-size: 36px; margin: 0 0 14px; }
+:where(body.hub .hub-main) h2 { margin: 28px 0 12px; }
+body.hub .hub-main h1 + .hub-intro, body.hub .hub-main h1 + .hub-section-intro { margin: -6px 0 18px; }
+body.hub .hub-main h2 + .hub-section-intro { margin: -4px 0 14px; }
+body.hub .hub-card > :is(h2, h3):first-child, body.hub .hub-card > form > :is(h2, h3):first-child { margin-top: 0; margin-bottom: 10px; }
+:where(body.hub .hub-card) h2 { font-size: 24px; }
+:where(body.hub .hub-card) h3 { font-size: 20px; margin: 18px 0 8px; }
+body.hub .hub-card > p:first-of-type { margin-top: 0; }
+body.hub .hub-card > :last-child { margin-bottom: 0; }
+body.hub .hub-main > .form-messages { margin: 0 0 18px; }
+body.hub .hub-intro { margin: 0 0 18px; }
+@media (max-width: 700px) { :where(body.hub .hub-main) h1 { font-size: 30px; } }
+
+/* M8. Fields are as wide as what goes in them, and nothing sits flush against the field above. */
+body.hub .hub-main :is(input[type="text"], input[type="email"], input[type="number"], input[type="password"], input[type="tel"], input[type="url"], input[type="search"], input[type="date"], select, .password-field) { max-width: 34rem; }
+body.hub .hub-main textarea { max-width: 46rem; }
+body.hub :is(input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="file"]), select, textarea, .password-field, .form-hint, .field-message) + label { margin-top: 14px; }
+body.hub :where(:not(.hub-line, .inspect-filters, .admin-toolbar, .admin-toolbar-filters, .hub-inline, .checklist-item-row, .password-field)) > :is(input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="file"]), select, textarea, .password-field) + :is(button, .btn, .hub-btn) { margin-top: 14px; }
+body.hub label + .form-hint { margin-top: 0; }
+
+/* Notes: a plain statement about where something stands. Grey is neutral, amber asks for something. */
+body.hub .hub-note { padding: 10px 14px; border-radius: 8px; border-left: 4px solid var(--hub-ink-2); background: var(--hub-paper); font-weight: 600; margin: 12px 0; }
+body.hub .hub-note--ok { border-left-color: var(--hub-ok); background: var(--hub-ok-bg); color: var(--hub-ok-ink); }
+body.hub .hub-note--todo { border-left-color: var(--hub-todo); background: var(--hub-todo-bg); color: var(--hub-red-ink); }
+body.hub .badge-optional, body.hub .badge-info { display: inline-block; padding: 2px 10px; border-radius: 999px; font-weight: 700; font-size: 16px; color: var(--hub-ink-2); background: var(--hub-paper); }
+
+/* H2. Every problem at once: the list above the Submit button, and the count at the first problem. */
+body.hub .problem-summary-lead { margin: 0 0 4px; font-weight: 700; }
+body.hub .problem-summary { margin: 0; padding-left: 1.2rem; }
+body.hub .problem-summary .link-button { text-align: left; min-height: 44px; color: var(--hub-red-ink); font-weight: 600; background: none; border: 0; cursor: pointer; }
+body.hub .field-message-count { margin: -6px 0 12px; font-size: 16px; color: var(--hub-ink-2); }
+body.hub button.checklist-mark-all { background: none; border: 0; text-decoration: underline; cursor: pointer; display: inline-flex; align-items: center; }
+body.hub .checklist-item-row.field-error { background: var(--hub-todo-bg); }
+@media (min-width: 481px) { body.hub #equipment-container .checklist-item-row input[type="text"] { max-width: 16rem; } }
+body.hub .checklist-progress-wrap { background: var(--hub-paper); }
+body.hub .hub-card .checklist-progress-wrap, body.hub .detail-card .checklist-progress-wrap { background: var(--hub-card); }
+
+/* H4. Home: an event is one row until "I'm going" is tapped. The button is the <summary>. */
+body.hub .hub-event-add { margin-top: 8px; }
+body.hub .hub-event-add > summary { display: inline-flex; list-style: none; padding: 0 18px; min-height: var(--hub-tap); }
+body.hub .hub-event-add > summary::-webkit-details-marker { display: none; }
+body.hub .hub-event-add > summary::marker { content: ""; }
+body.hub .hub-event-add[open] > summary { background: #fff; color: var(--hub-ink); border: 2px solid var(--hub-ink); }
+body.hub .hub-event-add[open] > summary::after { content: "\00a0\2715"; font-weight: 400; }
+.hub-tag-form--stack { display: block; margin-top: 14px; padding: 14px 16px; border: 1px solid var(--hub-line); border-radius: 8px; background: var(--hub-paper); }
+.hub-tag-form--stack > * + * { margin-top: 10px; }
+.hub-tag-form--stack .hub-formats { margin-top: 12px; }
+.hub-tag-form--stack label { margin-bottom: 4px; }
+.hub-tag-car, .hub-formats-fixed { margin: 0; }
+.hub-formats-fixed { flex-basis: 100%; }
+body.hub .hub-event > .hub-line:first-of-type { border-top: 0; }
+
+/* H3, M1. Sent-back work and the first-run steps reuse the to-do look. */
+body.hub .hub-todo--attention { list-style: none; padding: 0; margin: 0 0 24px; border-color: var(--hub-red); }
+body.hub .hub-steps { list-style: none; padding: 0; margin: 0 0 24px; }
+body.hub .hub-todo-item--done .hub-todo-n { background: var(--hub-ok-ink); color: #fff; }
+body.hub .hub-todo-item--done .hub-todo-txt strong { color: var(--hub-ink-2); }
+body.hub .hub-steps--plain { border: 0; margin: 0; }
+body.hub .hub-steps--plain .hub-todo-item { padding: 12px 0; }
+
+/* L6. A labelled pill wraps as one block of text, not as two columns. */
+body.hub .hub-pill.hub-status { display: inline-block; border-radius: 14px; padding: 4px 12px 4px 10px; }
+body.hub .hub-pill.hub-status::before { display: inline-block; margin-right: 6px; vertical-align: 1px; }
+
+/* M7, L2, L3. Car page, Drivers and Add a car. */
+body.hub .hub-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 0; }
+body.hub .hub-inline { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+body.hub .hub-main .hub-inline > input, body.hub .hub-main .hub-inline > select { flex: 1 1 12rem; max-width: 24rem; width: auto; }
+body.hub .drivers-row h3 { font-size: 22px; margin: 0 0 8px; }
+body.hub .drivers-row .drivers-gear { justify-content: flex-start; gap: 10px 12px; flex-wrap: wrap; margin: 0 0 10px; padding: 0; border: 0; }
+body.hub .drivers-licence { margin: 0 0 6px; }
+body.hub .hub-entry-change { color: var(--hub-red-ink); text-decoration: underline; font-weight: 600; }
+body.hub .hub-plain-list { margin: 0; padding-left: 1.2rem; }
+body.hub .hub-hero-links { display: flex; flex-wrap: wrap; gap: 0 24px; margin: 8px 0 0; }
+body.hub .garage-season-options label { text-align: center; padding: 8px; }
+body.hub .garage-season-options label span { line-height: 1.25; }
+body.hub .garage-fields .form-hint { margin: 6px 0 0; }
+body.hub .hub-steps--plain .hub-todo-item, body.hub .hub-steps .hub-todo-item { flex-wrap: nowrap; align-items: flex-start; }
+body.hub .hub-steps .hub-todo-item:has(.hub-todo-actions) { flex-wrap: wrap; }
+body.hub .hub-steps .hub-todo-txt { flex: 1; min-width: 0; }
+
+/* M3. Inspector filters: one row of labelled fields on desktop, stacked on phones. */
+body.hub .inspect-filters { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; padding: 16px 20px; }
+body.hub .inspect-filter { display: flex; flex-direction: column; gap: 4px; flex: 0 1 12rem; min-width: 0; }
+body.hub .inspect-filter--grow { flex: 1 1 16rem; }
+body.hub .inspect-filter--narrow { flex: 0 1 7rem; }
+body.hub .inspect-filter label { margin: 0; font-size: 16px; }
+body.hub .hub-main .inspect-filters .inspect-filter select, body.hub .hub-main .inspect-filters .inspect-filter input { width: 100%; max-width: none; }
+body.hub .inspect-filters .form-hint { flex-basis: 100%; margin: 0; }
+body.hub .inspect-bulk { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 0 0 18px; }
+body.hub .hub-back { margin: 0 0 4px; }
+@media (max-width: 700px) { body.hub .inspect-filter, body.hub .inspect-filter--narrow { flex: 1 1 100%; } }
+
+/* H5. Photo review: a grid of photos, the note box only where a retake is asked for, and the two
+   decisions in a bar that stays in view. Members' photo pages use the same grid. */
+body.hub .review-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; align-items: start; margin-bottom: 14px; }
+body.hub .review-grid .pretech-card { margin: 0; border: 1px solid var(--hub-line); box-shadow: none; }
+body.hub .hub-main > .review-grid .pretech-card { border: 0; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+body.hub .review-grid .pretech-thumb { width: 100%; max-height: 260px; object-fit: contain; background: var(--hub-paper); }
+body.hub .review-note { margin-top: 6px; }
+body.hub .pretech-card:not(:has(.review-retake input:checked)) .review-note { display: none; }
+body.hub .review-bar { position: sticky; bottom: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center;
+  margin: 0 -20px -18px; padding: 12px 20px; background: var(--hub-card); border-top: 2px solid var(--hub-ink); border-radius: 0 0 var(--hub-radius) var(--hub-radius); }
+body.hub .review-bar form { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin: 0; }
+body.hub .review-bar label { margin: 0; }
+body.hub .review-bar select { width: auto; }
+body.hub .review-bar .form-hint { flex-basis: 100%; margin: 0; order: 5; }
+body.hub .inspect-inperson, body.hub .inspect-sendback { margin-top: 12px; border-top: 1px solid var(--hub-line); }
+body.hub .inspect-inperson > summary, body.hub .inspect-sendback > summary { font-weight: 600; color: var(--hub-red-ink); }
+
+/* L7, L9. The calculation reads like the rest of the page, and sheet tables share one width. */
+body.hub .calc-table { font-family: inherit; font-variant-numeric: tabular-nums; width: 100%; font-size: 16px; }
+body.hub .calc-table td { font-family: inherit; }
+@media screen { body.hub .sheet-doc table { display: table; width: 100%; } }
+body.hub .gear-chip { font-size: 16px; }
+
+/* M2. Class Calculator. The overview and the explainer use hub colours; the class stays in view on a phone. */
+body.hub .two-step-panel { background: var(--hub-card); border: 0; border-left: 4px solid var(--hub-ink); border-radius: 8px; }
+body.hub .two-step-current, body.hub .two-step-note { color: var(--hub-ink-2); }
+body.hub .form-section h2 { font-size: 24px; color: var(--hub-ink); margin-top: 0; }
+body.hub .calc-locked-note { margin: 0; color: var(--hub-ink-2); font-size: 16px; grid-column: 1 / -1; }
+body.hub .calc-locked-note[hidden] { display: none; }
+body.hub #classing-form .form-actions { flex-wrap: wrap; justify-content: flex-start; gap: 10px; }
+body.hub #classing-form .error-message.show { color: var(--hub-red-ink); font-weight: 700; font-size: 16px; }
+body.hub #classing-form + * { margin-top: 0; }
+body.hub .calculator-page #form-messages { margin: 0 0 14px; }
+.class-dock { display: none; }
+@media screen and (max-width: 768px) {
+  /* The results box is part of the page on a phone: no box-in-a-box scrolling that cuts its last line off. */
+  body.hub .sticky-results-container { position: static; max-height: none; overflow: visible; }
+  body.hub a.class-dock:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    min-height: 56px; padding: 8px 16px; background: var(--hub-ink); color: #fff; text-decoration: none; box-shadow: 0 -2px 10px rgba(0,0,0,.25); }
+  body.hub .class-dock-label { font-size: 16px; color: #d6d9de; }
+  body.hub .class-dock-class { font-family: var(--hub-font-narrow); font-size: 26px; line-height: 1; color: #fff; }
+  body.hub .class-dock-ratio { font-size: 16px; color: #d6d9de; }
+  body.hub .class-dock-more { margin-left: auto; font-size: 16px; color: #fff; text-decoration: underline; white-space: nowrap; }
+  body.hub.has-class-dock .hub-footer { padding-bottom: 80px; }
+}
+@media print { .class-dock { display: none !important; } }
+
+/* M9, M11. Media section and the media profile form. */
+body.hub .media-review-item > h2 { margin-top: 0; }
+body.hub .media-review-item .media-entry { box-shadow: none; border: 1px solid var(--hub-line); margin-bottom: 14px; }
+body.hub .media-review-accept { margin: 0 0 4px; }
+body.hub .media-review-form { display: block; padding: 0 0 12px; }
+body.hub .media-sponsor-row[hidden] { display: none; }
+body.hub .media-form .media-check { align-items: flex-start; }
+
+/* L1, L10. Sign in, Create account and Profile. */
+body.hub .auth-box { margin: 0 auto; }
+body.hub .auth-box h1 { font-size: 32px; }
+body.hub .auth-box .btn-block { margin-top: 18px; }
+body.hub .auth-box .btn-google { margin-top: 10px; }
+body.hub .auth-box .checkbox-label { margin: 12px 0 0; }
+body.hub .form-field { margin-bottom: 14px; }
+body.hub .form-messages ul { margin: 0; padding-left: 1.2rem; }
+/* L12. Radio and checkbox text sits level with its control. */
+body.hub label:has(> input[type="radio"]), body.hub label:has(> input[type="checkbox"]) { line-height: 1.3; }
+body.hub fieldset.radio-row label, body.hub .admin-form label:has(> input[type="checkbox"]) { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+
+body.hub .media-entry-body h3 { margin-top: 0; }
+body.hub .hub-actions + .form-hint { margin-top: 10px; }
+body.hub a.badge-info, body.hub a.badge-ok, body.hub a.badge-fail, body.hub a.badge-pending { text-decoration: underline; }
+
+/* Found by the phone audit once it covered the calculator with numbers in and the guest nudge. */
+body.hub .boundary-gauge-label, body.hub .boundary-gauge-ticks { font-size: 16px; }
+body.hub .account-nudge-box, body.hub .account-nudge-box span, body.hub .account-nudge-box a, body.hub .post-submit-nudge, body.hub .post-submit-nudge a { font-size: 16px; }
+body.hub .account-nudge-box a, body.hub .post-submit-nudge a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; color: var(--hub-red-ink); }
+body.hub .account-nudge-box { background: var(--hub-card); border: 0; border-left: 4px solid var(--hub-ink); border-radius: 8px; color: var(--hub-ink); margin: 0 0 14px; }
+
+/* Found by the phone audit once it covered the Garage list and the Inspector section: links in card
+   titles, tables and status chips are 44px tall, and list summaries are 16px. */
+body.hub .garage-card-head h2 a, body.hub .inspect-facts dd a, body.hub .data-table td a, body.hub .gear-chip a {
+  display: inline-flex; align-items: center; min-height: 44px; }
+body.hub .gear-chip a { padding: 0 10px; }
+body.hub .list-summary, body.hub .list-summary a, body.hub .pagination, body.hub .pagination a { font-size: 16px; }
+body.hub .list-summary a, body.hub .pagination a { display: inline-flex; align-items: center; min-height: 44px; }
+
+body.hub .media-form h2:first-of-type { margin-top: 0; }
+body.hub .form-hint + :is(button, .hub-btn, .btn) { margin-top: 12px; }
+
+body.hub .garage-codriver-form { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--hub-line); }
+
+@media print {
+  body.hub { background: #fff; }
+  body.hub .sheet-doc.hub-card { box-shadow: none; padding: 0; }
+  body.hub .hub-main { padding-top: 0; }
+}
+
+/* Fields inside an admin dialog fill it, so they line up with its buttons. */
+body.hub .hub-main .admin-dialog .admin-field :is(input, select, textarea) { max-width: none; }

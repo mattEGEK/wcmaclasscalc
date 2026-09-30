@@ -8,17 +8,17 @@ require_once __DIR__ . '/revoke-lib.php';
 function driversRenderRow(array $row, string $csrf): string {
     $d = $row['driver'];
     $id = (int)$d['id'];
-    $out = '<div class="hub-card drivers-row"><div class="drivers-row-head"><h3>' . h((string)$d['name']) . ($row['isSelf'] ? ' (you)' : '') . '</h3>'
+    $out = '<div class="hub-card drivers-row"><h3>' . h((string)$d['name']) . ($row['isSelf'] ? ' (you)' : '') . '</h3>'
         . (($row['summer'] ?? true)
-            ? '<span class="hub-status ' . h(homeStatusClass($row['state'])) . '">' . h($row['label']) . '</span>'
-              . '<a class="hub-btn hub-btn--secondary" href="' . h($row['action']['url']) . '">' . h($row['action']['label']) . '</a>'
-            : '') . '</div>'
-        . '<form method="post" action="drivers.php" class="hub-line">'
+            ? '<p class="hub-line drivers-gear">Gear: <span class="hub-status ' . h(homeStatusClass($row['state'])) . '">' . h($row['label']) . '</span>'
+              . '<a class="hub-btn hub-btn--secondary" href="' . h($row['action']['url']) . '">' . h($row['action']['label']) . '</a></p>'
+            : '')
+        . '<form method="post" action="drivers.php" class="drivers-licence">'
         . '<input type="hidden" name="csrf_token" value="' . h($csrf) . '">'
         . '<input type="hidden" name="action" value="licence"><input type="hidden" name="driver_id" value="' . $id . '">'
         . '<label for="licence-' . $id . '">Licence number</label>'
-        . '<input type="text" id="licence-' . $id . '" name="licence_no" maxlength="40" value="' . h((string)($d['licence_no'] ?? '')) . '">'
-        . '<button type="submit" class="hub-btn hub-btn--link">Save</button></form>';
+        . '<div class="hub-inline"><input type="text" id="licence-' . $id . '" name="licence_no" maxlength="40" value="' . h((string)($d['licence_no'] ?? '')) . '">'
+        . '<button type="submit" class="hub-btn hub-btn--secondary">Save</button></div></form>';
     if ($row['summer'] ?? true) $out .= revokeNoticeHtml($row['revokeNote'] ?? null, 'Gear');
     if (!empty($row['ice'])) {
         $i = $row['ice'];

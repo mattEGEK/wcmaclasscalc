@@ -79,8 +79,8 @@ final class InspectPageTest extends TestCase
                 ['id' => 20, 'name' => 'Ice Race #1', 'event_date' => '2027-01-10', 'discipline' => 'ice', 'host_club' => 'NASCC'],
             ],
         ]));
-        $this->assertStringContainsString('>Fall Sprint (Oct 4, ' . date('Y') . ')</option>', $html);
-        $this->assertStringContainsString('>Ice Race #1 (Jan 10, 2027) · Ice NASCC</option>', $html);
+        $this->assertStringContainsString('>Fall Sprint (' . date('D, M j, Y', strtotime(date('Y') . '-10-04')) . ')</option>', $html);
+        $this->assertStringContainsString('>Ice Race #1 (Sun, Jan 10, 2027) · Ice NASCC</option>', $html);
     }
 
     public function testEmptyStates(): void
@@ -139,7 +139,7 @@ final class InspectPageTest extends TestCase
             ['review_status' => 'accepted', 'reviewed_at' => '2026-03-04 09:30:00', 'accepted_at' => '2026-03-04 09:30:00'],
             ['reviewer' => ['name' => 'Ivy Inspector']]
         ));
-        $this->assertStringContainsString('Reviewed by Ivy Inspector on Mar 4, 2026 9:30 AM.', $html);
+        $this->assertStringContainsString('Reviewed by Ivy Inspector on Mar 4, 2026, 9:30 AM.', $html);
         $this->assertStringContainsString('action=declaration-send-back"', $html);
         $this->assertStringNotContainsString('action=declaration-accept"', $html);
     }
@@ -243,7 +243,7 @@ final class InspectPageTest extends TestCase
         $this->assertStringContainsString('2 items are waiting, oldest first.', $html);
         $this->assertStringContainsString('#17 &lt;Miata&gt;', $html);
         $this->assertStringContainsString('href="inspect.php?action=tech-sheet&amp;id=12#pretech-review">Review</a>', $html);
-        $this->assertStringContainsString('waiting since Sep 1, 8:00 AM', $html);
+        $this->assertStringContainsString('waiting since Sep 1, ' . date('Y') . ', 8:00 AM', $html);
         $this->assertLessThan(strpos($html, 'Class declaration'), strpos($html, 'Car pre-tech photos'));
         $this->assertStringContainsString('1 item is waiting, oldest first.', renderInspectQueueHtml([$decl]));
         $this->assertStringContainsString('Nothing is waiting for review.', renderInspectQueueHtml([]));

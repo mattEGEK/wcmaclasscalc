@@ -34,6 +34,7 @@ window.WcmaTechChecklist = (function () {
             return {
                 getState: function () { return JSON.parse(JSON.stringify(kept)); },
                 isComplete: function () { return false; },
+                missingCount: function () { return 0; },
                 highlightIncomplete: function () {},
                 clearHighlights: function () {},
             };
@@ -92,12 +93,14 @@ window.WcmaTechChecklist = (function () {
             const body = document.createElement('div');
             body.className = 'checklist-section-body';
 
-            const markAll = document.createElement('div');
+            const markAll = document.createElement('button');
+            markAll.type = 'button';
             markAll.className = 'checklist-mark-all';
             markAll.textContent = 'Mark all OK';
             markAll.addEventListener('click', function () {
                 Object.keys(section.items).forEach(function (itemKey) {
                     state[itemKey].status = 'ok';
+                    clearProblem(itemKey);
                 });
                 refreshAllChips();
                 updateSectionCount();
@@ -125,6 +128,14 @@ window.WcmaTechChecklist = (function () {
                 countEl.textContent = c.done + ' of ' + c.total + ' complete';
             }
 
+            // An answered item is no longer a problem: drop its highlight and any message under it.
+            function clearProblem(itemKey) {
+                const row = rowRefs[itemKey];
+                row.classList.remove('field-error');
+                const next = row.nextElementSibling;
+                if (next && next.hasAttribute && next.hasAttribute('data-problem')) next.remove();
+            }
+
             Object.keys(section.items).forEach(function (itemKey) {
                 const row = document.createElement('div');
                 row.className = 'checklist-item-row';
@@ -144,12 +155,14 @@ window.WcmaTechChecklist = (function () {
 
                 okBtn.addEventListener('click', function () {
                     state[itemKey].status = 'ok';
+                    clearProblem(itemKey);
                     setChipVisual(itemKey);
                     updateSectionCount();
                     updateProgress();
                 });
                 naBtn.addEventListener('click', function () {
                     state[itemKey].status = 'na';
+                    clearProblem(itemKey);
                     setChipVisual(itemKey);
                     updateSectionCount();
                     updateProgress();
@@ -183,6 +196,7 @@ window.WcmaTechChecklist = (function () {
         return {
             getState: function () { return JSON.parse(JSON.stringify(state)); },
             isComplete: function () { return countComplete(sections, state).done === countComplete(sections, state).total; },
+            missingCount: function () { const c = countComplete(sections, state); return c.total - c.done; },
             // Marks every unfinished item's row and opens its section so the
             // highlight is actually visible, not hidden in a collapsed section.
             highlightIncomplete: function () {

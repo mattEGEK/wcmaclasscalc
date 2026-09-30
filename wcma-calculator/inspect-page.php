@@ -22,18 +22,18 @@ function renderInspectRosterHtml(array $vm): string {
         return $out . '<p class="hub-card">No events yet. An admin adds events under Admin, Events.</p>';
     }
     $out .= '<form method="get" action="inspect.php" class="hub-card inspect-filters">'
-        . '<label for="roster-event">Event</label><select id="roster-event" name="event">';
+        . '<div class="inspect-filter inspect-filter--grow"><label for="roster-event">Event</label><select id="roster-event" name="event">';
     foreach ($vm['events'] as $e) {
         $iceSuffix = ($e['discipline'] ?? 'summer') === 'ice' ? ' · Ice ' . (string)($e['host_club'] ?? '') : '';
         $out .= '<option value="' . (int)$e['id'] . '"' . ((int)$e['id'] === $vm['eventId'] ? ' selected' : '') . '>'
-            . h((string)$e['name']) . ' (' . h(date('M j, Y', strtotime((string)$e['event_date']))) . ')' . h($iceSuffix) . '</option>';
+            . h((string)$e['name']) . ' (' . h(hubEventDate((string)$e['event_date'])) . ')' . h($iceSuffix) . '</option>';
     }
-    $out .= '</select><label for="roster-filter">Show</label><select id="roster-filter" name="filter">';
+    $out .= '</select></div><div class="inspect-filter inspect-filter--grow"><label for="roster-filter">Show</label><select id="roster-filter" name="filter">';
     foreach (INSPECT_ROSTER_FILTERS as $key => $label) {
         $out .= '<option value="' . h($key) . '"' . ($key === $vm['filter'] ? ' selected' : '') . '>'
             . h($label) . ' (' . (int)($vm['counts'][$key] ?? 0) . ')</option>';
     }
-    $out .= '</select><button type="submit" class="hub-btn">Show</button></form>';
+    $out .= '</select></div><button type="submit" class="hub-btn">Show</button></form>';
 
     if (!$vm['rows']) {
         $empty = (int)($vm['counts']['all'] ?? 0) === 0
@@ -78,7 +78,7 @@ function inspectRosterRowHtml(array $row, array $vm): string {
     return '<article class="hub-card inspect-row">'
         . '<div class="inspect-row-head"><span class="hub-plate">' . h((string)$car['car_number']) . '</span>'
         . '<div><h2>' . h(garageCarTitle($car)) . '</h2><p class="inspect-row-sub">' . h((string)$car['owner_name'])
-        . (empty($car['tagged']) ? ' · has a sheet, not tagged' : '') . '</p></div></div>'
+        . (empty($car['tagged']) ? ' · sent a tech sheet, but has not said they are going' : '') . '</p></div></div>'
         . '<dl class="inspect-facts">'
         . '<div><dt>Class</dt><dd>' . $classCell . '</dd></div>'
         . '<div><dt>Tech sheet</dt><dd>' . $sheetCell . '</dd></div>'
@@ -100,19 +100,19 @@ function renderInspectClassingHtml(array $vm): string {
         . '<form method="get" action="inspect.php" class="hub-card inspect-filters">'
         . '<input type="hidden" name="action" value="classing">'
         . ($f['car'] > 0 ? '<input type="hidden" name="car" value="' . (int)$f['car'] . '">' : '')
-        . '<label for="classing-q">Search</label>'
-        . '<input type="search" id="classing-q" name="q" value="' . h($f['q']) . '" placeholder="Name, email, car number, make or model">'
-        . '<label for="classing-class">Class</label><select id="classing-class" name="class"><option value="">All classes</option>';
+        . '<div class="inspect-filter inspect-filter--grow"><label for="classing-q">Search</label>'
+        . '<input type="search" id="classing-q" name="q" value="' . h($f['q']) . '" placeholder="Name, email, car number, make or model"></div>'
+        . '<div class="inspect-filter"><label for="classing-class">Class</label><select id="classing-class" name="class"><option value="">All classes</option>';
     foreach (INSPECT_CLASSES as $c) {
         $out .= '<option value="' . h($c) . '"' . ($c === $f['class'] ? ' selected' : '') . '>' . h($c) . '</option>';
     }
-    $out .= '</select><label for="classing-season">Season</label>'
-        . '<input type="number" id="classing-season" name="season" min="2000" max="2100" value="' . ($f['season'] > 0 ? (int)$f['season'] : '') . '">'
-        . '<label for="classing-status">Review</label><select id="classing-status" name="status"><option value="">Any status</option>';
+    $out .= '</select></div><div class="inspect-filter inspect-filter--narrow"><label for="classing-season">Season</label>'
+        . '<input type="number" id="classing-season" name="season" min="2000" max="2100" placeholder="Any" value="' . ($f['season'] > 0 ? (int)$f['season'] : '') . '"></div>'
+        . '<div class="inspect-filter"><label for="classing-status">Review</label><select id="classing-status" name="status"><option value="">Any status</option>';
     foreach (INSPECT_DECLARATION_STATUSES as $st) {
         $out .= '<option value="' . h($st) . '"' . ($st === $f['status'] ? ' selected' : '') . '>' . h(declarationReviewLabel($st)) . '</option>';
     }
-    $out .= '</select><button type="submit" class="hub-btn">Search</button> <a href="inspect.php?action=classing">Clear</a></form>';
+    $out .= '</select></div><button type="submit" class="hub-btn">Search</button> <a class="admin-link" href="inspect.php?action=classing">Clear</a></form>';
     if ($f['car'] > 0) {
         $out .= '<p>Showing one car\'s declarations. <a href="inspect.php?action=classing">Show every car</a></p>';
     }
@@ -121,10 +121,6 @@ function renderInspectClassingHtml(array $vm): string {
     $out .= '<p class="list-summary">' . $total . ' ' . ($total === 1 ? 'declaration' : 'declarations')
         . ($vm['pages'] > 1 ? ' · page ' . (int)$f['page'] . ' of ' . (int)$vm['pages'] : '')
         . ' · <a href="inspect.php?action=declarations-export">Export all as CSV</a></p>';
-    if ($admin && $vm['rows']) {
-        $out .= '<form method="post" action="inspect.php?action=declarations-bulk-delete" id="bulk-delete-form">' . inspectCsrfField($vm['csrf'])
-            . '<button type="submit" id="bulk-delete-btn" class="hub-btn hub-btn--secondary" disabled data-confirm-template="Permanently delete {n} selected declaration(s) and their files?">Delete selected</button></form>';
-    }
 
     $out .= '<table class="data-table inspect-stack" id="classing-table"><thead><tr>'
         . ($admin ? '<th><input type="checkbox" id="classing-select-all" aria-label="Select all declarations"></th>' : '')
@@ -137,7 +133,7 @@ function renderInspectClassingHtml(array $vm): string {
         $status = (string)$s['review_status'];
         $out .= '<tr>'
             . ($admin ? '<td data-label="Select"><input type="checkbox" class="submission-select" form="bulk-delete-form" name="ids[]" value="' . $id . '" aria-label="Select declaration ' . $id . '"></td>' : '')
-            . '<td data-label="Submitted">' . h(date('M j, Y', strtotime((string)$s['submitted_at']))) . '</td>'
+            . '<td data-label="Submitted">' . h(hubDate((string)$s['submitted_at'])) . '</td>'
             . '<td data-label="Car">#' . h((string)($s['car_number'] ?? '?')) . ' ' . h(trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model'])) . '</td>'
             . '<td data-label="Entrant">' . h((string)$s['name']) . '</td>'
             . '<td data-label="Class"><strong>' . h((string)($s['calculated_class'] ?? '—')) . '</strong></td>'
@@ -145,6 +141,11 @@ function renderInspectClassingHtml(array $vm): string {
             . '<td><a href="inspect.php?action=declaration&amp;id=' . $id . '">' . ($status === 'submitted' ? 'Review' : 'View') . '</a></td></tr>';
     }
     $out .= '</tbody></table>';
+    if ($admin && $vm['rows']) {
+        $out .= '<form method="post" action="inspect.php?action=declarations-bulk-delete" id="bulk-delete-form" class="inspect-bulk">' . inspectCsrfField($vm['csrf'])
+            . '<span class="inspect-muted">Admins: tick declarations to delete them.</span> '
+            . '<button type="submit" id="bulk-delete-btn" class="hub-btn hub-btn--secondary" disabled data-confirm-template="Permanently delete {n} selected declaration(s) and their files?">Delete selected</button></form>';
+    }
 
     if ($vm['pages'] > 1) {
         $out .= '<nav class="pagination" aria-label="Declaration pages">';
@@ -167,7 +168,7 @@ function renderInspectDeclarationHtml(array $vm): string {
     $id = (int)$s['id'];
     $car = $vm['car'];
     $vehicle = trim($s['year'] . ' ' . $s['make'] . ' ' . $s['model']);
-    $out = '<p><a href="inspect.php?action=classing">&larr; Back to Classing</a></p>'
+    $out = '<p class="hub-back"><a class="hub-back-link" href="inspect.php?action=classing">&larr; Back to Classing</a></p>'
         . '<h1 class="hub-page-title">Class declaration: ' . h(($car !== null ? '#' . $car['car_number'] . ' ' : '') . $vehicle) . '</h1>'
         . inspectDeclarationReviewHtml($s, $vm['reviewer'], $vm['csrf'])
         . '<div class="hub-grid-2">'
@@ -187,7 +188,7 @@ function inspectDeclarationReviewHtml(array $s, ?array $reviewer, string $csrf):
         . '<p><span class="hub-status ' . h(homeStatusClass($status)) . '">' . h(declarationReviewLabel($status)) . '</span></p>';
     if (!empty($s['reviewed_at'])) {
         $out .= '<p>Reviewed' . ($reviewer !== null ? ' by ' . h((string)$reviewer['name']) : '')
-            . ' on ' . h(date('M j, Y g:i A', strtotime((string)$s['reviewed_at']))) . '.</p>';
+            . ' on ' . h(hubDateTime((string)$s['reviewed_at'])) . '.</p>';
     }
     if (trim((string)($s['reviewer_note'] ?? '')) !== '') {
         $out .= '<p class="garage-note"><strong>Note sent to the competitor:</strong> ' . nl2br(h((string)$s['reviewer_note'])) . '</p>';
@@ -202,12 +203,13 @@ function inspectDeclarationReviewHtml(array $s, ?array $reviewer, string $csrf):
             . '<button type="submit" class="hub-btn" id="declaration-accept-btn">Accept declaration</button></form>';
     }
     if (declarationReviewAllowed($status, 'send_back')) {
-        $out .= '<form method="post" action="inspect.php?action=declaration-send-back" id="declaration-sendback-form">' . inspectCsrfField($csrf)
+        $out .= '<details class="inspect-sendback"><summary>Something needs to change? Send it back with a note</summary>'
+            . '<form method="post" action="inspect.php?action=declaration-send-back" id="declaration-sendback-form">' . inspectCsrfField($csrf)
             . '<input type="hidden" name="id" value="' . $id . '">'
             . '<label for="declaration-note">What needs to change?</label>'
             . '<textarea id="declaration-note" name="note" rows="4" maxlength="' . DECLARATION_NOTE_MAX . '" required></textarea>'
             . '<p class="form-hint">The competitor gets this note by email and sees it in their Garage. They respond by re-declaring the car.</p>'
-            . '<button type="submit" class="hub-btn hub-btn--secondary" id="declaration-sendback-btn">Send back</button></form>';
+            . '<button type="submit" class="hub-btn hub-btn--secondary" id="declaration-sendback-btn">Send back</button></form></details>';
     }
     return $out . '</section>';
 }
@@ -269,7 +271,7 @@ function inspectDeclarationFactsHtml(array $s, ?array $car, ?array $owner): stri
     $rows[] = ['Weight', $s['competition_weight'] . ' lbs'];
     $rows[] = ['Declared HP', (string)$s['declared_hp']];
     if (!empty($s['dyno_hp'])) $rows[] = ['Dyno HP', (string)$s['dyno_hp']];
-    $rows[] = ['Submitted', date('F j, Y \a\t g:i A', strtotime((string)$s['submitted_at']))];
+    $rows[] = ['Submitted', hubDateTime((string)$s['submitted_at'])];
     $out = '<table class="detail-table">';
     foreach ($rows as [$label, $value]) {
         $out .= '<tr><td>' . h($label) . '</td><td>' . h((string)$value) . '</td></tr>';
@@ -283,7 +285,7 @@ function inspectDeclarationFactsHtml(array $s, ?array $car, ?array $owner): stri
 function inspectResendFormHtml(array $s, string $csrf): string {
     $count = (int)$s['email_send_count'];
     $history = $count > 0 && !empty($s['last_emailed_at'])
-        ? 'Last emailed ' . date('M j, Y \a\t g:i A', strtotime((string)$s['last_emailed_at'])) . ' · sent ' . $count . ' ' . ($count === 1 ? 'time' : 'times')
+        ? 'Last emailed ' . hubDateTime((string)$s['last_emailed_at']) . ' · sent ' . $count . ' ' . ($count === 1 ? 'time' : 'times')
         : 'Never emailed.';
     return '<p class="form-hint">' . h($history) . '</p>'
         . '<form method="post" action="inspect.php?action=declaration-resend" data-confirm="'
@@ -313,7 +315,7 @@ function inspectDeclarationHistoryHtml(int $currentId, ?array $car, array $histo
         . '<thead><tr><th>Submitted</th><th>Class</th><th>Review</th><th></th></tr></thead><tbody>';
     foreach ($history as $d) {
         $did = (int)$d['id'];
-        $out .= '<tr><td data-label="Submitted">' . h(date('M j, Y', strtotime((string)$d['submitted_at']))) . '</td>'
+        $out .= '<tr><td data-label="Submitted">' . h(hubDate((string)$d['submitted_at'])) . '</td>'
             . '<td data-label="Class">' . h((string)($d['calculated_class'] ?? '—')) . '</td>'
             . '<td data-label="Review">' . h(declarationReviewLabel((string)$d['review_status'])) . '</td>'
             . '<td>' . ($did === $currentId ? 'This one' : '<a href="inspect.php?action=declaration&amp;id=' . $did . '">View</a>') . '</td></tr>';
@@ -347,7 +349,7 @@ function renderInspectQueueHtml(array $items): string {
     $out .= '<p>' . $n . ' ' . ($n === 1 ? 'item is' : 'items are') . ' waiting, oldest first.</p><ol class="hub-card inspect-queue">';
     foreach ($items as $item) {
         $out .= '<li class="hub-line"><span><strong>' . h($item['title']) . '</strong><br>'
-            . '<span class="inspect-muted">' . h($item['detail']) . ' · waiting since ' . h(date('M j, g:i A', strtotime($item['since']))) . '</span></span>'
+            . '<span class="inspect-muted">' . h($item['detail']) . ' · waiting since ' . h(hubDateTime((string)$item['since'])) . '</span></span>'
             . '<a class="hub-btn" href="' . h($item['url']) . '">Review</a></li>';
     }
     return $out . '</ol>';

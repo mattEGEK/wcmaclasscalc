@@ -134,7 +134,7 @@ function renderUsersPageHtml(array $users, array $counts, string $csrf, ?array $
             . '<td data-label="Sign-in">' . h($signIn !== '' ? $signIn : '—') . '</td>'
             . '<td data-label="Submissions">' . (int)($counts[$id] ?? 0) . '</td>'
             . '<td data-label="Status">' . ((int)$u['active'] === 1 ? adminChip('Active', 'ok') : adminChip('Inactive', 'fail')) . '</td>'
-            . '<td data-label="Joined" data-sort-value="' . h((string)$u['created_at']) . '">' . h(date('M j, Y', strtotime((string)$u['created_at']))) . '</td>'
+            . '<td data-label="Joined" data-sort-value="' . h((string)$u['created_at']) . '">' . h(hubDate((string)$u['created_at'])) . '</td>'
             . '<td class="admin-cell-actions">' . adminEditButton('user-dialog-' . $id, $name) . '</td></tr>';
         $dialogs .= adminUserDialogHtml($u, $csrf, $edit === (string)$id ? $dialogFlash : null);
     }

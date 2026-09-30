@@ -31,23 +31,10 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
     ];
     $isIce = ($gear['discipline'] ?? 'summer') === 'ice';
     $driverLine = $gear['driver_name'] . ' — ' . ($isIce ? iceSeasonLabel((int)$gear['season']) : (string)(int)$gear['season']);
-    $backLink = $isIce ? '<a href="garage.php">← Back to Garage</a>' : '<a href="drivers.php">← Back to Drivers</a>';
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gear pre-tech — WCMA Calculator</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
-<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
-</head>
-<body class="hub">
-<div class="container">
-  <?php renderSiteHeader('Gear pre-tech', $backLink, $isIce ? 'garage' : 'drivers'); ?>
-  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+    $backLink = $isIce ? '<a href="garage.php">&larr; Back to Garage</a>' : '<a href="drivers.php">&larr; Back to Drivers</a>';
+    renderPageStart('Gear pre-tech', $isIce ? 'garage' : 'drivers', ['flash' => $flash, 'subnav' => $backLink]);
+    ?>
+  <h1 class="hub-page-title">Gear pre-tech</h1>
   <?= revokeNoticeHtml($gear['revoke_note'] ?? null, 'Gear') ?>
 
   <div class="detail-card">
@@ -65,9 +52,9 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
       <?php if ($upgrading): ?><p><strong>Race gear photos.</strong> This driver's gear stays teched for TA/Drift while an inspector reviews them.</p><?php endif; ?>
       <p>Optional: submit photos of this driver's gear so an inspector can review them before the event. If they are accepted, the gear does not need to be checked at the track and you just collect your decals. The gear can still be checked in person instead.</p>
       <?php if ($photoStatus === 'submitted'): ?>
-        <p class="badge-pending">These photos were submitted for review. You will get an email when an inspector has looked at them.</p>
+        <p class="hub-note hub-note--info">These photos are with an inspector. You will get an email when they have been looked at.</p>
       <?php elseif ($photoStatus === 'needs_changes'): ?>
-        <p class="badge-fail">An inspector asked for some photos to be retaken. Retake the flagged photos below, then submit again.</p>
+        <p class="hub-note hub-note--todo">An inspector asked for some photos to be retaken. Retake the flagged photos below, then submit again.</p>
       <?php endif; ?>
     <?php endif; ?>
   </div>
@@ -78,9 +65,11 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
     <div class="checklist-progress-bar"><div class="checklist-progress-fill" id="pretech-fill" style="width:<?= $requiredTotal > 0 ? (int)round($done / $requiredTotal * 100) : 0 ?>%"></div></div>
   </div>
 
+  <div class="review-grid">
   <?php foreach ($requirements as $key => $req): ?>
     <?= pretechRenderCard($key, $req, $snapshot['photos'][$key] ?? null, in_array($key, $snapshot['applicable'], true), $locked, 'This applies to this driver') ?>
   <?php endforeach; ?>
+  </div>
 
   <?php if (!$locked): ?>
   <form method="post" action="gear.php?action=pretech-submit" id="pretech-submit-form" class="detail-card">
@@ -97,9 +86,6 @@ function renderGearPretechPage(array $gear, array $snapshot, string $csrf, ?arra
   <script src="js/pretech-progress.js"></script>
   <script src="js/pretech-form.js"></script>
 <?php endif; ?>
-</div>
-<script src="js/form-feedback.js"></script>
-<?php renderSiteFooter(); ?>
-</body>
-</html><?php
+<?php
+    renderPageEnd(['scripts' => '<script src="js/form-feedback.js"></script>']);
 }

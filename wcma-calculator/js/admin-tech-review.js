@@ -10,6 +10,9 @@
     const errorBox = document.getElementById('tech-accept-error');
     const wrap =canvas.closest('.sig-pad-wrap');
 
+    const fold = canvas.closest('details');
+    if (fold) fold.addEventListener('toggle', function () { if (fold.open) pad.resize(); });
+
     document.querySelector('[data-clear-sig="tech"]').addEventListener('click', function () {
         pad.clear();
     });

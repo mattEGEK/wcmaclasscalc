@@ -132,6 +132,7 @@ $flash = getFlash();
 
 renderPageStart('Profile', '', ['flash' => $flash]);
 ?>
+<h1 class="hub-page-title">Profile</h1>
 
 <div class="hub-card">
     <h2>Your name</h2>
@@ -150,7 +151,7 @@ renderPageStart('Profile', '', ['flash' => $flash]);
     <h2>Email</h2>
     <p>
         <strong><?= h((string)$userRow['email']) ?></strong><br>
-        <small>Contact the club to change your email.</small>
+        <span class="form-hint">To change your email, ask a WCMA admin.</span>
     </p>
 </div>
 
@@ -170,11 +171,12 @@ renderPageStart('Profile', '', ['flash' => $flash]);
             <?php endif; ?>
             <div class="form-field">
                 <label for="profile-new">New password</label>
-                <input type="password" id="profile-new" name="new_password" required>
+                <p class="form-hint">At least 8 characters.</p>
+                <input type="password" id="profile-new" name="new_password" required autocomplete="new-password">
             </div>
             <div class="form-field">
-                <label for="profile-confirm">Confirm password</label>
-                <input type="password" id="profile-confirm" name="confirm_password" required>
+                <label for="profile-confirm">Type the new password again</label>
+                <input type="password" id="profile-confirm" name="confirm_password" required autocomplete="new-password">
             </div>
             <button type="submit" class="hub-btn">Update password</button>
         </form>
@@ -194,8 +196,8 @@ renderPageStart('Profile', '', ['flash' => $flash]);
 
 <div class="hub-card">
     <h2>Your driver profile</h2>
-    <p>Your name is also your driver name on tech sheets and gear.<br>
-    <a href="drivers.php">Go to drivers</a></p>
+    <p>Your name is also your driver name on tech sheets and gear.</p>
+    <p><a class="hub-btn hub-btn--secondary" href="drivers.php">Go to Drivers</a></p>
 </div>
 
 <?php

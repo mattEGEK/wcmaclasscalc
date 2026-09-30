@@ -135,6 +135,20 @@ try {
   const go = async sel => Promise.all([page.waitForNavigation(), page.click(sel)]);
 
   await page.goto(BASE + '/calculator.php'); await audit(page, 'calculator');
+  // With numbers in, the class dock is pinned to the bottom of the phone screen (UX review 2026-09-30 §M2).
+  await page.fill('#competition-weight', '2860'); await page.fill('#declared-hp', '240');
+  await page.waitForTimeout(300);
+  report('calculator: the class stays in view while the form is scrolled',
+    await page.locator('#class-dock').isVisible() && (await page.locator('#class-dock-class').innerText()).trim() === 'GT3'
+      ? [] : ['the class dock is not showing GT3 after entering 2860 lbs and 240 hp']);
+  await audit(page, 'calculator (numbers in)');
+  await page.click('#submit-button');
+  await page.waitForTimeout(300);
+  report('calculator: a guest submit lists what is missing in words, not browser bubbles',
+    /things to fix before you can submit/.test(await page.locator('#form-messages').innerText()) && await page.locator('#name-error.show').count() === 1
+      ? [] : [`expected the count message and an inline Name message, got "${await page.locator('#form-messages').innerText()}"`]);
+  await audit(page, 'calculator (problems shown)');
+  await page.goto(BASE + '/calculator.php');
   await page.click('.calc-explainer-details summary'); await audit(page, 'calculator (explainer open)');
   await page.goto(BASE + '/index.php'); await audit(page, 'landing');
   await page.goto(BASE + '/auth.php?action=login'); await audit(page, 'sign in');
@@ -161,6 +175,11 @@ try {
   await audit(page, 'ice tech sheet');
   await page.click('#tech-sheet-submit-btn');
   await page.waitForTimeout(300);
+  // Every problem is reported on one submit (UX review 2026-09-30 §H2): the list above the button names them all.
+  const summary = await page.locator('#tech-sheet-error').innerText();
+  report('one submit lists every problem', /things to finish before you can submit/.test(summary)
+    && /Enter the race weight\./.test(summary) && /Vehicle checklist: \d+ items? to mark/.test(summary) && /log book/.test(summary) && /sign/i.test(summary)
+    ? [] : [`expected weight, checklist, log book and signature in one list, got "${summary.replace(/\s+/g, ' ')}"`]);
   const firstProblem = await page.evaluate(() => ({
     message: (document.querySelector('.field-message') || {}).textContent || '',
     focused: document.activeElement && document.activeElement.id,
@@ -182,7 +201,10 @@ try {
   // Answers survive a reload (spec §C1): weight, class and a ticked checklist item.
   const sheetUrl = page.url();
   await page.fill('input[name=car_weight]', '2700');
-  await page.locator('.checklist-section-header').first().click();
+  // The empty submit above opened every section to show what is missing; open the first only if it is shut.
+  if (await page.locator('.checklist-section').first().evaluate(el => !el.classList.contains('checklist-section-open'))) {
+    await page.locator('.checklist-section-header').first().click();
+  }
   await page.locator('button:text-is("OK")').first().click();
   await page.waitForTimeout(400);
   await page.reload();
@@ -207,8 +229,8 @@ try {
   await page.fill('input[name=car_weight]', '2700');
   await page.fill('input[name=engine_hp]', '140');
   for (const h of await page.locator('.checklist-section-header').all()) await h.click();
-  for (const b of await page.locator('button:text-is("OK"), button:text-is("Confirm")').all()) if (await b.isVisible()) await b.click();
-  const ratings = page.locator('input[placeholder^="Rating"]');
+  for (const b of await page.locator('button:text-is("OK"), button:text-is("I have this")').all()) if (await b.isVisible()) await b.click();
+  const ratings = page.locator('#equipment-container input[type=text]');
   for (let i = 0; i < await ratings.count(); i++) await ratings.nth(i).fill(i ? 'SFI 3.2A/1' : 'SA2020');
   await page.check('input[name=log_book_turned_in][value="1"]');
   const sign = () => page.evaluate(() => {
@@ -306,8 +328,18 @@ try {
       ? [] : [`expected new-ta-drift with an event_id, got ${page.url()}`]);
   await page.goto(BASE + '/index.php');
   await audit(page, 'home with a TA/Drift entry');
-  const disabled = await page.locator('section.hub-event:has-text("Season Finale") input[name="formats[]"][value=ta]').isDisabled();
-  report('no host club: Time Attack is disabled', disabled ? [] : ['Time Attack was enabled for an event with no host club']);
+  // No host club: Race only, with no disabled boxes to puzzle over (UX review 2026-09-30 §M12).
+  const taBoxes = await page.locator('section.hub-event:has-text("Season Finale") input[name="formats[]"][value=ta]').count();
+  report('no host club: Time Attack is not offered', taBoxes === 0 ? [] : ['Time Attack was offered for an event with no host club']);
+  // An event is one row until "I'm going" is tapped (§H4).
+  const closed = await page.locator('section.hub-event:has-text("Season Finale") .hub-event-add[open]').count();
+  report('an event you are not going to is folded', closed === 0 ? [] : ['the Season Finale form is open before "I\'m going" is tapped']);
+  await page.click('section.hub-event:has-text("Season Finale") .hub-event-add > summary');
+  await audit(page, 'home (I\'m going opened)');
+  report('Not going anymore asks first', await page.locator('section.hub-event form[data-confirm] button:has-text("Not going anymore")').count() >= 1
+    ? [] : ['the untag form has no confirm message']);
+  for (const url of ['/drivers.php', '/profile.php', '/garage.php']) { await page.goto(BASE + url); await audit(page, url.slice(1)); }
+  await page.goto(BASE + '/index.php');
   await page.click('section.hub-event:has-text("WSCC Time Attack") .hub-entry-formats summary');
   await audit(page, 'home (change what you are running)');
   report("the Change form asks who's driving",
@@ -329,6 +361,18 @@ try {
     await ap.goto(BASE + '/admin.php?action=' + tab);
     await audit(ap, 'admin ' + tab);
   }
+  // Season links use the list + dialog pattern too (UX review 2026-09-30 §L5).
+  await ap.goto(BASE + '/admin.php?action=season-links');
+  await ap.click('#season-links-table [data-dialog-open]');
+  await audit(ap, 'admin season link modal');
+  // Inspector and Media sections on a phone (UX review 2026-09-30 §H5, §M3, §M9).
+  for (const url of ['/inspect.php', '/inspect.php?action=queue', '/inspect.php?action=classing', '/inspect.php?action=gear',
+                     '/media.php', '/media.php?action=kit', '/media.php?action=review']) {
+    await ap.goto(BASE + url);
+    await audit(ap, url.slice(1));
+  }
+  const reviewUrl = await ap.goto(BASE + '/inspect.php').then(() => ap.locator('a[href*="action=tech-sheet"]').first().getAttribute('href')).catch(() => null);
+  if (reviewUrl) { await ap.goto(BASE + '/' + reviewUrl); await audit(ap, 'inspector tech sheet review'); }
   await ap.goto(BASE + '/admin.php?action=users');
   await ap.click('#users-table [data-dialog-open]');
   await audit(ap, 'admin user modal');
@@ -341,6 +385,18 @@ try {
 
   const deskAdmin = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const dp = await signInAdmin(deskAdmin);
+  // The header stays on one line for staff at common laptop widths (UX review 2026-09-30 §H1).
+  for (const width of [1024, 1180, 1280, 1366, 1440]) {
+    await dp.setViewportSize({ width, height: 900 });
+    await dp.goto(BASE + '/admin.php?action=users');
+    const header = await dp.evaluate(() => {
+      const row = document.querySelector('.hub-header-row').getBoundingClientRect();
+      const tallest = Math.max(...[...document.querySelectorAll('.hub-nav a, .hub-nav-current, .hub-account')].filter(e => e.getBoundingClientRect().height > 0).map(e => e.getBoundingClientRect().height));
+      return { row: Math.round(row.height), tallest: Math.round(tallest) };
+    });
+    report(`admin header is one line at ${width}px`, header.row <= 80 && header.tallest <= 50 ? [] : [`header row ${header.row}px tall, tallest item ${header.tallest}px`]);
+  }
+  await dp.setViewportSize({ width: 1280, height: 900 });
   await dp.goto(BASE + '/admin.php?action=users');
   const tallest = await dp.evaluate(() => Math.max(...[...document.querySelectorAll('#users-table tbody tr')].map(r => r.getBoundingClientRect().height)));
   report('admin: user rows at 1280px are one line', tallest <= 110 ? [] : [`a user row is ${Math.round(tallest)}px tall`]);

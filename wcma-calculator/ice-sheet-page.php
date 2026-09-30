@@ -54,7 +54,7 @@ function renderIceTechSheetFormHtml(array $vm): string {
 
     // Event
     $out .= '<div class="detail-card"><h2>Ice event</h2><p><strong>' . h((string)$event['name']) . '</strong> — '
-        . h(date('M j, Y', strtotime((string)$event['event_date']))) . ' · ' . h($vm['clubLabel']) . '</p>';
+        . h(hubEventDate((string)$event['event_date'])) . ' · ' . h($vm['clubLabel']) . '</p>';
     if ($vm['otherEvents']) {
         $out .= '<p class="form-hint">Other ice events: ';
         $links = [];
@@ -88,7 +88,7 @@ function renderIceTechSheetFormHtml(array $vm): string {
         . '<p class="form-hint">Pick the class from the ' . h($vm['club']) . ' supplementary regulations.</p></div>';
 
     // Entrant & driver
-    $out .= '<div class="detail-card"><h2>Entrant &amp; Driver</h2><div class="tech-sheet-header-grid">'
+    $out .= '<div class="detail-card"><h2>Entrant and driver</h2><div class="tech-sheet-header-grid">'
         . '<div><label for="entrant_name">Entrant (required)</label><input type="text" id="entrant_name" name="entrant_name" required data-message="Enter the entrant\'s name." value="'
         . h($isEdit ? (string)$sheet['entrant_name'] : (string)($d1['ownedById'][$d1['selfId'] ?? 0]['name'] ?? '')) . '"></div>'
         . '<div><label for="driver1_choice">Driver (required)</label><select id="driver1_choice" name="driver1_choice" required>';
@@ -102,20 +102,20 @@ function renderIceTechSheetFormHtml(array $vm): string {
         . '</div></div>';
 
     // Checklist and equipment
-    $out .= '<div class="detail-card"><h2>Vehicle Checklist</h2><div id="checklist-container"></div></div>'
-        . '<div class="detail-card"><h2>Driver Safety Equipment</h2><p class="form-hint" id="ice-helmet-note">' . h($vm['helmetNotes'][$sel] ?? '') . '</p>'
+    $out .= '<div class="detail-card"><h2>Vehicle checklist</h2><div id="checklist-container"></div></div>'
+        . '<div class="detail-card"><h2>Driver safety equipment</h2><p class="form-hint" id="ice-helmet-note">' . h($vm['helmetNotes'][$sel] ?? '') . '</p>'
         . '<div id="equipment-container"></div></div>';
 
     // Log book
     $log = $isEdit ? (string)$sheet['log_book_turned_in'] : null;
-    $out .= '<div class="detail-card"><h2>Log Book</h2>'
+    $out .= '<div class="detail-card"><h2>Log book</h2>'
         . '<div class="radio-group" data-radio-group="Log book turned in? (required)" data-message="Choose Yes or No for the log book.">'
         . '<p class="radio-group-label">Log book turned in? (required)</p>'
         . '<label class="checkbox-label"><input type="radio" name="log_book_turned_in" value="1"' . ($log === '1' ? ' checked' : '') . ' required> Yes</label>'
         . '<label class="checkbox-label"><input type="radio" name="log_book_turned_in" value="0"' . ($log === '0' ? ' checked' : '') . '> No</label></div></div>';
 
     // Signatures
-    $out .= '<div class="detail-card"><h2>Declaration &amp; Signatures</h2>'
+    $out .= '<div class="detail-card"><h2>Declaration and signatures</h2>'
         . '<p><em>I hereby stipulate that the above vehicle meets the regulations for the event.</em></p>'
         . ($isEdit ? '<p class="form-hint">Leave the pads blank to keep the signatures already on file.</p>' : '')
         . '<p id="sig-error" class="field-message" hidden></p>'
@@ -126,7 +126,7 @@ function renderIceTechSheetFormHtml(array $vm): string {
 
     $out .= '<div id="tech-sheet-error" class="form-messages error" role="alert" hidden></div>'
         . '<div class="form-actions"><button type="submit" class="btn btn-primary" id="tech-sheet-submit-btn">'
-        . ($isEdit ? 'Save Changes' : 'Submit Ice Tech Sheet') . '</button></div></form>';
+        . ($isEdit ? 'Save changes' : 'Submit ice tech sheet') . '</button></div></form>';
 
     $existingChecklist = $isEdit ? (json_decode((string)($sheet['checklist_json'] ?? '{}'), true) ?: []) : [];
     $existingEquipment = $isEdit ? (json_decode((string)($sheet['driver1_equipment_json'] ?? '{}'), true) ?: []) : [];

@@ -54,6 +54,13 @@
         el.className = 'pretech-status ' + cls;
     }
 
+    // A card with no photo: amber "Photo needed" when one is required (or the box is ticked), grey otherwise.
+    function setEmptyStatus(card, key) {
+        const tier = card.getAttribute('data-tier');
+        if (tier === 'required' || (tier === 'conditional' && applicable.has(key))) setStatus(card, 'Photo needed', 'badge-pending');
+        else setStatus(card, tier === 'conditional' ? 'Only if it applies' : 'Optional', 'badge-optional');
+    }
+
     function typedValues(card) {
         const values = {};
         card.querySelectorAll('[data-typed]').forEach(function (input) {
@@ -93,7 +100,7 @@
                     showPhoto(card, photo);
                 } catch (e) {
                     setError(card, e.message);
-                    setStatus(card, present.has(key) ? 'Added' : 'Photo needed', present.has(key) ? 'badge-ok' : 'badge-pending');
+                    if (present.has(key)) setStatus(card, 'Added', 'badge-ok'); else setEmptyStatus(card, key);
                 } finally {
                     fileInput.value = '';
                     refresh();
@@ -123,12 +130,13 @@
                     await client.applies({ subjectType: subjectType, subjectId: subjectId, requirementKey: key, applies: toggle.checked });
                     if (toggle.checked) {
                         applicable.add(key);
+                        if (!present.has(key)) setEmptyStatus(card, key);
                     } else {
                         applicable.delete(key);
                         present.delete(key);            // turning it off removes any photo already added
                         delete state.photos[key];
                         card.querySelector('[data-thumb]').hidden = true;
-                        setStatus(card, 'No photo yet', 'badge-pending');
+                        setEmptyStatus(card, key);
                     }
                 } catch (e) {
                     toggle.checked = !toggle.checked;   // the server refused: put the switch back

@@ -24,7 +24,7 @@ final class HomeCodriversTest extends TestCase
     {
         $event = ['id' => 30, 'name' => 'WSCC TA', 'discipline' => 'summer', 'host_club' => 'WSCC'];
         $html = homeRenderEntryFormatsHtml($event, ['id' => 3], ['formats' => ['ta'], 'supps_ack_at' => null, 'driverIds' => [5]], 't', $this->drivers);
-        $this->assertStringContainsString('Time Attack · Driving: You · Change', html_entity_decode($html));
+        $this->assertStringContainsString('Time Attack · Driving: You · Change', html_entity_decode(strip_tags($html)));
         $this->assertStringContainsString('name="formats[]"', $html);
         $this->assertStringContainsString("Who's driving?", $html);
     }

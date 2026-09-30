@@ -70,7 +70,7 @@ final class InspectSourceTest extends TestCase
         $this->assertStringNotContainsString('admin.php', $src);
         $this->assertStringNotContainsString('renderSiteHeader(', $src);
         $this->assertStringNotContainsString('function handleTechSheetsList(', $src);
-        $this->assertStringContainsString("renderPageStart('Tech Sheet #' . \$id, 'inspect'", $src);
+        $this->assertStringContainsString("renderPageStart(\$title, 'inspect'", $src);
         $this->assertStringContainsString("inspectSubnavHtml('roster')", $this->body('inspect.php', 'inspectShowRoster'));
     }
 
@@ -84,7 +84,7 @@ final class InspectSourceTest extends TestCase
         $this->assertStringNotContainsString('admin.php', $src);
         $this->assertStringNotContainsString('renderSiteHeader(', $src);
         $this->assertStringContainsString("renderPageStart('Gear', 'inspect'", $src);
-        $this->assertStringContainsString("renderPageStart('Gear #' . \$id, 'inspect'", $src);
+        $this->assertStringContainsString("renderPageStart(\$title, 'inspect'", $src);
         $this->assertStringNotContainsString('admin.php', $this->src('gear-chips.php'));
         $this->assertStringNotContainsString('TECH_SHEET_FILTERS', $this->src('admin-tech-sheets.php'));
     }

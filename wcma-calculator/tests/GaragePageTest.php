@@ -122,7 +122,7 @@ final class GaragePageTest extends TestCase
         $this->assertStringContainsString('value="Silver"', $html);
         $this->assertStringContainsString('Show the &lt;dyno&gt; sheet', $html);
         $this->assertStringContainsString('href="calculator.php?car=3">Re-declare class</a>', $html);
-        $this->assertStringContainsString('href="garage.php?declaration=8">View</a>', $html);
+        $this->assertStringContainsString('href="garage.php?declaration=8">View declaration</a>', $html);
         $this->assertStringContainsString('<h3>History</h3>', $html);
         $this->assertStringContainsString('href="garage.php?declaration=5"', $html);
         $this->assertStringContainsString('Replaced by a newer declaration', $html);
@@ -305,7 +305,7 @@ final class GaragePageTest extends TestCase
         ]));
         $this->assertStringContainsString('<h2>Which ice event is this car going to?</h2>', $html);
         $this->assertStringContainsString('<input type="hidden" name="then" value="sheet">', $html);
-        $this->assertStringContainsString('NASCC Ice Race #1 · Thu, Nov 12 · NASCC', $html);
+        $this->assertStringContainsString('NASCC Ice Race #1 · Thu, Nov 12, 2026 · NASCC', $html);
         $this->assertStringNotContainsString('No class declared yet', $html);
         $this->assertStringNotContainsString('<h2>Class</h2>', $html);
         $this->assertLessThan(strpos($html, '<h2>Details</h2>'), strpos($html, 'Which ice event is this car going to?'));
@@ -334,9 +334,9 @@ final class GaragePageTest extends TestCase
     public function testTagFormSaysAddThisCarToAnEventUntilItHasOne(): void
     {
         $vm = $this->carVm(['events' => ['tagged' => [], 'untagged' => [['id' => 10, 'name' => 'Fall Sprint', 'event_date' => '2026-10-15']], 'earlierSheets' => []]]);
-        $this->assertStringContainsString('>Add this car to an event</label>', renderGarageCarHtml($vm));
+        $this->assertStringContainsString('<details class="hub-event-add" open><summary class="hub-btn hub-btn--secondary">Add this car to an event</summary>', renderGarageCarHtml($vm));
         $vm['events']['tagged'] = [['event' => ['id' => 9, 'name' => 'Spring', 'event_date' => '2026-10-01'], 'sheet' => null, 'gearLinks' => []]];
-        $this->assertStringContainsString('>Add this car to another event</label>', renderGarageCarHtml($vm));
+        $this->assertStringContainsString('<details class="hub-event-add"><summary class="hub-btn hub-btn--secondary">Add this car to another event</summary>', renderGarageCarHtml($vm));
     }
 
     private function iceSheetRow(array $o = []): array {

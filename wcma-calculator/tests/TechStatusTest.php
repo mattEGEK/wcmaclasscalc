@@ -87,14 +87,14 @@ final class TechStatusTest extends TestCase
         $this->assertSame('Teched 2026', techCarStatusLabel(['state' => 'accepted', 'via' => 'in_person', 'sheet_id' => 1], 2026));
         $this->assertSame('Pre-teched 2026', techCarStatusLabel(['state' => 'accepted', 'via' => 'photos', 'sheet_id' => 1], 2026));
         $this->assertSame('Needs tech at the track', techCarStatusLabel(['state' => 'none', 'via' => null, 'sheet_id' => null], 2026));
-        $this->assertSame('Photos pending review', techCarStatusLabel(['state' => 'pending_review', 'via' => null, 'sheet_id' => 1], 2026));
+        $this->assertSame('Photos with an inspector', techCarStatusLabel(['state' => 'pending_review', 'via' => null, 'sheet_id' => 1], 2026));
         $this->assertSame('Photos need changes', techCarStatusLabel(['state' => 'needs_changes', 'via' => null, 'sheet_id' => 1], 2026));
         $this->assertSame('Photos in progress', techCarStatusLabel(['state' => 'photos_draft', 'via' => null, 'sheet_id' => 1], 2026));
 
         $this->assertSame('badge-ok', techCarStatusBadgeClass('accepted'));
         $this->assertSame('badge-fail', techCarStatusBadgeClass('needs_changes'));
         $this->assertSame('badge-pending', techCarStatusBadgeClass('none'));
-        $this->assertSame('badge-pending', techCarStatusBadgeClass('pending_review'));
+        $this->assertSame('badge-info', techCarStatusBadgeClass('pending_review'));
     }
 
     public function testNoApprovalWordingInLabels(): void

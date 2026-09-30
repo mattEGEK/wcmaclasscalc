@@ -9,24 +9,37 @@ use PHPUnit\Framework\TestCase;
 
 final class AdminSettingsLinksPageTest extends TestCase
 {
-    public function testSeasonLinksEditInTheTableWithSaveAndRemoveApart(): void
+    // UX review 2026-09-30 §L5: a read-only list with Add and Edit dialogs, like the other admin tabs.
+    public function testSeasonLinksAreAListWithAnEditDialogPerLink(): void
     {
         $html = renderSeasonLinksPageHtml([
             ['id' => 4, 'label' => '2026 <Waiver>', 'url' => 'https://msr.example/w', 'sort_order' => 1, 'active' => 1],
         ], 'tok');
         $this->assertStringContainsString('class="data-table admin-table"', $html);
-        $this->assertStringContainsString('<input form="link-4" type="url" name="url" value="https://msr.example/w"', $html);
-        $this->assertStringContainsString('2026 &lt;Waiver&gt;', $html);
-        $this->assertStringContainsString('<button type="submit" class="btn btn-secondary">Save</button>', $html);
+        $this->assertStringNotContainsString('<input form="link-4"', $html);   // the row is read-only
+        $this->assertStringContainsString('<td data-label="Label">2026 &lt;Waiver&gt;</td>', $html);
+        $this->assertStringContainsString('data-dialog-open="link-dialog-4" aria-label="Edit 2026 &lt;Waiver&gt;">Edit</button>', $html);
+        $this->assertStringContainsString('data-dialog-open="link-dialog-new">Add link</button>', $html);
+        $this->assertStringContainsString('<dialog class="admin-dialog" id="link-dialog-4"', $html);
+        $this->assertStringContainsString('name="url" required value="https://msr.example/w"', $html);
+        $this->assertStringContainsString('<input type="checkbox" name="active" value="1" checked> Shown to competitors</label>', $html);
         $this->assertStringContainsString('data-confirm="Remove “2026 &lt;Waiver&gt;”? Competitors will stop seeing it."', $html);
-        $this->assertStringContainsString('<button type="submit" class="link-button">Remove</button>', $html);
         $this->assertStringContainsString('<form method="post" action="admin.php?action=season-link-save" class="admin-form">', $html);
         $this->assertStringNotContainsString('style=', $html);
     }
 
     public function testSeasonLinksEmptyStateAsksForTheFirstOne(): void
     {
-        $this->assertStringContainsString('No links yet. Add one below.', renderSeasonLinksPageHtml([], 'tok'));
+        $this->assertStringContainsString('No links yet. Add one with the button above.', renderSeasonLinksPageHtml([], 'tok'));
+    }
+
+    public function testASeasonLinkErrorReopensItsDialog(): void
+    {
+        $links = [['id' => 4, 'label' => 'Waiver', 'url' => 'https://msr.example/w', 'sort_order' => 1, 'active' => 0]];
+        $html = renderSeasonLinksPageHtml($links, 'tok', ['type' => 'error', 'message' => 'Enter a full web address starting with https://.'], '4');
+        $this->assertMatchesRegularExpression('/<dialog class="admin-dialog" id="link-dialog-4"[^>]* data-open-on-load>/', $html);
+        $this->assertStringContainsString('Enter a full web address starting with https://.', $html);
+        $this->assertStringContainsString('>Hidden</span>', $html);
     }
 
     public function testSettingsGroupEmailAndNameUnderEachRecipient(): void

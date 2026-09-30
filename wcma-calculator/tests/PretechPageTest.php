@@ -86,7 +86,7 @@ final class PretechPageTest extends TestCase
     public function testLockedSheetIsReadOnly(): void
     {
         $html = $this->render($this->sheet(['photo_status' => 'submitted']), ['mode' => 'this_sheet', 'sheet_id' => null], $this->snapshot());
-        $this->assertStringContainsString('submitted for review', $html);
+        $this->assertStringContainsString('Your photos are with an inspector.', $html);
         $this->assertStringNotContainsString('data-photo-input', $html);
         $this->assertStringNotContainsString('id="pretech-submit-btn"', $html);
         $this->assertStringContainsString('"locked":true', $html);

@@ -235,22 +235,9 @@ function handleView(PDO $pdo, array $user, int $id): void {
     $title = techSheetViewTitle($sheet, $event, db_get_car($pdo, (int)$sheet['car_id']));
     $club = clubForEvent($event !== null && !empty($event['host_club']) ? db_get_club($pdo, (string)$event['host_club']) : null, $event);
     $chips = $gearLinks ? renderGearChips($gearLinks, 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0), 'sheet_id' => (int)$sheet['id']]) : '';
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= h($title) ?> — WCMA Hub</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
-<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
-</head>
-<body class="hub">
-<div class="container">
-  <?php renderSiteHeader($title, '<a href="garage.php?car=' . (int)$sheet['car_id'] . '">← Back to Garage</a>', 'garage'); ?>
-  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
+    renderPageStart($title, 'garage', ['flash' => $flash, 'subnav' => '<a href="garage.php?car=' . (int)$sheet['car_id'] . '">&larr; Back to the car</a>']);
+    ?>
+  <h1 class="hub-page-title"><?= h($title) ?></h1>
   <?= revokeNoticeHtml($sheet['revoke_note'] ?? null, 'Tech') ?>
   <p class="no-print">Car status: <span class="hub-status <?= h(homeStatusClass($carStatus['state'])) ?>"><?= h($statusLabel) ?></span></p>
   <?= renderTechSheetNextStepsHtml($sheet, $event, $carStatus, $chips, $club) ?>
@@ -265,13 +252,10 @@ function handleView(PDO $pdo, array $user, int $id): void {
       <button type="submit" class="hub-btn hub-btn--secondary">Resend email</button>
     </form>
   </div>
-  <div class="sheet-doc"><?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?></div>
-</div>
+  <div class="sheet-doc hub-card"><?= renderTechSheetHtml($sheet, $drivers, $event ?? [], techSheetSignatureResolverWeb((int)$sheet['id']), 'assets/wcma-logo.png') ?></div>
 <script>try { localStorage.removeItem(<?= json_encode(techSheetDraftKey((int)$sheet['user_id'], (int)$sheet['car_id'], (int)$sheet['event_id'])) ?>); } catch (e) {}</script>
-<script src="js/form-feedback.js"></script>
-<?php renderSiteFooter(); ?>
-</body>
-</html><?php
+<?php
+    renderPageEnd(['scripts' => '<script src="js/form-feedback.js"></script>']);
 }
 
 function handlePretech(PDO $pdo, array $user, int $id): void {
@@ -338,7 +322,7 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
     if (techSheetIsTaDrift($sheet)) {
         $event = db_get_event($pdo, (int)$sheet['event_id']) ?? ['id' => (int)$sheet['event_id'], 'name' => '', 'event_date' => date('Y-m-d')];
         $event['host_club'] = (string)$sheet['club'];
-        renderPageStart('Edit TA/Drift Tech Sheet', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="tech-sheets.php?action=view&amp;id=' . $id . '">&larr; Back to the sheet</a>']);
+        renderPageStart('Edit TA/Drift tech sheet', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="tech-sheets.php?action=view&amp;id=' . $id . '">&larr; Back to the sheet</a>']);
         echo renderTaDriftTechSheetFormHtml(taDriftSheetFormVm($car, $event, [], eventsSheetDriverRows($pdo, (int)$user['id'], (int)$car['id']), $sheet,
             db_get_tech_sheet_drivers($pdo, $id), generateCsrfToken()));
         renderPageEnd();
@@ -348,7 +332,7 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
     if (techSheetIsIce($sheet)) {
         $event = db_get_event($pdo, (int)$sheet['event_id']) ?? ['id' => (int)$sheet['event_id'], 'name' => '', 'event_date' => date('Y-m-d'), 'host_club' => (string)$sheet['club']];
         $event['host_club'] = (string)$sheet['club'];
-        renderPageStart('Edit Ice Tech Sheet', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="tech-sheets.php?action=view&amp;id=' . $id . '">&larr; Back to the sheet</a>']);
+        renderPageStart('Edit ice tech sheet', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="tech-sheets.php?action=view&amp;id=' . $id . '">&larr; Back to the sheet</a>']);
         echo renderIceTechSheetFormHtml(iceSheetFormVm($car, $event, [], eventsSheetDriverRows($pdo, (int)$user['id'], (int)$car['id']), $sheet, generateCsrfToken()));
         renderPageEnd();
         return;
@@ -364,7 +348,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     $isEdit = $existingSheet !== null;
     if (!$isEdit && isset($prefill['rows'])) $existingDrivers = $prefill['rows'];
     $formAction = $isEdit ? 'tech-sheets.php?action=update' : 'tech-sheets.php?action=submit';
-    $pageTitle = $isEdit ? 'Edit Tech Sheet' : 'Submit Tech Sheet';
+    $pageTitle = $isEdit ? 'Edit tech sheet' : 'Submit tech sheet';
     $entrantName = $isEdit ? $existingSheet['entrant_name'] : $submission['name'];
     $engineHp = $isEdit ? $existingSheet['engine_hp'] : ($submission['dyno_hp'] ?: $submission['declared_hp']);
     $carClass = $isEdit ? $existingSheet['class'] : ($submission['calculated_class'] ?? '');
@@ -393,23 +377,13 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
             'equipment' => json_decode($d['equipment_json'] ?? '{}', true) ?: [],
         ];
     }, $existingDrivers);
-    ?><!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= h($pageTitle) ?> — WCMA Calculator</title>
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Archivo+Narrow:wght@600;700&display=swap">
-<link rel="stylesheet" href="<?= hubAsset('css/calculator.css') ?>">
-<link rel="stylesheet" href="<?= hubAsset('css/hub.css') ?>">
-<meta name="csrf-token" content="<?= h($csrf) ?>">
-</head>
-<body class="hub">
-<div class="container">
-  <?php renderSiteHeader($pageTitle, '<a href="garage.php?car=' . (int)$car['id'] . '">← Back to the car</a>', 'garage'); ?>
-  <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>" role="alert"><?= h($flash['message']) ?></div><?php endif; ?>
+    renderPageStart($pageTitle, 'garage', [
+        'flash' => $flash, 'extraHead' => '<meta name="csrf-token" content="' . h($csrf) . '">',
+        'subnav' => $isEdit ? '<a href="tech-sheets.php?action=view&amp;id=' . (int)$existingSheet['id'] . '">&larr; Back to the sheet</a>'
+                            : '<a href="garage.php?car=' . (int)$car['id'] . '">&larr; Back to the car</a>',
+    ]);
+    ?>
+  <h1 class="hub-page-title"><?= h($pageTitle) ?></h1>
   <?php if (!empty($prefill['notice'])): ?>
   <div class="form-messages show info">More than one driver is ticked for this event. Use the endurance sheet so everyone is on it.
     <a href="<?= h($prefill['notice']) ?>">Use the endurance sheet</a></div>
@@ -429,14 +403,14 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     <input type="hidden" name="driver_signature" id="driver_signature">
 
     <div class="detail-card">
-      <h2>Event &amp; Sheet Type</h2>
+      <h2>Event and sheet type</h2>
       <label for="event_id">Event (required)</label>
       <select id="event_id" name="event_id" required data-message="Choose the event.">
         <?php foreach ($events as $e): ?>
-        <option value="<?= (int)$e['id'] ?>" <?= ($e['id'] == $selectedEventId) ? 'selected' : '' ?>><?= h($e['name']) ?> — <?= h(date('M j, Y', strtotime($e['event_date']))) ?></option>
+        <option value="<?= (int)$e['id'] ?>" <?= ($e['id'] == $selectedEventId) ? 'selected' : '' ?>><?= h($e['name']) ?> — <?= h(hubEventDate((string)$e['event_date'])) ?></option>
         <?php endforeach; ?>
       </select>
-      <label for="sheet_type">Sheet Type</label>
+      <label for="sheet_type">Sheet type</label>
       <select id="sheet_type" name="sheet_type">
         <option value="standard" <?= $selectedSheetType === 'standard' ? 'selected' : '' ?>>Standard</option>
         <option value="endurance" <?= $selectedSheetType === 'endurance' ? 'selected' : '' ?>>Endurance (multiple drivers)</option>
@@ -455,7 +429,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     </div>
 
     <div class="detail-card">
-      <h2>Entrant &amp; Driver</h2>
+      <h2>Entrant and driver</h2>
       <div class="tech-sheet-header-grid">
         <div><label for="entrant_name">Entrant (required)</label><input type="text" id="entrant_name" name="entrant_name" required data-message="Enter the entrant's name." value="<?= h((string)$entrantName) ?>"></div>
         <div><label for="driver1_choice">Driver name, Driver 1 (required)</label>
@@ -476,23 +450,23 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     </div>
 
     <div class="detail-card">
-      <h2>Vehicle Checklist</h2>
+      <h2>Vehicle checklist</h2>
       <div id="checklist-container"></div>
     </div>
 
     <div class="detail-card">
-      <h2>Driver Safety Equipment — Driver 1</h2>
+      <h2>Driver safety equipment: Driver 1</h2>
       <div id="equipment-container"></div>
     </div>
 
     <div class="detail-card" id="endurance-drivers-card" <?= $selectedSheetType === 'endurance' ? '' : 'hidden' ?>>
-      <h2>Additional Drivers</h2>
+      <h2>Additional drivers</h2>
       <div id="additional-drivers-container"></div>
-      <button type="button" class="btn btn-secondary" id="add-driver-btn">+ Add Driver</button>
+      <button type="button" class="btn btn-secondary" id="add-driver-btn">+ Add driver</button>
     </div>
 
     <div class="detail-card">
-      <h2>Log Book</h2>
+      <h2>Log book</h2>
       <div class="radio-group" data-radio-group="Log book turned in? (required)" data-message="Choose Yes or No for the log book.">
       <p class="radio-group-label">Log book turned in? (required)</p>
       <label class="checkbox-label"><input type="radio" name="log_book_turned_in" value="1" <?= ((string)$existingLogBook === '1') ? 'checked' : '' ?> required> Yes</label>
@@ -501,7 +475,7 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
     </div>
 
     <div class="detail-card">
-      <h2>Declaration &amp; Signatures</h2>
+      <h2>Declaration and signatures</h2>
       <p><em>I hereby stipulate that the above vehicle meets the regulations for the event.</em></p>
       <?php if ($isEdit): ?><p class="form-hint">Leave the pads blank to keep the signatures already on file.</p><?php endif; ?>
       <p id="sig-error" class="field-message" hidden></p>
@@ -519,10 +493,9 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 
     <div id="tech-sheet-error" class="form-messages error" role="alert" hidden></div>
     <div class="form-actions">
-      <button type="submit" class="btn btn-primary" id="tech-sheet-submit-btn"><?= $isEdit ? 'Save Changes' : 'Submit Tech Sheet' ?></button>
+      <button type="submit" class="btn btn-primary" id="tech-sheet-submit-btn"><?= $isEdit ? 'Save changes' : 'Submit tech sheet' ?></button>
     </div>
   </form>
-</div>
 <script>
   const TECH_CHECKLIST_SECTIONS = <?= json_encode(TECH_CHECKLIST_SECTIONS) ?>;
   const TECH_DRIVER_EQUIPMENT_ITEMS = <?= json_encode(TECH_DRIVER_EQUIPMENT_ITEMS) ?>;
@@ -540,9 +513,8 @@ function renderTechSheetForm(array $submission, array $events, string $csrf, ?ar
 <script src="js/form-problems.js"></script>
 <script src="js/tech-sheet-draft.js"></script>
 <script src="js/tech-sheet-form.js"></script>
-<?php renderSiteFooter(); ?>
-</body>
-</html><?php
+<?php
+    renderPageEnd();
 }
 
 function renderTechSheetEditForm(array $sheet, array $drivers, array $events, string $csrf, array $ownerDrivers, array $car): void {

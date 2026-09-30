@@ -22,7 +22,7 @@ final class LayoutTest extends TestCase
         $this->assertSame('inspect.php', $admin['Inspector']);
         $this->assertSame('media.php', $admin['Media']);
         $this->assertSame('admin.php', $admin['Admin']);
-        $this->assertSame('calculator.php', $admin['Class Calculator']);
+        $this->assertSame('calculator.php', $admin['Calculator']);
     }
 
     public function testStaffSectionsSitAfterADivider(): void
