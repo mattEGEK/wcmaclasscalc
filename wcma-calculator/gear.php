@@ -72,6 +72,12 @@ switch ($action) {
         handleGearPretechSubmit($pdo, $user, (int)($_POST['id'] ?? 0));
         break;
 
+    case 'upgrade-race':
+        $user = requireGearLogin();
+        requireGearPost();
+        handleGearUpgradeRace($pdo, $user, (int)($_POST['id'] ?? 0));
+        break;
+
     case 'start':
         $user = requireGearLogin();
         handleGearStart($pdo, $user, (int)($_GET['driver_id'] ?? 0));
@@ -81,6 +87,13 @@ switch ($action) {
         $user = requireGearLogin();
         // driver: 1 (or missing) = the sheet's primary driver; 2+ = that added driver on the sheet.
         handleGearStartIce($pdo, $user, (int)($_GET['sheet_id'] ?? 0),
+            filter_var($_GET['driver'] ?? '1', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]));
+        break;
+
+    case 'start-ta-drift':
+        $user = requireGearLogin();
+        // driver: 1 (or missing) = the sheet's driver; 2+ = that added driver on the sheet.
+        handleGearStartTaDrift($pdo, $user, (int)($_GET['sheet_id'] ?? 0),
             filter_var($_GET['driver'] ?? '1', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]));
         break;
 
@@ -112,6 +125,15 @@ function handleGearPretechSubmit(PDO $pdo, array $user, int $id): void {
     exit;
 }
 
+/** Owner starts race gear photos for gear accepted at TA/Drift. */
+function handleGearUpgradeRace(PDO $pdo, array $user, int $id): void {
+    loadOwnGearRecord($pdo, $user, $id);
+    $r = gearStartRaceUpgrade($pdo, $id);
+    setFlash($r['ok'] ? 'Add the race gear photos below. The gear stays teched for TA/Drift meanwhile.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
+    header('Location: gear.php?action=pretech&id=' . $id);
+    exit;
+}
+
 /**
  * Opens ice gear photos for one driver on one of the user's ice tech sheets. $driverNumber is false
  * when the driver query value wasn't a positive integer.
@@ -124,6 +146,25 @@ function handleGearStartIce(PDO $pdo, array $user, int $sheetId, int|false $driv
         $r = ['ok' => false, 'error' => 'That driver is not on this sheet.'];
     } else {
         $r = gearStartIceForSheet($pdo, $sheet, (int)$user['id'], $driverNumber);
+    }
+    if (!$r['ok']) {
+        setFlash((string)$r['error'], 'error');
+        header('Location: ' . ($sheet === null ? 'garage.php' : 'tech-sheets.php?action=view&id=' . $sheetId));
+        exit;
+    }
+    header('Location: gear.php?action=pretech&id=' . (int)$r['id']);
+    exit;
+}
+
+/** Opens TA/Drift gear photos for one driver on one of the user's TA/Drift tech sheets. $driverNumber is false for a bad query value. */
+function handleGearStartTaDrift(PDO $pdo, array $user, int $sheetId, int|false $driverNumber): void {
+    $sheet = db_get_user_tech_sheet($pdo, (int)$user['id'], $sheetId);
+    if ($sheet === null) {
+        $r = ['ok' => false, 'error' => 'Tech sheet not found.'];
+    } elseif ($driverNumber === false) {
+        $r = ['ok' => false, 'error' => 'That driver is not on this sheet.'];
+    } else {
+        $r = gearStartTaDriftForSheet($pdo, $sheet, (int)$user['id'], $driverNumber);
     }
     if (!$r['ok']) {
         setFlash((string)$r['error'], 'error');

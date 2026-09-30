@@ -140,7 +140,13 @@ final class DbGearTest extends TestCase
         $this->assertFalse(db_accept_gear_by_photos($pdo, $id, $admin));
     }
 
-    public function testAcceptInPersonFromOpenOnceAndLeavesPhotoStatus(): void
+    /**
+     * Final-review Important finding 1: accepting in person closes any pending photo set (draft,
+     * needs_changes or submitted becomes accepted) so no stale pending photo_status is left behind
+     * — otherwise a record accepted at TA/Drift over abandoned draft race-list photos (photo_tier is
+     * NULL by default) would still be misdetected as a race upgrade by gearIsRaceUpgrade().
+     */
+    public function testAcceptInPersonFromOpenClosesAnyPendingPhotoStatus(): void
     {
         $pdo = make_temp_pdo();
         [$owner, $admin] = $this->users($pdo);
@@ -151,7 +157,7 @@ final class DbGearTest extends TestCase
         $row = db_get_gear_record($pdo, $id);
         $this->assertSame('accepted', $row['status']);
         $this->assertSame('in_person', $row['accepted_via']);
-        $this->assertSame('draft', $row['photo_status']);
+        $this->assertSame('accepted', $row['photo_status']);
         $this->assertSame($admin, (int)$row['reviewed_by_user_id']);
 
         $this->assertFalse(db_accept_gear_in_person($pdo, $id, $admin));
@@ -173,11 +179,14 @@ final class DbGearTest extends TestCase
         $this->assertSame('submitted', $row['photo_status']);
         foreach (['accepted_via', 'reviewed_by_user_id', 'reviewed_at'] as $col) $this->assertNull($row[$col], $col);
 
+        // In-person acceptance now closes a pending photo set to 'accepted' (finding 1), so a revoke
+        // of it plays back through the same 'accepted' -> 'submitted' case as a by-photos acceptance.
         $inPerson = $this->gear($pdo, $owner, 'Track Driver');
         db_mark_gear_photos_draft($pdo, $inPerson);
         db_accept_gear_in_person($pdo, $inPerson, $admin);
+        $this->assertSame('accepted', db_get_gear_record($pdo, $inPerson)['photo_status']);
         $this->assertTrue(db_revoke_gear_acceptance($pdo, $inPerson));
-        $this->assertSame('draft', db_get_gear_record($pdo, $inPerson)['photo_status']);
+        $this->assertSame('submitted', db_get_gear_record($pdo, $inPerson)['photo_status']);
 
         $this->assertFalse(db_revoke_gear_acceptance($pdo, $inPerson));   // not accepted any more
     }

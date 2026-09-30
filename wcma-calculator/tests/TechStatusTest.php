@@ -222,6 +222,22 @@ final class TechStatusTest extends TestCase
         $this->assertCount(1, techRosterFilter($rows, 'pending_review'));
     }
 
+    public function testTaDriftCarKeyIncludesClubAndNeverCollides(): void
+    {
+        $tad = fn(int $id, string $club): array => $this->sheet($id, ['discipline' => 'summer', 'sheet_type' => 'ta_drift', 'club' => $club]);
+        $this->assertSame('500|ta_drift|WSCC|2026', techCarKey($tad(1, 'WSCC')));
+        $this->assertNotSame(techCarKey($tad(1, 'WSCC')), techCarKey($tad(2, 'NASCC')));
+        $this->assertNotSame(techCarKey($tad(1, 'NASCC')), techCarKey($this->sheet(3, ['discipline' => 'ice', 'club' => 'NASCC'])));
+        $this->assertSame('500|2026', techCarKey($this->sheet(4, ['discipline' => 'summer', 'sheet_type' => 'standard', 'club' => null])));
+    }
+
+    public function testTaDriftAtTrackKey(): void
+    {
+        $this->assertSame('car:5@tad:WSCC:2026', atTrackKey('car', 5, 2026, TECH_TIER_TA_DRIFT, 'WSCC'));
+        $this->assertSame('car:5@2026', atTrackKey('car', 5, 2026));
+        $this->assertSame('car:5@ice:NASCC:2027', atTrackKey('car', 5, 2027, 'ice', 'NASCC'));
+    }
+
     public function testIceSeasonRollsOverInJuly(): void
     {
         $this->assertSame(2027, iceSeasonFromDate('2026-12-12'));

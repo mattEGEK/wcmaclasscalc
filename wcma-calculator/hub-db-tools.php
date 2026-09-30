@@ -48,6 +48,7 @@ function hubSeed(PDO $pdo, string $password): array {
     $year = (int)date('Y');
     $fall = db_create_event($pdo, 'Fall Sprint', date('Y-m-d', strtotime('+17 days')), 'Castrol Raceway');
     db_create_event($pdo, 'Season Finale', date('Y-m-d', strtotime('+31 days')), 'Castrol Raceway');
+    db_create_event($pdo, 'WSCC Time Attack', date('Y-m-d', strtotime('+24 days')), 'Gimli Motorsport Park', 'summer', 'WSCC');
     db_create_event($pdo, 'NASCC Ice Race #1', date('Y-m-d', strtotime('+45 days')), 'Lake Wabamun', 'ice', 'NASCC');
     db_create_event($pdo, 'WSCC Fire on Ice #1', date('Y-m-d', strtotime('+52 days')), 'Lake Shirley', 'ice', 'WSCC');
 

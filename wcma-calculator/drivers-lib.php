@@ -29,8 +29,12 @@ function driversRows(array $drivers, array $gear, int $selfId, int $season, arra
     foreach ($drivers as $d) {
         $id = (int)$d['id'];
         $status = isset($gear[$id]) ? gearStatus($gear[$id]) : ['state' => 'none', 'via' => null];
+        $note = trim((string)($gear[$id]['revoke_note'] ?? ''));
         $row = ['driver' => $d, 'isSelf' => $id === $selfId, 'state' => $status['state'],
-                'label' => driversGearLabel($status, $season), 'action' => driversGearAction($id, $status),
+                'label' => driversGearLabel($status, $season)
+                    . ($status['state'] === 'accepted' && ($gear[$id]['level'] ?? null) === GEAR_LEVEL_TA_DRIFT ? ' · ' . gearSummerLevelLabel(GEAR_LEVEL_TA_DRIFT) : ''),
+                'action' => driversGearAction($id, $status),
+                'revokeNote' => $status['state'] !== 'accepted' && $note !== '' ? $note : null,
                 'media' => mediaProfileStatus($media[$id]['profile'] ?? null, $media[$id]['consent'] ?? null),
                 'summer' => driverShowsSummerGear(isset($ice[$id]), $userUsesSummer, isset($gear[$id]))];
         if (isset($ice[$id])) {
@@ -42,7 +46,7 @@ function driversRows(array $drivers, array $gear, int $selfId, int $season, arra
                 $action = ['label' => 'Add ice gear photos',
                            'url' => 'gear.php?action=start-ice&sheet_id=' . (int)$i['sheetId'] . ($num >= 2 ? '&driver=' . $num : '')];
             }
-            $row['ice'] = ['state' => $i['state'], 'label' => $i['label'], 'action' => $action];
+            $row['ice'] = ['state' => $i['state'], 'label' => $i['label'], 'action' => $action, 'revokeNote' => $i['revokeNote'] ?? null];
         }
         $rows[] = $row;
     }

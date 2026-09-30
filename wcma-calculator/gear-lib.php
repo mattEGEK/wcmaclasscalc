@@ -8,6 +8,8 @@ require_once __DIR__ . '/inspection-lib.php';
 require_once __DIR__ . '/pretech-lib.php';   // pretechPlural(), pretechCapText()
 require_once __DIR__ . '/tech-status.php';   // techCarStatusBadgeClass()
 require_once __DIR__ . '/ice-rules.php';
+require_once __DIR__ . '/ta-drift-lib.php';
+require_once __DIR__ . '/revoke-lib.php';
 
 function gearNameNorm(string $name): string {
     return db_driver_name_norm($name);
@@ -15,6 +17,68 @@ function gearNameNorm(string $name): string {
 
 function gearSeasonNow(string $discipline = DISCIPLINE_SUMMER): int {
     return $discipline === DISCIPLINE_ICE ? iceSeasonFromDate(date('Y-m-d')) : (int)date('Y');
+}
+
+/** Summer gear levels an inspector picks from (TA/Drift spec §2). Race is stored as NULL. */
+const GEAR_SUMMER_LEVEL_LABELS = ['race' => 'Race', 'ta_drift' => 'TA/Drift'];
+
+/** A summer level from a form as stored: 'race', '' or null give NULL (race); 'ta_drift' gives 'ta_drift'; anything else gives false. */
+function gearSummerLevelStored(?string $choice): string|null|false {
+    if ($choice === null || $choice === '' || $choice === 'race') return null;
+    return $choice === GEAR_LEVEL_TA_DRIFT ? GEAR_LEVEL_TA_DRIFT : false;
+}
+
+/** "Race" or "TA/Drift" for a summer record's level. */
+function gearSummerLevelLabel(?string $level): string {
+    return $level === GEAR_LEVEL_TA_DRIFT ? 'TA/Drift' : 'Race';
+}
+
+/**
+ * Gear accepted at TA/Drift whose owner is sending race gear photos (TA/Drift spec §2). It keeps
+ * covering TA/Drift meanwhile. A race upgrade's photos are only ever on the race list
+ * (photo_tier IS NULL); pending TA/Drift photos on a record accepted at TA/Drift are not an upgrade.
+ */
+function gearIsRaceUpgrade(array $gear): bool {
+    return ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_SUMMER
+        && ($gear['status'] ?? '') === 'accepted' && ($gear['level'] ?? null) === GEAR_LEVEL_TA_DRIFT
+        && ($gear['photo_tier'] ?? null) === null
+        && in_array($gear['photo_status'] ?? null, ['draft', 'needs_changes', 'submitted'], true);
+}
+
+/** Owner starts race gear photos for gear accepted at TA/Drift. @return array{ok: bool, error: ?string} */
+function gearStartRaceUpgrade(PDO $pdo, int $id): array {
+    $gear = db_get_gear_record($pdo, $id);
+    if ($gear === null) return ['ok' => false, 'error' => 'Gear record not found.'];
+    if (gearIsRaceUpgrade($gear)) return ['ok' => true, 'error' => null];
+    if (!db_start_gear_race_upgrade($pdo, $id)) {
+        return ['ok' => false, 'error' => 'Only gear accepted at TA/Drift can be upgraded to race gear.'];
+    }
+    return ['ok' => true, 'error' => null];
+}
+
+/** Inspector checked race gear in person on gear accepted at TA/Drift. @return array{ok: bool, error: ?string} */
+function gearUpgradeToRaceInPerson(PDO $pdo, int $id, int $reviewerUserId): array {
+    if (!db_upgrade_gear_to_race_in_person($pdo, $id, $reviewerUserId)) {
+        return ['ok' => false, 'error' => 'Only gear accepted at TA/Drift can be accepted again at Race.'];
+    }
+    return ['ok' => true, 'error' => null];
+}
+
+/**
+ * The level a summer acceptance stores, or an error. A TA/Drift photo set was only checked against the
+ * TA/Drift list, so it can only be accepted at TA/Drift.
+ * @return array{ok: bool, error: ?string, level: ?string}
+ */
+function gearSummerAcceptLevel(array $gear, ?string $choice, bool $byPhotos): array {
+    $level = gearSummerLevelStored($choice);
+    if ($level === false) return ['ok' => false, 'error' => 'Choose the gear level: Race or TA/Drift.', 'level' => null];
+    if ($byPhotos && ($gear['photo_tier'] ?? null) === GEAR_LEVEL_TA_DRIFT && $level !== GEAR_LEVEL_TA_DRIFT) {
+        return ['ok' => false, 'error' => 'These photos only cover TA/Drift gear: accept them at TA/Drift.', 'level' => null];
+    }
+    if ($byPhotos && gearIsRaceUpgrade($gear) && $level !== null) {
+        return ['ok' => false, 'error' => 'These are race gear photos: accept them at Race, or send them back.', 'level' => null];
+    }
+    return ['ok' => true, 'error' => null, 'level' => $level];
 }
 
 /**
@@ -59,7 +123,8 @@ function gearStatusBadgeClass(string $state): string {
 function gearAccessShape(array $gear): array {
     return [
         'user_id' => (int)$gear['owner_user_id'],
-        'status' => ($gear['status'] ?? 'open') === 'accepted' ? 'teched' : 'submitted',
+        // A race upgrade stays accepted (at TA/Drift) but its owner can still add photos.
+        'status' => ($gear['status'] ?? 'open') === 'accepted' && !gearIsRaceUpgrade($gear) ? 'teched' : 'submitted',
         'photo_status' => $gear['photo_status'] ?? null,
     ];
 }
@@ -81,6 +146,16 @@ function gearRosterFilter(array $records, string $filter): array {
         if ($filter === 'pending_review') return $state === 'pending_review';
         return $filter === 'accepted' ? $state === 'accepted' : $state !== 'accepted';
     }));
+}
+
+/** The Gear tab's summer level filter (TA/Drift spec §5), next to plan 2's GEAR_SUMMER_LEVEL_LABELS. */
+const GEAR_ADMIN_LEVELS = ['all' => 'Any level', 'race' => 'Accepted at race level', 'ta_drift' => 'Accepted at TA/Drift level'];
+
+/** $level is a GEAR_ADMIN_LEVELS key; unknown means 'all'. Race is accepted with no level (TA/Drift spec §2). */
+function gearRosterLevelFilter(array $records, string $level): array {
+    if (!in_array($level, ['race', 'ta_drift'], true)) return $records;
+    return array_values(array_filter($records, fn(array $g): bool => ($g['status'] ?? '') === 'accepted'
+        && ($level === 'race' ? ($g['level'] ?? null) === null : ($g['level'] ?? null) === GEAR_LEVEL_TA_DRIFT)));
 }
 
 /** Creates a gear record for the owner. @return array{ok: bool, error: ?string, id: ?int} */
@@ -132,7 +207,7 @@ function gearSubmit(PDO $pdo, int $id): array {
 
     $gear = db_get_gear_record($pdo, $id);
     if ($gear === null) return $fail('Gear record not found.');
-    if ($gear['status'] === 'accepted') return $fail('This driver\'s gear has already been teched for the season.');
+    if ($gear['status'] === 'accepted' && !gearIsRaceUpgrade($gear)) return $fail('This driver\'s gear has already been teched for the season.');
 
     $photoStatus = $gear['photo_status'] ?? null;
     if ($photoStatus === 'submitted') return $fail('These photos have already been submitted for review.');
@@ -155,13 +230,15 @@ function gearSubmit(PDO $pdo, int $id): array {
     return ['ok' => true, 'error' => null];
 }
 
-/** Inspector accepts a submitted photo set remotely. Ice records also record the confirmed gear level. @return array{ok: bool, error: ?string} */
+/** Inspector accepts a submitted photo set remotely, recording the level: ice street-safe/caged, summer race (NULL) or TA/Drift. @return array{ok: bool, error: ?string} */
 function gearAcceptByPhotos(PDO $pdo, int $id, int $reviewerUserId, ?string $level = null): array {
     $gear = db_get_gear_record($pdo, $id);
     $isIce = $gear !== null && ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
     if ($isIce && !isset(ICE_GEAR_LEVEL_LABELS[(string)$level])) {
         return ['ok' => false, 'error' => 'Choose the gear level: street-safe or caged.'];
     }
+    $summer = ($gear !== null && !$isIce) ? gearSummerAcceptLevel($gear, $level, true) : ['ok' => true, 'error' => null, 'level' => null];
+    if (!$summer['ok']) return ['ok' => false, 'error' => $summer['error']];
     $own = !$pdo->inTransaction();
     if ($own) $pdo->beginTransaction();
     try {
@@ -170,7 +247,7 @@ function gearAcceptByPhotos(PDO $pdo, int $id, int $reviewerUserId, ?string $lev
             return ['ok' => false, 'error' => 'These photos are not awaiting review.'];
         }
         db_set_all_photos_review_status($pdo, 'gear_record', $id, 'accepted');
-        if ($isIce) db_set_gear_level($pdo, $id, $level);
+        db_set_gear_level($pdo, $id, $isIce ? $level : $summer['level']);
         if ($own) $pdo->commit();
     } catch (Throwable $e) {
         if ($own && $pdo->inTransaction()) $pdo->rollBack();
@@ -198,7 +275,7 @@ function gearSendBack(PDO $pdo, int $id, array $notes): array {
 
     $gear = db_get_gear_record($pdo, $id);
     if ($gear === null) return $fail('Gear record not found.');
-    if ($gear['status'] === 'accepted' || ($gear['photo_status'] ?? null) !== 'submitted') {
+    if (($gear['status'] === 'accepted' && !gearIsRaceUpgrade($gear)) || ($gear['photo_status'] ?? null) !== 'submitted') {
         return $fail('These photos are not awaiting review.');
     }
 
@@ -230,7 +307,7 @@ function gearSendBack(PDO $pdo, int $id, array $notes): array {
     return ['ok' => true, 'error' => null, 'retakes' => $retakes];
 }
 
-/** In-person acceptance. Ice records also record the gear level the inspector confirmed. @return array{ok: bool, error: ?string} */
+/** In-person acceptance, recording the level the inspector confirmed (ice: street-safe/caged; summer: race or TA/Drift). @return array{ok: bool, error: ?string} */
 function gearAcceptInPerson(PDO $pdo, int $id, int $reviewerUserId, ?string $level = null): array {
     $gear = db_get_gear_record($pdo, $id);
     if ($gear === null) return ['ok' => false, 'error' => 'Gear record not found.'];
@@ -238,6 +315,8 @@ function gearAcceptInPerson(PDO $pdo, int $id, int $reviewerUserId, ?string $lev
     if ($isIce && !isset(ICE_GEAR_LEVEL_LABELS[(string)$level])) {
         return ['ok' => false, 'error' => 'Choose the gear level: street-safe or caged.'];
     }
+    $summer = $isIce ? ['ok' => true, 'error' => null, 'level' => null] : gearSummerAcceptLevel($gear, $level, false);
+    if (!$summer['ok']) return ['ok' => false, 'error' => $summer['error']];
     $own = !$pdo->inTransaction();
     if ($own) $pdo->beginTransaction();
     try {
@@ -245,7 +324,7 @@ function gearAcceptInPerson(PDO $pdo, int $id, int $reviewerUserId, ?string $lev
             if ($own) $pdo->rollBack();
             return ['ok' => false, 'error' => 'This driver\'s gear has already been teched.'];
         }
-        if ($isIce) db_set_gear_level($pdo, $id, $level);
+        db_set_gear_level($pdo, $id, $isIce ? $level : $summer['level']);
         if ($own) $pdo->commit();
     } catch (Throwable $e) {
         if ($own && $pdo->inTransaction()) $pdo->rollBack();
@@ -254,22 +333,24 @@ function gearAcceptInPerson(PDO $pdo, int $id, int $reviewerUserId, ?string $lev
     return ['ok' => true, 'error' => null];
 }
 
-/** Undo an acceptance (for example the wrong driver was accepted). @return array{ok: bool, error: ?string} */
-function gearRevoke(PDO $pdo, int $id): array {
+/** Undo an acceptance (for example the wrong driver was accepted). $note (required) is kept for the owner to see. @return array{ok: bool, error: ?string} */
+function gearRevoke(PDO $pdo, int $id, mixed $note): array {
     $gear = db_get_gear_record($pdo, $id);
     if ($gear === null) return ['ok' => false, 'error' => 'Gear record not found.'];
+    $clean = revokeNoteClean($note);
+    if ($clean === null) return ['ok' => false, 'error' => REVOKE_NOTE_REQUIRED];
     $viaPhotos = ($gear['accepted_via'] ?? null) === 'photos';
 
     $own = !$pdo->inTransaction();
     if ($own) $pdo->beginTransaction();
     try {
-        if (!db_revoke_gear_acceptance($pdo, $id)) {
+        if (!db_revoke_gear_acceptance($pdo, $id, $clean)) {
             if ($own) $pdo->rollBack();
             return ['ok' => false, 'error' => 'This gear record has not been accepted.'];
         }
         // The photos go back to awaiting review along with the record.
         if ($viaPhotos) db_set_all_photos_review_status($pdo, 'gear_record', $id, 'pending');
-        if (($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE) db_set_gear_level($pdo, $id, null);
+        db_set_gear_level($pdo, $id, null);   // ice or TA/Drift: the next acceptance sets the level again
         if ($own) $pdo->commit();
     } catch (Throwable $e) {
         if ($own && $pdo->inTransaction()) $pdo->rollBack();
@@ -284,13 +365,16 @@ function gearRevoke(PDO $pdo, int $id): array {
  * owner's, any season's and any discipline's records: only the owner's, same-season, same-discipline
  * records are considered.
  *
- * @return array<int, array{driver_number: int, name: string, name_norm: string, discipline: string, default_level: ?string, gear: ?array, status: array{state: string, via: ?string}}>
+ * @return array<int, array{driver_number: int, name: string, name_norm: string, discipline: string, default_level: ?string, tier: string, sheet_caged: bool, gear: ?array, status: array{state: string, via: ?string}}>
  */
 function gearLinksForSheet(array $sheet, array $drivers, array $ownerGear): array {
     $discipline = (string)($sheet['discipline'] ?? DISCIPLINE_SUMMER);
     $season = (int)($sheet['season'] ?? 0) ?: gearSeasonNow($discipline);
     $ownerId = (int)($sheet['user_id'] ?? 0);
-    $defaultLevel = $discipline === DISCIPLINE_ICE ? iceGearLevelForClass((string)($sheet['club'] ?? ''), (string)($sheet['class'] ?? '')) : null;
+    $isTaDrift = techSheetIsTaDrift($sheet);
+    $defaultLevel = $discipline === DISCIPLINE_ICE
+        ? iceGearLevelForClass((string)($sheet['club'] ?? ''), (string)($sheet['class'] ?? ''))
+        : ($isTaDrift ? GEAR_LEVEL_TA_DRIFT : null);
 
     $byName = [];
     foreach ($ownerGear as $g) {
@@ -317,6 +401,8 @@ function gearLinksForSheet(array $sheet, array $drivers, array $ownerGear): arra
             'name_norm' => $norm,
             'discipline' => $discipline,
             'default_level' => $defaultLevel,
+            'tier' => $isTaDrift ? TECH_TIER_TA_DRIFT : TECH_TIER_RACE,
+            'sheet_caged' => !empty($sheet['caged']),
             'gear' => $gear,
             'status' => $gear !== null ? gearStatus($gear) : ['state' => 'none', 'via' => null],
         ];
@@ -372,6 +458,9 @@ function gearCreateAndAcceptInPerson(PDO $pdo, array $sheet, array $drivers, int
     if ($season !== gearSeasonNow($discipline)) return $fail('Gear can only be added for the current season.');
     if ($discipline === DISCIPLINE_ICE && !isset(ICE_GEAR_LEVEL_LABELS[(string)$level])) {
         return $fail('Choose the gear level: street-safe or caged.');
+    }
+    if ($discipline !== DISCIPLINE_ICE && gearSummerLevelStored($level) === false) {
+        return $fail('Choose the gear level: Race or TA/Drift.');
     }
 
     $ownerId = (int)($sheet['user_id'] ?? 0);
@@ -437,8 +526,49 @@ function gearStartIceForSheet(PDO $pdo, array $sheet, int $ownerId, int $driverN
 }
 
 /**
- * A driver's ice gear for $iceSeason (spec §4a): an accepted ice record, else accepted summer gear
- * from the season before (it counts as caged ice gear), else the ice record's state.
+ * Opens TA/Drift gear photos from a TA/Drift tech sheet (TA/Drift spec §3): finds or creates the summer
+ * gear record for one of the sheet's drivers, in the sheet's (current) season, under the sheet owner,
+ * and puts it on the TA/Drift photo list. A record already under way on another list keeps it; an
+ * accepted record is left alone. $driverNumber 1 is the sheet's driver; 2 and up are its added drivers.
+ *
+ * @return array{ok: bool, error: ?string, id: ?int}
+ */
+function gearStartTaDriftForSheet(PDO $pdo, array $sheet, int $ownerId, int $driverNumber = 1): array {
+    $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'id' => null];
+    if ((int)($sheet['user_id'] ?? 0) !== $ownerId) return $fail('Tech sheet not found.');
+    if (!techSheetIsTaDrift($sheet)) return $fail('That is not a TA/Drift tech sheet.');
+    $season = (int)($sheet['season'] ?? 0);
+    if ($season !== gearSeasonNow()) return $fail('Gear photos can only be added for the current season.');
+    $rawName = null;
+    if ($driverNumber === 1) {
+        $rawName = (string)($sheet['driver_name'] ?? '');
+    } else {
+        foreach (db_get_tech_sheet_drivers($pdo, (int)$sheet['id']) as $d) {
+            if ((int)$d['driver_number'] === $driverNumber) { $rawName = (string)$d['driver_name']; break; }
+        }
+    }
+    $name = trim((string)preg_replace('/\s+/', ' ', (string)$rawName));
+    if ($name === '') return $fail('That driver is not on this sheet.');
+    $caged = !empty($sheet['caged']);
+
+    $existing = db_find_gear_record($pdo, $ownerId, gearNameNorm($name), $season, DISCIPLINE_SUMMER);
+    if ($existing !== null) {
+        $id = (int)$existing['id'];
+        $photoStatus = $existing['photo_status'] ?? null;
+        $movable = ($existing['status'] ?? '') === 'open' && ($photoStatus === null
+            || (($existing['photo_tier'] ?? null) === GEAR_LEVEL_TA_DRIFT && $photoStatus !== 'submitted'));
+        if ($movable) db_set_gear_photo_tier($pdo, $id, GEAR_LEVEL_TA_DRIFT, $caged);
+        return ['ok' => true, 'error' => null, 'id' => $id];
+    }
+    $created = gearCreate($pdo, $ownerId, $name, '', $season);
+    if (!$created['ok']) return $fail((string)$created['error']);
+    db_set_gear_photo_tier($pdo, (int)$created['id'], GEAR_LEVEL_TA_DRIFT, $caged);
+    return ['ok' => true, 'error' => null, 'id' => (int)$created['id']];
+}
+
+/**
+ * A driver's ice gear for $iceSeason (spec §4a): an accepted ice record, else accepted race-level
+ * summer gear from the season before (it counts as caged ice gear), else the ice record's state.
  * @return array{state: string, label: string, gearId: ?int}
  */
 function gearIceSummary(?array $iceGear, ?array $summerPrev, int $iceSeason): array {
@@ -449,7 +579,8 @@ function gearIceSummary(?array $iceGear, ?array $summerPrev, int $iceSeason): ar
                 'label' => gearStatusLabel($iceStatus, $iceSeason, DISCIPLINE_ICE) . ($level !== '' ? ' · ' . (ICE_GEAR_LEVEL_LABELS[$level] ?? $level) : ''),
                 'gearId' => (int)$iceGear['id']];
     }
-    if ($summerPrev !== null && gearStatus($summerPrev)['state'] === 'accepted') {
+    // Only race-level summer gear counts on ice; TA/Drift-level gear doesn't meet caged standards.
+    if (gearCoversTier($summerPrev, TECH_TIER_RACE)) {
         return ['state' => 'accepted', 'label' => iceSeasonLabel($iceSeason) . ': from summer ' . ($iceSeason - 1), 'gearId' => null];
     }
     if ($iceStatus !== null && $iceStatus['state'] !== 'none') {

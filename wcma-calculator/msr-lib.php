@@ -6,10 +6,18 @@
 // msrHttpGet() and the functions that take a PDO; the sync takes its fetcher as a parameter so tests
 // never call MotorsportReg. Callers must have loaded db.php.
 
-const MSR_RACE_TYPES = ['Ice Racing', 'Club Race'];
+// MotorsportReg event types the review page shows (TA/Drift spec §5): races, ice, and stand-alone
+// Time Attack ("Time Trial" on MotorsportReg) and Drift events. Each type's chip on the review page.
+const MSR_RACE_TYPES = ['Ice Racing', 'Club Race', 'Time Trial', 'Drift'];
+const MSR_TYPE_CHIPS = ['Ice Racing' => 'Ice', 'Club Race' => 'Race', 'Time Trial' => 'TA', 'Drift' => 'Drift'];
 const MSR_ID_PATTERN = '/^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{16}$/i';
 const MSR_ORG_NOT_FOUND = "Couldn't find a MotorsportReg organization on that page. Check the address, or ask the club for its MotorsportReg organization ID.";
 const MSR_STALE = 'That MotorsportReg event was already handled.';
+
+/** The review page's chip for an MSR event type: Ice, Race, TA or Drift. */
+function msrTypeChip(string $type): string {
+    return MSR_TYPE_CHIPS[$type] ?? 'Race';
+}
 
 function msrFeedUrl(string $orgId): string {
     return 'https://api.motorsportreg.com/rest/calendars/organization/' . rawurlencode($orgId) . '.json';

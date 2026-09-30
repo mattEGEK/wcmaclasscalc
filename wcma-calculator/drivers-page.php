@@ -3,6 +3,7 @@
 //
 // Markup for the Drivers page (spec §4). Pure: no DB, no session, no echo. Callers must have loaded
 // view_helpers.php (h()) and home-page.php (homeStatusClass()).
+require_once __DIR__ . '/revoke-lib.php';
 
 function driversRenderRow(array $row, string $csrf): string {
     $d = $row['driver'];
@@ -18,10 +19,12 @@ function driversRenderRow(array $row, string $csrf): string {
         . '<label for="licence-' . $id . '">Licence number</label>'
         . '<input type="text" id="licence-' . $id . '" name="licence_no" maxlength="40" value="' . h((string)($d['licence_no'] ?? '')) . '">'
         . '<button type="submit" class="hub-btn hub-btn--link">Save</button></form>';
+    if ($row['summer'] ?? true) $out .= revokeNoticeHtml($row['revokeNote'] ?? null, 'Gear');
     if (!empty($row['ice'])) {
         $i = $row['ice'];
         $out .= '<p class="hub-line">Ice gear: <span class="hub-status ' . h(homeStatusClass($i['state'])) . '">' . h($i['label']) . '</span>'
             . ($i['action'] !== null ? ' <a href="' . h($i['action']['url']) . '">' . h($i['action']['label']) . '</a>' : '') . '</p>';
+        $out .= revokeNoticeHtml($i['revokeNote'] ?? null, 'Ice gear');
     }
     $m = $row['media'];
     $out .= '<p class="hub-line">Media profile: <span class="hub-status ' . h($m['class']) . '">' . h($m['label']) . '</span> '

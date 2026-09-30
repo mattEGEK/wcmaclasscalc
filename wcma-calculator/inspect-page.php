@@ -59,10 +59,17 @@ function inspectRosterRowHtml(array $row, array $vm): string {
     $classCell = $classLink === '' ? garageClassHtml($row['class'])
         : preg_replace('/<\/p>$/', $classLink . '</p>', garageClassHtml($row['class']));
     if (($row['ice_class'] ?? '') !== '') $classCell = '<p>' . h($row['ice_class']) . '</p>';
+    if ($sheet === null && ($row['tier'] ?? 'race') === 'ta_drift') {
+        $classCell = '<p><span class="admin-chip admin-chip--info">TA/Drift</span> ' . h((string)$row['formats']) . '</p>';
+    }
     $sheetCell = $sheet === null
         ? '<span class="hub-status hub-status--todo">No sheet yet</span>'
         : '<span class="hub-status ' . ($sheet['status'] === 'teched' ? 'hub-status--ok">Accepted' : 'hub-status--info">Submitted') . '</span>'
-            . ' <a href="inspect.php?action=tech-sheet&amp;id=' . (int)$sheet['id'] . '">' . ($sheet['status'] === 'teched' ? 'View' : 'Review') . '</a>';
+            . ' <a href="inspect.php?action=tech-sheet&amp;id=' . (int)$sheet['id'] . '">' . ($sheet['status'] === 'teched' ? 'View' : 'Review') . '</a>'
+            . (techSheetIsTaDrift($sheet) ? ' <span class="admin-chip admin-chip--info">TA/Drift</span>' : '');
+    $statusLabel = (($row['tier'] ?? 'race') === 'ta_drift')
+        ? taDriftCarTechStatusLabel($row['status'], $vm['season'], (string)$row['club'])
+        : techCarStatusLabel($row['status'], $vm['season'], (string)($vm['discipline'] ?? 'summer'));
     $chips = renderGearChips($row['gear_links'], 'admin', [
         'sheet_season' => $vm['season'], 'csrf' => $vm['csrf'], 'sheet_id' => $sheet !== null ? (int)$sheet['id'] : 0,
         'hidden' => ['back' => 'roster', 'filter' => $vm['filter']],
@@ -76,7 +83,7 @@ function inspectRosterRowHtml(array $row, array $vm): string {
         . '<div><dt>Class</dt><dd>' . $classCell . '</dd></div>'
         . '<div><dt>Tech sheet</dt><dd>' . $sheetCell . '</dd></div>'
         . '<div><dt>Car tech</dt><dd><span class="hub-status ' . h(homeStatusClass($row['status']['state'])) . '">'
-        . h(techCarStatusLabel($row['status'], $vm['season'], (string)($vm['discipline'] ?? 'summer'))) . '</span></dd></div>'
+        . h($statusLabel) . '</span></dd></div>'
         . '<div><dt>Gear</dt><dd>' . ($chips !== '' ? $chips : 'No drivers') . '</dd></div>'
         . '</dl></article>';
 }

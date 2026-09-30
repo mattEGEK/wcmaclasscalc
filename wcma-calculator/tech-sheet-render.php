@@ -65,6 +65,7 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
     $equipment = json_decode($sheet['driver1_equipment_json'] ?? '{}', true) ?: [];
 
     $isIce = techSheetIsIce($sheet);
+    $isTaDrift = techSheetIsTaDrift($sheet);
     $sections = techSheetChecklistSections($sheet);
     $items = techSheetEquipmentItems($sheet);
 
@@ -72,19 +73,28 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
     if ($logoSrc) {
         $out .= '<div style="text-align:center;margin-bottom:0.5rem"><img src="' . h($logoSrc) . '" alt="WCMA Logo" style="max-height:70px"></div>';
     }
-    $out .= '<h1 style="text-align:center;margin-bottom:0.2rem">' . ($isIce ? 'ICE RACE VEHICLE INSPECTION FORM' : 'VEHICLE INSPECTION FORM') . '</h1>';
+    $heading = $isIce ? 'ICE RACE VEHICLE INSPECTION FORM' : ($isTaDrift ? 'TA/DRIFT VEHICLE INSPECTION FORM' : 'VEHICLE INSPECTION FORM');
+    $out .= '<h1 style="text-align:center;margin-bottom:0.2rem">' . $heading . '</h1>';
     $subtitle = h($event['name'] ?? '') . ' — ' . h(date('F j, Y', strtotime($event['event_date'] ?? 'now')));
     if ($isIce) {
         $subtitle .= ' · ' . h((string)(iceClubLabel((string)($sheet['club'] ?? '')) ?? ($sheet['club'] ?? ''))) . ' · ' . iceSeasonLabel((int)($sheet['season'] ?? 0));
+    } elseif ($isTaDrift) {
+        $subtitle .= ' · ' . h((string)($sheet['club'] ?? '')) . ' · ' . (int)($sheet['season'] ?? 0);
     }
     $out .= '<p style="text-align:center;color:#555;font-size:0.85rem">' . $subtitle . '</p>';
 
     $out .= '<table cellpadding="4" style="width:100%;border-collapse:collapse;margin:1rem 0">';
     $out .= '<tr><td style="width:50%"><strong>Entrant:</strong> ' . h($sheet['entrant_name']) . '</td><td><strong>Driver 1:</strong> ' . h($sheet['driver_name']) . '</td></tr>';
     $out .= '<tr><td><strong>Car Make:</strong> ' . h($sheet['car_make']) . '</td><td><strong>Car Number:</strong> ' . h($sheet['car_number']) . '</td></tr>';
-    $out .= '<tr><td><strong>Car Model:</strong> ' . h($sheet['car_model']) . '</td><td><strong>Class:</strong> ' . h(techSheetClassLine($sheet)) . '</td></tr>';
-    $out .= '<tr><td><strong>Car Colour:</strong> ' . h($sheet['car_colour']) . '</td><td><strong>Engine:</strong> ' . h(techSheetEngineLine($sheet['engine_cc'] ?? null, $sheet['engine_hp'] ?? null)) . '</td></tr>';
-    $out .= '<tr><td><strong>Car Weight:</strong> ' . h((string)$sheet['car_weight']) . ' lbs</td><td></td></tr>';
+    if ($isTaDrift) {
+        // A TA/Drift sheet has no class, weight or HP (TA/Drift spec §3).
+        $out .= '<tr><td><strong>Car Model:</strong> ' . h($sheet['car_model']) . '</td><td><strong>Car Colour:</strong> ' . h($sheet['car_colour']) . '</td></tr>';
+        $out .= '<tr><td><strong>Roll bar or cage:</strong> ' . (!empty($sheet['caged']) ? 'Yes' : 'No') . '</td><td><strong>Engine:</strong> ' . h(techSheetEngineLine($sheet['engine_cc'] ?? null, null)) . '</td></tr>';
+    } else {
+        $out .= '<tr><td><strong>Car Model:</strong> ' . h($sheet['car_model']) . '</td><td><strong>Class:</strong> ' . h(techSheetClassLine($sheet)) . '</td></tr>';
+        $out .= '<tr><td><strong>Car Colour:</strong> ' . h($sheet['car_colour']) . '</td><td><strong>Engine:</strong> ' . h(techSheetEngineLine($sheet['engine_cc'] ?? null, $sheet['engine_hp'] ?? null)) . '</td></tr>';
+        $out .= '<tr><td><strong>Car Weight:</strong> ' . h((string)$sheet['car_weight']) . ' lbs</td><td></td></tr>';
+    }
     $out .= '</table>';
 
     $out .= '<h2 style="border-bottom:2px solid #2c3e50;padding-bottom:4px">Vehicle Checklist</h2>';
@@ -103,7 +113,7 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
     $out .= '<h2 style="border-bottom:2px solid #2c3e50;padding-bottom:4px">Driver Safety Equipment — ' . h($sheet['driver_name']) . '</h2>';
     $out .= techSheetEquipmentTable($equipment, $items);
 
-    if (($sheet['sheet_type'] ?? 'standard') === 'endurance' && !empty($drivers)) {
+    if (in_array($sheet['sheet_type'] ?? 'standard', ['endurance', SHEET_TYPE_TA_DRIFT], true) && !empty($drivers)) {
         foreach ($drivers as $d) {
             $driverEquipment = json_decode($d['equipment_json'] ?? '{}', true) ?: [];
             $out .= '<h2 style="border-bottom:2px solid #2c3e50;padding-bottom:4px">Driver ' . (int)$d['driver_number'] . ' — ' . h($d['driver_name']) . '</h2>';
@@ -121,7 +131,9 @@ function renderTechSheetHtml(array $sheet, array $drivers, array $event, ?callab
         : techSheetSignatureImg($sheet['tech_signature_path'] ?? null, 'tech', $resolveSignatureSrc);
     $out .= '<td style="width:33%"><div>' . $techSignatureCell . '</div><p style="font-size:0.8rem">Tech Representative\'s Signature</p></td>';
     $out .= '</tr></table>';
-    $out .= '<p>Vehicle Log Book Turned In: <strong>' . (($sheet['log_book_turned_in'] ?? null) === null ? '—' : ((int)$sheet['log_book_turned_in'] === 1 ? 'Yes' : 'No')) . '</strong></p>';
+    if (!$isTaDrift) {
+        $out .= '<p>Vehicle Log Book Turned In: <strong>' . (($sheet['log_book_turned_in'] ?? null) === null ? '—' : ((int)$sheet['log_book_turned_in'] === 1 ? 'Yes' : 'No')) . '</strong></p>';
+    }
     $reviewed = ($sheet['status'] ?? 'submitted') === 'teched';
     if ($reviewed) {
         $how = ($sheet['accepted_via'] ?? 'in_person') === 'photos' ? 'remotely' : 'in person';

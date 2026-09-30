@@ -25,9 +25,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $uid = (int)$user['id'];
     switch ($_POST['action'] ?? '') {
         case 'tag':
-            $r = eventsTagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), (int)($_POST['car_id'] ?? 0));
+            $r = eventsTagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), (int)($_POST['car_id'] ?? 0),
+                entryFormatsFromPost($_POST), !empty($_POST['supps_ack']));
             $extra = $r['ok'] ? remindersRecordTagChoice($pdo, $uid, $_POST) : '';
             setFlash($r['ok'] ? 'Added to your events. ' . EVENTS_NOT_REGISTERING . $extra : (string)$r['error'], $r['ok'] ? 'success' : 'error');
+            break;
+        case 'formats':
+            $r = eventsSetFormats($pdo, $uid, (int)($_POST['event_id'] ?? 0), (int)($_POST['car_id'] ?? 0),
+                entryFormatsFromPost($_POST) ?? [], !empty($_POST['supps_ack']));
+            setFlash($r['ok'] ? 'Saved what this car is running.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
             break;
         case 'untag':
             $r = eventsUntagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), (int)($_POST['car_id'] ?? 0));
@@ -60,6 +66,13 @@ $season = gearSeasonNow();
 $iceSeason = gearSeasonNow(DISCIPLINE_ICE);
 $today = (string)$in['today'];
 
+// What "I'm going" starts ticked, per upcoming summer event and car (TA/Drift spec §3 Entry).
+$tagDefaults = [];
+foreach ($in['events'] as $e) {
+    if (($e['discipline'] ?? 'summer') === 'ice' || (string)$e['event_date'] < $today) continue;
+    foreach ($in['cars'] as $cid => $car) $tagDefaults[(int)$e['id']][(int)$cid] = eventsDefaultFormats($pdo, $car, $e);
+}
+
 // Which upcoming active event(s) each car is tagged to, keyed by discipline, for usesSummer/ice.
 $eventsById = [];
 foreach ($in['events'] as $e) $eventsById[(int)$e['id']] = $e;
@@ -68,6 +81,9 @@ foreach ($in['plans'] as $p) $taggedByCar[(int)$p['car_id']][] = (int)$p['event_
 
 $hasIceActivity = userHasIceActivity($in['sheets'], (bool)$in['iceGear'], $in['plans'], $in['events'], $in['cars']);
 $userUsesSummer = userUsesSummer($in['cars'], $in['sheets'], $in['declarations'], $in['plans'], $in['events'], $today);
+
+$formatsByCar = [];
+foreach ($in['plans'] as $p) $formatsByCar[(int)$p['car_id']][(int)$p['event_id']] = (string)$p['formats'];
 
 $garage = [];
 foreach ($in['cars'] as $carId => $car) {
@@ -81,10 +97,14 @@ foreach ($in['cars'] as $carId => $car) {
         if (($e['discipline'] ?? 'summer') === 'ice') $taggedIce = true; else $taggedSummer = true;
     }
     $stored = isset($car['disciplines']) ? (string)$car['disciplines'] : null;
+    $usesSummerCar = garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, $taggedSummer, $taggedIce, $stored);
     $garage[] = ['car' => $car, 'declaration' => $decl,
                  'techLabel' => techCarStatusLabel($status, $season), 'techState' => $status['state'],
-                 'usesSummer' => garageCarUsesSummer($decl !== null ? [$decl] : [], $carSheets, $taggedSummer, $taggedIce, $stored),
-                 'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason, $stored)];
+                 'usesSummer' => $usesSummerCar,
+                 // Guarded the same way as garage.php: an ice-only car never needs a class declared.
+                 'usesRace' => $usesSummerCar && garageCarRaces($car, $decl !== null ? [$decl] : [], $carSheets, garageEntryTiers($formatsByCar[$carId] ?? [], $in['events'], $today)['race']),
+                 'ice' => garageIceSummary($carSheets, $taggedIce, $iceSeason, $stored),
+                 'taDrift' => garageTaDriftSummaries((int)$carId, $carSheets, garageEntryTiers($formatsByCar[$carId] ?? [], $in['events'], $today)['taDriftClubs'], $season)];
 }
 $drivers = [];
 foreach ($in['drivers'] as $did => $d) {
@@ -102,7 +122,9 @@ foreach ($in['drivers'] as $did => $d) {
         $ice = gearIceSummary($iceCur, $summerPrev, $iceSeason);
     }
     $drivers[] = ['name' => (string)$d['name'], 'isSelf' => $did === $in['selfDriverId'],
-                  'gearLabel' => gearStatusLabel($st, $season), 'gearState' => $st['state'],
+                  'gearLabel' => gearStatusLabel($st, $season)
+                      . ($st['state'] === 'accepted' && ($g['level'] ?? null) === GEAR_LEVEL_TA_DRIFT ? ' · ' . gearSummerLevelLabel(GEAR_LEVEL_TA_DRIFT) : ''),
+                  'gearState' => $st['state'],
                   'showSummer' => driverShowsSummerGear($hasIceActivity, $userUsesSummer, $g !== null),
                   'ice' => $ice];
 }
@@ -124,6 +146,7 @@ echo renderHomeHtml([
     'garage' => $garage, 'drivers' => $drivers, 'seasonLinks' => db_get_season_links($pdo, true),
     'csrf' => generateCsrfToken(), 'offerReminders' => remindersShouldOffer($userRow),
     'mediaPrompt' => $mediaPrompt,
+    'tagDefaults' => $tagDefaults,
     'focusEventId' => is_string($_GET['event'] ?? null) && ctype_digit($_GET['event']) ? (int)$_GET['event'] : null,
 ]);
 renderPageEnd();

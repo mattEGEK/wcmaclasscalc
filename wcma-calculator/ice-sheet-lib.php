@@ -7,6 +7,7 @@
 require_once __DIR__ . '/ice-rules.php';
 require_once __DIR__ . '/tech-sheet-data.php';
 require_once __DIR__ . '/tech-status.php';
+require_once __DIR__ . '/ta-drift-sheet-lib.php';
 
 function techSheetIsIce(array $sheet): bool {
     return ($sheet['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
@@ -14,6 +15,7 @@ function techSheetIsIce(array $sheet): bool {
 
 /** The checklist sections a sheet is filled in and shown against. */
 function techSheetChecklistSections(array $sheet): array {
+    if (techSheetIsTaDrift($sheet)) return taDriftChecklistSections(!empty($sheet['caged']), (string)($sheet['club'] ?? ''));
     if (!techSheetIsIce($sheet)) return TECH_CHECKLIST_SECTIONS;
     $club = (string)($sheet['club'] ?? '');
     $class = iceClass($club, (string)($sheet['class'] ?? ''));
@@ -22,12 +24,14 @@ function techSheetChecklistSections(array $sheet): array {
 
 /** The driver equipment items a sheet is filled in and shown against. */
 function techSheetEquipmentItems(array $sheet): array {
+    if (techSheetIsTaDrift($sheet)) return taDriftEquipmentItems(!empty($sheet['caged']));
     if (!techSheetIsIce($sheet)) return TECH_DRIVER_EQUIPMENT_ITEMS;
     return iceEquipmentItems(iceClass((string)($sheet['club'] ?? ''), (string)($sheet['class'] ?? '')));
 }
 
-/** "LS — Limited Stud (NASCC)" for an ice sheet; the stored class for summer. */
+/** "LS — Limited Stud (NASCC)" for an ice sheet; "TA/Drift (WSCC)" for a TA/Drift sheet; the stored class for summer. */
 function techSheetClassLine(array $sheet): string {
+    if (techSheetIsTaDrift($sheet)) return 'TA/Drift (' . (string)($sheet['club'] ?? '') . ')';
     $code = (string)($sheet['class'] ?? '');
     if (!techSheetIsIce($sheet)) return $code;
     $club = (string)($sheet['club'] ?? '');

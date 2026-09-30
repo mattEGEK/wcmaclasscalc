@@ -445,6 +445,17 @@ function db_init(PDO $pdo): void {
         )
     ");
     $pdo->exec("CREATE INDEX IF NOT EXISTS idx_media_consents_driver ON media_consents (driver_id, id)");
+
+    // ── TA/Drift (2026-09-29 spec §2). Added in place: no reset. Existing entries read as race. ──
+    db_add_column_if_missing($pdo, 'event_plans', 'formats', "TEXT NOT NULL DEFAULT 'race'");
+    db_add_column_if_missing($pdo, 'event_plans', 'supps_ack_at', 'DATETIME');
+    db_add_column_if_missing($pdo, 'tech_sheets', 'caged', 'INTEGER NOT NULL DEFAULT 0');
+    db_add_column_if_missing($pdo, 'tech_sheets', 'revoke_note', 'TEXT');
+    db_add_column_if_missing($pdo, 'gear_records', 'revoke_note', 'TEXT');
+    // TA/Drift gear photos (phase 2): which photo list a summer gear record is on (NULL = race, 'ta_drift'), and
+    // whether its driver's car is caged (adds the head and neck restraint photo).
+    db_add_column_if_missing($pdo, 'gear_records', 'photo_tier', 'TEXT');
+    db_add_column_if_missing($pdo, 'gear_records', 'caged', 'INTEGER NOT NULL DEFAULT 0');
 }
 
 function db_insert_submission(PDO $pdo, array $data): int {
@@ -769,9 +780,11 @@ function db_set_event_active(PDO $pdo, int $id, bool $active): void {
 
 // ── Event plans and at-track choices ─────────────────────────────────────────
 
-function db_tag_event(PDO $pdo, int $userId, int $eventId, int $carId): void {
-    $pdo->prepare("INSERT OR IGNORE INTO event_plans (user_id, event_id, car_id, created_at) VALUES (:u, :e, :c, :now)")
-        ->execute([':u' => $userId, ':e' => $eventId, ':c' => $carId, ':now' => date('Y-m-d H:i:s')]);
+/** Tags the car for the event. True if it was not tagged yet (a new entry starts as race). */
+function db_tag_event(PDO $pdo, int $userId, int $eventId, int $carId): bool {
+    $stmt = $pdo->prepare("INSERT OR IGNORE INTO event_plans (user_id, event_id, car_id, created_at) VALUES (:u, :e, :c, :now)");
+    $stmt->execute([':u' => $userId, ':e' => $eventId, ':c' => $carId, ':now' => date('Y-m-d H:i:s')]);
+    return $stmt->rowCount() === 1;
 }
 
 function db_untag_event(PDO $pdo, int $userId, int $eventId, int $carId): void {
@@ -780,9 +793,34 @@ function db_untag_event(PDO $pdo, int $userId, int $eventId, int $carId): void {
 }
 
 function db_get_user_event_plans(PDO $pdo, int $userId): array {
-    $stmt = $pdo->prepare("SELECT event_id, car_id FROM event_plans WHERE user_id = :u ORDER BY event_id ASC, car_id ASC");
+    $stmt = $pdo->prepare("SELECT event_id, car_id, formats, supps_ack_at FROM event_plans WHERE user_id = :u ORDER BY event_id ASC, car_id ASC");
     $stmt->execute([':u' => $userId]);
     return $stmt->fetchAll();
+}
+
+/** One entry (event_plans row) of the user's, or null. */
+function db_get_entry(PDO $pdo, int $userId, int $eventId, int $carId): ?array {
+    $stmt = $pdo->prepare("SELECT * FROM event_plans WHERE user_id = :u AND event_id = :e AND car_id = :c");
+    $stmt->execute([':u' => $userId, ':e' => $eventId, ':c' => $carId]);
+    return $stmt->fetch() ?: null;
+}
+
+/** An entry's formats (as entryFormatsStore() writes them) and when the regulations box was ticked (null = not ticked). */
+function db_set_entry_formats(PDO $pdo, int $userId, int $eventId, int $carId, string $formats, ?string $suppsAckAt): void {
+    $pdo->prepare("UPDATE event_plans SET formats = :f, supps_ack_at = :a WHERE user_id = :u AND event_id = :e AND car_id = :c")
+        ->execute([':f' => $formats, ':a' => $suppsAckAt, ':u' => $userId, ':e' => $eventId, ':c' => $carId]);
+}
+
+/** The formats of the car's most recently made summer entry, other than $exceptEventId. Null if none. */
+function db_get_car_last_summer_formats(PDO $pdo, int $carId, int $exceptEventId): ?string {
+    $stmt = $pdo->prepare("
+        SELECT p.formats FROM event_plans p JOIN events e ON e.id = p.event_id
+        WHERE p.car_id = :c AND p.event_id != :x AND e.discipline = 'summer'
+        ORDER BY p.created_at DESC, p.id DESC LIMIT 1
+    ");
+    $stmt->execute([':c' => $carId, ':x' => $exceptEventId]);
+    $f = $stmt->fetchColumn();
+    return $f === false ? null : (string)$f;
 }
 
 function db_set_at_track(PDO $pdo, string $subjectType, int $subjectId, int $season,
@@ -804,7 +842,9 @@ function db_get_at_track_keys(PDO $pdo, array $carIds, array $driverIds, int $se
     foreach ($stmt->fetchAll() as $r) {
         $id = (int)$r['subject_id'];
         if (($r['subject_type'] === 'car' && isset($cars[$id])) || ($r['subject_type'] === 'driver' && isset($drivers[$id]))) {
-            $keys[] = atTrackKey($r['subject_type'], $id, $season, $discipline, (string)$r['club']);
+            // A summer row with a club is TA/Drift car tech at that club (TA/Drift spec §2).
+            $keyDiscipline = $discipline === DISCIPLINE_SUMMER && (string)$r['club'] !== '' ? TECH_TIER_TA_DRIFT : $discipline;
+            $keys[] = atTrackKey($r['subject_type'], $id, $season, $keyDiscipline, (string)$r['club']);
         }
     }
     return $keys;
@@ -818,10 +858,31 @@ function db_get_gear_record_for_driver(PDO $pdo, int $driverId, int $season, str
 
 // ── Tech Sheets ───────────────────────────────────────────────────────────────
 
+/** The host club a TA/Drift sheet is keyed to: its event's host_club. Throws if the event has none. */
+function db_ta_drift_club(PDO $pdo, int $eventId): string {
+    $club = trim((string)(db_get_event($pdo, $eventId)['host_club'] ?? ''));
+    if ($club === '') throw new InvalidArgumentException('A TA/Drift tech sheet needs an event with a host club.');
+    return $club;
+}
+
 function db_insert_tech_sheet(PDO $pdo, array $data): int {
     $now = date('Y-m-d H:i:s');
     $identity = db_tech_sheet_identity($pdo, (string)$data['car_number'], (int)$data['event_id']);
-    if ($identity['discipline'] === DISCIPLINE_ICE) {
+    if (($data['sheet_type'] ?? '') === SHEET_TYPE_TA_DRIFT) {
+        if ($identity['discipline'] !== DISCIPLINE_SUMMER) {
+            throw new InvalidArgumentException('A TA/Drift tech sheet is for summer events.');
+        }
+        if (!empty($data['submission_id'])) {
+            throw new InvalidArgumentException('A TA/Drift tech sheet does not take a class declaration.');
+        }
+        $car = db_get_user_car($pdo, (int)$data['user_id'], (int)($data['car_id'] ?? 0));
+        if ($car === null) {
+            throw new InvalidArgumentException('A TA/Drift tech sheet needs one of your cars.');
+        }
+        $identity['club'] = db_ta_drift_club($pdo, (int)$data['event_id']);
+        $submissionId = null;
+        $carId = (int)$car['id'];
+    } elseif ($identity['discipline'] === DISCIPLINE_ICE) {
         if (!empty($data['submission_id'])) {
             throw new InvalidArgumentException('An ice tech sheet does not take a class declaration.');
         }
@@ -846,14 +907,14 @@ function db_insert_tech_sheet(PDO $pdo, array $data): int {
             entrant_name, driver_name, driver_id, car_make, car_model, car_colour, car_number,
             class, engine_cc, engine_hp, car_weight,
             checklist_json, driver1_equipment_json, log_book_turned_in,
-            car_number_norm, season, discipline, club,
+            car_number_norm, season, discipline, club, caged,
             status, created_at, updated_at
         ) VALUES (
             :submission_id, :car_id, :user_id, :event_id, :sheet_type,
             :entrant_name, :driver_name, :driver_id, :car_make, :car_model, :car_colour, :car_number,
             :class, :engine_cc, :engine_hp, :car_weight,
             :checklist_json, :driver1_equipment_json, :log_book_turned_in,
-            :car_number_norm, :season, :discipline, :club,
+            :car_number_norm, :season, :discipline, :club, :caged,
             'submitted', :created_at, :updated_at
         )
     ");
@@ -867,7 +928,7 @@ function db_insert_tech_sheet(PDO $pdo, array $data): int {
         ':checklist_json' => $data['checklist_json'], ':driver1_equipment_json' => $data['driver1_equipment_json'],
         ':log_book_turned_in' => $data['log_book_turned_in'] ?? null,
         ':car_number_norm' => $identity['car_number_norm'], ':season' => $identity['season'],
-        ':discipline' => $identity['discipline'], ':club' => $identity['club'],
+        ':discipline' => $identity['discipline'], ':club' => $identity['club'], ':caged' => empty($data['caged']) ? 0 : 1,
         ':created_at' => $now, ':updated_at' => $now,
     ]);
     return (int)$pdo->lastInsertId();
@@ -905,6 +966,11 @@ function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
     if ($current !== null && ($current['discipline'] ?? DISCIPLINE_SUMMER) !== $identity['discipline']) {
         throw new InvalidArgumentException('A tech sheet cannot move between summer and ice events.');
     }
+    $isTaDrift = ($data['sheet_type'] ?? '') === SHEET_TYPE_TA_DRIFT;
+    if ($current !== null && (($current['sheet_type'] ?? '') === SHEET_TYPE_TA_DRIFT) !== $isTaDrift) {
+        throw new InvalidArgumentException('A tech sheet cannot change between TA/Drift and race.');
+    }
+    if ($isTaDrift) $identity['club'] = db_ta_drift_club($pdo, (int)$data['event_id']);
     $owner = (int)($current['user_id'] ?? 0);
     $driverId = db_find_or_create_driver($pdo, $owner, (string)$data['driver_name']);
     $pdo->prepare("
@@ -915,7 +981,7 @@ function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
             class = :class, engine_cc = :engine_cc, engine_hp = :engine_hp, car_weight = :car_weight,
             checklist_json = :checklist_json, driver1_equipment_json = :driver1_equipment_json,
             log_book_turned_in = :log_book_turned_in,
-            car_number_norm = :car_number_norm, season = :season, club = :club, updated_at = :updated_at
+            car_number_norm = :car_number_norm, season = :season, club = :club, caged = :caged, updated_at = :updated_at
         WHERE id = :id
     ")->execute([
         ':event_id' => $data['event_id'], ':sheet_type' => $data['sheet_type'],
@@ -926,7 +992,7 @@ function db_update_tech_sheet(PDO $pdo, int $id, array $data): void {
         ':checklist_json' => $data['checklist_json'], ':driver1_equipment_json' => $data['driver1_equipment_json'],
         ':log_book_turned_in' => $data['log_book_turned_in'] ?? null,
         ':car_number_norm' => $identity['car_number_norm'], ':season' => $identity['season'],
-        ':club' => $identity['club'],
+        ':club' => $identity['club'], ':caged' => empty($data['caged']) ? 0 : 1,
         ':updated_at' => date('Y-m-d H:i:s'), ':id' => $id,
     ]);
 }
@@ -1436,24 +1502,28 @@ function db_accept_tech_sheet_in_person(PDO $pdo, int $id, int $reviewerUserId, 
         UPDATE tech_sheets SET
             status = 'teched', accepted_via = 'in_person',
             reviewed_by_user_id = :reviewer, reviewed_at = :now,
-            tech_signature_path = :sig, tech_signed_at = :now, updated_at = :now
+            tech_signature_path = :sig, tech_signed_at = :now, revoke_note = NULL, updated_at = :now
         WHERE id = :id AND status = 'submitted'
     ");
     $stmt->execute([':reviewer' => $reviewerUserId, ':now' => $now, ':sig' => $signaturePath, ':id' => $id]);
     return $stmt->rowCount() === 1;
 }
 
-/** Returns an accepted sheet to 'submitted' and clears its review fields. False if it was not accepted. */
-function db_revoke_tech_sheet_acceptance(PDO $pdo, int $id): bool {
+/**
+ * Returns an accepted sheet to 'submitted' and clears its review fields. $note says why (for example
+ * the car changed substantially) and is shown to the owner until the sheet is accepted again.
+ * False if it was not accepted.
+ */
+function db_revoke_tech_sheet_acceptance(PDO $pdo, int $id, ?string $note = null): bool {
     $stmt = $pdo->prepare("
         UPDATE tech_sheets SET
             status = 'submitted', accepted_via = NULL,
             photo_status = CASE WHEN photo_status = 'accepted' THEN 'submitted' ELSE photo_status END,
             reviewed_by_user_id = NULL, reviewed_at = NULL,
-            tech_signature_path = NULL, tech_signed_at = NULL, updated_at = :now
+            tech_signature_path = NULL, tech_signed_at = NULL, revoke_note = :note, updated_at = :now
         WHERE id = :id AND status = 'teched'
     ");
-    $stmt->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+    $stmt->execute([':note' => $note, ':now' => date('Y-m-d H:i:s'), ':id' => $id]);
     return $stmt->rowCount() === 1;
 }
 
@@ -1521,7 +1591,7 @@ function db_accept_tech_sheet_by_photos(PDO $pdo, int $id, int $reviewerUserId):
     $now = date('Y-m-d H:i:s');
     $stmt = $pdo->prepare("
         UPDATE tech_sheets SET
-            status = 'teched', accepted_via = 'photos', photo_status = 'accepted',
+            status = 'teched', accepted_via = 'photos', photo_status = 'accepted', revoke_note = NULL,
             reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
         WHERE id = :id AND status = 'submitted' AND photo_status = 'submitted'
     ");
@@ -1629,37 +1699,49 @@ function db_mark_gear_photos_draft(PDO $pdo, int $id): void {
     ")->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
 }
 
-/** Atomic photo_status transition: true only if the record is still open and its status was one of $from. */
+/**
+ * A gear record whose photo set can move: an open record, or TA/Drift gear being upgraded to race
+ * (TA/Drift phase 2). A race upgrade's photos are on the race list (photo_tier IS NULL); pending
+ * TA/Drift photos on a record accepted at TA/Drift are not an upgrade and must not match here.
+ */
+const DB_GEAR_PHOTOS_OPEN_SQL = "(status = 'open' OR (status = 'accepted' AND level = 'ta_drift' AND photo_tier IS NULL))";
+
+/** Atomic photo_status transition: true only if the record's photos can still move (open, or a race upgrade) and its status was one of $from. */
 function db_transition_gear_photo_status(PDO $pdo, int $id, array $from, string $to): bool {
     if (empty($from)) return false;
     $marks = implode(',', array_fill(0, count($from), '?'));
     $stmt = $pdo->prepare("
         UPDATE gear_records SET photo_status = ?, updated_at = ?
-        WHERE id = ? AND status = 'open' AND photo_status IN ($marks)
+        WHERE id = ? AND " . DB_GEAR_PHOTOS_OPEN_SQL . " AND photo_status IN ($marks)
     ");
     $stmt->execute(array_merge([$to, date('Y-m-d H:i:s'), $id], array_values($from)));
     return $stmt->rowCount() === 1;
 }
 
-/** Remote acceptance after reviewing photos. Atomic; only from a submitted photo set on an open record. */
+/** Remote acceptance after reviewing photos. Atomic; only from a submitted photo set on an open record or a race upgrade. */
 function db_accept_gear_by_photos(PDO $pdo, int $id, int $reviewerUserId): bool {
     $now = date('Y-m-d H:i:s');
     $stmt = $pdo->prepare("
         UPDATE gear_records SET
-            status = 'accepted', accepted_via = 'photos', photo_status = 'accepted',
+            status = 'accepted', accepted_via = 'photos', photo_status = 'accepted', revoke_note = NULL,
             reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
-        WHERE id = :id AND status = 'open' AND photo_status = 'submitted'
+        WHERE id = :id AND " . DB_GEAR_PHOTOS_OPEN_SQL . " AND photo_status = 'submitted'
     ");
     $stmt->execute([':reviewer' => $reviewerUserId, ':now' => $now, ':id' => $id]);
     return $stmt->rowCount() === 1;
 }
 
-/** In-person acceptance at the track: atomic, from any open record. */
+/**
+ * In-person acceptance at the track: atomic, from any open record. Closes any pending photo set
+ * (draft/needs_changes/submitted becomes accepted) so no stale pending photos are left behind, for
+ * example when a driver's TA/Drift photos were mid-review and an inspector accepts the gear in person.
+ */
 function db_accept_gear_in_person(PDO $pdo, int $id, int $reviewerUserId): bool {
     $now = date('Y-m-d H:i:s');
     $stmt = $pdo->prepare("
         UPDATE gear_records SET
-            status = 'accepted', accepted_via = 'in_person',
+            status = 'accepted', accepted_via = 'in_person', revoke_note = NULL,
+            photo_status = CASE WHEN photo_status IN ('draft', 'needs_changes', 'submitted') THEN 'accepted' ELSE photo_status END,
             reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
         WHERE id = :id AND status = 'open'
     ");
@@ -1667,26 +1749,59 @@ function db_accept_gear_in_person(PDO $pdo, int $id, int $reviewerUserId): bool 
     return $stmt->rowCount() === 1;
 }
 
-/** Undo an acceptance: back to open; a photo-accepted set returns to the review queue. False if not accepted. */
-function db_revoke_gear_acceptance(PDO $pdo, int $id): bool {
+/** Undo an acceptance: back to open; a photo-accepted set returns to the review queue. $note says why. False if not accepted. */
+function db_revoke_gear_acceptance(PDO $pdo, int $id, ?string $note = null): bool {
     $stmt = $pdo->prepare("
         UPDATE gear_records SET
             status = 'open', accepted_via = NULL,
             photo_status = CASE WHEN photo_status = 'accepted' THEN 'submitted' ELSE photo_status END,
-            reviewed_by_user_id = NULL, reviewed_at = NULL, updated_at = :now
+            reviewed_by_user_id = NULL, reviewed_at = NULL, revoke_note = :note, updated_at = :now
         WHERE id = :id AND status = 'accepted'
+    ");
+    $stmt->execute([':note' => $note, ':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+    return $stmt->rowCount() === 1;
+}
+
+/**
+ * The gear level an inspector confirmed: ice 'street_safe' or 'caged'; summer GEAR_LEVEL_TA_DRIFT;
+ * or null to clear it (on a summer record, null is race level).
+ */
+function db_set_gear_level(PDO $pdo, int $id, ?string $level): void {
+    if ($level !== null && !in_array($level, ['street_safe', 'caged', GEAR_LEVEL_TA_DRIFT], true)) {
+        throw new InvalidArgumentException('Unknown gear level: ' . $level);
+    }
+    $pdo->prepare("UPDATE gear_records SET level = :l, updated_at = :now WHERE id = :id")
+        ->execute([':l' => $level, ':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+}
+
+/** A summer gear record's photo list: NULL (race) or GEAR_LEVEL_TA_DRIFT, and whether the car is caged. */
+function db_set_gear_photo_tier(PDO $pdo, int $id, ?string $tier, bool $caged): void {
+    if ($tier !== null && $tier !== GEAR_LEVEL_TA_DRIFT) throw new InvalidArgumentException('Unknown photo tier: ' . $tier);
+    $pdo->prepare("UPDATE gear_records SET photo_tier = :t, caged = :c, updated_at = :now WHERE id = :id")
+        ->execute([':t' => $tier, ':c' => $caged ? 1 : 0, ':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+}
+
+/** Starts race gear photos on gear accepted at TA/Drift: back to the race list, photos in draft; it stays accepted at TA/Drift. */
+function db_start_gear_race_upgrade(PDO $pdo, int $id): bool {
+    $stmt = $pdo->prepare("
+        UPDATE gear_records SET photo_tier = NULL, caged = 0, photo_status = 'draft', updated_at = :now
+        WHERE id = :id AND discipline = 'summer' AND status = 'accepted' AND level = 'ta_drift'
+          AND (photo_status IS NULL OR photo_status = 'accepted')
     ");
     $stmt->execute([':now' => date('Y-m-d H:i:s'), ':id' => $id]);
     return $stmt->rowCount() === 1;
 }
 
-/** The ice gear level an inspector confirmed: 'street_safe', 'caged', or null to clear it. */
-function db_set_gear_level(PDO $pdo, int $id, ?string $level): void {
-    if ($level !== null && !in_array($level, ['street_safe', 'caged'], true)) {
-        throw new InvalidArgumentException('Unknown gear level: ' . $level);
-    }
-    $pdo->prepare("UPDATE gear_records SET level = :l, updated_at = :now WHERE id = :id")
-        ->execute([':l' => $level, ':now' => date('Y-m-d H:i:s'), ':id' => $id]);
+/** An inspector checked the race gear in person: gear accepted at TA/Drift becomes race level. */
+function db_upgrade_gear_to_race_in_person(PDO $pdo, int $id, int $reviewerUserId): bool {
+    $now = date('Y-m-d H:i:s');
+    $stmt = $pdo->prepare("
+        UPDATE gear_records SET level = NULL, accepted_via = 'in_person', revoke_note = NULL,
+            reviewed_by_user_id = :reviewer, reviewed_at = :now, updated_at = :now
+        WHERE id = :id AND discipline = 'summer' AND status = 'accepted' AND level = 'ta_drift'
+    ");
+    $stmt->execute([':reviewer' => $reviewerUserId, ':now' => $now, ':id' => $id]);
+    return $stmt->rowCount() === 1;
 }
 
 /** Additional drivers for many sheets at once: sheet id => rows ordered by driver number. Sheets with none are absent. */
@@ -1811,7 +1926,8 @@ function db_delete_season_link(PDO $pdo, int $id): void {
 function db_get_event_roster_cars(PDO $pdo, int $eventId): array {
     $stmt = $pdo->prepare("
         SELECT c.*, u.name AS owner_name, u.email AS owner_email,
-               EXISTS (SELECT 1 FROM event_plans p WHERE p.event_id = :e AND p.car_id = c.id) AS tagged
+               EXISTS (SELECT 1 FROM event_plans p WHERE p.event_id = :e AND p.car_id = c.id) AS tagged,
+               (SELECT p.formats FROM event_plans p WHERE p.event_id = :e AND p.car_id = c.id) AS formats
         FROM cars c JOIN users u ON u.id = c.owner_user_id
         WHERE c.id IN (SELECT car_id FROM event_plans WHERE event_id = :e
                        UNION SELECT car_id FROM tech_sheets WHERE event_id = :e)
@@ -1875,7 +1991,7 @@ function db_get_gear_awaiting_photo_review(PDO $pdo): array {
         SELECT g.*, d.owner_user_id AS owner_user_id, d.name AS driver_name, d.name_norm AS driver_name_norm,
                d.licence_no AS licence_no, u.name AS owner_name
         FROM gear_records g JOIN drivers d ON d.id = g.driver_id LEFT JOIN users u ON u.id = d.owner_user_id
-        WHERE g.photo_status = 'submitted' AND g.status = 'open'
+        WHERE g.photo_status = 'submitted' AND (g.status = 'open' OR (g.status = 'accepted' AND g.level = 'ta_drift' AND g.photo_tier IS NULL))
         ORDER BY g.updated_at ASC, g.id ASC
     ")->fetchAll();
 }

@@ -30,11 +30,14 @@ const INSPECT_DECLARATION_STATUSES = ['submitted', 'needs_changes', 'accepted', 
  * @param array $selfDrivers   owner user id => self driver row (db_get_self_drivers_for_users())
  * @param array $seasonGear    every gear record in the season (db_get_gear_records_for_season())
  * @param array $key           discipline/club identity for this roster (seasonForEvent()'s shape)
+ * @param ?string $hostClub the event's host club. A summer car with no sheet here whose entry needs TA/Drift
+ *                          (entryTierAtEvent()) shows that club's TA/Drift standing (race tech covers it);
+ *                          plan 2 handles cars whose sheet here is TA/Drift.
  * @return array<int, array{car: array, sheet: ?array, class: array, status: array, gear_links: array, ice_class: string}>
  */
 function inspectRosterRows(array $cars, array $eventSheets, array $seasonSheets, array $declarations,
                            array $sheetDrivers, array $selfDrivers, array $seasonGear, int $season,
-                           array $key = ['discipline' => 'summer', 'club' => null]): array {
+                           array $key = ['discipline' => 'summer', 'club' => null], ?string $hostClub = null): array {
     $isIce = ($key['discipline'] ?? 'summer') === 'ice';
     $sheetByCar = [];
     foreach ($eventSheets as $s) {
@@ -63,13 +66,30 @@ function inspectRosterRows(array $cars, array $eventSheets, array $seasonSheets,
         } else {
             $links = [];
         }
+        $status = techCarStatus($groups[techCarKey(['car_id' => $cid, 'season' => $season, 'discipline' => $key['discipline'], 'club' => $key['club']])] ?? []);
+        $isTaDrift = !$isIce && $sheet !== null && techSheetIsTaDrift($sheet);
+        // No sheet here yet: the entry's formats decide (TA/Drift spec §4), so a TA/Drift-only entry isn't shown as race.
+        $entryTaDrift = !$isIce && $sheet === null && $hostClub !== null && $hostClub !== ''
+            && entryTierAtEvent(['discipline' => DISCIPLINE_SUMMER, 'host_club' => $hostClub], isset($car['formats']) ? (string)$car['formats'] : null) === TECH_TIER_TA_DRIFT;
+        if ($entryTaDrift) {
+            $tadKey = techCarKey(['car_id' => $cid, 'season' => $season, 'sheet_type' => SHEET_TYPE_TA_DRIFT, 'club' => $hostClub]);
+            $status = taDriftCarTechStatus($status, techCarStatus($groups[$tadKey] ?? []));
+        }
+        if ($isTaDrift) {
+            // A TA/Drift sheet: race tech (any club) counts, otherwise its TA/Drift sheets at this club (TA/Drift spec §2).
+            $status = taDriftCarTechStatus($status, techCarStatus($groups[techCarKey($sheet)] ?? []));
+        }
         $rows[] = [
             'car' => $car,
             'sheet' => $sheet,
             'class' => garageClassLine($declarations[$cid] ?? []),
-            'status' => techCarStatus($groups[techCarKey(['car_id' => $cid, 'season' => $season, 'discipline' => $key['discipline'], 'club' => $key['club']])] ?? []),
+            'status' => $status,
             'gear_links' => $links,
-            'ice_class' => ($isIce && $sheet !== null) ? techSheetClassLine($sheet) : '',
+            // The class line from the sheet (ice class, or "TA/Drift (CLUB)"); '' when the class comes from a declaration.
+            'ice_class' => (($isIce || $isTaDrift) && $sheet !== null) ? techSheetClassLine($sheet) : '',
+            'tier' => ($isTaDrift || $entryTaDrift) ? TECH_TIER_TA_DRIFT : TECH_TIER_RACE,
+            'club' => $isTaDrift ? (string)$sheet['club'] : (string)$hostClub,
+            'formats' => entryFormatsLabel(entryFormatsParse(isset($car['formats']) ? (string)$car['formats'] : null)),
         ];
     }
     return $rows;
@@ -85,8 +105,8 @@ function inspectRosterFilter(array $rows, string $filter): array {
             case 'needs_tech':   return !$carAccepted || techGearLinksNeedGear($r['gear_links']);
             case 'no_sheet':     return $r['sheet'] === null;
         }
-        // class_not_accepted: an ice row's class comes from its sheet, not the summer declaration.
-        if (($r['ice_class'] ?? '') !== '') return false;
+        // class_not_accepted: an ice or TA/Drift row's class line comes from its sheet or entry, not a declaration.
+        if (($r['ice_class'] ?? '') !== '' || ($r['tier'] ?? TECH_TIER_RACE) === TECH_TIER_TA_DRIFT) return false;   // no class for TA/Drift
         $current = $r['class']['current'];
         return $current === null || $current['review_status'] !== 'accepted';
     }));
@@ -126,7 +146,8 @@ function inspectReviewQueue(array $declarations, array $sheets, array $gear): ar
             'kind' => 'car_photos', 'id' => (int)$s['id'],
             'title' => 'Car pre-tech photos: #' . $s['car_number'] . ' ' . trim($s['car_make'] . ' ' . $s['car_model']),
             'detail' => $s['entrant_name'] . ' · ' . ($s['event_name'] ?? '')
-                . (techSheetIsIce($s) ? ' · Ice · ' . techSheetClassLine($s) : ''),
+                . (techSheetIsIce($s) ? ' · Ice · ' . techSheetClassLine($s) : '')
+                . (techSheetIsTaDrift($s) ? ' · TA/Drift · ' . (string)($s['club'] ?? '') : ''),
             'since' => (string)$s['updated_at'],
             'url' => 'inspect.php?action=tech-sheet&id=' . (int)$s['id'] . '#pretech-review',
         ];
@@ -136,7 +157,8 @@ function inspectReviewQueue(array $declarations, array $sheets, array $gear): ar
             'kind' => 'gear_photos', 'id' => (int)$g['id'],
             'title' => 'Gear pre-tech photos: ' . $g['driver_name'],
             'detail' => 'Entered by ' . ($g['owner_name'] ?? '') . ' · '
-                . ((($g['discipline'] ?? 'summer') === 'ice') ? iceSeasonLabel((int)$g['season']) : (string)(int)$g['season']),
+                . ((($g['discipline'] ?? 'summer') === 'ice') ? iceSeasonLabel((int)$g['season']) : (string)(int)$g['season'])
+                . (gearIsRaceUpgrade($g) ? ' · Upgrade to race' : ((($g['photo_tier'] ?? null) === GEAR_LEVEL_TA_DRIFT) ? ' · TA/Drift' : '')),
             'since' => (string)$g['updated_at'],
             'url' => 'inspect.php?action=gear-record&id=' . (int)$g['id'] . '#gear-review',
         ];

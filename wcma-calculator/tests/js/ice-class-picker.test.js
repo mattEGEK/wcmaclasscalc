@@ -29,3 +29,8 @@ test('equipmentLabel marks a required item', () => {
     assert.strictEqual(equipmentLabel('Head & Neck Restraints', true), 'Head & Neck Restraints (required for this class)');
     assert.strictEqual(equipmentLabel('Head & Neck Restraints', false), 'Head & Neck Restraints');
 });
+
+test('equipmentLabel can say why the item is required', () => {
+    assert.strictEqual(equipmentLabel('Head & Neck Restraint', true, 'in a caged car'), 'Head & Neck Restraint (required in a caged car)');
+    assert.strictEqual(equipmentLabel('Head & Neck Restraint', false, 'in a caged car'), 'Head & Neck Restraint');
+});

@@ -60,14 +60,18 @@ function garageShowList(PDO $pdo, int $uid): void {
     $archived = array_values(array_filter($all, fn(array $c): bool => $c['archived_at'] !== null));
     $sheets = db_get_user_tech_sheets($pdo, $uid);
     $tagged = [];
-    foreach (db_get_user_event_plans($pdo, $uid) as $p) $tagged[(int)$p['car_id']][] = (int)$p['event_id'];
+    $formats = [];
+    foreach (db_get_user_event_plans($pdo, $uid) as $p) {
+        $tagged[(int)$p['car_id']][] = (int)$p['event_id'];
+        $formats[(int)$p['car_id']][(int)$p['event_id']] = (string)$p['formats'];
+    }
     $events = db_get_active_events($pdo);
 
     $cards = [];
     foreach ($active as $car) {
         $cid = (int)$car['id'];
         $carSheets = array_values(array_filter($sheets, fn(array $s): bool => (int)$s['car_id'] === $cid));
-        $cards[] = garageCard($car, db_get_car_declarations($pdo, $cid), $carSheets, $tagged[$cid] ?? [], $events, gearSeasonNow(), date('Y-m-d'), gearSeasonNow(DISCIPLINE_ICE));
+        $cards[] = garageCard($car, db_get_car_declarations($pdo, $cid), $carSheets, $tagged[$cid] ?? [], $events, gearSeasonNow(), date('Y-m-d'), gearSeasonNow(DISCIPLINE_ICE), $formats[$cid] ?? []);
     }
 
     // js/ui-controller.js fetches account.php (which redirects here) and scrapes this meta tag for
@@ -98,15 +102,21 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
     $allSheets = array_values(array_filter(db_get_user_tech_sheets($pdo, $uid), fn(array $s): bool => (int)$s['car_id'] === $carId));
     $sheets = garageSummerSheets($allSheets);
     $tagged = [];
+    $formatsByEvent = [];
     foreach (db_get_user_event_plans($pdo, $uid) as $p) {
-        if ((int)$p['car_id'] === $carId) $tagged[] = (int)$p['event_id'];
+        if ((int)$p['car_id'] !== $carId) continue;
+        $tagged[] = (int)$p['event_id'];
+        $formatsByEvent[(int)$p['event_id']] = (string)$p['formats'];
     }
     $eventNames = [];
     foreach (db_get_all_events($pdo) as $e) {
         $eventNames[(int)$e['id']] = (string)$e['name'];
     }
     $today = date('Y-m-d');
-    $events = garageCarEvents($allSheets, $tagged, db_get_active_events($pdo), $eventNames, $today);
+    $events = garageCarEvents($allSheets, $tagged, db_get_active_events($pdo), $eventNames, $today, $formatsByEvent);
+    foreach ($events['tagged'] as $i => $row) {
+        $events['tagged'][$i]['suppsAckAt'] = db_get_entry($pdo, $uid, (int)$row['event']['id'], $carId)['supps_ack_at'] ?? null;
+    }
 
     $ownerGear = db_get_user_gear_records($pdo, $uid);
     $driversBySheet = db_get_drivers_for_sheets($pdo, array_map(fn(array $s): int => (int)$s['id'], $allSheets));
@@ -116,7 +126,7 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
             : [];
     }
 
-    $seasonSheets = array_values(array_filter($sheets, fn(array $s): bool => (int)$s['season'] === $season));
+    $seasonSheets = array_values(array_filter(garageRaceSheets($sheets), fn(array $s): bool => (int)$s['season'] === $season));
     $status = techCarStatus($seasonSheets);
     $declarations = db_get_car_declarations($pdo, $carId);
 
@@ -137,7 +147,11 @@ function garageShowCar(PDO $pdo, int $uid, int $carId, ?array $detailsForm = nul
         'seasons' => $seasons,
         'iceSheets' => array_values(array_filter($allSheets, fn(array $s): bool => techSheetIsIce($s))),
         'usesSummer' => $seasons['summer'],
+        'usesRace' => $seasons['summer'] && garageCarRaces($car, $declarations, $allSheets, garageEntryTiers($formatsByEvent, db_get_active_events($pdo), $today)['race']),
         'ice' => garageIceSummary($allSheets, $taggedIce, gearSeasonNow(DISCIPLINE_ICE), isset($car['disciplines']) ? (string)$car['disciplines'] : null),
+        'taDrift' => garageTaDriftSummaries($carId, $allSheets, garageEntryTiers($formatsByEvent, db_get_active_events($pdo), $today)['taDriftClubs'], $season),
+        'revokeNotes' => garageRevokeNotes($allSheets),
+        'tagDefaults' => eventsDefaultFormats($pdo, $car, ['id' => 0, 'discipline' => 'summer', 'host_club' => 'any']),
     ]);
     renderPageEnd(['scripts' => '<script src="js/confirm-modal.js"></script>']);
 }
@@ -175,11 +189,16 @@ function handleGaragePost(PDO $pdo, int $uid, string $action): void {
             return;
         case 'tag':
             $eventId = (int)($_POST['event_id'] ?? 0);
-            $r = eventsTagCar($pdo, $uid, $eventId, $carId);
+            $r = eventsTagCar($pdo, $uid, $eventId, $carId, entryFormatsFromPost($_POST), !empty($_POST['supps_ack']));
             $extra = $r['ok'] ? remindersRecordTagChoice($pdo, $uid, $_POST) : '';
             setFlash($r['ok'] ? 'Added to your events. ' . EVENTS_NOT_REGISTERING . $extra : (string)$r['error'], $r['ok'] ? 'success' : 'error');
             $event = $r['ok'] ? db_get_event($pdo, $eventId) : null;
             header('Location: ' . ($event !== null ? garageAfterTagUrl($carId, $event, ($_POST['then'] ?? '') === 'sheet') : 'garage.php?car=' . $carId));
+            return;
+        case 'formats':
+            $r = eventsSetFormats($pdo, $uid, (int)($_POST['event_id'] ?? 0), $carId, entryFormatsFromPost($_POST) ?? [], !empty($_POST['supps_ack']));
+            setFlash($r['ok'] ? 'Saved what this car is running.' : (string)$r['error'], $r['ok'] ? 'success' : 'error');
+            header('Location: garage.php?car=' . $carId . '#events');
             return;
         case 'untag':
             $r = eventsUntagCar($pdo, $uid, (int)($_POST['event_id'] ?? 0), $carId);

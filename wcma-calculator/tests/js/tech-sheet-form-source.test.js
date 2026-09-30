@@ -11,3 +11,11 @@ test('the endurance card is synced with the sheet type on load, not only on chan
     assert.match(src, /sheetTypeSelect\.addEventListener\('change', syncSheetType\)/);
     assert.match(src, /\n\s*syncSheetType\(\);/);
 });
+
+test('the TA/Drift cage box swaps the checklist and the head & neck rule, and syncs once on load', () => {
+    assert.match(src, /document\.getElementById\('ta_drift_caged'\)/);
+    assert.match(src, /window\.TA_DRIFT_SECTIONS\[cagedBox\.checked \? 'on' : 'off'\]/);
+    assert.match(src, /TECH_DRIVER_EQUIPMENT_ITEMS\.head_neck_restraints\.optional = !cagedBox\.checked/);
+    assert.match(src, /cagedBox\.checked !== !!window\.TA_DRIFT_RENDERED_CAGED/);
+    assert.match(src, /let headNeckReason;/);
+});

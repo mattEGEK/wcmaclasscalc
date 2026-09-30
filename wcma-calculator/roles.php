@@ -24,7 +24,7 @@ const INSPECT_ADMIN_ONLY_ACTIONS = ['declaration-delete', 'declarations-bulk-del
 /** inspect.php actions that change data: POST-only and CSRF-checked in inspect.php before its router runs. */
 const INSPECT_POST_ACTIONS = [
     'tech-sheet-accept', 'tech-sheet-revoke', 'tech-sheet-photos-accept', 'tech-sheet-photos-send-back',
-    'gear-record-accept', 'gear-record-revoke', 'gear-photos-accept', 'gear-photos-send-back', 'gear-create-accept',
+    'gear-record-accept', 'gear-record-revoke', 'gear-photos-accept', 'gear-photos-send-back', 'gear-create-accept', 'gear-record-upgrade-race',
     'declaration-accept', 'declaration-send-back', 'declaration-resend',
     'declaration-delete', 'declarations-bulk-delete', 'declaration-update-contact',
 ];

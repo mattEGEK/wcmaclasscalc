@@ -74,7 +74,8 @@ function gearEmailAccepted(array $gear, string $pageUrl, string $adminUrl, bool 
     $season = (int)($gear['season'] ?? date('Y'));
     $isIce = ($gear['discipline'] ?? DISCIPLINE_SUMMER) === DISCIPLINE_ICE;
     $seasonText = $isIce ? iceSeasonLabel((int)$season) : (string)$season;
-    $levelLine = ($isIce && !empty($gear['level'])) ? 'Gear level: ' . (ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']) . '.' : '';
+    $levelLine = ($isIce && !empty($gear['level'])) ? 'Gear level: ' . (ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']) . '.'
+        : (!$isIce && ($gear['level'] ?? null) === GEAR_LEVEL_TA_DRIFT ? 'Gear level: TA/Drift.' : '');
     $byLine = reviewedByLine($reviewer);
     $what = $via === 'in_person'
         ? $driver . '\'s gear was checked in person and is teched for ' . $seasonText . '.'

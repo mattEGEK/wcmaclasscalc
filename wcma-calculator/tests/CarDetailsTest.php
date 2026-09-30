@@ -51,10 +51,10 @@ final class CarDetailsTest extends TestCase
 
     public function testSeasonIsRequiredWhenAddingAndOptionalWhenEditing(): void
     {
-        $this->assertSame('Choose where this car will race: ice, summer or both.', carsValidateDetails($this->form(), true)['error']);
+        $this->assertSame('Choose where this car will race: ice, summer, both, or summer TA/Drift only.', carsValidateDetails($this->form(), true)['error']);
         $this->assertSame('ice', carsValidateDetails($this->form(['disciplines' => 'ice']), true)['data']['disciplines']);
         $this->assertTrue(carsValidateDetails($this->form())['ok']);
         $this->assertNull(carsValidateDetails($this->form(['disciplines' => '']))['data']['disciplines']);
-        $this->assertSame('Choose where this car will race: ice, summer or both.', carsValidateDetails($this->form(['disciplines' => 'rally']))['error']);
+        $this->assertSame('Choose where this car will race: ice, summer, both, or summer TA/Drift only.', carsValidateDetails($this->form(['disciplines' => 'rally']))['error']);
     }
 }

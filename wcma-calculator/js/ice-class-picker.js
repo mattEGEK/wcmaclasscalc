@@ -22,8 +22,9 @@
         return !!(fhrByClass && fhrByClass[code]);
     }
 
-    function equipmentLabel(baseLabel, required) {
-        return required ? baseLabel + ' (required for this class)' : baseLabel;
+    /** reason: why it is required, e.g. 'in a caged car' (TA/Drift); defaults to the ice class wording. */
+    function equipmentLabel(baseLabel, required, reason) {
+        return required ? baseLabel + ' (required ' + (reason || 'for this class') + ')' : baseLabel;
     }
 
     const api = { sectionsFor, carryChecklistState, fhrRequired, equipmentLabel };

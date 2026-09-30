@@ -141,6 +141,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
   flex: none;
 }
 .hub-todo-item--optional .hub-todo-n { background: var(--hub-paper); color: var(--hub-ink-2); border: 2px solid var(--hub-line); }
+.hub-todo--suggested { border-color: var(--hub-line); list-style: none; padding: 0; margin: 0 0 24px; }
 .hub-todo-txt strong { display: block; font-size: 20px; }
 .hub-todo-txt span { color: var(--hub-ink-2); font-size: 17px; }
 .hub-todo-actions { margin-left: auto; display: flex; gap: 10px; align-items: center; }
@@ -178,6 +179,13 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 .hub-line { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid var(--hub-line); }
 .hub-line:first-of-type { border-top: 0; }
 .hub-tag-form { flex-wrap: wrap; gap: 8px 12px; }
+.hub-formats { border: 0; padding: 0; margin: 0; flex-basis: 100%; }
+.hub-formats legend { font-weight: 700; padding: 0; margin-bottom: 4px; }
+.hub-formats-options { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.hub-formats-options label, .hub-formats-supps { display: inline-flex; gap: 10px; align-items: center; min-height: var(--hub-tap); font-size: 16px; margin: 0; }
+.hub-formats-options label:has(input:disabled) { color: var(--hub-ink-2); }
+.hub-entry-formats { margin: 0 0 8px; }
+.hub-entry-formats summary { min-height: var(--hub-tap); display: flex; align-items: center; cursor: pointer; font-size: 16px; }
 
 /* Landing */
 .hub-hero { background: var(--hub-ink); color: #fff; padding: 32px 36px; border-radius: var(--hub-radius); margin-bottom: 18px; }
@@ -323,7 +331,7 @@ body.hub h1, body.hub h2 { font-family: var(--hub-font-narrow); line-height: 1.1
 /* Add a car: where will this car race? (mobile UX spec 2026-09-28 §A2) */
 .garage-season { border: 0; padding: 0; margin: 0 0 16px; }
 .garage-season legend { font-weight: 700; margin-bottom: 8px; padding: 0; }
-.garage-season-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.garage-season-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 .garage-season-options label { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; margin: 0;
   border: 2px solid var(--hub-line); border-radius: var(--hub-radius); background: var(--hub-card); font-weight: 700; cursor: pointer; }
 .garage-season-options input { width: 24px; height: 24px; margin: 0; accent-color: var(--hub-red); }

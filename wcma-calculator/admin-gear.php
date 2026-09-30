@@ -26,10 +26,11 @@ function handleGearAdminList(PDO $pdo): void {
         'needs_gear' => count(gearRosterFilter($records, 'needs_gear')),
         'pending_review' => count(gearRosterFilter($records, 'pending_review')),
     ];
-    renderGearAdminListPage(gearRosterFilter($records, $filter), $season, $discipline, $filter, $counts, getFlash());
+    $level = $discipline === DISCIPLINE_SUMMER && is_string($_GET['level'] ?? null) && isset(GEAR_ADMIN_LEVELS[$_GET['level']]) ? $_GET['level'] : 'all';
+    renderGearAdminListPage(gearRosterLevelFilter(gearRosterFilter($records, $filter), $level), $season, $discipline, $filter, $counts, getFlash(), $level);
 }
 
-function renderGearAdminListPage(array $records, int $season, string $discipline, string $filter, array $counts, ?array $flash): void {
+function renderGearAdminListPage(array $records, int $season, string $discipline, string $filter, array $counts, ?array $flash, string $level = 'all'): void {
     renderPageStart('Gear', 'inspect', ['flash' => $flash, 'subnav' => inspectSubnavHtml('gear')]);
     ?>
 <h1 class="hub-page-title">Gear</h1>
@@ -49,6 +50,14 @@ function renderGearAdminListPage(array $records, int $season, string $discipline
       <option value="<?= h($value) ?>"<?= $value === $filter ? ' selected' : '' ?>><?= h($label) ?></option>
       <?php endforeach; ?>
     </select>
+    <?php if ($discipline === DISCIPLINE_SUMMER): ?>
+    <label for="gear-level-filter">Level</label>
+    <select id="gear-level-filter" name="level">
+      <?php foreach (GEAR_ADMIN_LEVELS as $value => $label): ?>
+      <option value="<?= h($value) ?>"<?= $value === $level ? ' selected' : '' ?>><?= h($label) ?></option>
+      <?php endforeach; ?>
+    </select>
+    <?php endif; ?>
     <button type="submit" class="btn btn-primary">Apply</button>
     <p class="form-hint"><?= (int)$counts['all'] ?> drivers: <?= (int)$counts['accepted'] ?> accepted, <?= (int)$counts['pending_review'] ?> with photos awaiting review, <?= (int)$counts['needs_gear'] ?> still need a gear check at the track.</p>
   </form>
@@ -58,7 +67,7 @@ function renderGearAdminListPage(array $records, int $season, string $discipline
     <tbody>
     <?php if (empty($records)): ?>
       <tr><td colspan="5" class="empty-row">No gear records match.</td></tr>
-    <?php else: foreach ($records as $g): $st = gearStatus($g); $statusLabel = gearStatusLabel($st, (int)$g['season'], (string)($g['discipline'] ?? 'summer')); if ($discipline === DISCIPLINE_ICE && $st['state'] === 'accepted' && !empty($g['level'])) { $statusLabel .= ' · ' . (ICE_GEAR_LEVEL_LABELS[$g['level']] ?? $g['level']); } ?>
+    <?php else: foreach ($records as $g): $st = gearStatus($g); $statusLabel = gearStatusLabel($st, (int)$g['season'], (string)($g['discipline'] ?? 'summer')); if ($discipline === DISCIPLINE_ICE && $st['state'] === 'accepted' && !empty($g['level'])) { $statusLabel .= ' · ' . (ICE_GEAR_LEVEL_LABELS[$g['level']] ?? $g['level']); } elseif ($st['state'] === 'accepted' && ($g['level'] ?? null) === GEAR_LEVEL_TA_DRIFT) { $statusLabel .= ' · TA/Drift'; } ?>
       <tr>
         <td><?= h($g['driver_name']) ?></td>
         <td><?= h((string)($g['licence_no'] ?? '')) ?></td>
@@ -104,8 +113,21 @@ function handleGearAdminAcceptInPerson(PDO $pdo, int $id): void {
 }
 
 function handleGearAdminRevoke(PDO $pdo, int $id): void {
-    $r = gearRevoke($pdo, $id);
+    $r = gearRevoke($pdo, $id, $_POST['revoke_note'] ?? null);
     setFlash($r['ok'] ? 'Acceptance revoked. The gear record is open again.' : $r['error'], $r['ok'] ? 'success' : 'error');
+    header('Location: inspect.php?action=gear-record&id=' . $id);
+    exit;
+}
+
+/** Inspector checked race gear in person on gear accepted at TA/Drift. */
+function handleGearAdminUpgradeRace(PDO $pdo, int $id): void {
+    $r = gearUpgradeToRaceInPerson($pdo, $id, (int)current_user()['id']);
+    if ($r['ok']) {
+        $sent = gearNotify($pdo, 'accepted_in_person', db_get_gear_record($pdo, $id), gearAdminBaseUrl(), ['email' => TECH_EMAIL, 'name' => TECH_NAME], 'emailSmtpSend');
+        setFlash('Gear accepted at Race (checked in person).' . ($sent ? ' The driver\'s account holder was emailed.' : ' The email could not be sent.'), $sent ? 'success' : 'error');
+    } else {
+        setFlash($r['error'], 'error');
+    }
     header('Location: inspect.php?action=gear-record&id=' . $id);
     exit;
 }
@@ -170,14 +192,26 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
     <h2>Gear review</h2>
     <p><?= h($gear['driver_name']) ?> — <?= (int)$gear['season'] ?><?= !empty($gear['licence_no']) ? ' (licence ' . h($gear['licence_no']) . ')' : '' ?></p>
     <?php if ($owner): ?><p>Entered by <?= h($owner['name']) ?> (<?= h($owner['email']) ?>)</p><?php endif; ?>
-    <?php if (($gear['discipline'] ?? 'summer') === 'ice'): ?><p>Ice gear<?= !empty($gear['level']) ? ' — level: ' . h(ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']) : '' ?></p><?php endif; ?>
+    <?php if (($gear['discipline'] ?? 'summer') === 'ice'): ?><p>Ice gear<?= !empty($gear['level']) ? ' — level: ' . h(ICE_GEAR_LEVEL_LABELS[$gear['level']] ?? $gear['level']) : '' ?></p>
+    <?php else: ?><p>Summer gear<?= $accepted ? ' — level: ' . h(gearSummerLevelLabel($gear['level'] ?? null)) : '' ?><?= ($gear['photo_tier'] ?? null) === GEAR_LEVEL_TA_DRIFT ? ' · TA/Drift photo list' : '' ?></p><?php endif; ?>
     <p>Gear status: <strong class="<?= h(gearStatusBadgeClass($st['state'])) ?>"><?= h(gearStatusLabel($st, (int)$gear['season'], (string)($gear['discipline'] ?? 'summer'))) ?></strong></p>
 
+    <?php if (!empty($gear['revoke_note'])): ?><p class="form-hint">Revoked earlier: <?= h((string)$gear['revoke_note']) ?></p><?php endif; ?>
     <?php if ($accepted): ?>
     <p><?= h($acceptedLine) ?></p>
+    <?php if (($gear['discipline'] ?? 'summer') === 'summer' && ($gear['level'] ?? null) === GEAR_LEVEL_TA_DRIFT): ?>
+    <form method="post" action="inspect.php?action=gear-record-upgrade-race">
+      <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
+      <input type="hidden" name="id" value="<?= $id ?>">
+      <p class="form-hint">This gear is accepted at TA/Drift. If you have checked full race gear in person, accept it at Race.</p>
+      <button type="submit" class="btn btn-primary">Accept at Race — race gear checked in person</button>
+    </form>
+    <?php endif; ?>
     <form method="post" action="inspect.php?action=gear-record-revoke" data-confirm="Revoke this acceptance? The gear record goes back to open<?= ($gear['accepted_via'] ?? '') === 'photos' ? ' and its photos return to the review queue' : '' ?>.">
       <input type="hidden" name="csrf_token" value="<?= h($csrf) ?>">
       <input type="hidden" name="id" value="<?= $id ?>">
+      <label for="gear-revoke-note">Why are you revoking it? The account holder sees this.</label>
+      <textarea id="gear-revoke-note" name="revoke_note" maxlength="500" rows="2" required data-message="Say why you are revoking this acceptance." placeholder="For example: helmet expired"></textarea>
       <button type="submit" class="btn btn-secondary">Revoke acceptance</button>
     </form>
     <?php else: ?>
@@ -194,6 +228,14 @@ function renderGearAdminViewPage(array $gear, array $snapshot, ?array $owner, ?a
         <?php endforeach; ?>
       </select>
       <p class="form-hint">Caged: SA/FIA helmet (and a frontal head restraint where the class needs one). Uncaged classes: Snell M2015+ or ECE 22.05/22.06.</p>
+      <?php else: ?>
+      <label for="gear-level">Gear level</label>
+      <select id="gear-level" name="level" required>
+        <?php foreach (GEAR_SUMMER_LEVEL_LABELS as $value => $label): ?>
+        <option value="<?= h($value) ?>"<?= $value === (($gear['photo_tier'] ?? null) === GEAR_LEVEL_TA_DRIFT ? 'ta_drift' : 'race') ? ' selected' : '' ?>><?= h($label) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <p class="form-hint">Race: full WCMA race gear (suit, gloves, shoes, head and neck restraint). TA/Drift: a helmet and natural-fibre clothing, and a head and neck restraint in a caged car.</p>
       <?php endif; ?>
       <button type="submit" class="btn btn-primary" id="gear-inperson-btn">Accept — gear teched in person</button>
     </form>
@@ -212,7 +254,7 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
     if ($photoStatus === null && !$photos) return;
 
     $id = (int)$gear['id'];
-    $awaiting = $photoStatus === 'submitted' && $gear['status'] === 'open';
+    $awaiting = $photoStatus === 'submitted' && ($gear['status'] === 'open' || gearIsRaceUpgrade($gear));
     $statusLabels = [
         'draft' => 'The driver\'s account holder has started adding photos (not submitted yet).',
         'submitted' => 'Submitted: awaiting review.',
@@ -270,6 +312,16 @@ function renderGearReviewCard(array $gear, array $snapshot, string $csrf): void 
         <?php endforeach; ?>
       </select>
       <p class="form-hint">Suggested from the helmet standard in the photo. Caged: Snell SA or FIA helmet (NASCC caged classes need SA2020 or newer). Uncaged classes: Snell M2015+ or ECE 22.05/22.06.</p>
+      <?php elseif (($gear['photo_tier'] ?? null) === GEAR_LEVEL_TA_DRIFT): ?>
+      <input type="hidden" name="level" value="ta_drift">
+      <p class="form-hint">These are the TA/Drift gear photos, so they are accepted at TA/Drift.</p>
+      <?php else: ?>
+      <label for="gear-photos-level">Gear level</label>
+      <select id="gear-photos-level" name="level" required>
+        <?php foreach (GEAR_SUMMER_LEVEL_LABELS as $value => $label): ?>
+        <option value="<?= h($value) ?>"<?= $value === 'race' ? ' selected' : '' ?>><?= h($label) ?></option>
+        <?php endforeach; ?>
+      </select>
       <?php endif; ?>
       <button type="submit" class="btn btn-primary" id="gear-accept-btn">Accept photos (pre-teched)</button>
     </form>

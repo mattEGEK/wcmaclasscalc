@@ -203,7 +203,9 @@ final class HomePageTest extends TestCase
         $fall = strpos($html, '<h3>Fall Sprint</h3>');
         $finale = strpos($html, '<h3>Season Finale</h3>');
         $this->assertGreaterThan($fall, strpos($html, 'Not going anymore'));
-        $this->assertLessThan($finale, strpos($html, 'value="4"><button type="submit" class="hub-btn">I\'m going'));
+        // The picker (TA/Drift) now sits between the car and the button, so allow it in between.
+        $this->assertLessThan($finale, strpos($html, 'name="car_id" value="4">'));
+        $this->assertLessThan($finale, strpos($html, '<button type="submit" class="hub-btn">I\'m going'));
         // An event you're not going to offers both cars in a labelled picker.
         $this->assertStringContainsString('<label class="visually-hidden" for="tag-car-11">Car for Season Finale</label><select id="tag-car-11" name="car_id">', $html);
     }

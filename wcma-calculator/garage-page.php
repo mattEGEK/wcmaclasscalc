@@ -7,6 +7,8 @@
 // gear-chips.php (renderGearChips()), reminders-lib.php (reminderOptInFieldsHtml()) and
 // ice-sheet-lib.php (techSheetClassLine()).
 require_once __DIR__ . '/ice-sheet-lib.php';
+require_once __DIR__ . '/ta-drift-lib.php';
+require_once __DIR__ . '/revoke-lib.php';
 
 function garageCsrfField(string $csrf): string {
     return '<input type="hidden" name="csrf_token" value="' . h($csrf) . '">';
@@ -49,10 +51,10 @@ function garageClassHtml(array $line): string {
     return $out . '</p>';
 }
 
-/** "Where will this car race?" as three large radio cards (mobile UX spec 2026-09-28 §A2). */
+/** "Where will this car race?" as four large radio cards (mobile UX spec 2026-09-28 §A2; TA/Drift spec §2). */
 function garageSeasonFieldHtml(?string $value, bool $required): string {
     $out = '<fieldset class="garage-season"><legend>Where will this car race?' . ($required ? ' (required)' : '') . '</legend><div class="garage-season-options">';
-    foreach (['ice' => 'Ice', 'summer' => 'Summer', 'both' => 'Both'] as $v => $label) {
+    foreach (['ice' => 'Ice', 'summer' => 'Summer', 'both' => 'Both', 'ta_drift' => 'Summer TA/Drift only'] as $v => $label) {
         $out .= '<label><input type="radio" name="disciplines" value="' . $v . '"' . ($required ? ' required' : '')
             . ($value === $v ? ' checked' : '') . '><span>' . $label . '</span></label>';
     }
@@ -86,16 +88,20 @@ function garageRenderCard(array $card): string {
         . '<span class="hub-plate hub-plate--lg">' . h((string)$car['car_number']) . '</span><div>'
         . '<h2><a href="garage.php?car=' . $id . '">' . h(garageCarTitle($car)) . '</a></h2>';
     if (garageCarSub($car) !== '') $out .= '<p class="garage-card-sub">' . h(garageCarSub($car)) . '</p>';
-    if ($card['usesSummer'] ?? true) $out .= garageClassHtml($card['class']);
+    $usesRace = $card['usesRace'] ?? ($card['usesSummer'] ?? true);
+    if ($usesRace) $out .= garageClassHtml($card['class']);
     $out .= '</div></div>';
 
     $out .= '<dl class="garage-card-facts">';
-    if ($card['usesSummer'] ?? true) {
+    if ($usesRace) {
         $out .= '<div><dt>Car tech</dt><dd><span class="hub-status ' . h(homeStatusClass($card['techState'])) . '">'
             . h($card['techLabel']) . '</span></dd></div>';
     }
     if (!empty($card['ice'])) {
         $out .= '<div><dt>Ice tech</dt><dd><span class="hub-status ' . h(homeStatusClass($card['ice']['state'])) . '">' . h($card['ice']['label']) . '</span></dd></div>';
+    }
+    foreach ($card['taDrift'] ?? [] as $t) {
+        $out .= '<div><dt>' . h('TA/Drift ' . $t['club']) . '</dt><dd><span class="hub-status ' . h(homeStatusClass($t['state'])) . '">' . h($t['label']) . '</span></dd></div>';
     }
     $next = $card['next'];
     if ($next === null) {
@@ -107,7 +113,10 @@ function garageRenderCard(array $card): string {
     }
     $out .= '</dl><div class="garage-card-actions">';
     $nextIsIce = $next !== null && (($next['event']['discipline'] ?? 'summer') === 'ice');
-    if (($card['usesSummer'] ?? true) && $card['class']['current'] === null && !$nextIsIce) {
+    $nextIsTaDrift = $next !== null && ($next['tier'] ?? 'race') === 'ta_drift';
+    if ($nextIsTaDrift && $next['sheet'] === null) {
+        $out .= '<a class="hub-btn" href="' . h(garageTaDriftSheetUrl($id, (int)$next['event']['id'])) . '">Submit TA/Drift tech sheet</a>';
+    } elseif ($usesRace && $card['class']['current'] === null && !$nextIsIce && !$nextIsTaDrift) {
         $out .= '<a class="hub-btn" href="calculator.php?car=' . $id . '">Declare class</a>';
     } elseif ($next !== null && $next['sheet'] === null) {
         $out .= $nextIsIce
@@ -200,6 +209,17 @@ function garageNextStepHtml(array $vm): string {
     return $out . '</div></section>';
 }
 
+/** A tagged summer event's formats with a "Change" form (TA/Drift spec §3 Entry); '' for ice. */
+function garageRenderEntryFormatsHtml(array $event, int $carId, array $formats, string $csrf, ?string $suppsAckAt = null): string {
+    if (($event['discipline'] ?? 'summer') === 'ice') return '';
+    return '<details class="hub-entry-formats"><summary>' . h(entryFormatsLabel($formats)) . ' · Change</summary>'
+        . '<form method="post" action="garage.php" class="hub-line hub-tag-form">' . garageCsrfField($csrf)
+        . '<input type="hidden" name="action" value="formats"><input type="hidden" name="car_id" value="' . $carId . '">'
+        . '<input type="hidden" name="event_id" value="' . (int)$event['id'] . '">'
+        . homeFormatsFieldsHtml($event, $formats, $suppsAckAt !== null)
+        . '<button type="submit" class="hub-btn hub-btn--secondary">Save</button></form></details>';
+}
+
 function renderGarageCarHtml(array $vm): string {
     $car = $vm['car'];
     $id = (int)$car['id'];
@@ -216,6 +236,9 @@ function renderGarageCarHtml(array $vm): string {
             . garagePostForm($csrf, 'restore', $id, 'Restore this car', 'hub-btn') . '</div>';
     }
 
+    foreach ($vm['revokeNotes'] ?? [] as $note) {
+        $out .= revokeNoticeHtml($note, 'Tech');   // plan 2's notice, as on the sheet page
+    }
     $out .= garageNextStepHtml($vm);
 
     // Details
@@ -228,9 +251,10 @@ function renderGarageCarHtml(array $vm): string {
         . garageDetailsFields($form['values'] ?? $car) . '<button type="submit" class="hub-btn">Save details</button></form></details></section>';
 
     $usesSummer = $vm['usesSummer'] ?? true;
+    $usesRace = $vm['usesRace'] ?? $usesSummer;   // a TA/Drift-only car has no class or race tech (TA/Drift spec §2)
 
     // Class
-    if ($usesSummer) {
+    if ($usesRace) {
         $out .= '<section class="hub-card"><h2>Class</h2>' . garageClassHtml($vm['class']);
         if ($cur !== null) {
             $out .= '<p>Declared ' . h(date('M j, Y', strtotime((string)$cur['submitted_at']))) . ' · '
@@ -257,13 +281,22 @@ function renderGarageCarHtml(array $vm): string {
     }
 
     // Car tech
-    if ($usesSummer) {
+    if ($usesRace) {
         $out .= '<section class="hub-card"><h2>Car tech ' . (int)$vm['season'] . '</h2>'
             . '<p><span class="hub-status ' . h(homeStatusClass((string)$vm['techState'])) . '">' . h((string)$vm['techLabel']) . '</span></p>';
         if ($vm['techAction'] !== null) {
             $out .= '<a class="hub-btn hub-btn--secondary" href="' . h($vm['techAction']['url']) . '">' . h($vm['techAction']['label']) . '</a>';
         } elseif ($vm['techState'] !== 'accepted') {
             $out .= '<p class="form-hint">Pre-tech with photos after you submit a tech sheet for an event, or bring the car to tech at the track.</p>';
+        }
+        $out .= '</section>';
+    }
+
+    // TA/Drift tech, per host club (TA/Drift spec §4)
+    if (!empty($vm['taDrift'])) {
+        $out .= '<section class="hub-card"><h2>TA/Drift tech</h2>';
+        foreach ($vm['taDrift'] as $t) {
+            $out .= '<p>' . h('TA/Drift ' . $t['club']) . ': <span class="hub-status ' . h(homeStatusClass($t['state'])) . '">' . h($t['label']) . '</span></p>';
         }
         $out .= '</section>';
     }
@@ -276,7 +309,7 @@ function renderGarageCarHtml(array $vm): string {
 
     // Events
     $ev = $vm['events'];
-    $out .= '<section class="hub-card"><h2>Events</h2>';
+    $out .= '<section class="hub-card" id="events"><h2>Events</h2>';
     if (!$ev['tagged']) $out .= '<p>This car isn\'t going to any events yet.</p>';
     foreach ($ev['tagged'] as $row) {
         $e = $row['event'];
@@ -289,8 +322,14 @@ function renderGarageCarHtml(array $vm): string {
                 . ' <a href="tech-sheets.php?action=view&amp;id=' . (int)$sheet['id'] . '">View</a>'
                 . renderGearChips($row['gearLinks'], 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0), 'sheet_id' => (int)$sheet['id']]);
         } elseif ($sheet !== null) {
-            $out .= '<span class="hub-status hub-status--ok">Tech sheet submitted</span> <a href="tech-sheets.php?action=view&amp;id=' . (int)$sheet['id'] . '">View</a>'
+            $out .= '<span class="hub-status hub-status--ok">' . (techSheetIsTaDrift($sheet) ? 'TA/Drift tech sheet submitted' : 'Tech sheet submitted') . '</span>'
+                . ' <a href="tech-sheets.php?action=view&amp;id=' . (int)$sheet['id'] . '">View</a>'
                 . renderGearChips($row['gearLinks'], 'owner', ['sheet_season' => (int)($sheet['season'] ?? 0)]);
+        } elseif (($row['tier'] ?? 'race') === 'ta_drift') {
+            $out .= '<span class="hub-status hub-status--todo">No TA/Drift tech sheet yet</span> ';
+            $out .= $archived
+                ? 'Restore the car to submit a tech sheet'
+                : '<a class="hub-btn" href="' . h(garageTaDriftSheetUrl($id, $eid)) . '">Submit TA/Drift tech sheet</a>';
         } elseif ($isIce) {
             $out .= '<span class="hub-status hub-status--todo">No ice tech sheet yet</span> ';
             $out .= $archived
@@ -306,7 +345,10 @@ function renderGarageCarHtml(array $vm): string {
                     : '<a href="calculator.php?car=' . $id . '">Declare a class first</a>';
             }
         }
-        if (!$archived) $out .= garagePostForm($csrf, 'untag', $id, 'Not going anymore', 'hub-btn hub-btn--link', '', ['event_id' => $eid]);
+        if (!$archived) {
+            $out .= garageRenderEntryFormatsHtml($e, $id, $row['formats'] ?? ['race'], $csrf, $row['suppsAckAt'] ?? null)
+                . garagePostForm($csrf, 'untag', $id, 'Not going anymore', 'hub-btn hub-btn--link', '', ['event_id' => $eid]);
+        }
         $out .= '</div>';
     }
     if (!$archived && $ev['untagged']) {
@@ -317,7 +359,8 @@ function renderGarageCarHtml(array $vm): string {
             $out .= '<option value="' . (int)$e['id'] . '">' . h((string)$e['name']) . ' — ' . h(date('M j', strtotime((string)$e['event_date'])))
                 . ((($e['discipline'] ?? 'summer') === 'ice') ? ' · Ice ' . h((string)$e['host_club']) : '') . '</option>';
         }
-        $out .= '</select>' . (!empty($vm['offerReminders']) ? reminderOptInFieldsHtml() : '')
+        $out .= '</select>' . (!empty($vm['seasons']['summer']) ? homeFormatsFieldsHtml(null, $vm['tagDefaults'] ?? ['race']) : '')
+            . (!empty($vm['offerReminders']) ? reminderOptInFieldsHtml() : '')
             . '<button type="submit" class="hub-btn">I\'m going</button></form><p class="form-hint">' . EVENTS_NOT_REGISTERING . '</p>';
     }
     if ($ev['earlierSheets']) {

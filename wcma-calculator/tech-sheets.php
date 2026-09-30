@@ -20,9 +20,11 @@ require __DIR__ . '/cars-lib.php';
 require __DIR__ . '/garage-page.php';
 require_once __DIR__ . '/events-lib.php';
 require __DIR__ . '/ice-sheet-page.php';
+require __DIR__ . '/ta-drift-sheet-page.php';
 require_once __DIR__ . '/tech-sheet-next.php';
 require_once __DIR__ . '/clubs-lib.php';
 require_once __DIR__ . '/email-copy.php';
+require_once __DIR__ . '/revoke-lib.php';
 
 require __DIR__ . '/phpmailer/src/Exception.php';
 require __DIR__ . '/phpmailer/src/PHPMailer.php';
@@ -108,6 +110,18 @@ switch ($action) {
         handleSubmitIce($pdo, $user);
         break;
 
+    case 'new-ta-drift':
+        $user = requireTechSheetLogin();
+        handleNewTaDrift($pdo, $user, (int)($_GET['car_id'] ?? 0), (int)($_GET['event_id'] ?? 0));
+        break;
+
+    case 'submit-ta-drift':
+        $user = requireTechSheetLogin();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: garage.php'); exit; }
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        handleSubmitTaDrift($pdo, $user);
+        break;
+
     case 'view':
         $user = requireTechSheetLogin();
         handleView($pdo, $user, (int)($_GET['id'] ?? 0));
@@ -169,6 +183,11 @@ function handleNew(PDO $pdo, array $user, int $carId, int $eventId = 0): void {
         return;
     }
     $declaration = db_get_car_current_declaration($pdo, $carId);
+    if (!$declaration && ($car['disciplines'] ?? null) === 'ta_drift') {
+        // A TA/Drift-only car has no class declaration: it takes the TA/Drift sheet.
+        header('Location: tech-sheets.php?action=new-ta-drift&car_id=' . $carId . ($eventId > 0 ? '&event_id=' . $eventId : ''));
+        exit;
+    }
     if (!$declaration) {
         setFlash('Declare a class for this car before submitting a tech sheet.', 'error');
         header('Location: calculator.php?car=' . $carId);
@@ -194,7 +213,11 @@ function handleView(PDO $pdo, array $user, int $id): void {
     }
     $event = db_get_event($pdo, (int)$sheet['event_id']);
     $drivers = db_get_tech_sheet_drivers($pdo, $id);
-    $carStatus = techCarStatusForSheet($sheet, db_get_user_tech_sheets($pdo, (int)$user['id']));
+    $ownerSheets = db_get_user_tech_sheets($pdo, (int)$user['id']);
+    $carStatus = techSheetIsTaDrift($sheet) ? taDriftSheetCarStatus($sheet, $ownerSheets) : techCarStatusForSheet($sheet, $ownerSheets);
+    $statusLabel = techSheetIsTaDrift($sheet)
+        ? taDriftCarTechStatusLabel($carStatus, (int)($sheet['season'] ?? date('Y')), (string)$sheet['club'])
+        : techCarStatusLabel($carStatus, (int)($sheet['season'] ?? date('Y')), (string)($sheet['discipline'] ?? 'summer'));
     $gearLinks = gearLinksForSheet($sheet, $drivers, db_get_user_gear_records($pdo, (int)$user['id']));
     $csrf = generateCsrfToken();
     $flash = getFlash();
@@ -217,7 +240,8 @@ function handleView(PDO $pdo, array $user, int $id): void {
 <div class="container">
   <?php renderSiteHeader($title, '<a href="garage.php?car=' . (int)$sheet['car_id'] . '">← Back to Garage</a>', 'garage'); ?>
   <?php if ($flash): ?><div class="form-messages show <?= h($flash['type']) ?>"><?= h($flash['message']) ?></div><?php endif; ?>
-  <p class="no-print">Car status: <span class="hub-status <?= h(homeStatusClass($carStatus['state'])) ?>"><?= h(techCarStatusLabel($carStatus, (int)($sheet['season'] ?? date('Y')), (string)($sheet['discipline'] ?? 'summer'))) ?></span></p>
+  <?= revokeNoticeHtml($sheet['revoke_note'] ?? null, 'Tech') ?>
+  <p class="no-print">Car status: <span class="hub-status <?= h(homeStatusClass($carStatus['state'])) ?>"><?= h($statusLabel) ?></span></p>
   <?= renderTechSheetNextStepsHtml($sheet, $event, $carStatus, $chips, $club) ?>
   <div class="sheet-actions no-print">
     <?php if (pretechSheetEditable($sheet)): ?>
@@ -298,6 +322,16 @@ function handleEdit(PDO $pdo, array $user, int $id): void {
         setFlash('Car not found.', 'error');
         header('Location: garage.php');
         exit;
+    }
+
+    if (techSheetIsTaDrift($sheet)) {
+        $event = db_get_event($pdo, (int)$sheet['event_id']) ?? ['id' => (int)$sheet['event_id'], 'name' => '', 'event_date' => date('Y-m-d')];
+        $event['host_club'] = (string)$sheet['club'];
+        renderPageStart('Edit TA/Drift Tech Sheet', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="tech-sheets.php?action=view&amp;id=' . $id . '">&larr; Back to the sheet</a>']);
+        echo renderTaDriftTechSheetFormHtml(taDriftSheetFormVm($car, $event, [], db_get_user_drivers($pdo, (int)$user['id']), $sheet,
+            db_get_tech_sheet_drivers($pdo, $id), generateCsrfToken()));
+        renderPageEnd();
+        return;
     }
 
     if (techSheetIsIce($sheet)) {
@@ -674,7 +708,7 @@ function handleSubmit(PDO $pdo, array $user): void {
     }
 
     if ($snap['colour_for_car'] !== null) db_update_car($pdo, $carId, ['colour' => $snap['colour_for_car']]);
-    db_tag_event($pdo, (int)$user['id'], $eventId, $carId);
+    eventsTagForSheet($pdo, (int)$user['id'], $event, $car, TECH_TIER_RACE);
 
     $sigPaths = [];
     if (!empty($_POST['entrant_signature'])) {
@@ -718,6 +752,10 @@ function handleUpdate(PDO $pdo, array $user): void {
 
     if (techSheetIsIce($sheet)) {
         handleUpdateIce($pdo, $user, $sheet);
+        return;
+    }
+    if (techSheetIsTaDrift($sheet)) {
+        handleUpdateTaDrift($pdo, $user, $sheet);
         return;
     }
 
@@ -893,7 +931,7 @@ function handleSubmitIce(PDO $pdo, array $user): void {
     }
 
     if ($read['snap']['colour_for_car'] !== null) db_update_car($pdo, $carId, ['colour' => $read['snap']['colour_for_car']]);
-    db_tag_event($pdo, (int)$user['id'], $eventId, $carId);
+    eventsTagForSheet($pdo, (int)$user['id'], $event, $car, TECH_TIER_RACE);
     iceSheetSaveSignatures($pdo, $id);
 
     $sheet = db_get_tech_sheet($pdo, $id);
@@ -945,6 +983,143 @@ function handleUpdateIce(PDO $pdo, array $user, array $sheet): void {
     $sent = $recipient !== null && sendTechSheetConfirmationEmail($updated, [], $event, $recipient, $p['entrant_name']);
     db_update_email_sent_tech_sheet($pdo, $id, $sent ? 1 : 0);
     setFlash('Ice tech sheet updated' . ($sent ? ' and re-emailed to you and the club.' : ', but the confirmation email failed to send.'), $sent ? 'success' : 'error');
+    header('Location: tech-sheets.php?action=view&id=' . $id);
+    exit;
+}
+
+/** The TA/Drift sheet form for one of the user's cars, at an open summer event with a host club (the first one, unless $eventId picks another). */
+function handleNewTaDrift(PDO $pdo, array $user, int $carId, int $eventId): void {
+    $car = db_get_user_car($pdo, (int)$user['id'], $carId);
+    if (!$car || $car['archived_at'] !== null) {
+        setFlash('Choose one of your cars for the TA/Drift tech sheet.', 'error');
+        header('Location: garage.php');
+        exit;
+    }
+    $events = taDriftOpenEvents(db_get_active_events($pdo, DISCIPLINE_SUMMER));
+    if (!$events) {
+        setFlash('There are no events with a host club open for TA/Drift tech sheets yet.', 'error');
+        header('Location: garage.php?car=' . $carId);
+        exit;
+    }
+    $event = $events[0];
+    foreach ($events as $e) {
+        if ((int)$e['id'] === $eventId) $event = $e;
+    }
+    renderPageStart('TA/Drift tech sheet', 'garage', ['flash' => getFlash(), 'subnav' => '<a href="garage.php?car=' . $carId . '">&larr; Back to the car</a>']);
+    echo renderTaDriftTechSheetFormHtml(taDriftSheetFormVm($car, $event, $events, db_get_user_drivers($pdo, (int)$user['id']), null, [], generateCsrfToken()));
+    renderPageEnd();
+}
+
+/** Parses (but does not validate) a TA/Drift form POST. @return array{ok: bool, error: ?string, parsed: ?array, snap: ?array} */
+function taDriftSheetReadPost(PDO $pdo, array $user, array $car): array {
+    $fail = fn(string $m): array => ['ok' => false, 'error' => $m, 'parsed' => null, 'snap' => null];
+    $snap = carsSheetSnapshot($car, $_POST);
+    if (!$snap['ok']) return $fail((string)$snap['error']);
+    $owned = [];
+    foreach (db_get_user_drivers($pdo, (int)$user['id']) as $d) $owned[(int)$d['id']] = $d;
+    // 'endurance' makes techSheetApplyDriverChoices() read the added drivers; the sheet itself stays ta_drift.
+    $choices = techSheetApplyDriverChoices(array_merge($_POST, ['sheet_type' => 'endurance']), $owned);
+    if (!$choices['ok']) return $fail((string)$choices['error']);
+    $parsed = taDriftSheetParsePost(array_merge($choices['post'], [
+        'car_number' => $snap['car_number'], 'car_colour' => $snap['car_colour'], 'engine_cc' => (string)($snap['engine_cc'] ?? ''),
+    ]));
+    return ['ok' => true, 'error' => null, 'parsed' => $parsed, 'snap' => $snap];
+}
+
+function handleSubmitTaDrift(PDO $pdo, array $user): void {
+    $carId = (int)($_POST['car_id'] ?? 0);
+    $eventId = (int)($_POST['event_id'] ?? 0);
+    $back = 'tech-sheets.php?action=new-ta-drift&car_id=' . $carId . '&event_id=' . $eventId;
+    $car = db_get_user_car($pdo, (int)$user['id'], $carId);
+    if (!$car || $car['archived_at'] !== null) {
+        setFlash('Choose one of your cars for the TA/Drift tech sheet.', 'error');
+        header('Location: garage.php');
+        exit;
+    }
+    $event = db_get_event($pdo, $eventId);
+    if (!$event || (int)$event['active'] !== 1 || taDriftOpenEvents([$event]) === []) {
+        setFlash('Please choose an open event with a host club.', 'error');
+        header('Location: garage.php?car=' . $carId);
+        exit;
+    }
+
+    $read = taDriftSheetReadPost($pdo, $user, $car);
+    if (!$read['ok']) {
+        setFlash((string)$read['error'], 'error');
+        header('Location: ' . $back);
+        exit;
+    }
+    $p = $read['parsed'];
+    $valid = taDriftSheetValidate($p, (string)$event['host_club']);
+    if ($valid['error'] !== null) {
+        setFlash($valid['error'], 'error');
+        header('Location: ' . $back);
+        exit;
+    }
+    try {
+        $id = db_insert_tech_sheet($pdo, array_merge(taDriftSheetRow($p, $car), [
+            'car_id' => $carId, 'user_id' => $user['id'], 'event_id' => $eventId,
+        ]));
+    } catch (InvalidArgumentException $e) {
+        setFlash($e->getMessage(), 'error');
+        header('Location: ' . $back);
+        exit;
+    }
+    db_replace_tech_sheet_drivers($pdo, $id, $valid['drivers']);
+
+    if ($read['snap']['colour_for_car'] !== null) db_update_car($pdo, $carId, ['colour' => $read['snap']['colour_for_car']]);
+    eventsTagForSheet($pdo, (int)$user['id'], $event, $car, TECH_TIER_TA_DRIFT);
+    iceSheetSaveSignatures($pdo, $id);   // saves the posted entrant/driver signatures (shared with the ice form)
+
+    $sheet = db_get_tech_sheet($pdo, $id);
+    $recipient = techSheetRecipientEmail($pdo, $sheet);
+    $sent = $recipient !== null && sendTechSheetConfirmationEmail($sheet, db_get_tech_sheet_drivers($pdo, $id), $event, $recipient, $p['entrant_name']);
+    db_update_email_sent_tech_sheet($pdo, $id, $sent ? 1 : 0);
+    setFlash('TA/Drift tech sheet submitted' . ($sent ? ' and emailed to you and the club.' : ', but the confirmation email failed to send.'), $sent ? 'success' : 'error');
+    header('Location: tech-sheets.php?action=view&id=' . $id);
+    exit;
+}
+
+/** Update for a TA/Drift sheet. The caller has already checked ownership, status and the photo edit lock. The event stays fixed. */
+function handleUpdateTaDrift(PDO $pdo, array $user, array $sheet): void {
+    $id = (int)$sheet['id'];
+    $back = 'tech-sheets.php?action=edit&id=' . $id;
+    $car = db_get_user_car($pdo, (int)$user['id'], (int)$sheet['car_id']);
+    if ($car === null) {
+        setFlash('Car not found.', 'error');
+        header('Location: garage.php');
+        exit;
+    }
+    $read = taDriftSheetReadPost($pdo, $user, $car);
+    if (!$read['ok']) {
+        setFlash((string)$read['error'], 'error');
+        header('Location: ' . $back);
+        exit;
+    }
+    $p = $read['parsed'];
+    $valid = taDriftSheetValidate($p, (string)$sheet['club']);
+    if ($valid['error'] !== null) {
+        setFlash($valid['error'], 'error');
+        header('Location: ' . $back);
+        exit;
+    }
+    try {
+        db_update_tech_sheet($pdo, $id, array_merge(taDriftSheetRow($p, $car), ['event_id' => (int)$sheet['event_id']]));
+    } catch (InvalidArgumentException $e) {
+        setFlash($e->getMessage(), 'error');
+        header('Location: ' . $back);
+        exit;
+    }
+    db_replace_tech_sheet_drivers($pdo, $id, $valid['drivers']);
+    if ($read['snap']['colour_for_car'] !== null) db_update_car($pdo, (int)$car['id'], ['colour' => $read['snap']['colour_for_car']]);
+    iceSheetSaveSignatures($pdo, $id);
+
+    $updated = db_get_tech_sheet($pdo, $id);
+    $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
+    $recipient = techSheetRecipientEmail($pdo, $updated);
+    $sent = $recipient !== null && sendTechSheetConfirmationEmail($updated, db_get_tech_sheet_drivers($pdo, $id), $event, $recipient, $p['entrant_name']);
+    db_update_email_sent_tech_sheet($pdo, $id, $sent ? 1 : 0);
+    setFlash('TA/Drift tech sheet updated' . ($sent ? ' and re-emailed to you and the club.' : ', but the confirmation email failed to send.'), $sent ? 'success' : 'error');
     header('Location: tech-sheets.php?action=view&id=' . $id);
     exit;
 }
