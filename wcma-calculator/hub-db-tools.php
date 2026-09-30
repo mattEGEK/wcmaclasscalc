@@ -111,6 +111,7 @@ function hubSeed(PDO $pdo, string $password): array {
     db_insert_media_consent($pdo, ['driver_id' => $jordanDriver, 'consent_media' => 1, 'consent_public' => 1, 'is_minor' => 0,
         'guardian_name' => null, 'given_by_user_id' => $jordan, 'on_behalf' => 0, 'wording_version' => 1]);
     $samDriver = (int)db_find_driver($pdo, $jordan, 'Sam Patel')['id'];
+    db_add_car_driver($pdo, $jordan, $s2000, $samDriver);   // shares the S2000 (co-drivers spec §2)
     db_save_media_profile($pdo, $samDriver, ['blurb' => 'Sam is 16 and in a first season moving up from karts.', 'pronunciation' => null,
         'hometown' => 'Olds, AB', 'racing_since' => (int)date('Y'), 'social_handle' => null, 'photo_path' => null, 'public_status' => 'none']);
     db_insert_media_consent($pdo, ['driver_id' => $samDriver, 'consent_media' => 1, 'consent_public' => 0, 'is_minor' => 1,
