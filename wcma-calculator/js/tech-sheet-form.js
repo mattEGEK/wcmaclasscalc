@@ -198,6 +198,16 @@
     const driver1NewName = document.getElementById('driver1_new_name');
     WcmaDriverChoice.wire(driver1Choice, driver1NewName);
 
+    // On an edit, the signatures on file belong to the entrant and Driver 1 the page opened with. If
+    // either changes, that signature no longer counts and the new person signs (bug list 2026-10-02 #1;
+    // the server refuses the save too, in techSheetResignError()).
+    const entrantNameInput = document.getElementById('entrant_name');
+    function nameKey(v) { return String(v || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
+    function driver1Key() { return driver1Choice.value === WcmaDriverChoice.NEW ? 'new:' + nameKey(driver1NewName.value) : driver1Choice.value; }
+    const signedAs = { entrant: nameKey(entrantNameInput ? entrantNameInput.value : ''), driver1: driver1Key() };
+    function entrantChanged() { return !!entrantNameInput && nameKey(entrantNameInput.value) !== signedAs.entrant; }
+    function driver1Changed() { return driver1Key() !== signedAs.driver1; }
+
     // One signature when Driver 1 is the signed-in user (spec §C4): the pad counts as both.
     const driverSigBlock = document.getElementById('driver-sig-block');
     const entrantSigLabel = document.getElementById('entrant-sig-label');
@@ -462,8 +472,15 @@
 
         // 6. Signatures.
         const one = oneSigner();
-        const entrantSignatureMissing = entrantPad.isEmpty() && !window.TECH_SHEET_HAS_ENTRANT_SIGNATURE;
-        const driverSignatureMissing = !one && driverPad.isEmpty() && !window.TECH_SHEET_HAS_DRIVER_SIGNATURE;
+        // A signature on file still counts only while the person it belongs to is unchanged. With one
+        // signer the entrant pad is also the driver's signature, so a new Driver 1 signs there.
+        const entrantOnFile = !!window.TECH_SHEET_HAS_ENTRANT_SIGNATURE && !entrantChanged() && !(one && driver1Changed() && window.TECH_SHEET_HAS_DRIVER_SIGNATURE);
+        const driverOnFile = !!window.TECH_SHEET_HAS_DRIVER_SIGNATURE && !driver1Changed();
+        const entrantSignatureMissing = entrantPad.isEmpty() && !entrantOnFile;
+        const driverSignatureMissing = !one && driverPad.isEmpty() && !driverOnFile;
+        const resignReason = (window.TECH_SHEET_HAS_DRIVER_SIGNATURE && driver1Changed() && (one ? entrantSignatureMissing : driverSignatureMissing))
+            ? 'Driver 1 has changed, so the new driver needs to sign. '
+            : ((window.TECH_SHEET_HAS_ENTRANT_SIGNATURE && entrantChanged() && entrantSignatureMissing) ? 'The entrant has changed, so the new entrant needs to sign. ' : '');
         sigMissing.entrant = entrantSignatureMissing;
         sigMissing.driver = driverSignatureMissing;
         if (entrantSignatureMissing || driverSignatureMissing) {
@@ -471,7 +488,7 @@
             if (driverSignatureMissing) driverSigWrap.classList.add('field-error');
             const box = one ? 'the signature box' : (entrantSignatureMissing && driverSignatureMissing ? 'both signature boxes'
                 : (entrantSignatureMissing ? 'the Entrant\'s signature box' : 'the Driver\'s signature box'));
-            sigError.textContent = 'Please sign in ' + box + '.';
+            sigError.textContent = resignReason + 'Please sign in ' + box + '.';
             sigError.hidden = false;
             problems.push({ el: entrantSignatureMissing ? entrantSigWrap : driverSigWrap, text: sigError.textContent, key: 'sig' });
         }

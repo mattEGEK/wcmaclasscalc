@@ -19,3 +19,10 @@ test('the TA/Drift cage box swaps the checklist and the head & neck rule, and sy
     assert.match(src, /cagedBox\.checked !== !!window\.TA_DRIFT_RENDERED_CAGED/);
     assert.match(src, /let headNeckReason;/);
 });
+
+test('an edit asks for a new signature when the entrant or Driver 1 changes', () => {
+    assert.match(src, /const signedAs = \{ entrant: nameKey\(/);
+    assert.match(src, /const driverOnFile = !!window\.TECH_SHEET_HAS_DRIVER_SIGNATURE && !driver1Changed\(\);/);
+    assert.match(src, /const entrantOnFile = !!window\.TECH_SHEET_HAS_ENTRANT_SIGNATURE && !entrantChanged\(\)/);
+    assert.match(src, /Driver 1 has changed, so the new driver needs to sign\. /);
+});

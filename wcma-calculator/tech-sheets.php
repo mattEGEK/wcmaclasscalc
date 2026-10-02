@@ -781,6 +781,12 @@ function handleUpdate(PDO $pdo, array $user): void {
         // Residual risk (I3): same as handleSubmit() — see comment there.
         exit;
     }
+    $resign = techSheetResignError($sheet, (string)$parsed['entrant_name'], (string)$parsed['driver_name'], $_POST);
+    if ($resign !== null) {
+        setFlash($resign, 'error');
+        header('Location: tech-sheets.php?action=edit&id=' . $id);
+        exit;
+    }
 
     try {
         db_update_tech_sheet($pdo, $id, [
@@ -951,7 +957,8 @@ function handleUpdateIce(PDO $pdo, array $user, array $sheet): void {
         exit;
     }
     $p = $read['parsed'];
-    $error = iceSheetValidate($p, (string)$sheet['club']);
+    $error = iceSheetValidate($p, (string)$sheet['club'])
+        ?? techSheetResignError($sheet, (string)$p['entrant_name'], (string)$p['driver_name'], $_POST);
     if ($error !== null) {
         setFlash($error, 'error');
         header('Location: tech-sheets.php?action=edit&id=' . $id);
@@ -1096,8 +1103,9 @@ function handleUpdateTaDrift(PDO $pdo, array $user, array $sheet): void {
     }
     $p = $read['parsed'];
     $valid = taDriftSheetValidate($p, (string)$sheet['club']);
-    if ($valid['error'] !== null) {
-        setFlash($valid['error'], 'error');
+    $error = $valid['error'] ?? techSheetResignError($sheet, (string)$p['entrant_name'], (string)$p['driver_name'], $_POST);
+    if ($error !== null) {
+        setFlash($error, 'error');
         header('Location: ' . $back);
         exit;
     }
