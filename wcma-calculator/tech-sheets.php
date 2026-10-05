@@ -267,7 +267,7 @@ function handlePretech(PDO $pdo, array $user, int $id): void {
     }
     $event = db_get_event($pdo, (int)$sheet['event_id']) ?? [];
     $identity = db_get_sheet_identity_sheets($pdo, $sheet);
-    renderPretechPage($sheet, $event, pretechPageMode($sheet, $identity), pretechSnapshot($pdo, $id), generateCsrfToken(), getFlash());
+    renderPretechPage($sheet, $event, pretechPageMode($sheet, $identity, pretechRaceCover($pdo, $sheet)), pretechSnapshot($pdo, $id), generateCsrfToken(), getFlash());
 }
 
 function handlePretechSubmit(PDO $pdo, array $user, int $id): void {

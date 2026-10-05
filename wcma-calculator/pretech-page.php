@@ -106,7 +106,9 @@ function renderPretechPage(array $sheet, array $event, array $mode, array $snaps
 
   <div class="detail-card">
     <h2><?= h($carLine) ?></h2>
-    <?php if ($mode['mode'] === 'car_accepted'): ?>
+    <?php if ($mode['mode'] === 'car_accepted' && !empty($mode['by_race'])): ?>
+      <p>This car passed race tech for <?= (int)($sheet['season'] ?? date('Y')) ?>, which covers TA/Drift. You do not need to submit photos.</p>
+    <?php elseif ($mode['mode'] === 'car_accepted'): ?>
       <p>This car is already teched for <?= h(($sheet['discipline'] ?? 'summer') === 'ice' ? iceSeasonLabel((int)($sheet['season'] ?? date('Y'))) : (string)(int)($sheet['season'] ?? date('Y'))) ?>. You do not need to submit photos.</p>
     <?php elseif ($mode['mode'] === 'held_elsewhere'): ?>
       <p>Your pre-tech photos for this car are on another of your tech sheets.
