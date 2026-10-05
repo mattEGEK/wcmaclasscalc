@@ -23,21 +23,73 @@ function msrFeedUrl(string $orgId): string {
     return 'https://api.motorsportreg.com/rest/calendars/organization/' . rawurlencode($orgId) . '.json';
 }
 
-/** GET $url with a 15-second timeout. Never throws. */
+/** The most the hub reads from one MotorsportReg answer (a club calendar is well under 1 MB). */
+const MSR_MAX_BYTES = 4 * 1024 * 1024;
+const MSR_MAX_REDIRECTS = 3;
+
+/** Whether $url is https on motorsportreg.com or a subdomain: the only place msrHttpGet() goes. */
+function msrIsMsrUrl(string $url): bool {
+    $p = parse_url(trim($url));
+    if (!is_array($p) || strtolower((string)($p['scheme'] ?? '')) !== 'https' || isset($p['user']) || isset($p['pass'])) return false;
+    if (isset($p['port']) && (int)$p['port'] !== 443) return false;
+    $host = strtolower((string)($p['host'] ?? ''));
+    return $host === 'motorsportreg.com' || str_ends_with($host, '.motorsportreg.com');
+}
+
+/** Where a redirect from $from to Location $location leads (relative locations resolved), or null if it leaves MotorsportReg. */
+function msrRedirectTarget(string $from, string $location): ?string {
+    $location = trim($location);
+    if ($location === '') return null;
+    if (str_starts_with($location, '//')) {
+        $location = 'https:' . $location;
+    } elseif (!preg_match('~^[a-z][a-z0-9+.-]*:~i', $location)) {
+        $p = parse_url($from);
+        $base = 'https://' . ($p['host'] ?? '');
+        $location = str_starts_with($location, '/') ? $base . $location
+            : $base . preg_replace('~/[^/]*$~', '/', (string)($p['path'] ?? '/')) . $location;
+    }
+    return msrIsMsrUrl($location) ? $location : null;
+}
+
+/**
+ * GET $url on MotorsportReg with a 15-second timeout. Never throws. Only https on motorsportreg.com,
+ * redirects followed by hand (up to MSR_MAX_REDIRECTS, each checked the same way), and at most
+ * MSR_MAX_BYTES read (bug list 2026-10-02 #9).
+ */
 function msrHttpGet(string $url): array {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3,
-        CURLOPT_TIMEOUT => 15, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_ENCODING => '',
-        CURLOPT_USERAGENT => 'WCMA Hub (221racing.com)',
-    ]);
-    $body = curl_exec($ch);
-    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    $error = $body === false ? curl_error($ch) : '';
-    curl_close($ch);
-    if ($body === false) return ['ok' => false, 'status' => 0, 'body' => '', 'error' => "Couldn't reach MotorsportReg ($error)."];
-    if ($status !== 200) return ['ok' => false, 'status' => $status, 'body' => (string)$body, 'error' => "MotorsportReg answered with error $status."];
-    return ['ok' => true, 'status' => 200, 'body' => (string)$body, 'error' => ''];
+    $fail = fn(string $error, int $status = 0): array => ['ok' => false, 'status' => $status, 'body' => '', 'error' => $error];
+    if (!msrIsMsrUrl($url)) return $fail('That address is not on MotorsportReg.');
+    for ($hop = 0; $hop <= MSR_MAX_REDIRECTS; $hop++) {
+        $body = '';
+        $tooBig = false;
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_FOLLOWLOCATION => false, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_TIMEOUT => 15, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_ENCODING => '',
+            CURLOPT_USERAGENT => 'WCMA Hub (221racing.com)',
+            CURLOPT_WRITEFUNCTION => function ($ch, string $chunk) use (&$body, &$tooBig): int {
+                if (strlen($body) + strlen($chunk) > MSR_MAX_BYTES) { $tooBig = true; return 0; }   // 0 stops the transfer
+                $body .= $chunk;
+                return strlen($chunk);
+            },
+        ]);
+        $done = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $location = (string)curl_getinfo($ch, CURLINFO_REDIRECT_URL);
+        $error = $done === false ? curl_error($ch) : '';
+        curl_close($ch);
+        if ($tooBig) return $fail('MotorsportReg sent more than the hub can read.');
+        if ($done === false) return $fail("Couldn't reach MotorsportReg ($error).");
+        if ($status >= 300 && $status < 400) {
+            $next = msrRedirectTarget($url, $location);
+            if ($next === null) return $fail('MotorsportReg sent the hub somewhere else.', $status);
+            $url = $next;
+            continue;
+        }
+        if ($status !== 200) return $fail("MotorsportReg answered with error $status.", $status);
+        return ['ok' => true, 'status' => 200, 'body' => $body, 'error' => ''];
+    }
+    return $fail('MotorsportReg redirected too many times.');
 }
 
 /** A link as stored: https on motorsportreg.com or a subdomain, host lower-cased, utm_* removed; else ''. */
@@ -104,10 +156,11 @@ function msrOrgIdFromInput(string $input, callable $fetch): array {
     $input = trim($input);
     if ($input === '') return ['ok' => true, 'id' => '', 'error' => ''];
     if (preg_match(MSR_ID_PATTERN, $input)) return ['ok' => true, 'id' => strtoupper($input), 'error' => ''];
-    if (msrTidyUrl($input) === '') {
+    $url = msrTidyUrl($input);
+    if ($url === '') {
         return ['ok' => false, 'id' => '', 'error' => "Enter the club's MotorsportReg page address (https://www.motorsportreg.com/orgs/…) or its organization ID."];
     }
-    $page = $fetch($input);
+    $page = $fetch($url);   // the checked, tidied address, not the raw input
     if (!$page['ok']) return ['ok' => false, 'id' => '', 'error' => (string)$page['error']];
     $id = msrOrgIdFromHtml((string)$page['body']);
     return $id !== null ? ['ok' => true, 'id' => $id, 'error' => ''] : ['ok' => false, 'id' => '', 'error' => MSR_ORG_NOT_FOUND];
