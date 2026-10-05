@@ -155,13 +155,27 @@ function msrDateRange(string $start, string $end): string {
     return $end === $start ? $s : date('D, M j', strtotime($start)) . ' – ' . date('D, M j, Y', strtotime($end));
 }
 
-/** Fetch one club's feed and bring msr_events up to date. A failed fetch changes nothing but the club's error. */
+/**
+ * Fetch one club's feed and bring msr_events up to date. A failed fetch, or any error while saving,
+ * changes nothing but the club's error: the save is all or nothing and never leaves a transaction open.
+ */
 function msrSyncClub(PDO $pdo, array $club, callable $fetch, string $today, string $now): array {
     $code = (string)$club['code'];
     $fail = function (string $error) use ($pdo, $code): array {
         db_set_setting($pdo, 'msr_sync_error_' . $code, $error);
         return ['ok' => false, 'error' => $error, 'found' => 0, 'skipped' => 0];
     };
+    try {
+        return msrSyncClubFeed($pdo, $code, $club, $fetch, $today, $now, $fail);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('msrSyncClub ' . $code . ': ' . $e->getMessage());
+        return $fail("Something went wrong while saving this club's calendar. Nothing was changed.");
+    }
+}
+
+/** msrSyncClub()'s work, which may throw. */
+function msrSyncClubFeed(PDO $pdo, string $code, array $club, callable $fetch, string $today, string $now, callable $fail): array {
     $res = $fetch(msrFeedUrl((string)$club['msr_org_id']));
     if (!$res['ok']) return $fail((string)$res['error']);
     $parsed = msrParseFeed((string)$res['body']);
@@ -193,12 +207,19 @@ function msrSyncClub(PDO $pdo, array $club, callable $fetch, string $today, stri
     return ['ok' => true, 'error' => '', 'found' => count($parsed['events']), 'skipped' => (int)$parsed['skipped']];
 }
 
-/** Sync every club that has an organization ID. */
+/** Sync every club that has an organization ID. One club's failure never stops the others. */
 function msrSyncAll(PDO $pdo, callable $fetch, string $today, string $now): array {
     $out = [];
     foreach (db_get_clubs($pdo) as $club) {
         if ((string)($club['msr_org_id'] ?? '') === '') continue;
-        $out[] = ['code' => (string)$club['code'], 'name' => (string)$club['name']] + msrSyncClub($pdo, $club, $fetch, $today, $now);
+        try {
+            $r = msrSyncClub($pdo, $club, $fetch, $today, $now);
+        } catch (Throwable $e) {
+            // Only reached if even recording the error failed (msrSyncClub catches everything else).
+            error_log('msrSyncAll ' . $club['code'] . ': ' . $e->getMessage());
+            $r = ['ok' => false, 'error' => "Something went wrong while saving this club's calendar.", 'found' => 0, 'skipped' => 0];
+        }
+        $out[] = ['code' => (string)$club['code'], 'name' => (string)$club['name']] + $r;
     }
     return $out;
 }
