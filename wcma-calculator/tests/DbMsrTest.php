@@ -201,4 +201,28 @@ final class DbMsrTest extends TestCase
         $this->assertFalse($r['ok']);
         $this->assertFalse($pdo->inTransaction());
     }
+
+    public function testAnAddedEventMissingOnItsLastDayHasFinishedNotGone(): void
+    {
+        // Bug list 2026-10-02 #6: the feed drops an event once it ends, which can be on its last day.
+        $pdo = make_temp_pdo();
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev()]), '2027-01-10', '2027-01-10 06:00:00');
+        $hub = db_create_event($pdo, 'Ice Race #1', '2027-01-16', 'Lake Wabamun', 'ice', 'NASCC');
+        db_mark_msr_added($pdo, self::EV, $hub, true);
+
+        // Last day (end 2027-01-17), evening check: gone from the feed.
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([]), '2027-01-17', '2027-01-17 19:00:00');
+        $this->assertNull(db_get_msr_event($pdo, self::EV), 'finished, dropped quietly');
+        $this->assertSame(0, msrPendingCount($pdo), 'no "No longer on MotorsportReg" to review');
+        $this->assertSame(1, (int)db_get_event($pdo, $hub)['active'], 'the hub event is untouched');
+    }
+
+    public function testAnAddedEventMissingTheDayBeforeItEndsIsStillFlagged(): void
+    {
+        $pdo = make_temp_pdo();
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev()]), '2027-01-10', '2027-01-10 06:00:00');
+        db_mark_msr_added($pdo, self::EV, db_create_event($pdo, 'Ice Race #1', '2027-01-16', null, 'ice', 'NASCC'), true);
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([]), '2027-01-16', '2027-01-16 19:00:00');
+        $this->assertSame('gone', db_get_msr_event($pdo, self::EV)['status']);
+    }
 }

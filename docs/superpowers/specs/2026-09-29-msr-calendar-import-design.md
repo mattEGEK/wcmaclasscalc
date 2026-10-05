@@ -69,7 +69,8 @@ integration", step 1.
   - Upsert each race-type event (update name/dates/type/venue/link/cancelled and `last_seen_at`;
     keep `status`, `hub_event_id` and snapshots).
   - The feed lists only events that haven't ended. A stored row not in the feed whose `end_date` is
-    before today has simply finished: deleted, whatever its status (the hub event is untouched).
+    today or earlier has simply finished (an event can end, and leave the feed, on its last day):
+    deleted, whatever its status (the hub event is untouched).
   - Any other stored row for this club that is not in the feed: `new` or `ignored` → deleted; `added` →
     `gone` (never deactivates the hub event). A `gone` row that is back in the feed → `added`
     again (change detection against its snapshot resumes).

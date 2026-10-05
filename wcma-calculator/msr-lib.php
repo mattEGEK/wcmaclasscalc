@@ -195,8 +195,10 @@ function msrSyncClubFeed(PDO $pdo, string $code, array $club, callable $fetch, s
             if ($row['status'] === 'gone') db_set_msr_status($pdo, $id, 'added');
         } elseif ($parsed['skipped'] > 0) {
             continue;   // some entries were unreadable: a missing event may just be one of them
-        } elseif ((string)$row['end_date'] < $today || in_array($row['status'], ['new', 'ignored'], true)) {
-            db_delete_msr_event($pdo, $id);   // finished, or never used
+        } elseif ((string)$row['end_date'] <= $today || in_array($row['status'], ['new', 'ignored'], true)) {
+            // Finished, or never used. The feed drops an event once it has ended, which can be on its
+            // last day, so ending today counts as finished, not gone (bug list 2026-10-02 #6).
+            db_delete_msr_event($pdo, $id);
         } elseif ($row['status'] === 'added') {
             db_set_msr_status($pdo, $id, 'gone');
         }
