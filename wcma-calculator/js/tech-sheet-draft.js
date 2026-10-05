@@ -23,7 +23,22 @@
         try { store.setItem('wcma-storage-check', '1'); store.removeItem('wcma-storage-check'); return store; } catch (e) { return null; }
     }
 
-    const api = { MAX_AGE_MS: MAX_AGE_MS, FIELDS: FIELDS, encode: encode, decode: decode, hasStorage: hasStorage };
+    /**
+     * Whether a saved value can go back into $el. A menu only takes one of its own choices: a driver
+     * deleted since the draft was saved would otherwise leave Driver 1 blank (bug list 2026-10-02 #10).
+     */
+    function canRestore(el, value) {
+        if (value == null || value === '') return false;
+        if (el.tagName === 'SELECT') return Array.prototype.some.call(el.options, function (o) { return o.value === String(value); });
+        return true;
+    }
+
+    /** The radio among $radios whose value is $value, or null. Compared directly, so an odd saved value can't break a selector (#11). */
+    function findRadio(radios, value) {
+        return Array.prototype.find.call(radios, function (r) { return r.value === String(value); }) || null;
+    }
+
+    const api = { MAX_AGE_MS: MAX_AGE_MS, FIELDS: FIELDS, encode: encode, decode: decode, hasStorage: hasStorage, canRestore: canRestore, findRadio: findRadio };
     if (typeof module !== 'undefined' && module.exports) { module.exports = api; return; }
     root.WcmaTechSheetDraft = api;
 
@@ -42,20 +57,24 @@
 
     if (saved) {
         const fields = saved.fields || {};
+        let driverGone = false;
         FIELDS.forEach(function (id) {
             const el = doc.getElementById(id);
-            if (el && fields[id] != null && fields[id] !== '') el.value = fields[id];
+            if (!el || fields[id] == null || fields[id] === '') return;
+            if (canRestore(el, fields[id])) el.value = fields[id];
+            else if (id === 'driver1_choice') driverGone = true;
         });
-        if (saved.checklist) root.TECH_SHEET_EXISTING_CHECKLIST = saved.checklist;
-        if (saved.equipment) root.TECH_SHEET_EXISTING_EQUIPMENT = saved.equipment;
+        if (saved.checklist && typeof saved.checklist === 'object') root.TECH_SHEET_EXISTING_CHECKLIST = saved.checklist;
+        if (saved.equipment && typeof saved.equipment === 'object') root.TECH_SHEET_EXISTING_EQUIPMENT = saved.equipment;
         if (saved.logBook != null) {
-            const radio = form.querySelector('input[name="log_book_turned_in"][value="' + saved.logBook + '"]');
+            const radio = findRadio(form.querySelectorAll('input[name="log_book_turned_in"]'), saved.logBook);
             if (radio) radio.checked = true;
         }
         const notice = doc.createElement('div');
         notice.className = 'form-messages show info draft-notice';
         notice.setAttribute('role', 'status');
-        notice.textContent = 'We kept your answers from earlier. ';
+        notice.textContent = 'We kept your answers from earlier. '
+            + (driverGone ? 'The driver you picked is no longer on your list, so check Driver 1. ' : '');
         const again = doc.createElement('button');
         again.type = 'button';
         again.className = 'btn btn-secondary';

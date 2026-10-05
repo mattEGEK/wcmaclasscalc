@@ -34,6 +34,27 @@ final class ClubsTest extends TestCase
         $this->assertNull(db_get_club($pdo, 'NOPE'));
     }
 
+    public function testAddingAClubThatAlreadyExistsChangesNothing(): void
+    {
+        // Bug list 2026-10-02 #8: two quick submits of "Add club" both passed the exists check, and the
+        // second insert threw. The insert now reports it instead.
+        $pdo = make_temp_pdo();
+        $this->assertTrue(db_create_club($pdo, 'ESCC', 'Edmonton Sports Car Club', 'https://msr.example/escc'));
+        $this->assertFalse(db_create_club($pdo, 'ESCC', 'Someone Else', ''));
+        $this->assertSame('Edmonton Sports Car Club', db_get_club($pdo, 'ESCC')['name']);
+        $this->assertSame('https://msr.example/escc', db_get_club($pdo, 'ESCC')['msr_url']);
+    }
+
+    public function testTheAddHandlerActsOnADuplicateInsert(): void
+    {
+        $src = str_replace("
+", "
+", file_get_contents(__DIR__ . '/../admin-clubs.php'));
+        $this->assertStringContainsString("if (!db_create_club(\$pdo, \$v['code'], \$v['name'], \$v['url'])) {", $src);
+        // A repeat of the same club reads as done; a different club with that code is refused.
+        $this->assertStringContainsString("setFlash(\$same ? 'Club added.' : 'A club with the code ' . \$v['code'] . ' already exists.'", $src);
+    }
+
     public function testValidation(): void
     {
         $ok = clubValidate(' escc ', ' Edmonton  Sports Car Club ', ' https://msr.example/escc ');

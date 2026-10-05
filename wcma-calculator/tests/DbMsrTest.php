@@ -165,4 +165,64 @@ final class DbMsrTest extends TestCase
         $this->assertSame([$ids[2]], array_column(db_get_msr_events($pdo), 'msr_id'));   // only the one a hub event came from
         $this->assertSame(0, msrPendingCount($pdo));
     }
+
+    public function testAnErrorWhileSavingRollsBackAndTheNextClubStillSyncs(): void
+    {
+        // Bug list 2026-10-02 #2: an exception for one club left the transaction open and stopped every club.
+        $pdo = make_temp_pdo();
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev()]), '2026-10-01', '2026-10-01 06:00:00');
+        $pdo->exec("CREATE TRIGGER msr_boom BEFORE UPDATE ON msr_events WHEN NEW.club_code = 'NASCC' BEGIN SELECT RAISE(ABORT, 'boom'); END");
+        $other = 'BBBBBBBB-BBBB-CCCC-DDDDDDDDDDDDDDDD';
+        $nascc = $this->feed([$this->ev(['name' => 'Renamed']), $this->ev(['id' => 'CCCCCCCC-BBBB-CCCC-DDDDDDDDDDDDDDDD'])]);
+        $wscc = $this->feed([$this->ev(['id' => $other])]);
+        $fetch = fn(string $url): array => $url === msrFeedUrl(self::NASCC) ? $nascc($url) : $wscc($url);
+        $log = ini_set('error_log', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null');
+        $results = msrSyncAll($pdo, $fetch, '2026-10-02', '2026-10-02 06:00:00');
+        ini_set('error_log', (string)$log);
+
+        $byCode = array_column($results, null, 'code');
+        $this->assertFalse($byCode['NASCC']['ok']);
+        $this->assertSame("Something went wrong while saving this club's calendar. Nothing was changed.", $byCode['NASCC']['error']);
+        $this->assertFalse($pdo->inTransaction(), 'the failed save was rolled back');
+        $this->assertSame('Ice Race #1', db_get_msr_events($pdo, 'NASCC')[0]['name'], 'NASCC kept its old data');
+        $this->assertCount(1, db_get_msr_events($pdo, 'NASCC'), 'the new NASCC event was rolled back too');
+        $this->assertTrue($byCode['WSCC']['ok'], 'the next club still synced');
+        $this->assertSame([$other], array_column(db_get_msr_events($pdo, 'WSCC'), 'msr_id'));
+        $status = array_column(msrSyncStatus($pdo), null, 'code');
+        $this->assertSame($byCode['NASCC']['error'], $status['NASCC']['error']);
+    }
+
+    public function testAFetchThatThrowsIsRecordedAsTheClubsError(): void
+    {
+        $pdo = make_temp_pdo();
+        $log = ini_set('error_log', PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null');
+        $r = msrSyncClub($pdo, $this->nascc($pdo), function (string $u): array { throw new RuntimeException('dns'); }, '2026-10-01', '2026-10-01 06:00:00');
+        ini_set('error_log', (string)$log);
+        $this->assertFalse($r['ok']);
+        $this->assertFalse($pdo->inTransaction());
+    }
+
+    public function testAnAddedEventMissingOnItsLastDayHasFinishedNotGone(): void
+    {
+        // Bug list 2026-10-02 #6: the feed drops an event once it ends, which can be on its last day.
+        $pdo = make_temp_pdo();
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev()]), '2027-01-10', '2027-01-10 06:00:00');
+        $hub = db_create_event($pdo, 'Ice Race #1', '2027-01-16', 'Lake Wabamun', 'ice', 'NASCC');
+        db_mark_msr_added($pdo, self::EV, $hub, true);
+
+        // Last day (end 2027-01-17), evening check: gone from the feed.
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([]), '2027-01-17', '2027-01-17 19:00:00');
+        $this->assertNull(db_get_msr_event($pdo, self::EV), 'finished, dropped quietly');
+        $this->assertSame(0, msrPendingCount($pdo), 'no "No longer on MotorsportReg" to review');
+        $this->assertSame(1, (int)db_get_event($pdo, $hub)['active'], 'the hub event is untouched');
+    }
+
+    public function testAnAddedEventMissingTheDayBeforeItEndsIsStillFlagged(): void
+    {
+        $pdo = make_temp_pdo();
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([$this->ev()]), '2027-01-10', '2027-01-10 06:00:00');
+        db_mark_msr_added($pdo, self::EV, db_create_event($pdo, 'Ice Race #1', '2027-01-16', null, 'ice', 'NASCC'), true);
+        msrSyncClub($pdo, $this->nascc($pdo), $this->feed([]), '2027-01-16', '2027-01-16 19:00:00');
+        $this->assertSame('gone', db_get_msr_event($pdo, self::EV)['status']);
+    }
 }

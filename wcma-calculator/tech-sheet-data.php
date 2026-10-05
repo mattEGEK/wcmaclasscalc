@@ -270,3 +270,26 @@ function techSheetPrefillRows(array $ownedById, array $otherIds): array {
     }
     return $rows;
 }
+
+/** A person's name for comparing: trimmed, inner spaces collapsed, lower case. */
+function techSheetNameKey(string $name): string {
+    return mb_strtolower((string)preg_replace('/\s+/u', ' ', trim($name)), 'UTF-8');
+}
+
+/**
+ * On an edit: the error when a signature on file was made by someone who is no longer the entrant or
+ * Driver 1 and no new one was posted, else null. A kept signature would otherwise sit on the sheet
+ * under the new person's name. $post is the request ($_POST: entrant_signature, driver_signature).
+ */
+function techSheetResignError(array $sheet, string $entrant, string $driver, array $post): ?string {
+    $changed = fn(string $old, string $new): bool => techSheetNameKey($old) !== techSheetNameKey($new);
+    $onFile = fn(string $which): bool => trim((string)($sheet[$which . '_signature_path'] ?? '')) !== '';
+    $posted = fn(string $which): bool => trim((string)($post[$which . '_signature'] ?? '')) !== '';
+    if ($onFile('driver') && $changed((string)($sheet['driver_name'] ?? ''), $driver) && !$posted('driver')) {
+        return 'Driver 1 has changed, so ' . trim($driver) . ' needs to sign the sheet.';
+    }
+    if ($onFile('entrant') && $changed((string)($sheet['entrant_name'] ?? ''), $entrant) && !$posted('entrant')) {
+        return 'The entrant has changed, so ' . trim($entrant) . ' needs to sign the sheet.';
+    }
+    return null;
+}

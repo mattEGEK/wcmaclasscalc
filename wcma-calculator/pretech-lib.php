@@ -53,7 +53,7 @@ function pretechSubmit(PDO $pdo, int $sheetId): array {
     if ($sheet['status'] === 'teched') return $fail('This car has already been teched.');
 
     $identity = db_get_sheet_identity_sheets($pdo, $sheet);
-    $mode = pretechPageMode($sheet, $identity)['mode'];
+    $mode = pretechPageMode($sheet, $identity, pretechRaceCover($pdo, $sheet))['mode'];
     if ($mode === 'car_accepted') return $fail('This car has already been teched for the season, so no photos are needed.');
     if ($mode === 'held_elsewhere') return $fail('Your pre-tech photos for this car are on another of your tech sheets.');
 
@@ -149,9 +149,15 @@ function pretechSendBack(PDO $pdo, int $sheetId, array $notes): array {
  * this car identity: the car is already accepted, another sheet already holds the photo set, or
  * this sheet is where the photos live.
  *
- * @return array{mode: string, sheet_id: ?int}
+ * $raceCover is pretechRaceCover(): for a TA/Drift sheet, the car's race tech that season, which
+ * covers TA/Drift once accepted (TA/Drift spec §2; bug list 2026-10-02 #4).
+ *
+ * @return array{mode: string, sheet_id: ?int, by_race?: bool}
  */
-function pretechPageMode(array $sheet, array $identitySheets): array {
+function pretechPageMode(array $sheet, array $identitySheets, ?array $raceCover = null): array {
+    if ($raceCover !== null && $raceCover['state'] === 'accepted') {
+        return ['mode' => 'car_accepted', 'sheet_id' => $raceCover['sheet_id'], 'by_race' => true];
+    }
     $status = techCarStatus($identitySheets);
     if ($status['state'] === 'accepted') return ['mode' => 'car_accepted', 'sheet_id' => $status['sheet_id']];
 
@@ -161,4 +167,11 @@ function pretechPageMode(array $sheet, array $identitySheets): array {
         }
     }
     return ['mode' => 'this_sheet', 'sheet_id' => null];
+}
+
+/** For a TA/Drift sheet, techCarStatus() of the owner's race sheets for the same car and season; null for any other sheet. */
+function pretechRaceCover(PDO $pdo, array $sheet): ?array {
+    if (($sheet['sheet_type'] ?? '') !== SHEET_TYPE_TA_DRIFT) return null;
+    $raceKey = techCarKey(['car_id' => $sheet['car_id'], 'season' => $sheet['season'], 'discipline' => DISCIPLINE_SUMMER]);
+    return techCarStatus(techGroupSheetsByCar(db_get_user_tech_sheets($pdo, (int)$sheet['user_id']))[$raceKey] ?? []);
 }

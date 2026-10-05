@@ -23,21 +23,73 @@ function msrFeedUrl(string $orgId): string {
     return 'https://api.motorsportreg.com/rest/calendars/organization/' . rawurlencode($orgId) . '.json';
 }
 
-/** GET $url with a 15-second timeout. Never throws. */
+/** The most the hub reads from one MotorsportReg answer (a club calendar is well under 1 MB). */
+const MSR_MAX_BYTES = 4 * 1024 * 1024;
+const MSR_MAX_REDIRECTS = 3;
+
+/** Whether $url is https on motorsportreg.com or a subdomain: the only place msrHttpGet() goes. */
+function msrIsMsrUrl(string $url): bool {
+    $p = parse_url(trim($url));
+    if (!is_array($p) || strtolower((string)($p['scheme'] ?? '')) !== 'https' || isset($p['user']) || isset($p['pass'])) return false;
+    if (isset($p['port']) && (int)$p['port'] !== 443) return false;
+    $host = strtolower((string)($p['host'] ?? ''));
+    return $host === 'motorsportreg.com' || str_ends_with($host, '.motorsportreg.com');
+}
+
+/** Where a redirect from $from to Location $location leads (relative locations resolved), or null if it leaves MotorsportReg. */
+function msrRedirectTarget(string $from, string $location): ?string {
+    $location = trim($location);
+    if ($location === '') return null;
+    if (str_starts_with($location, '//')) {
+        $location = 'https:' . $location;
+    } elseif (!preg_match('~^[a-z][a-z0-9+.-]*:~i', $location)) {
+        $p = parse_url($from);
+        $base = 'https://' . ($p['host'] ?? '');
+        $location = str_starts_with($location, '/') ? $base . $location
+            : $base . preg_replace('~/[^/]*$~', '/', (string)($p['path'] ?? '/')) . $location;
+    }
+    return msrIsMsrUrl($location) ? $location : null;
+}
+
+/**
+ * GET $url on MotorsportReg with a 15-second timeout. Never throws. Only https on motorsportreg.com,
+ * redirects followed by hand (up to MSR_MAX_REDIRECTS, each checked the same way), and at most
+ * MSR_MAX_BYTES read (bug list 2026-10-02 #9).
+ */
 function msrHttpGet(string $url): array {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3,
-        CURLOPT_TIMEOUT => 15, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_ENCODING => '',
-        CURLOPT_USERAGENT => 'WCMA Hub (221racing.com)',
-    ]);
-    $body = curl_exec($ch);
-    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    $error = $body === false ? curl_error($ch) : '';
-    curl_close($ch);
-    if ($body === false) return ['ok' => false, 'status' => 0, 'body' => '', 'error' => "Couldn't reach MotorsportReg ($error)."];
-    if ($status !== 200) return ['ok' => false, 'status' => $status, 'body' => (string)$body, 'error' => "MotorsportReg answered with error $status."];
-    return ['ok' => true, 'status' => 200, 'body' => (string)$body, 'error' => ''];
+    $fail = fn(string $error, int $status = 0): array => ['ok' => false, 'status' => $status, 'body' => '', 'error' => $error];
+    if (!msrIsMsrUrl($url)) return $fail('That address is not on MotorsportReg.');
+    for ($hop = 0; $hop <= MSR_MAX_REDIRECTS; $hop++) {
+        $body = '';
+        $tooBig = false;
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_FOLLOWLOCATION => false, CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_TIMEOUT => 15, CURLOPT_CONNECTTIMEOUT => 10, CURLOPT_ENCODING => '',
+            CURLOPT_USERAGENT => 'WCMA Hub (221racing.com)',
+            CURLOPT_WRITEFUNCTION => function ($ch, string $chunk) use (&$body, &$tooBig): int {
+                if (strlen($body) + strlen($chunk) > MSR_MAX_BYTES) { $tooBig = true; return 0; }   // 0 stops the transfer
+                $body .= $chunk;
+                return strlen($chunk);
+            },
+        ]);
+        $done = curl_exec($ch);
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        $location = (string)curl_getinfo($ch, CURLINFO_REDIRECT_URL);
+        $error = $done === false ? curl_error($ch) : '';
+        curl_close($ch);
+        if ($tooBig) return $fail('MotorsportReg sent more than the hub can read.');
+        if ($done === false) return $fail("Couldn't reach MotorsportReg ($error).");
+        if ($status >= 300 && $status < 400) {
+            $next = msrRedirectTarget($url, $location);
+            if ($next === null) return $fail('MotorsportReg sent the hub somewhere else.', $status);
+            $url = $next;
+            continue;
+        }
+        if ($status !== 200) return $fail("MotorsportReg answered with error $status.", $status);
+        return ['ok' => true, 'status' => 200, 'body' => $body, 'error' => ''];
+    }
+    return $fail('MotorsportReg redirected too many times.');
 }
 
 /** A link as stored: https on motorsportreg.com or a subdomain, host lower-cased, utm_* removed; else ''. */
@@ -104,10 +156,11 @@ function msrOrgIdFromInput(string $input, callable $fetch): array {
     $input = trim($input);
     if ($input === '') return ['ok' => true, 'id' => '', 'error' => ''];
     if (preg_match(MSR_ID_PATTERN, $input)) return ['ok' => true, 'id' => strtoupper($input), 'error' => ''];
-    if (msrTidyUrl($input) === '') {
+    $url = msrTidyUrl($input);
+    if ($url === '') {
         return ['ok' => false, 'id' => '', 'error' => "Enter the club's MotorsportReg page address (https://www.motorsportreg.com/orgs/…) or its organization ID."];
     }
-    $page = $fetch($input);
+    $page = $fetch($url);   // the checked, tidied address, not the raw input
     if (!$page['ok']) return ['ok' => false, 'id' => '', 'error' => (string)$page['error']];
     $id = msrOrgIdFromHtml((string)$page['body']);
     return $id !== null ? ['ok' => true, 'id' => $id, 'error' => ''] : ['ok' => false, 'id' => '', 'error' => MSR_ORG_NOT_FOUND];
@@ -155,13 +208,27 @@ function msrDateRange(string $start, string $end): string {
     return $end === $start ? $s : date('D, M j', strtotime($start)) . ' – ' . date('D, M j, Y', strtotime($end));
 }
 
-/** Fetch one club's feed and bring msr_events up to date. A failed fetch changes nothing but the club's error. */
+/**
+ * Fetch one club's feed and bring msr_events up to date. A failed fetch, or any error while saving,
+ * changes nothing but the club's error: the save is all or nothing and never leaves a transaction open.
+ */
 function msrSyncClub(PDO $pdo, array $club, callable $fetch, string $today, string $now): array {
     $code = (string)$club['code'];
     $fail = function (string $error) use ($pdo, $code): array {
         db_set_setting($pdo, 'msr_sync_error_' . $code, $error);
         return ['ok' => false, 'error' => $error, 'found' => 0, 'skipped' => 0];
     };
+    try {
+        return msrSyncClubFeed($pdo, $code, $club, $fetch, $today, $now, $fail);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        error_log('msrSyncClub ' . $code . ': ' . $e->getMessage());
+        return $fail("Something went wrong while saving this club's calendar. Nothing was changed.");
+    }
+}
+
+/** msrSyncClub()'s work, which may throw. */
+function msrSyncClubFeed(PDO $pdo, string $code, array $club, callable $fetch, string $today, string $now, callable $fail): array {
     $res = $fetch(msrFeedUrl((string)$club['msr_org_id']));
     if (!$res['ok']) return $fail((string)$res['error']);
     $parsed = msrParseFeed((string)$res['body']);
@@ -181,8 +248,10 @@ function msrSyncClub(PDO $pdo, array $club, callable $fetch, string $today, stri
             if ($row['status'] === 'gone') db_set_msr_status($pdo, $id, 'added');
         } elseif ($parsed['skipped'] > 0) {
             continue;   // some entries were unreadable: a missing event may just be one of them
-        } elseif ((string)$row['end_date'] < $today || in_array($row['status'], ['new', 'ignored'], true)) {
-            db_delete_msr_event($pdo, $id);   // finished, or never used
+        } elseif ((string)$row['end_date'] <= $today || in_array($row['status'], ['new', 'ignored'], true)) {
+            // Finished, or never used. The feed drops an event once it has ended, which can be on its
+            // last day, so ending today counts as finished, not gone (bug list 2026-10-02 #6).
+            db_delete_msr_event($pdo, $id);
         } elseif ($row['status'] === 'added') {
             db_set_msr_status($pdo, $id, 'gone');
         }
@@ -193,12 +262,19 @@ function msrSyncClub(PDO $pdo, array $club, callable $fetch, string $today, stri
     return ['ok' => true, 'error' => '', 'found' => count($parsed['events']), 'skipped' => (int)$parsed['skipped']];
 }
 
-/** Sync every club that has an organization ID. */
+/** Sync every club that has an organization ID. One club's failure never stops the others. */
 function msrSyncAll(PDO $pdo, callable $fetch, string $today, string $now): array {
     $out = [];
     foreach (db_get_clubs($pdo) as $club) {
         if ((string)($club['msr_org_id'] ?? '') === '') continue;
-        $out[] = ['code' => (string)$club['code'], 'name' => (string)$club['name']] + msrSyncClub($pdo, $club, $fetch, $today, $now);
+        try {
+            $r = msrSyncClub($pdo, $club, $fetch, $today, $now);
+        } catch (Throwable $e) {
+            // Only reached if even recording the error failed (msrSyncClub catches everything else).
+            error_log('msrSyncAll ' . $club['code'] . ': ' . $e->getMessage());
+            $r = ['ok' => false, 'error' => "Something went wrong while saving this club's calendar.", 'found' => 0, 'skipped' => 0];
+        }
+        $out[] = ['code' => (string)$club['code'], 'name' => (string)$club['name']] + $r;
     }
     return $out;
 }

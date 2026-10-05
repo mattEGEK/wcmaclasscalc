@@ -40,7 +40,13 @@ function handleClubSave(PDO $pdo): void {
         $orgId = $org['id'];
     }
     if ($isNew) {
-        db_create_club($pdo, $v['code'], $v['name'], $v['url']);
+        // The check above can race a second submit of the same form (the MotorsportReg lookup takes
+        // seconds), so the insert decides (bug list 2026-10-02 #8). A repeat of the same club is done.
+        if (!db_create_club($pdo, $v['code'], $v['name'], $v['url'])) {
+            $same = (string)(db_get_club($pdo, $v['code'])['name'] ?? '') === $v['name'];
+            setFlash($same ? 'Club added.' : 'A club with the code ' . $v['code'] . ' already exists.', $same ? 'success' : 'error');
+            adminRedirect($same ? 'admin.php?action=clubs' : $reopen);
+        }
         setFlash('Club added.', 'success');
     } else {
         db_update_club($pdo, $v['code'], $v['name'], $v['url'], !empty($_POST['active']));

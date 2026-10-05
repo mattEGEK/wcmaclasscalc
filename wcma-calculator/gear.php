@@ -15,6 +15,7 @@ require_once __DIR__ . '/pretech-lib.php';
 require_once __DIR__ . '/pretech-email.php';
 require __DIR__ . '/pretech-page.php';
 require_once __DIR__ . '/gear-lib.php';
+require_once __DIR__ . '/garage-lib.php';   // userRacesSummer()
 require __DIR__ . '/gear-email.php';
 require __DIR__ . '/gear-page.php';
 
@@ -52,6 +53,26 @@ function requireGearPost(): void {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
 }
 
+/**
+ * Gear start links create a record, so they need a click from inside the hub or a posted form
+ * (gearStartGetTrusted()). A POST is checked for the CSRF token; an untrusted GET gets a confirm page
+ * whose form posts back to the same URL, so the handler reads its query values either way.
+ */
+function requireGearStartRequest(): void {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        return;
+    }
+    if (gearStartGetTrusted($_SERVER)) return;
+    renderPageStart('Open gear photos', 'drivers');
+    echo '<h1 class="hub-page-title">Open gear photos</h1><div class="detail-card"><p>Open the gear photo page for this driver?</p>'
+        . '<form method="post" action="' . h('gear.php?' . http_build_query($_GET)) . '">'
+        . '<input type="hidden" name="csrf_token" value="' . h(generateCsrfToken()) . '">'
+        . '<button type="submit" class="hub-btn">Open gear photos</button> <a class="hub-btn hub-btn--secondary" href="drivers.php">Cancel</a></form></div>';
+    renderPageEnd();
+    exit;
+}
+
 $action = $_GET['action'] ?? 'list';
 
 switch ($action) {
@@ -80,11 +101,13 @@ switch ($action) {
 
     case 'start':
         $user = requireGearLogin();
+        requireGearStartRequest();
         handleGearStart($pdo, $user, (int)($_GET['driver_id'] ?? 0));
         break;
 
     case 'start-ice':
         $user = requireGearLogin();
+        requireGearStartRequest();
         // driver: 1 (or missing) = the sheet's primary driver; 2+ = that added driver on the sheet.
         handleGearStartIce($pdo, $user, (int)($_GET['sheet_id'] ?? 0),
             filter_var($_GET['driver'] ?? '1', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]));
@@ -92,6 +115,7 @@ switch ($action) {
 
     case 'start-ta-drift':
         $user = requireGearLogin();
+        requireGearStartRequest();
         // driver: 1 (or missing) = the sheet's driver; 2+ = that added driver on the sheet.
         handleGearStartTaDrift($pdo, $user, (int)($_GET['sheet_id'] ?? 0),
             filter_var($_GET['driver'] ?? '1', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]));
@@ -183,15 +207,21 @@ function handleGearStart(PDO $pdo, array $user, int $driverId): void {
         header('Location: drivers.php');
         exit;
     }
+    $uid = (int)$user['id'];
     $season = gearSeasonNow();
-    $gear = db_get_gear_record_for_driver($pdo, $driverId, $season);
-    if ($gear === null) {
-        $r = gearCreate($pdo, (int)$user['id'], (string)$driver['name'], '', $season);
-        if (!$r['ok']) { setFlash((string)$r['error'], 'error'); header('Location: drivers.php'); exit; }
-        $id = (int)$r['id'];
-    } else {
-        $id = (int)$gear['id'];
+    $cars = [];
+    foreach (db_get_user_cars($pdo, $uid) as $c) $cars[(int)$c['id']] = $c;
+    $sheets = db_get_user_tech_sheets($pdo, $uid);
+    // TA/Drift only: some summer car, and none of them races (an ice-only user keeps the race default).
+    $summerArgs = [$cars, $sheets, db_get_user_current_declarations($pdo, $uid), db_get_user_event_plans($pdo, $uid), db_get_active_events($pdo), date('Y-m-d')];
+    $taDriftOnly = userUsesSummer(...$summerArgs) && !userRacesSummer(...$summerArgs);
+    // Cage shots when any of this season's TA/Drift sheets is for a caged car; a sheet's own gear link updates it later.
+    $caged = false;
+    foreach ($sheets as $s) {
+        if (techSheetIsTaDrift($s) && (int)$s['season'] === $season && !empty($s['caged'])) $caged = true;
     }
-    header('Location: gear.php?action=pretech&id=' . $id);
+    $r = gearStartForDriver($pdo, $uid, $driver, $season, $taDriftOnly, $caged);
+    if (!$r['ok']) { setFlash((string)$r['error'], 'error'); header('Location: drivers.php'); exit; }
+    header('Location: gear.php?action=pretech&id=' . (int)$r['id']);
     exit;
 }

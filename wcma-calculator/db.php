@@ -1976,9 +1976,11 @@ function db_get_club(PDO $pdo, string $code): ?array {
     return $stmt->fetch() ?: null;
 }
 
-function db_create_club(PDO $pdo, string $code, string $name, string $url): void {
-    $pdo->prepare("INSERT INTO clubs (code, name, msr_url, active, created_at) VALUES (:c, :n, :u, 1, :t)")
-        ->execute([':c' => $code, ':n' => $name, ':u' => $url, ':t' => date('Y-m-d H:i:s')]);
+/** Adds a club. False when one with that code already exists (e.g. another submit got there first); nothing changes then. */
+function db_create_club(PDO $pdo, string $code, string $name, string $url): bool {
+    $stmt = $pdo->prepare("INSERT OR IGNORE INTO clubs (code, name, msr_url, active, created_at) VALUES (:c, :n, :u, 1, :t)");
+    $stmt->execute([':c' => $code, ':n' => $name, ':u' => $url, ':t' => date('Y-m-d H:i:s')]);
+    return $stmt->rowCount() === 1;
 }
 
 function db_update_club(PDO $pdo, string $code, string $name, string $url, bool $active): void {

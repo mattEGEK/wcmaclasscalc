@@ -32,7 +32,7 @@ function eventsTagCar(PDO $pdo, int $userId, int $eventId, int $carId, ?array $f
     }
     $added = db_tag_event($pdo, $userId, $eventId, $carId);
     if ($formats !== null) {
-        eventsStoreFormats($pdo, $userId, $eventId, $carId, $v['formats'], $suppsAck);
+        eventsStoreFormats($pdo, $userId, $event, $carId, $v['formats'], $suppsAck);
     } elseif ($added) {
         db_set_entry_formats($pdo, $userId, $eventId, $carId, entryFormatsStore(eventsDefaultFormats($pdo, $car, $event)), null);
     }
@@ -60,18 +60,22 @@ function eventsSetFormats(PDO $pdo, int $userId, int $eventId, int $carId, $form
         $dv = eventsValidateDriverIds($pdo, $userId, $carId, $driverIds);
         if (!$dv['ok']) return ['ok' => false, 'error' => $dv['error']];
     }
-    eventsStoreFormats($pdo, $userId, $eventId, $carId, $v['formats'], $suppsAck);
+    eventsStoreFormats($pdo, $userId, $event, $carId, $v['formats'], $suppsAck);
     if ($driverIds !== null) db_set_entry_drivers($pdo, (int)$entry['id'], $dv['ids']);
     return ['ok' => true, 'error' => null];
 }
 
 /**
- * Stores validated formats. The regulations tick counts only for a TA/Drift entry; it keeps the time
- * it was first ticked while it stays ticked, and is cleared otherwise.
+ * Stores validated formats and the regulations tick as the box was left. The tick is stored whatever
+ * formats are picked, so switching to Race clears nothing (TA/Drift spec §3; bug list 2026-10-02 #5);
+ * only TA/Drift entries use it. It keeps the time it was first ticked while it stays ticked. An event
+ * that can't run TA/Drift (ice, or no host club) shows no box and never stores one.
  */
-function eventsStoreFormats(PDO $pdo, int $userId, int $eventId, int $carId, array $formats, bool $suppsAck): void {
+function eventsStoreFormats(PDO $pdo, int $userId, array $event, int $carId, array $formats, bool $suppsAck): void {
+    $eventId = (int)$event['id'];
+    $hasBox = ($event['discipline'] ?? DISCIPLINE_SUMMER) !== DISCIPLINE_ICE && trim((string)($event['host_club'] ?? '')) !== '';
     $ack = null;
-    if ($suppsAck && entryTechTier($formats) === TECH_TIER_TA_DRIFT) {
+    if ($suppsAck && $hasBox) {
         $ack = (db_get_entry($pdo, $userId, $eventId, $carId)['supps_ack_at'] ?? null) ?: date('Y-m-d H:i:s');
     }
     db_set_entry_formats($pdo, $userId, $eventId, $carId, entryFormatsStore($formats), $ack);
@@ -110,7 +114,7 @@ function eventsTagForSheet(PDO $pdo, int $userId, array $event, array $car, stri
     }
     $formats = entryFormatsParse((string)$entry['formats']);
     if ($tier === TECH_TIER_TA_DRIFT && entryTechTier($formats) === TECH_TIER_TA_DRIFT) {
-        eventsStoreFormats($pdo, $userId, $eventId, $carId, $formats, true);
+        eventsStoreFormats($pdo, $userId, $event, $carId, $formats, true);
     }
 }
 

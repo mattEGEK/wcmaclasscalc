@@ -375,6 +375,36 @@ function userUsesSummer(array $cars, array $sheets, array $declarationsByCar, ar
  * users with no ice activity; otherwise when the user races summer or the driver already has
  * summer gear this season. Ice-only competitors don't get a summer "Needs gear tech" prompt.
  */
+/**
+ * Whether the user races summer, so their drivers need race-level gear: no cars yet (the default), or
+ * any summer car that races (garageCarRaces(), with its upcoming active entries' formats). False
+ * means every summer car is TA/Drift only (bug list 2026-10-02 #3).
+ */
+function userRacesSummer(array $cars, array $sheets, array $declarationsByCar, array $plans, array $activeEvents, string $today): bool {
+    if (!$cars) return true;
+    $eventsById = [];
+    foreach ($activeEvents as $e) $eventsById[(int)$e['id']] = $e;
+    $tags = [];
+    $formats = [];
+    foreach ($plans as $p) {
+        $e = $eventsById[(int)$p['event_id']] ?? null;
+        if ($e === null || (string)$e['event_date'] < $today) continue;
+        $tags[(int)$p['car_id']][(($e['discipline'] ?? 'summer') === 'ice') ? 'ice' : 'summer'] = true;
+        $formats[(int)$p['car_id']][(int)$p['event_id']] = isset($p['formats']) ? (string)$p['formats'] : null;
+    }
+    foreach ($cars as $carId => $car) {
+        $carId = (int)$carId;
+        $carSheets = array_values(array_filter($sheets, fn(array $s): bool => (int)$s['car_id'] === $carId));
+        $decl = $declarationsByCar[$carId] ?? null;
+        $declarations = $decl !== null ? [$decl] : [];
+        $seasons = garageCarSeasons($car, $declarations, $carSheets, isset($tags[$carId]['summer']), isset($tags[$carId]['ice']));
+        if (!$seasons['summer']) continue;
+        $taggedRace = garageEntryTiers($formats[$carId] ?? [], $activeEvents, $today)['race'];
+        if (garageCarRaces($car, $declarations, $carSheets, $taggedRace)) return true;
+    }
+    return false;
+}
+
 function driverShowsSummerGear(bool $userHasIce, bool $userUsesSummer, bool $hasSummerGear): bool {
     return !$userHasIce || $userUsesSummer || $hasSummerGear;
 }

@@ -158,6 +158,16 @@ function gearRosterLevelFilter(array $records, string $level): array {
         && ($level === 'race' ? ($g['level'] ?? null) === null : ($g['level'] ?? null) === GEAR_LEVEL_TA_DRIFT)));
 }
 
+/** The Gear tab's count line for $records (already narrowed to a level): all, accepted, to check at the track, photos to review. */
+function gearAdminCounts(array $records): array {
+    return [
+        'all' => count($records),
+        'accepted' => count(gearRosterFilter($records, 'accepted')),
+        'needs_gear' => count(gearRosterFilter($records, 'needs_gear')),
+        'pending_review' => count(gearRosterFilter($records, 'pending_review')),
+    ];
+}
+
 /** Creates a gear record for the owner. @return array{ok: bool, error: ?string, id: ?int} */
 function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $season, string $discipline = DISCIPLINE_SUMMER): array {
     $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'id' => null];
@@ -179,6 +189,41 @@ function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $
     } catch (PDOException $e) {
         return $fail('You already have a gear record for ' . $name . ' this season.');   // lost a race with a duplicate request
     }
+    return ['ok' => true, 'error' => null, 'id' => $id];
+}
+
+/**
+ * Whether a GET of a gear start link (start, start-ice, start-ta-drift: they create a gear record) can
+ * go ahead without a form: the browser says it came from a page of this site, or the member typed or
+ * bookmarked it (Sec-Fetch-Site same-origin or none), and it isn't a prefetch. Anything else (a link on
+ * another site, an old browser without the header) gets a confirm button that posts with the CSRF
+ * token (bug list 2026-10-02 #7). $server is $_SERVER.
+ */
+function gearStartGetTrusted(array $server): bool {
+    $site = strtolower((string)($server['HTTP_SEC_FETCH_SITE'] ?? ''));
+    $purpose = strtolower((string)($server['HTTP_SEC_PURPOSE'] ?? '') . ' ' . (string)($server['HTTP_PURPOSE'] ?? ''));
+    return in_array($site, ['same-origin', 'none'], true) && !str_contains($purpose, 'prefetch');
+}
+
+/**
+ * Opens this season's summer gear photos for one of the owner's drivers, creating the record if needed
+ * (gear.php?action=start). A user whose summer cars are all TA/Drift only gets the TA/Drift photo list,
+ * not the race one (bug list 2026-10-02 #3); $caged adds the cage shots. A record that already has
+ * photos under way, or is accepted, keeps its list.
+ * @return array{ok: bool, error: ?string, id: ?int}
+ */
+function gearStartForDriver(PDO $pdo, int $ownerId, array $driver, int $season, bool $taDriftOnly, bool $caged): array {
+    $gear = db_get_gear_record_for_driver($pdo, (int)$driver['id'], $season);
+    if ($gear === null) {
+        $r = gearCreate($pdo, $ownerId, (string)$driver['name'], '', $season);
+        if (!$r['ok']) return $r;
+        $id = (int)$r['id'];
+        if ($taDriftOnly) db_set_gear_photo_tier($pdo, $id, GEAR_LEVEL_TA_DRIFT, $caged);
+        return ['ok' => true, 'error' => null, 'id' => $id];
+    }
+    $id = (int)$gear['id'];
+    $untouched = ($gear['status'] ?? '') === 'open' && ($gear['photo_status'] ?? null) === null && ($gear['photo_tier'] ?? null) === null;
+    if ($taDriftOnly && $untouched) db_set_gear_photo_tier($pdo, $id, GEAR_LEVEL_TA_DRIFT, $caged);
     return ['ok' => true, 'error' => null, 'id' => $id];
 }
 
