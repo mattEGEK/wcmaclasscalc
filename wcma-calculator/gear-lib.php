@@ -182,6 +182,28 @@ function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $
     return ['ok' => true, 'error' => null, 'id' => $id];
 }
 
+/**
+ * Opens this season's summer gear photos for one of the owner's drivers, creating the record if needed
+ * (gear.php?action=start). A user whose summer cars are all TA/Drift only gets the TA/Drift photo list,
+ * not the race one (bug list 2026-10-02 #3); $caged adds the cage shots. A record that already has
+ * photos under way, or is accepted, keeps its list.
+ * @return array{ok: bool, error: ?string, id: ?int}
+ */
+function gearStartForDriver(PDO $pdo, int $ownerId, array $driver, int $season, bool $taDriftOnly, bool $caged): array {
+    $gear = db_get_gear_record_for_driver($pdo, (int)$driver['id'], $season);
+    if ($gear === null) {
+        $r = gearCreate($pdo, $ownerId, (string)$driver['name'], '', $season);
+        if (!$r['ok']) return $r;
+        $id = (int)$r['id'];
+        if ($taDriftOnly) db_set_gear_photo_tier($pdo, $id, GEAR_LEVEL_TA_DRIFT, $caged);
+        return ['ok' => true, 'error' => null, 'id' => $id];
+    }
+    $id = (int)$gear['id'];
+    $untouched = ($gear['status'] ?? '') === 'open' && ($gear['photo_status'] ?? null) === null && ($gear['photo_tier'] ?? null) === null;
+    if ($taDriftOnly && $untouched) db_set_gear_photo_tier($pdo, $id, GEAR_LEVEL_TA_DRIFT, $caged);
+    return ['ok' => true, 'error' => null, 'id' => $id];
+}
+
 /** Photos of a gear record, which are present, which conditional ones apply, and what is still missing. */
 function gearSnapshot(PDO $pdo, int $id): array {
     $photos = db_get_inspection_photos($pdo, 'gear_record', $id);

@@ -15,6 +15,7 @@ require_once __DIR__ . '/pretech-lib.php';
 require_once __DIR__ . '/pretech-email.php';
 require __DIR__ . '/pretech-page.php';
 require_once __DIR__ . '/gear-lib.php';
+require_once __DIR__ . '/garage-lib.php';   // userRacesSummer()
 require __DIR__ . '/gear-email.php';
 require __DIR__ . '/gear-page.php';
 
@@ -183,15 +184,21 @@ function handleGearStart(PDO $pdo, array $user, int $driverId): void {
         header('Location: drivers.php');
         exit;
     }
+    $uid = (int)$user['id'];
     $season = gearSeasonNow();
-    $gear = db_get_gear_record_for_driver($pdo, $driverId, $season);
-    if ($gear === null) {
-        $r = gearCreate($pdo, (int)$user['id'], (string)$driver['name'], '', $season);
-        if (!$r['ok']) { setFlash((string)$r['error'], 'error'); header('Location: drivers.php'); exit; }
-        $id = (int)$r['id'];
-    } else {
-        $id = (int)$gear['id'];
+    $cars = [];
+    foreach (db_get_user_cars($pdo, $uid) as $c) $cars[(int)$c['id']] = $c;
+    $sheets = db_get_user_tech_sheets($pdo, $uid);
+    // TA/Drift only: some summer car, and none of them races (an ice-only user keeps the race default).
+    $summerArgs = [$cars, $sheets, db_get_user_current_declarations($pdo, $uid), db_get_user_event_plans($pdo, $uid), db_get_active_events($pdo), date('Y-m-d')];
+    $taDriftOnly = userUsesSummer(...$summerArgs) && !userRacesSummer(...$summerArgs);
+    // Cage shots when any of this season's TA/Drift sheets is for a caged car; a sheet's own gear link updates it later.
+    $caged = false;
+    foreach ($sheets as $s) {
+        if (techSheetIsTaDrift($s) && (int)$s['season'] === $season && !empty($s['caged'])) $caged = true;
     }
-    header('Location: gear.php?action=pretech&id=' . $id);
+    $r = gearStartForDriver($pdo, $uid, $driver, $season, $taDriftOnly, $caged);
+    if (!$r['ok']) { setFlash((string)$r['error'], 'error'); header('Location: drivers.php'); exit; }
+    header('Location: gear.php?action=pretech&id=' . (int)$r['id']);
     exit;
 }

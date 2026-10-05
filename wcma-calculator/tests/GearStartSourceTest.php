@@ -22,9 +22,17 @@ final class GearStartSourceTest extends TestCase
     }
 
     public function testHandlerFindsOrCreatesGearRecord(): void {
-        $body = $this->body('handleGearStart');
-        $this->assertStringContainsString('db_get_gear_record_for_driver(', $body);
-        $this->assertStringContainsString('gearCreate(', $body);
+        // The find-or-create lives in gearStartForDriver() (gear-lib.php), which also picks the photo list.
+        $this->assertStringContainsString('gearStartForDriver(', $this->body('handleGearStart'));
+        $lib = str_replace("
+", "
+", file_get_contents(__DIR__ . '/../gear-lib.php'));
+        $start = strpos($lib, 'function gearStartForDriver(');
+        $fn = substr($lib, $start, strpos($lib, "
+}
+", $start) - $start);
+        $this->assertStringContainsString('db_get_gear_record_for_driver(', $fn);
+        $this->assertStringContainsString('gearCreate(', $fn);
     }
 
     public function testHandlerRedirectsToPretech(): void {
