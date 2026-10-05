@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { MAX_AGE_MS, encode, decode, hasStorage } = require('../../js/tech-sheet-draft.js');
+const draft = require('../../js/tech-sheet-draft.js');
 
 const now = Date.UTC(2026, 8, 28);
 const data = { fields: { car_weight: '2700' }, checklist: { brakes: { status: 'ok' } }, equipment: {}, logBook: '1' };
@@ -29,4 +30,21 @@ test('hasStorage returns the store only when it can write', () => {
 test('a draft never carries its own event: the key already names it', () => {
     const { FIELDS } = require('../../js/tech-sheet-draft.js');
     assert.strictEqual(FIELDS.includes('event_id'), false);
+});
+
+test('a menu only takes back one of its own choices (bug list 2026-10-02 #10)', () => {
+    const select = { tagName: 'SELECT', options: [{ value: '5' }, { value: '__new__' }] };
+    assert.equal(draft.canRestore(select, '5'), true);
+    assert.equal(draft.canRestore(select, 9), false);      // a driver deleted since the draft was saved
+    assert.equal(draft.canRestore(select, ''), false);
+    assert.equal(draft.canRestore({ tagName: 'INPUT' }, 'Red'), true);
+    assert.equal(draft.canRestore({ tagName: 'INPUT' }, null), false);
+});
+
+test('an odd saved log book value finds no radio instead of throwing (bug list 2026-10-02 #11)', () => {
+    const radios = [{ value: '1' }, { value: '0' }];
+    assert.equal(draft.findRadio(radios, '1'), radios[0]);
+    assert.equal(draft.findRadio(radios, 0), radios[1]);
+    assert.equal(draft.findRadio(radios, '"]broken'), null);
+    assert.equal(draft.findRadio(radios, { x: 1 }), null);
 });
