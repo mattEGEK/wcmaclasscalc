@@ -77,7 +77,7 @@ final class EventsTaDriftTest extends TestCase
         $this->assertSame($ack, db_get_entry($pdo, $u, $e['wscc'], $car)['supps_ack_at']);
     }
 
-    public function testRegulationsTickOnlyForTaDriftAndKeptWhileTicked(): void
+    public function testRegulationsTickIsKeptWhileTicked(): void
     {
         [$pdo, $u, $car, , $e] = $this->world();
         eventsTagCar($pdo, $u, $e['wscc'], $car, ['ta'], true);
@@ -87,11 +87,25 @@ final class EventsTaDriftTest extends TestCase
         $this->assertTrue(eventsSetFormats($pdo, $u, $e['wscc'], $car, ['ta', 'drift'], true)['ok']);
         $this->assertSame($ack, db_get_entry($pdo, $u, $e['wscc'], $car)['supps_ack_at']);
 
+        // Switching to Race clears nothing (spec §3; bug list 2026-10-02 #5): the box stays ticked, and
+        // switching back to Time Attack still has the first tick.
         eventsSetFormats($pdo, $u, $e['wscc'], $car, ['race', 'ta'], true);
-        $this->assertNull(db_get_entry($pdo, $u, $e['wscc'], $car)['supps_ack_at']);
+        $this->assertSame($ack, db_get_entry($pdo, $u, $e['wscc'], $car)['supps_ack_at']);
+        eventsSetFormats($pdo, $u, $e['wscc'], $car, ['race'], true);
+        $this->assertSame($ack, db_get_entry($pdo, $u, $e['wscc'], $car)['supps_ack_at']);
+        eventsSetFormats($pdo, $u, $e['wscc'], $car, ['ta'], true);
+        $this->assertSame($ack, db_get_entry($pdo, $u, $e['wscc'], $car)['supps_ack_at']);
 
+        // Unticking the box clears it.
         eventsSetFormats($pdo, $u, $e['wscc'], $car, ['ta'], false);
         $this->assertNull(db_get_entry($pdo, $u, $e['wscc'], $car)['supps_ack_at']);
+    }
+
+    public function testAnEventWithNoHostClubNeverStoresTheTick(): void
+    {
+        [$pdo, $u, $car, , $e] = $this->world();
+        $this->assertTrue(eventsTagCar($pdo, $u, $e['noclub'], $car, ['race'], true)['ok']);
+        $this->assertNull(db_get_entry($pdo, $u, $e['noclub'], $car)['supps_ack_at']);
     }
 
     public function testSetFormatsNeedsAnEntryAndValidFormats(): void
