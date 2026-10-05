@@ -183,6 +183,19 @@ function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $
 }
 
 /**
+ * Whether a GET of a gear start link (start, start-ice, start-ta-drift: they create a gear record) can
+ * go ahead without a form: the browser says it came from a page of this site, or the member typed or
+ * bookmarked it (Sec-Fetch-Site same-origin or none), and it isn't a prefetch. Anything else (a link on
+ * another site, an old browser without the header) gets a confirm button that posts with the CSRF
+ * token (bug list 2026-10-02 #7). $server is $_SERVER.
+ */
+function gearStartGetTrusted(array $server): bool {
+    $site = strtolower((string)($server['HTTP_SEC_FETCH_SITE'] ?? ''));
+    $purpose = strtolower((string)($server['HTTP_SEC_PURPOSE'] ?? '') . ' ' . (string)($server['HTTP_PURPOSE'] ?? ''));
+    return in_array($site, ['same-origin', 'none'], true) && !str_contains($purpose, 'prefetch');
+}
+
+/**
  * Opens this season's summer gear photos for one of the owner's drivers, creating the record if needed
  * (gear.php?action=start). A user whose summer cars are all TA/Drift only gets the TA/Drift photo list,
  * not the race one (bug list 2026-10-02 #3); $caged adds the cage shots. A record that already has

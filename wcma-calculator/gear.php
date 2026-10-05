@@ -53,6 +53,26 @@ function requireGearPost(): void {
     if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
 }
 
+/**
+ * Gear start links create a record, so they need a click from inside the hub or a posted form
+ * (gearStartGetTrusted()). A POST is checked for the CSRF token; an untrusted GET gets a confirm page
+ * whose form posts back to the same URL, so the handler reads its query values either way.
+ */
+function requireGearStartRequest(): void {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        if (!validateCsrfToken($_POST['csrf_token'] ?? '')) { http_response_code(403); die('Invalid CSRF token'); }
+        return;
+    }
+    if (gearStartGetTrusted($_SERVER)) return;
+    renderPageStart('Open gear photos', 'drivers');
+    echo '<h1 class="hub-page-title">Open gear photos</h1><div class="detail-card"><p>Open the gear photo page for this driver?</p>'
+        . '<form method="post" action="' . h('gear.php?' . http_build_query($_GET)) . '">'
+        . '<input type="hidden" name="csrf_token" value="' . h(generateCsrfToken()) . '">'
+        . '<button type="submit" class="hub-btn">Open gear photos</button> <a class="hub-btn hub-btn--secondary" href="drivers.php">Cancel</a></form></div>';
+    renderPageEnd();
+    exit;
+}
+
 $action = $_GET['action'] ?? 'list';
 
 switch ($action) {
@@ -81,11 +101,13 @@ switch ($action) {
 
     case 'start':
         $user = requireGearLogin();
+        requireGearStartRequest();
         handleGearStart($pdo, $user, (int)($_GET['driver_id'] ?? 0));
         break;
 
     case 'start-ice':
         $user = requireGearLogin();
+        requireGearStartRequest();
         // driver: 1 (or missing) = the sheet's primary driver; 2+ = that added driver on the sheet.
         handleGearStartIce($pdo, $user, (int)($_GET['sheet_id'] ?? 0),
             filter_var($_GET['driver'] ?? '1', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]));
@@ -93,6 +115,7 @@ switch ($action) {
 
     case 'start-ta-drift':
         $user = requireGearLogin();
+        requireGearStartRequest();
         // driver: 1 (or missing) = the sheet's driver; 2+ = that added driver on the sheet.
         handleGearStartTaDrift($pdo, $user, (int)($_GET['sheet_id'] ?? 0),
             filter_var($_GET['driver'] ?? '1', FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]));
