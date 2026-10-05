@@ -19,15 +19,11 @@ function handleGearAdminList(PDO $pdo): void {
     $filter = is_string($_GET['filter'] ?? null) ? $_GET['filter'] : 'all';
     if (!isset(GEAR_ADMIN_FILTERS[$filter])) $filter = 'all';
 
-    $records = db_get_gear_records_for_season($pdo, $season, $discipline);
-    $counts = [
-        'all' => count($records),
-        'accepted' => count(gearRosterFilter($records, 'accepted')),
-        'needs_gear' => count(gearRosterFilter($records, 'needs_gear')),
-        'pending_review' => count(gearRosterFilter($records, 'pending_review')),
-    ];
     $level = $discipline === DISCIPLINE_SUMMER && is_string($_GET['level'] ?? null) && isset(GEAR_ADMIN_LEVELS[$_GET['level']]) ? $_GET['level'] : 'all';
-    renderGearAdminListPage(gearRosterLevelFilter(gearRosterFilter($records, $filter), $level), $season, $discipline, $filter, $counts, getFlash(), $level);
+    // The counts describe the drivers the level shows (bug list 2026-10-02 #12); the Show filter narrows the table only.
+    $records = gearRosterLevelFilter(db_get_gear_records_for_season($pdo, $season, $discipline), $level);
+    $counts = gearAdminCounts($records);
+    renderGearAdminListPage(gearRosterFilter($records, $filter), $season, $discipline, $filter, $counts, getFlash(), $level);
 }
 
 function renderGearAdminListPage(array $records, int $season, string $discipline, string $filter, array $counts, ?array $flash, string $level = 'all'): void {

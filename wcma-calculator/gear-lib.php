@@ -158,6 +158,16 @@ function gearRosterLevelFilter(array $records, string $level): array {
         && ($level === 'race' ? ($g['level'] ?? null) === null : ($g['level'] ?? null) === GEAR_LEVEL_TA_DRIFT)));
 }
 
+/** The Gear tab's count line for $records (already narrowed to a level): all, accepted, to check at the track, photos to review. */
+function gearAdminCounts(array $records): array {
+    return [
+        'all' => count($records),
+        'accepted' => count(gearRosterFilter($records, 'accepted')),
+        'needs_gear' => count(gearRosterFilter($records, 'needs_gear')),
+        'pending_review' => count(gearRosterFilter($records, 'pending_review')),
+    ];
+}
+
 /** Creates a gear record for the owner. @return array{ok: bool, error: ?string, id: ?int} */
 function gearCreate(PDO $pdo, int $ownerId, string $name, string $licence, int $season, string $discipline = DISCIPLINE_SUMMER): array {
     $fail = fn(string $msg): array => ['ok' => false, 'error' => $msg, 'id' => null];
